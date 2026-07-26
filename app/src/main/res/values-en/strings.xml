@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">TypeScript Engine</string>
+    <string name="plugin_description">Full TypeScript compiler frontend for AutoJs6</string>
+    <string name="plugin_instruction">R0 provides plugin discovery and the compiler contract. Full compilation will be enabled in a later stage.</string>
+</resources>

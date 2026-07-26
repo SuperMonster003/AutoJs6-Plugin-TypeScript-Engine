@@ -1,0 +1,22 @@
+{
+  "h3_release_history": "發行歷史",
+  "changelog_label_hint": "提示",
+  "changelog_label_feature": "新增",
+  "changelog_label_fix": "修復",
+  "changelog_label_improvement": "優化",
+  "changelog_label_dependency": "依賴",
+  "$data": {
+    "v0.1.0": {
+      "released_date": "2026/07/27",
+      "hint": [
+        "`compilerAvailable=false` 表示 R0 僅提供外掛發現和臨時編譯合約, 尚未能編譯或執行 TypeScript"
+      ],
+      "feature": [
+        "獨立的 AutoJs6 TypeScript 編譯前端外掛工程, 精確鎖定 TypeScript 6.0.3, 並與 Node.js Runtime 外掛保持零依賴",
+        "透過受 `org.autojs.permission.PLUGIN` 保護的 `org.autojs.plugin.INFO` 和 `org.autojs.plugin.typescript.COMPILER` 服務提供外掛發現及編譯能力協商",
+        "編譯服務在獨立的 `:typescript_compiler` 程序運行, 臨時 Binder envelope 使用小型 `Bundle` 元數據和 `ParcelFileDescriptor` 輸入/輸出 archive",
+        "R0 自動化門檻覆蓋 API contract, admission/rejection, compiler distribution lock, Node Runtime 獨立性, Lint 和 universal APK 內容"
+      ]
+    }
+  }
+}

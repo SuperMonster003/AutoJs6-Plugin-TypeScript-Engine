@@ -1,0 +1,15 @@
+******
+
+### Historial de versiones
+
+******
+
+# v0.1.0
+
+###### 2026/07/27
+
+* `Aviso` `compilerAvailable=false` indica que R0 solo expone el descubrimiento del plugin y un contrato de compilación provisional; todavía no puede compilar ni ejecutar TypeScript
+* `Función` Se estableció el proyecto independiente del plugin frontal de compilación TypeScript para AutoJs6, se fijó TypeScript 6.0.3 y se mantuvo sin dependencias del plugin Node.js Runtime
+* `Función` Se proporcionó el descubrimiento del plugin y la negociación de capacidades del compilador mediante los servicios `org.autojs.plugin.INFO` y `org.autojs.plugin.typescript.COMPILER` protegidos por `org.autojs.permission.PLUGIN`
+* `Función` El servicio de compilación se ejecuta en el proceso dedicado `:typescript_compiler`, con un sobre Binder provisional que transporta metadatos `Bundle` pequeños y archivos de entrada/salida mediante `ParcelFileDescriptor`
+* `Función` Se añadieron controles automatizados R0 para el contrato API, la admisión/el rechazo, el bloqueo de distribución del compilador, la independencia de Node Runtime, Lint y el contenido del APK universal

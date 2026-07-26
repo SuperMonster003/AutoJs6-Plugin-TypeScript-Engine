@@ -1,0 +1,22 @@
+{
+  "h3_release_history": "Release History",
+  "changelog_label_hint": "Hint",
+  "changelog_label_feature": "Feature",
+  "changelog_label_fix": "Fix",
+  "changelog_label_improvement": "Improvement",
+  "changelog_label_dependency": "Dependency",
+  "$data": {
+    "v0.1.0": {
+      "released_date": "2026/07/27",
+      "hint": [
+        "`compilerAvailable=false` indicates that R0 only exposes plugin discovery and a provisional compilation contract; it cannot compile or execute TypeScript yet"
+      ],
+      "feature": [
+        "Established the standalone AutoJs6 TypeScript compiler frontend plugin project, pinned TypeScript 6.0.3, and kept zero dependencies on the Node.js Runtime plugin",
+        "Provided plugin discovery and compiler capability negotiation through the `org.autojs.plugin.INFO` and `org.autojs.plugin.typescript.COMPILER` services protected by `org.autojs.permission.PLUGIN`",
+        "Ran the compiler service in the dedicated `:typescript_compiler` process, with a provisional Binder envelope carrying small `Bundle` metadata and input/output archives through `ParcelFileDescriptor`",
+        "Added R0 automated gates for the API contract, admission/rejection, compiler distribution lock, Node Runtime independence, Lint, and universal APK contents"
+      ]
+    }
+  }
+}

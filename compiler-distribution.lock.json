@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "package": "typescript",
+  "version": "6.0.3",
+  "source": "https://registry.npmjs.org/typescript/-/typescript-6.0.3.tgz",
+  "sha1": "90251dc007916e972786cb94d74d15b185577d21",
+  "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==",
+  "runtimeEntry": "package/lib/typescript.js",
+  "licenseEntry": "package/LICENSE.txt",
+  "thirdPartyNoticeEntry": "package/ThirdPartyNoticeText.txt",
+  "standardLibraryGlob": "package/lib/lib*.d.ts",
+  "bundled": false,
+  "note": "R0 pins the distribution. R1 verifies and bundles the selected files."
+}

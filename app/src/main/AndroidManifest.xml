@@ -1,0 +1,52 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="org.autojs.permission.PLUGIN" />
+
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:hasCode="true"
+        android:icon="@drawable/ic_plugin"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="false">
+
+        <meta-data
+            android:name="org.autojs.plugin.info.AUTHOR"
+            android:value="@string/plugin_author" />
+
+        <service
+            android:name=".TypeScriptPluginInfoService"
+            android:exported="true"
+            android:permission="org.autojs.permission.PLUGIN">
+
+            <meta-data
+                android:name="requiresHostVersion"
+                android:value="${requiredHostVersion}" />
+
+            <intent-filter>
+                <action android:name="org.autojs.plugin.INFO" />
+                <category android:name="typescript" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".TypeScriptCompilerPluginService"
+            android:exported="true"
+            android:permission="org.autojs.permission.PLUGIN"
+            android:process=":typescript_compiler">
+
+            <meta-data
+                android:name="requiresHostVersion"
+                android:value="${requiredHostVersion}" />
+
+            <intent-filter>
+                <action android:name="org.autojs.plugin.typescript.COMPILER" />
+                <category android:name="typescript" />
+            </intent-filter>
+        </service>
+
+    </application>
+
+</manifest>

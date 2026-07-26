@@ -1,0 +1,22 @@
+{
+  "h3_release_history": "История выпусков",
+  "changelog_label_hint": "Примечание",
+  "changelog_label_feature": "Новое",
+  "changelog_label_fix": "Исправление",
+  "changelog_label_improvement": "Улучшение",
+  "changelog_label_dependency": "Зависимость",
+  "$data": {
+    "v0.1.0": {
+      "released_date": "2026/07/27",
+      "hint": [
+        "`compilerAvailable=false` означает, что R0 предоставляет только обнаружение плагина и предварительный контракт компиляции; компиляция и выполнение TypeScript пока недоступны"
+      ],
+      "feature": [
+        "Создан независимый проект плагина фронтенда компилятора TypeScript для AutoJs6, точно закреплена версия TypeScript 6.0.3 и сохранено отсутствие зависимостей от плагина Node.js Runtime",
+        "Добавлены обнаружение плагина и согласование возможностей компилятора через службы `org.autojs.plugin.INFO` и `org.autojs.plugin.typescript.COMPILER`, защищенные разрешением `org.autojs.permission.PLUGIN`",
+        "Служба компилятора работает в выделенном процессе `:typescript_compiler`, а предварительный Binder envelope передает небольшие метаданные `Bundle` и входные/выходные архивы через `ParcelFileDescriptor`",
+        "Добавлены автоматические проверки R0 для контракта API, допуска/отклонения, блокировки дистрибутива компилятора, независимости от Node Runtime, Lint и содержимого универсального APK"
+      ]
+    }
+  }
+}

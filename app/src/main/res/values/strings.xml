@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">TypeScript Engine</string>
+    <string name="plugin_description">用于 AutoJs6 的完整 TypeScript 编译前端</string>
+    <string name="plugin_instruction">R0 已部署插件发现和编译协议. 完整编译将在后续阶段启用.</string>
+</resources>

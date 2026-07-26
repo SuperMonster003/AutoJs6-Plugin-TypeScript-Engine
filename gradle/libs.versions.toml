@@ -1,0 +1,13 @@
+[versions]
+commons-compress = "1.28.0"
+foojay-resolver-convention = "1.0.0"
+junit = "4.13.2"
+xz = "1.12"
+
+[libraries]
+apache-commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commons-compress" }
+junit = { module = "junit:junit", version.ref = "junit" }
+tukaani-xz = { module = "org.tukaani:xz", version.ref = "xz" }
+
+[plugins]
+foojay-resolver-convention = { id = "org.gradle.toolchains.foojay-resolver-convention", version.ref = "foojay-resolver-convention" }
