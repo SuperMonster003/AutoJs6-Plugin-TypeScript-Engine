@@ -4,6 +4,17 @@
 
 ******
 
+# v0.4.0
+
+###### 2026/07/27
+
+* `تلميح` تظل `compilerAvailable=false` الحالة المعتمدة في v0.4.0: يجتاز API 24 بوابات Bundle/FD transport فقط لان WebView القديم لا يستطيع تحليل JavaScript الاصلي لcompiler TypeScript 6.0.3; ولا تزال API 24/25 modern-provider matrix غير مكتملة
+* `إصلاح` رفض FD في raw Bundle transport قبل deserialization وتحرير transport copies في مسارات رفض prewarm وcompilation وcancellation
+* `إصلاح` قصر string arrays في Bundle metadata على runtime type الفعلي `String[]` ورفض top-level null values وParcelable arrays وBinder وSerializable وnested Bundle
+* `إصلاح` دمج تنفيذ timeout recovery حسب epoch لمنع stale recovery من تدمير replacement session; وتتحقق بوابة حتمية من تعافي queued probe بعد timeout متتاليين مدة كل منهما 1 ms
+* `تحسين` اجتياز بوابات الخروج الحقيقي لWebView renderer على Android 12 وAndroid 13: يحصل الخروج الاول على retry واحد فقط, ويفشل الخروج الثاني بشكل حتمي, ويتعافى probe العادي التالي
+* `تحسين` ثبات distribution/declarations fingerprints خلال 10 عمليات restart لprocess `:typescript_compiler` على كل جهاز Android 12 وAndroid 13; واجتاز API 24 بشكل منفصل ست بوابات Bundle/FD transport
+
 # v0.3.0
 
 ###### 2026/07/27

@@ -4,6 +4,17 @@
 
 ******
 
+# v0.4.0
+
+###### 2026/07/27
+
+* `ヒント` `compilerAvailable=false` は v0.4.0 でも正式な状態を示す: API 24 は Bundle/FD transport gate のみ通過し, 古い WebView は元の TypeScript 6.0.3 compiler JavaScript を解析できない; API 24/25 modern-provider matrix は引き続き未完了
+* `修正` deserialization 前に raw Bundle transport 内の FD を拒否し, prewarm, compilation, cancellation の各 reject path で transport copy を解放
+* `修正` Bundle metadata の string array を実際の runtime type が `String[]` のものだけに制限し, top-level null value, Parcelable array, Binder, Serializable, nested Bundle を拒否
+* `修正` timeout recovery の実行を epoch で統合し, stale recovery による replacement session の破棄を防止; 連続する 2 回の 1 ms timeout を使う deterministic gate で queued probe の recovery を検証
+* `改善` Android 12 と Android 13 で実際の WebView renderer exit gate を通過: 最初の exit は 1 回だけ retry し, 2 回目は確実に失敗し, その後の通常 probe は recovery に成功
+* `改善` Android 12 と Android 13 の各 device で `:typescript_compiler` process を 10 回 restart しても distribution/declarations fingerprints が安定; API 24 は別途 6 件の Bundle/FD transport gate を通過
+
 # v0.3.0
 
 ###### 2026/07/27

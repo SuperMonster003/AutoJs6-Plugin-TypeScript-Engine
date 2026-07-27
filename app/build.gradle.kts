@@ -634,11 +634,111 @@ val compilerWebViewHostSource = layout.projectDirectory.file(
         "TypeScriptWebViewCompilerHost.kt",
 )
 val compilerHostManifest = layout.projectDirectory.file("src/main/AndroidManifest.xml")
+val compilerApiAidl = rootProject.layout.projectDirectory.file(
+    "plugin-api/typescript-api/src/main/aidl/org/autojs/plugin/typescript/api/" +
+        "ITypeScriptCompilerPlugin.aidl",
+)
+val compilerCallbackApiAidl = rootProject.layout.projectDirectory.file(
+    "plugin-api/typescript-api/src/main/aidl/org/autojs/plugin/typescript/api/" +
+        "ITypeScriptCompilationCallback.aidl",
+)
+val compilerServiceSource = layout.projectDirectory.file(
+    "src/main/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+        "TypeScriptCompilerPluginService.kt",
+)
+
+fun parseAidlTransactionNames(
+    aidlFile: File,
+    interfaceName: String,
+): List<String> {
+    val source = aidlFile.readText(Charsets.UTF_8)
+        .replace(Regex("""(?s)/\*.*?\*/"""), "")
+        .replace(Regex("""(?m)//.*$"""), "")
+    val body = Regex(
+        """(?s)\binterface\s+${Regex.escape(interfaceName)}\s*\{(.*?)\}""",
+    ).find(source)?.groupValues?.get(1)
+        ?: error("AIDL interface $interfaceName was not found in $aidlFile.")
+    return Regex(
+        """(?m)^\s*[A-Za-z_][A-Za-z0-9_.<>\[\]]*\s+""" +
+            """([A-Za-z_][A-Za-z0-9_]*)\s*\(""",
+    ).findAll(body).map { match -> match.groupValues[1] }.toList()
+}
+
+val verifyCompilerBinderTransactionOrder =
+    tasks.register("verifyCompilerBinderTransactionOrder") {
+        group = "verification"
+        description =
+            "Verifies the append-only compiler AIDL order used by raw Parcel interception."
+        inputs.file(compilerApiAidl)
+        inputs.file(compilerCallbackApiAidl)
+        inputs.file(compilerServiceSource)
+        doLast {
+            val compilerTransactionPrefix = listOf(
+                "getContractVersion",
+                "getContractHash",
+                "getCompilerInfo",
+                "prewarm",
+                "startCompilation",
+                "cancelCompilation",
+            )
+            val callbackTransactionPrefix = listOf(
+                "onProgress",
+                "onCompleted",
+            )
+            val compilerTransactions = parseAidlTransactionNames(
+                compilerApiAidl.asFile,
+                "ITypeScriptCompilerPlugin",
+            )
+            val callbackTransactions = parseAidlTransactionNames(
+                compilerCallbackApiAidl.asFile,
+                "ITypeScriptCompilationCallback",
+            )
+            check(
+                compilerTransactions.take(compilerTransactionPrefix.size) ==
+                    compilerTransactionPrefix,
+            ) {
+                "Compiler AIDL transactions must keep the append-only prefix: " +
+                    "expected=$compilerTransactionPrefix, actual=$compilerTransactions"
+            }
+            check(
+                callbackTransactions.take(callbackTransactionPrefix.size) ==
+                    callbackTransactionPrefix,
+            ) {
+                "Compiler callback AIDL transactions must keep the append-only prefix: " +
+                    "expected=$callbackTransactionPrefix, actual=$callbackTransactions"
+            }
+
+            val serviceSource = compilerServiceSource.asFile.readText(Charsets.UTF_8)
+            val rawOffsets = Regex(
+                """(?m)^\s*const\s+val\s+(TRANSACTION_[A-Z_]+)\s*=\s*""" +
+                    """IBinder\.FIRST_CALL_TRANSACTION\s*\+\s*(\d+)\s*$""",
+            ).findAll(serviceSource).associate { match ->
+                match.groupValues[1] to match.groupValues[2].toInt()
+            }
+            val interceptedTransactions = mapOf(
+                "TRANSACTION_PREWARM" to "prewarm",
+                "TRANSACTION_START_COMPILATION" to "startCompilation",
+                "TRANSACTION_CANCEL_COMPILATION" to "cancelCompilation",
+            )
+            interceptedTransactions.forEach { (constantName, methodName) ->
+                val expectedOffset = compilerTransactions.indexOf(methodName)
+                check(expectedOffset >= 0) {
+                    "Raw Parcel interception refers to missing AIDL method $methodName."
+                }
+                check(rawOffsets[constantName] == expectedOffset) {
+                    "$constantName must use FIRST_CALL_TRANSACTION + $expectedOffset, " +
+                        "found ${rawOffsets[constantName]}."
+                }
+            }
+        }
+    }
+
 val verifyCompilerHostSourcePolicy =
     tasks.register("verifyCompilerHostSourcePolicy") {
         group = "verification"
         description =
             "Verifies the R1 compiler host asset allowlist and static WebView security policy."
+        dependsOn(verifyCompilerBinderTransactionOrder)
         inputs.dir(compilerHostSourceAssetDirectory)
         inputs.file(compilerAssetOriginSource)
         inputs.file(compilerWebViewHostSource)

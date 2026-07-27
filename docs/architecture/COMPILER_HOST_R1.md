@@ -190,24 +190,37 @@ chain 规则.
 实现包含以下保护:
 
 - probe timeout 后终止并重建 Worker; 同一恢复周期最多尝试一次 Worker restart.
+- timeout recovery 使用 epoch 标识并合并同一恢复周期的执行, stale recovery
+  不能销毁已经替换的 session.
 - API 26+ 的 renderer death callback 销毁失效 WebView, 当前 probe 最多重试一次.
 - service destruction 完成 pending probe, 关闭 MessagePort, 停止 Worker 并销毁
   WebView.
 - API 28+ 为 `:typescript_compiler` 使用独立 WebView data directory suffix.
 
 这些路径只有在相应 instrumentation 和资源观测通过后才能作为 R1 完成项.
-当前双设备 instrumentation 已覆盖 timeout 后的 Worker rebuild; 仍不等价于
-renderer death 或 destruction 验收.
+当前双设备 instrumentation 已覆盖 timeout 后的 Worker rebuild, 并使用真实
+WebView renderer termination 验证当前 probe 第一次退出只重试一次, 第二次退出
+稳定失败, 随后的普通 probe 可重新创建 session 并恢复. service destruction
+仍未形成验收证据.
 
 ## 当前证据和限制
 
 当前 debug instrumentation 已在 Android 12/API 31 与 Android 13/API 33
 两台真实设备上通过:
 
+- API 31 使用 WebView `145.0.7632.120`; API 33 使用 WebView
+  `150.0.7871.124`.
 - 绑定真实 `:typescript_compiler` 远程 Binder.
 - 每台设备运行 100 次顺序 prewarm, 每次完成真实 Worker `ts.version` 和
   golden 校验.
 - 以 1 ms deadline 强制 timeout, 验证 Worker rebuild 后下一次 prewarm 恢复.
+- 确定性阻塞 main thread, 让连续两个 1 ms probe 在 recovery 执行前 timeout,
+  再验证排队的普通 probe 在合并 recovery 后恢复.
+- 真实终止 WebView renderer 一次时重建 host 并完成 pending probe; 连续终止两次
+  时不进行第二次 retry, 返回 compiler unavailable, 随后的普通 probe 恢复.
+- 每台设备完成 10 轮 `:typescript_compiler` process restart, 每轮验证 Binder
+  death 和旧 PID 消失, 下一轮重新绑定新的 remote process, 并验证 runtime
+  golden 及稳定的 distribution/declarations fingerprint.
 - 返回稳定 distribution/declarations fingerprint.
 - prewarm 前后持续报告 `compilerAvailable=false` 及所有项目编译能力为 false.
 - 在 Android 13/API 33 安装临时测试签名的 minified release APK, 通过独立
@@ -216,12 +229,15 @@ renderer death 或 destruction 验收.
 
 尚未形成完成证据:
 
-- API 24/25 的真实 WebView/Worker 运行.
-- renderer death retry 和 service destruction.
+- API 24/25 modern WebView provider 下的真实 WebView/Worker 运行.
+- service destruction.
 - 10 次冷启动及 PSS/FD/pending-request 泄漏门禁.
-- compiler process 重启后的 fingerprint 稳定性.
 - Node/Ace 缺失矩阵和 Rhino compiler context probe.
 
 `onRenderProcessGone` 从 API 26 才可用. API 24/25 只能依赖有界 timeout 和完整
-session teardown 作为兜底, 当前尚无真实设备证据, 因而不能声称这两个 API level
-已满足 renderer recovery 或 R1 退出条件.
+session teardown 作为兜底. API 24 已通过 6 项 Bundle/FD transport
+instrumentation, 但设备自带的旧 WebView 解析原始 TypeScript 6.0.3 compiler
+JavaScript 时报告 `Unexpected token ?`, 因而没有完成 runtime golden.
+这既不是降级到旧 TypeScript 的理由, 也不能外推到 modern provider. API 24/25
+仍需 modern-provider matrix, 因而不能声称这两个 API level 已满足 compiler host
+兼容性或 R1 退出条件.

@@ -4,6 +4,17 @@
 
 ******
 
+# v0.4.0
+
+###### 2026/07/27
+
+* `Примечание` `compilerAvailable=false` остается авторитетным состоянием в v0.4.0: API 24 проходит только проверки Bundle/FD transport, поскольку старый WebView не может разобрать исходный JavaScript compiler TypeScript 6.0.3; матрица modern-provider для API 24/25 остается незавершенной
+* `Исправление` FD в raw Bundle transport отклоняются до deserialization, а их transport copies освобождаются в путях отказа prewarm, compilation и cancellation
+* `Исправление` Строковые массивы в Bundle metadata ограничены фактическим runtime type `String[]`, а top-level null values, Parcelable arrays, Binder, Serializable и nested Bundle отклоняются
+* `Исправление` Выполнение timeout recovery объединяется по epoch, чтобы stale recovery не мог уничтожить replacement session; детерминированная проверка двух последовательных timeout по 1 ms подтверждает восстановление queued probe
+* `Улучшение` На Android 12 и Android 13 пройдены проверки реального завершения WebView renderer: первое завершение получает ровно один retry, второе завершается предсказуемой ошибкой, а следующий обычный probe восстанавливается
+* `Улучшение` Distribution/declarations fingerprints стабильны после 10 перезапусков процесса `:typescript_compiler` на каждом устройстве Android 12 и Android 13; API 24 отдельно прошел шесть проверок Bundle/FD transport
+
 # v0.3.0
 
 ###### 2026/07/27

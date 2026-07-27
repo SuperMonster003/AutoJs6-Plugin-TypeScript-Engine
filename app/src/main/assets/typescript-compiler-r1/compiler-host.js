@@ -18,11 +18,10 @@
         if (nativePort === null) {
             return;
         }
-        nativePort.postMessage(JSON.stringify({
-            ...message,
+        nativePort.postMessage(JSON.stringify(Object.assign({}, message, {
             generation: messageGeneration,
-            pageHasTypeScript: typeof globalThis.ts !== "undefined",
-        }));
+            pageHasTypeScript: typeof self.ts !== "undefined",
+        })));
     };
 
     const createWorker = () => {
@@ -34,9 +33,7 @@
         ready = false;
         let createdWorker;
         try {
-            createdWorker = new Worker("compiler-worker.js", {
-                name: "autojs-typescript-compiler",
-            });
+            createdWorker = new Worker("compiler-worker.js");
         } catch (error) {
             worker = null;
             publish({
@@ -133,7 +130,7 @@
     // Android's native WebView.postWebMessage does not expose a stable
     // MessageEvent.origin across supported providers. The native host binds
     // delivery to the exact HTTPS target origin and transfers this port once.
-    globalThis.addEventListener("message", (event) => {
+    self.addEventListener("message", (event) => {
         if (
             nativePort !== null ||
             event.data !== nativeMessage ||

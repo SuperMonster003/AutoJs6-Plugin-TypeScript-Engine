@@ -24,6 +24,32 @@ class TypeScriptCompilerContractTest {
     }
 
     @Test
+    fun compilerTransactionsRemainAppendOnlyAndKeepRawParcelOffsets() {
+        val expectedTransactionPrefix = listOf(
+            "getContractVersion()->int",
+            "getContractHash()->String",
+            "getCompilerInfo()->Bundle",
+            "prewarm(Bundle)->Bundle",
+            "startCompilation(Bundle,ParcelFileDescriptor,ParcelFileDescriptor," +
+                "ITypeScriptCompilationCallback)->Bundle",
+            "cancelCompilation(Bundle)->boolean",
+        )
+        val transactionDescriptors = TypeScriptCompilerContract.HASH_INPUT
+            .split('|')
+            .drop(1)
+            .takeWhile { descriptor -> !descriptor.startsWith("callback:") }
+
+        assertTrue(transactionDescriptors.size >= expectedTransactionPrefix.size)
+        assertEquals(
+            expectedTransactionPrefix,
+            transactionDescriptors.take(expectedTransactionPrefix.size),
+        )
+        assertEquals("prewarm(Bundle)->Bundle", transactionDescriptors[3])
+        assertTrue(transactionDescriptors[4].startsWith("startCompilation("))
+        assertEquals("cancelCompilation(Bundle)->boolean", transactionDescriptors[5])
+    }
+
+    @Test
     fun supportedSourceKindsExcludeDeclarationsAndTsx() {
         val extensions = TypeScriptCompilerContract.SUPPORTED_EXTENSIONS.toSet()
         assertTrue(".ts" in extensions)

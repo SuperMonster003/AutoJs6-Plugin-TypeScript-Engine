@@ -4,6 +4,17 @@
 
 ******
 
+# v0.4.0
+
+###### 2026/07/27
+
+* `提示` `compilerAvailable=false` 在 v0.4.0 中仍为权威状态: API 24 只通过 Bundle/FD transport 门禁, 旧 WebView 无法解析原始 TypeScript 6.0.3 compiler JavaScript; API 24/25 modern-provider matrix 仍待完成
+* `修复` Binder 在反序列化前拒绝 Bundle raw transport 中的 FD, 并在 prewarm, compilation 和 cancellation 拒绝路径释放传输副本
+* `修复` Bundle metadata 校验仅接受实际运行时类型为 `String[]` 的字符串数组, 并拒绝顶层 null value, Parcelable array, Binder, Serializable 和 nested Bundle
+* `修复` 以 epoch 合并 timeout recovery 执行, 防止 stale recovery 销毁替换 session; 确定性连续 1 ms timeout 门禁验证排队 probe 可恢复
+* `优化` Android 12 和 Android 13 真机通过真实 WebView renderer 退出门禁: 首次退出只重试一次, 第二次退出稳定失败, 随后的普通 probe 可恢复
+* `优化` Android 12 和 Android 13 真机各完成 10 轮 `:typescript_compiler` 进程重启并保持 distribution/declarations fingerprints 稳定; API 24 另通过 6 项 Bundle/FD transport 门禁
+
 # v0.3.0
 
 ###### 2026/07/27

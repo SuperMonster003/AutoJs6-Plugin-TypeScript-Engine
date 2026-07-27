@@ -6,7 +6,7 @@ import org.autojs.plugin.typescript.api.ITypeScriptCompilationCallback;
 
 interface ITypeScriptCompilerPlugin {
 
-    // Transaction order is append-only after envelope v1 is frozen.
+    // The existing transaction prefix is frozen; new methods are append-only.
     int getContractVersion();
 
     String getContractHash();

@@ -6,6 +6,21 @@
   "changelog_label_improvement": "優化",
   "changelog_label_dependency": "依賴",
   "$data": {
+    "v0.4.0": {
+      "released_date": "2026/07/27",
+      "hint": [
+        "`compilerAvailable=false` 在 v0.4.0 中仍為權威狀態: API 24 僅通過 Bundle/FD transport 門禁, 舊 WebView 無法解析原始 TypeScript 6.0.3 compiler JavaScript; API 24/25 modern-provider matrix 仍待完成"
+      ],
+      "fix": [
+        "Binder 在反序列化前拒絕 Bundle raw transport 中的 FD, 並在 prewarm, compilation 和 cancellation 拒絕路徑釋放傳輸副本",
+        "Bundle metadata 驗證僅接受實際 runtime type 為 `String[]` 的字串陣列, 並拒絕頂層 null value, Parcelable array, Binder, Serializable 和 nested Bundle",
+        "以 epoch 合併 timeout recovery 執行, 防止 stale recovery 銷毀替換 session; 確定性連續 1 ms timeout 門禁驗證排隊 probe 可恢復"
+      ],
+      "improvement": [
+        "Android 12 和 Android 13 真機通過真實 WebView renderer 退出門禁: 首次退出只重試一次, 第二次退出穩定失敗, 隨後的普通 probe 可恢復",
+        "Android 12 和 Android 13 真機各完成 10 輪 `:typescript_compiler` 進程重啟並保持 distribution/declarations fingerprints 穩定; API 24 另通過 6 項 Bundle/FD transport 門禁"
+      ]
+    },
     "v0.3.0": {
       "released_date": "2026/07/27",
       "hint": [

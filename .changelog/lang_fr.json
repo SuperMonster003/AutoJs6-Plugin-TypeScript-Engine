@@ -6,6 +6,21 @@
   "changelog_label_improvement": "Amélioration",
   "changelog_label_dependency": "Dépendance",
   "$data": {
+    "v0.4.0": {
+      "released_date": "2026/07/27",
+      "hint": [
+        "`compilerAvailable=false` reste l'etat faisant autorite dans v0.4.0: API 24 valide uniquement les portes Bundle/FD transport car son ancien WebView ne peut pas analyser le JavaScript original du compiler TypeScript 6.0.3; la matrice modern-provider API 24/25 reste en attente"
+      ],
+      "fix": [
+        "Rejet des FD dans le raw Bundle transport avant deserialization et liberation de leurs copies de transport dans les chemins de rejet prewarm, compilation et cancellation",
+        "Restriction des tableaux de chaines dans les Bundle metadata au runtime type reel `String[]` et rejet des top-level null values, Parcelable arrays, Binder, Serializable et nested Bundle",
+        "Fusion de l'execution timeout recovery par epoch afin qu'un stale recovery ne puisse pas detruire une replacement session; la couverture deterministe de deux timeout consecutifs de 1 ms verifie la recuperation du probe en attente"
+      ],
+      "improvement": [
+        "Validation des portes de sortie reelle du renderer WebView sur Android 12 et Android 13: la premiere sortie recoit exactement un retry, la seconde echoue de maniere deterministe et un probe ordinaire ulterieur recupere",
+        "Stabilite des distribution/declarations fingerprints sur 10 redemarrages du process `:typescript_compiler` pour chaque appareil Android 12 et Android 13; API 24 a valide separement six portes Bundle/FD transport"
+      ]
+    },
     "v0.3.0": {
       "released_date": "2026/07/27",
       "hint": [

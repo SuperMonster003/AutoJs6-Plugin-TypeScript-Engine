@@ -31,9 +31,20 @@ permission = org.autojs.permission.PLUGIN
 6. `cancelCompilation(cancellation)`
 
 冻结后不得删除, 重排或改变已有方法签名. 新方法只能追加. `Bundle` 只允许基础
-标量, 基础数组和字符串数组; 源码, JS, map, diagnostics 和 manifest 不得放入
-Bundle. 接收方忽略未知的合法 key, 但缺失当前 revision 的必需 key 时必须拒绝.
-Parcelable, Serializable, Binder, nested Bundle 和 Bundle 内 FD 一律拒绝.
+标量, 基础数组和运行时 component type 严格为 `String` 的 `String[]`; 源码, JS,
+map, diagnostics 和 manifest 不得放入 Bundle. 接收方忽略未知的合法 key, 但缺失
+当前 revision 的必需 key 时必须拒绝. 顶层 null value, Parcelable,
+Serializable, Binder, nested Bundle, Parcelable array 和 Bundle 内 FD 一律拒绝.
+真实 `String[]` 可以包含 null element, 但不能用空或全 null 的 Parcelable array
+伪装为字符串数组.
+
+接收端在 materialize Bundle 前检查 raw transaction transport. `prewarm` 和
+`cancelCompilation` 拒绝 transaction 中的任意 FD; `startCompilation` 只检查
+第一个 typed request Bundle, 不得把其后合法的 input/output
+`ParcelFileDescriptor` 误判为 Bundle metadata. 命中 raw Bundle FD 时不调用
+`readBundle`, 同步返回稳定 reject, 并由 Parcel/Binder ownership 释放传输副本.
+materialize 后发现其他非法或超预算 metadata 时, 接收端在读取安全 envelope 后
+清空 Bundle, 避免延长其中对象的生命周期.
 
 host 必须先读取 contract version/hash, 再创建请求. `startCompilation` 的 request
 至少包含:
@@ -55,7 +66,8 @@ compiler 能力; R1 的内部 prewarm probe 也不会改变这一行为.
 所有 Bundle 的 marshalled size 不超过 64 KiB, key 不超过 64 个, 数组不超过
 256 elements. compiler options UTF-8 不超过 48 KiB. request ID 最长 128 chars,
 job token 256 chars, project ID 256 chars, URI/error message 4096 chars. 未知 key
-只有在满足 primitive type 和上述总预算时才忽略.
+只有在满足上述精确 runtime type 和总预算时才忽略. 数组的静态声明或内容看起来
+像 String 不足以通过; runtime component type 必须是 `String`.
 
 ### compilerInfo
 
@@ -178,7 +190,10 @@ FD envelope 规则; 增加可选 Bundle key 不自动改变 hash. 破坏 envelop
 result Bundle 的 `outcome` 是权威终态; 兼容字段 `succeeded` 仅在
 `outcome=emitted` 时为 `true`.
 
-R0 只执行同步拒绝, 并在返回 ticket 前关闭 service 收到的两份 FD.
+R0 只执行同步拒绝, 并在返回 ticket 前关闭 service 收到的两份 archive FD.
+真实远程 Binder instrumentation 还重复验证 raw Bundle transport FD 在
+`prewarm`, `startCompilation` 和 `cancelCompilation` 的拒绝路径被释放, 调用方
+引用保持有效, compiler process 不残留对应 staging target, 且始终为 0 callback.
 
 ## Input archive v1
 

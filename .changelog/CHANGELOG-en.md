@@ -4,6 +4,17 @@
 
 ******
 
+# v0.4.0
+
+###### 2026/07/27
+
+* `Hint` `compilerAvailable=false` remains authoritative in v0.4.0: API 24 only passes the Bundle/FD transport gates because its old WebView cannot parse the original TypeScript 6.0.3 compiler JavaScript; the API 24/25 modern-provider matrix remains pending
+* `Fix` Rejected FDs in raw Bundle transport before deserialization and released their transport copies across prewarm, compilation, and cancellation rejection paths
+* `Fix` Restricted Bundle metadata string arrays to the actual `String[]` runtime type and rejected top-level null values, Parcelable arrays, Binder, Serializable, and nested Bundle values
+* `Fix` Coalesced timeout recovery execution by epoch so stale recovery work cannot destroy a replacement session; deterministic consecutive 1 ms timeout coverage now verifies that the queued probe recovers
+* `Improvement` Passed real WebView renderer-exit gates on Android 12 and Android 13: the first exit receives exactly one retry, a second exit fails deterministically, and a subsequent ordinary probe recovers
+* `Improvement` Kept distribution/declarations fingerprints stable across 10 `:typescript_compiler` process restarts on each Android 12 and Android 13 device; API 24 separately passed six Bundle/FD transport gates
+
 # v0.3.0
 
 ###### 2026/07/27

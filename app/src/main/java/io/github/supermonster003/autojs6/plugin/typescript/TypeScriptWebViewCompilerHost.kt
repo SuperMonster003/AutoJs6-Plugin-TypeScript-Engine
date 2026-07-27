@@ -32,6 +32,8 @@ import android.webkit.WebSettings
 import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -74,13 +76,42 @@ class TypeScriptWebViewCompilerHost(
     private var closed = false
     private var nativePort: WebMessagePort? = null
     private var pendingProbe: PendingProbe? = null
+    private var timeoutRecoveryEpoch = 0
     private var timeoutRecoveryPending = false
     private var timeoutRecoveryAttempted = false
     private var webView: WebView? = null
+    private var webViewSessionGeneration = 0
     private var workerGeneration = 0
     private var workerReady = false
+    private var rendererTerminationsForTesting = 0
 
     fun snapshot(): CompilerHostSnapshot = currentSnapshot
+
+    internal fun isRendererTerminationSupportedForTesting(): Boolean =
+        BuildConfig.DEBUG &&
+            WebViewFeature.isFeatureSupported(WebViewFeature.GET_WEB_VIEW_RENDERER) &&
+            WebViewFeature.isFeatureSupported(WebViewFeature.WEB_VIEW_RENDERER_TERMINATE)
+
+    internal fun armRendererTerminationsForTesting(count: Int) {
+        checkMainThread()
+        check(BuildConfig.DEBUG) {
+            "Compiler renderer termination controls are unavailable in release builds."
+        }
+        require(count >= 0) {
+            "Compiler renderer termination count must not be negative."
+        }
+        rendererTerminationsForTesting = count
+    }
+
+    internal fun remainingRendererTerminationsForTesting(): Int {
+        checkMainThread()
+        return rendererTerminationsForTesting
+    }
+
+    internal fun hasPendingProbeForTesting(): Boolean =
+        synchronized(stateLock) {
+            pendingProbe != null
+        }
 
     fun probe(timeoutMs: Long): CompilerHostProbeOutcome {
         val startedAt = SystemClock.elapsedRealtime()
@@ -107,11 +138,13 @@ class TypeScriptWebViewCompilerHost(
                     message = "Compiler host has been destroyed.",
                     elapsedMs = elapsedSince(startedAt),
                 )
-                pendingProbe != null -> return CompilerHostProbeOutcome.failed(
-                    code = TypeScriptCompilerContract.ERROR_BUSY,
-                    message = "Compiler host already has an active probe.",
-                    elapsedMs = elapsedSince(startedAt),
-                )
+                pendingProbe != null -> {
+                    return CompilerHostProbeOutcome.failed(
+                        code = TypeScriptCompilerContract.ERROR_BUSY,
+                        message = "Compiler host already has an active probe.",
+                        elapsedMs = elapsedSince(startedAt),
+                    )
+                }
                 else -> PendingProbe(
                     requestId = UUID.randomUUID().toString(),
                     startedAt = startedAt,
@@ -141,28 +174,43 @@ class TypeScriptWebViewCompilerHost(
             false
         }
         if (!completed) {
-            val timedOut = synchronized(stateLock) {
+            val recoveryEpoch = synchronized(stateLock) {
                 if (pendingProbe !== pending || pending.outcome != null) {
-                    false
+                    null
                 } else {
                     pendingProbe = null
-                    timeoutRecoveryPending = true
                     pending.outcome = CompilerHostProbeOutcome.failed(
                         code = TypeScriptCompilerContract.ERROR_TIMEOUT,
                         message = "Compiler Worker probe timed out.",
                         elapsedMs = elapsedSince(startedAt),
                     )
-                    true
+                    // A queued probe can time out before the main thread runs the existing
+                    // recovery. That recovery already covers the session; a second runnable
+                    // could arrive later and destroy the replacement session.
+                    if (timeoutRecoveryPending) {
+                        null
+                    } else {
+                        timeoutRecoveryPending = true
+                        timeoutRecoveryEpoch =
+                            if (timeoutRecoveryEpoch == Int.MAX_VALUE) {
+                                1
+                            } else {
+                                timeoutRecoveryEpoch + 1
+                            }
+                        timeoutRecoveryEpoch
+                    }
                 }
             }
-            if (timedOut) {
+            if (recoveryEpoch != null) {
                 if (
                     !mainHandler.post {
-                        recoverAfterTimeoutOnMain()
+                        recoverAfterTimeoutOnMain(recoveryEpoch)
                     }
                 ) {
                     synchronized(stateLock) {
-                        timeoutRecoveryPending = false
+                        if (timeoutRecoveryEpoch == recoveryEpoch) {
+                            timeoutRecoveryPending = false
+                        }
                     }
                 }
             }
@@ -210,6 +258,12 @@ class TypeScriptWebViewCompilerHost(
             status = TypeScriptCompilerContract.STATUS_STARTING,
             lastError = null,
         )
+        webViewSessionGeneration =
+            if (webViewSessionGeneration == Int.MAX_VALUE) {
+                1
+            } else {
+                webViewSessionGeneration + 1
+            }
         workerGeneration = 0
         workerReady = false
         timeoutRecoveryAttempted = false
@@ -286,6 +340,13 @@ class TypeScriptWebViewCompilerHost(
                     message = "Failed to create the compiler WebView: ${error.safeMessage()}",
                 )
                 return
+            }
+        }
+        synchronized(stateLock) {
+            pendingProbe?.let { pending ->
+                if (pending.webViewSessionGeneration == null) {
+                    pending.webViewSessionGeneration = webViewSessionGeneration
+                }
             }
         }
         dispatchPendingIfReadyOnMain()
@@ -403,7 +464,9 @@ class TypeScriptWebViewCompilerHost(
         } ?: return
         if (!workerReady || pending.workerGeneration != null) return
         val port = nativePort ?: return
+        val view = webView ?: return
         pending.workerGeneration = workerGeneration
+        if (terminateRendererBeforeDispatchForTestingOnMain(view)) return
         if (!port.postMessageSafely(CompilerHostProtocol.probeRequest(pending.requestId))) {
             failPendingAndSession(
                 code = TypeScriptCompilerContract.ERROR_COMPILER_UNAVAILABLE,
@@ -457,8 +520,12 @@ class TypeScriptWebViewCompilerHost(
         )
     }
 
-    private fun recoverAfterTimeoutOnMain() {
+    private fun recoverAfterTimeoutOnMain(recoveryEpoch: Int) {
         checkMainThread()
+        val isCurrentRecovery = synchronized(stateLock) {
+            timeoutRecoveryPending && timeoutRecoveryEpoch == recoveryEpoch
+        }
+        if (!isCurrentRecovery) return
         try {
             if (closed) return
             workerReady = false
@@ -481,8 +548,15 @@ class TypeScriptWebViewCompilerHost(
             timeoutRecoveryAttempted = false
         } finally {
             val dispatchWaitingProbe = synchronized(stateLock) {
-                timeoutRecoveryPending = false
-                !closed && pendingProbe != null
+                if (
+                    !timeoutRecoveryPending ||
+                    timeoutRecoveryEpoch != recoveryEpoch
+                ) {
+                    false
+                } else {
+                    timeoutRecoveryPending = false
+                    !closed && pendingProbe != null
+                }
             }
             if (dispatchWaitingProbe) {
                 ensureSessionAndDispatchOnMain()
@@ -493,20 +567,32 @@ class TypeScriptWebViewCompilerHost(
     private fun handleRendererGoneOnMain(view: WebView) {
         checkMainThread()
         if (view !== webView || closed) return
-        val pending = synchronized(stateLock) { pendingProbe }
+        val deadSessionGeneration = webViewSessionGeneration
+        val pending = synchronized(stateLock) {
+            pendingProbe?.takeIf { probe ->
+                probe.webViewSessionGeneration == deadSessionGeneration
+            }
+        }
         val mayRetry = pending != null && pending.rendererRetryCount < 1
         if (mayRetry) {
             requireNotNull(pending).rendererRetryCount += 1
+            pending.webViewSessionGeneration = null
             pending.workerGeneration = null
         }
         destroySessionOnMain()
         if (mayRetry) {
             ensureSessionAndDispatchOnMain()
         } else {
-            failPending(
-                code = TypeScriptCompilerContract.ERROR_COMPILER_UNAVAILABLE,
-                message = "Compiler WebView renderer exited.",
-            )
+            pending?.let { failed ->
+                completePending(
+                    failed,
+                    CompilerHostProbeOutcome.failed(
+                        code = TypeScriptCompilerContract.ERROR_COMPILER_UNAVAILABLE,
+                        message = "Compiler WebView renderer exited.",
+                        elapsedMs = elapsedSince(failed.startedAt),
+                    ),
+                )
+            }
             currentSnapshot = currentSnapshot.copy(
                 status = TypeScriptCompilerContract.STATUS_FAILED,
                 lastError = "Compiler WebView renderer exited.",
@@ -561,6 +647,17 @@ class TypeScriptWebViewCompilerHost(
 
     private fun destroySessionOnMain() {
         checkMainThread()
+        val destroyedSessionGeneration = webViewSessionGeneration
+        synchronized(stateLock) {
+            pendingProbe
+                ?.takeIf { pending ->
+                    pending.webViewSessionGeneration == destroyedSessionGeneration
+                }
+                ?.let { pending ->
+                    pending.webViewSessionGeneration = null
+                    pending.workerGeneration = null
+                }
+        }
         workerReady = false
         workerGeneration = 0
         runCatching { nativePort?.close() }
@@ -573,6 +670,21 @@ class TypeScriptWebViewCompilerHost(
             runCatching { view.destroy() }
         }
         webView = null
+    }
+
+    private fun terminateRendererBeforeDispatchForTestingOnMain(view: WebView): Boolean {
+        checkMainThread()
+        if (
+            !BuildConfig.DEBUG ||
+            rendererTerminationsForTesting <= 0 ||
+            !isRendererTerminationSupportedForTesting()
+        ) {
+            return false
+        }
+        val renderer = WebViewCompat.getWebViewRenderProcess(view) ?: return false
+        if (!renderer.terminate()) return false
+        rendererTerminationsForTesting -= 1
+        return true
     }
 
     private fun checkMainThread() {
@@ -761,6 +873,7 @@ class TypeScriptWebViewCompilerHost(
         val completion: CountDownLatch = CountDownLatch(1),
         var outcome: CompilerHostProbeOutcome? = null,
         var rendererRetryCount: Int = 0,
+        var webViewSessionGeneration: Int? = null,
         var workerGeneration: Int? = null,
     )
 

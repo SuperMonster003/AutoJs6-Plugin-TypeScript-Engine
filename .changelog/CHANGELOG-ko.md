@@ -4,6 +4,17 @@
 
 ******
 
+# v0.4.0
+
+###### 2026/07/27
+
+* `안내` `compilerAvailable=false` 는 v0.4.0에서도 공식 상태를 나타냄: API 24는 Bundle/FD transport gate만 통과하며 이전 WebView는 원본 TypeScript 6.0.3 compiler JavaScript를 parse할 수 없음; API 24/25 modern-provider matrix는 아직 완료되지 않음
+* `수정` deserialization 전에 raw Bundle transport의 FD를 거부하고 prewarm, compilation, cancellation reject path에서 transport copy를 해제
+* `수정` Bundle metadata의 string array를 실제 runtime type이 `String[]` 인 경우로 제한하고 top-level null value, Parcelable array, Binder, Serializable, nested Bundle을 거부
+* `수정` timeout recovery 실행을 epoch로 병합하여 stale recovery가 replacement session을 제거하지 못하도록 제한; 연속된 두 번의 1 ms timeout deterministic gate로 queued probe의 recovery를 검증
+* `개선` Android 12 및 Android 13에서 실제 WebView renderer exit gate를 통과: 첫 exit는 정확히 한 번 retry하고 두 번째 exit는 안정적으로 실패하며 이후 일반 probe는 recovery에 성공
+* `개선` Android 12 및 Android 13 각 device에서 `:typescript_compiler` process를 10회 restart한 뒤에도 distribution/declarations fingerprints가 안정적임; API 24는 별도로 6개 Bundle/FD transport gate를 통과
+
 # v0.3.0
 
 ###### 2026/07/27
