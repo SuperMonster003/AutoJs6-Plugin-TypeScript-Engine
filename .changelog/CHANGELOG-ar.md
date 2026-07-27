@@ -8,7 +8,7 @@
 
 ###### 2026/07/27
 
-* `تلميح` تبقى `compilerAvailable=false` الحالة المعتمدة في v0.5.0 لان R1 لم يكتمل; ولا تزال modern-provider matrix لAPI 24/25 وPSS لcompiler service وrenderer ومعالجة accepted/cancel قيد الانتظار
+* `تلميح` اكتملت الآن جميع بوابات الخروج من R1، بما في ذلك مصفوفة runtime للـ modern-provider Chrome 119 على API 24/25؛ وتبقى `compilerAvailable=false` الحالة المعتمدة لأن تجميع المشاريع في الإنتاج يندرج ضمن R2
 * `إصلاح` يحرر service destruction كلا من WebView وWorker وMessagePort وServiceWorker client وpending requests وHandler callbacks قبل نشر close report وتنبيه waiters; كما ازيل السباق بين deadline وterminal publication
 * `إصلاح` ربطت مراقبة `/proc` وFD ب`(pid,starttime)` وتفشل بشكل مغلق عند غياب output او وجود shell output جزئي, مع تجنب سباق UiAutomation finish اثناء process exit polling
 * `تحسين` تم التحقق من 10 cold compiler processes و100 hot prewarms على كل جهاز Android 12 وAndroid 13; وتعود FD الخاصة بcompiler service بدقة الى baseline دون staging archives متبقية

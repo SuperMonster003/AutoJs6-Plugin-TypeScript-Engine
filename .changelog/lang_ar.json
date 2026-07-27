@@ -9,7 +9,7 @@
     "v0.5.0": {
       "released_date": "2026/07/27",
       "hint": [
-        "تبقى `compilerAvailable=false` الحالة المعتمدة في v0.5.0 لان R1 لم يكتمل; ولا تزال modern-provider matrix لAPI 24/25 وPSS لcompiler service وrenderer ومعالجة accepted/cancel قيد الانتظار"
+        "اكتملت الآن جميع بوابات الخروج من R1، بما في ذلك مصفوفة runtime للـ modern-provider Chrome 119 على API 24/25؛ وتبقى `compilerAvailable=false` الحالة المعتمدة لأن تجميع المشاريع في الإنتاج يندرج ضمن R2"
       ],
       "fix": [
         "يحرر service destruction كلا من WebView وWorker وMessagePort وServiceWorker client وpending requests وHandler callbacks قبل نشر close report وتنبيه waiters; كما ازيل السباق بين deadline وterminal publication",

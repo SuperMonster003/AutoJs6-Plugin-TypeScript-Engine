@@ -8,7 +8,7 @@
 
 ###### 2026/07/27
 
-* `提示` `compilerAvailable=false` 在 v0.5.0 中仍为权威状态: R1 尚未完成; API 24/25 modern-provider matrix, compiler service 与独立 renderer PSS, accepted/cancel 仍待完成
+* `提示` R1 全部退出门禁现已完成, 包括 API 24/25 Chrome 119 modern-provider runtime matrix; `compilerAvailable=false` 仍为权威状态, 因为生产项目编译属于 R2
 * `修复` service destruction 先完成 WebView, Worker, MessagePort, ServiceWorker client, pending request 和 Handler callback 清理, 再发布 close report 并唤醒等待方; 同时消除 deadline 与终态 publication 的竞态
 * `修复` `/proc` 与 FD 观测绑定 `(pid,starttime)`, 对不可用或部分 shell 输出 fail closed, 并避免进程退出轮询触发 UiAutomation finish 竞态
 * `优化` Android 12 和 Android 13 真机各验证 10 个 cold compiler process 与 100 次 hot prewarm; compiler service FD 最终精确回到 baseline, 且不残留 staging archive

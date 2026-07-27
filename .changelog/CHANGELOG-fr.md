@@ -8,7 +8,7 @@
 
 ###### 2026/07/27
 
-* `Indication` `compilerAvailable=false` reste l'etat faisant autorite dans v0.5.0 car R1 est incomplet; la matrice modern-provider API 24/25, le PSS du compiler service et du renderer, ainsi que la gestion accepted/cancel restent en attente
+* `Indication` Toutes les portes de sortie de R1 sont désormais validées, y compris la matrice d'exécution du modern-provider Chrome 119 sur API 24/25 ; `compilerAvailable=false` reste l'état faisant autorité, car la compilation de projets en production relève de R2
 * `Correction` La destruction du service libere WebView, Worker, MessagePort, le client ServiceWorker, les requetes pending et les callbacks Handler avant de publier le close report et de reveiller les attentes; la course entre deadline et terminal publication est aussi supprimee
 * `Correction` L'observation de `/proc` et des FD est liee a `(pid,starttime)`, echoue de maniere fermee sur une sortie shell indisponible ou partielle et evite la course UiAutomation finish pendant la sortie du process
 * `Amélioration` Validation de 10 cold compiler processes et 100 hot prewarms sur chaque appareil Android 12 et Android 13; les FD du compiler service reviennent exactement au baseline sans staging archive conservee

@@ -26,7 +26,7 @@
 | 阶段 | 主题 | 前置 | 单人工程周 | 状态 | 详细清单 |
 |---|---|---|---:|---|---|
 | R0 | 插件基线与协议 | - | 0.5 | 已完成 | [R0](docs/roadmap/R0.md) |
-| R1 | 官方编译器发行包与真实宿主探针 | R0 | 1-2 | 进行中 | [R1](docs/roadmap/R1.md) |
+| R1 | 官方编译器发行包与真实宿主探针 | R0 | 1-2 | 已完成 | [R1](docs/roadmap/R1.md) |
 | R2 | 生产级项目编译服务 | R1 | 2-3 | 未开始 | [R2](docs/roadmap/R2.md) |
 | R3 | AutoJs6 脚本准备管线与路由 | R2 | 1-2 | 未开始 | [R3](docs/roadmap/R3.md) |
 | R4 | Rhino 执行适配 | R3 | 2 | 未开始 | [R4](docs/roadmap/R4.md) |
@@ -45,16 +45,23 @@ process 的 fingerprint, identity 和 FD 边界均已通过. Binder 门禁也会
 的字符串数组. API 33/WebView 109 另通过 none, Node-only, Ace-only 和 Node+Ace
 四种安装态的相同 runtime golden/fingerprint; 显式 opt-in 的
 `:app:verifyR1OptionalPluginMatrix` 可在指定 disposable emulator 上重复并保存
-该证据.
+该证据. API 31/33 的 compiler service + renderer PSS/request correlation、
+双冷 Rhino unsupported/watchdog/rebind、debug-only accepted/cancel/timeout/death
+lifecycle 和冻结 AAR 双向兼容门禁也均已通过. ZIP v1 printable-ASCII container
+与跨 Android literal corpus、顶层 envelope v1 现已冻结；项目 manifest、
+diagnostics 和 compiler profile revision 仍留给 R2.
 
-这不表示 R1 已退出: API 24 虽已通过 6 项 Bundle/FD transport 门禁, 设备自带的
-旧 WebView 却无法解析原始 TypeScript 6.0.3 compiler JavaScript 并报告
-`Unexpected token ?`; API 24/25 modern-provider matrix, compiler service 与独立
-renderer 的校准 PSS, Rhino context, accepted/cancel/death,
-archive compatibility fixtures 和顶层 envelope 冻结仍待完成. 当前 compiler
-service FD 证据不代表完整 renderer memory leak 门禁. minified release 已在
-Android 13 真机通过独立 smoke helper 验证,
-`compilerAvailable=false` 继续为权威状态.
+官方 Play Store x86 AVD 上的 API 24/Chrome 51 与 API 25/Chrome 55 保留为
+stock-old 不兼容负基线；两者只完成 remote Binder transport，并在
+`compiler-host.js:73` 报 `Unexpected token )` 后由 bounded Worker timeout
+收口. 同一 AVD 更新并明确选中同签名 Chrome `119.0.6045.194` 后，API 24/25
+均通过真实 TypeScript 6.0.3 WebView/Worker golden、100 次热探针/FD、timeout
+recovery、teardown/rebind 和 10 个冷 compiler process 门禁. 该 matrix 关闭
+最后一项退出证据，R1 现已完成.
+
+R1 完成不启用项目 compilation admission；项目 manifest、diagnostics 和
+compiler profile revision 仍留给 R2，`compilerAvailable=false` 继续为权威状态.
+当前 compiler service FD/PSS guardrail 也不是完整 renderer memory leak 结论.
 
 单人顺序实施约 13-20 个工程周. R2 完成后, AutoJs6 host, Rhino/Node adapters
 和 Ace/Builder 的部分工作可并行; 两名熟悉现有仓库的工程师可将日历时间压缩到

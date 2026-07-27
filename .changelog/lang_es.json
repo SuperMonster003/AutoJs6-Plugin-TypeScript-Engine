@@ -9,7 +9,7 @@
     "v0.5.0": {
       "released_date": "2026/07/27",
       "hint": [
-        "`compilerAvailable=false` sigue siendo el estado autoritativo en v0.5.0 porque R1 esta incompleto; siguen pendientes la matriz modern-provider de API 24/25, el PSS del compiler service y del renderer, y el manejo de accepted/cancel"
+        "Todas las puertas de salida de R1 ya están completas, incluida la matriz de runtime del modern-provider Chrome 119 en API 24/25; `compilerAvailable=false` sigue siendo el estado autoritativo porque la compilación de proyectos en producción pertenece a R2"
       ],
       "fix": [
         "La destruccion del servicio libera WebView, Worker, MessagePort, el cliente ServiceWorker, las solicitudes pending y los callbacks de Handler antes de publicar el close report y despertar a los waiters; tambien elimina la carrera entre deadline y terminal publication",

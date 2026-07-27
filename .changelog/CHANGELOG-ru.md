@@ -8,7 +8,7 @@
 
 ###### 2026/07/27
 
-* `Примечание` `compilerAvailable=false` остается авторитетным состоянием в v0.5.0, поскольку R1 не завершен; матрица modern-provider для API 24/25, PSS compiler service и renderer, а также обработка accepted/cancel остаются в работе
+* `Примечание` Все выходные проверки R1 теперь завершены, включая runtime-матрицу modern-provider Chrome 119 на API 24/25; `compilerAvailable=false` остается авторитетным состоянием, поскольку production-компиляция проектов относится к R2
 * `Исправление` При service destruction WebView, Worker, MessagePort, ServiceWorker client, pending requests и Handler callbacks освобождаются до публикации close report и пробуждения waiters; также устранена гонка между deadline и terminal publication
 * `Исправление` Наблюдение за `/proc` и FD привязано к `(pid,starttime)`, недоступный или частичный вывод shell приводит к fail closed, а при process exit polling исключена гонка UiAutomation finish
 * `Улучшение` На каждом устройстве Android 12 и Android 13 проверены 10 cold compiler processes и 100 hot prewarms; FD compiler service точно возвращаются к baseline без сохраненных staging archives

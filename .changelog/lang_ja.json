@@ -9,7 +9,7 @@
     "v0.5.0": {
       "released_date": "2026/07/27",
       "hint": [
-        "`compilerAvailable=false` は v0.5.0 でも正式な状態を示す: R1 は未完了で, API 24/25 modern-provider matrix, compiler service と renderer の PSS, accepted/cancel 処理は引き続き未完了"
+        "R1 のすべての終了ゲートが完了し, API 24/25 の Chrome 119 modern-provider runtime matrix も通過済み. production project compilation は R2 の範囲であるため, `compilerAvailable=false` は引き続き正式な状態を示す"
       ],
       "fix": [
         "service destruction で WebView, Worker, MessagePort, ServiceWorker client, pending request, Handler callback を解放してから close report を公開し waiter を起動; deadline と terminal publication の race も解消",

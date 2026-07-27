@@ -8,7 +8,7 @@
 
 ###### 2026/07/27
 
-* `Hint` `compilerAvailable=false` remains authoritative in v0.5.0 because R1 is incomplete; the API 24/25 modern-provider matrix, compiler-service plus renderer PSS, and accepted/cancel handling remain pending
+* `Hint` All R1 exit gates are now complete, including the API 24/25 Chrome 119 modern-provider runtime matrix; `compilerAvailable=false` remains authoritative because production project compilation belongs to R2
 * `Fix` Made service destruction release WebView, Worker, MessagePort, the ServiceWorker client, pending requests, and Handler callbacks before publishing the close report and waking waiters; also removed the race between the deadline and terminal publication
 * `Fix` Bound `/proc` and FD observation to `(pid,starttime)`, failed closed on unavailable or partial shell output, and avoided the UiAutomation finish race during process-exit polling
 * `Improvement` Validated 10 cold compiler processes and 100 hot prewarms on each Android 12 and Android 13 device; compiler-service FDs return exactly to baseline without retained staging archives
