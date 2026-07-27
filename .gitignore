@@ -6,6 +6,7 @@
 
 .DS_Store
 .externalNativeBuild/
+.bak/
 .gradle/
 .idea/
 .kotlin/
