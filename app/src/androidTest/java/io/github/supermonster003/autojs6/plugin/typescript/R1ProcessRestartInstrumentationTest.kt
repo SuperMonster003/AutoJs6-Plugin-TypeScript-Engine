@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.os.Process
 import android.os.SystemClock
+import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.Closeable
@@ -35,10 +36,16 @@ class R1ProcessRestartInstrumentationTest {
     private val activityManager
         get() = context.getSystemService(ActivityManager::class.java)
 
+    private val processResourceProbe
+        get() = RemoteProcessResourceProbe(context)
+
     @Test
     fun fingerprintsRemainStableAcrossTenCompilerProcessRestarts() {
         var baselineDistributionFingerprint: String? = null
         var baselineDeclarationsFingerprint: String? = null
+        var baselineFileDescriptorCount: Int? = null
+
+        terminateCachedCompilerProcessBeforeGate()
 
         repeat(PROCESS_RESTART_COUNT) { iteration ->
             bindCompilerService().use { session ->
@@ -67,6 +74,7 @@ class R1ProcessRestartInstrumentationTest {
                     "Compiler service unexpectedly ran in the instrumentation process.",
                     Process.myPid() != process.pid,
                 )
+                val processIdentity = processResourceProbe.requireIdentity(process.pid)
 
                 val result = session.compiler.prewarm(validPrewarmOptions())
                 assertFalse(
@@ -103,6 +111,23 @@ class R1ProcessRestartInstrumentationTest {
                 assertEquals(baselineDistributionFingerprint, distributionFingerprint)
                 assertEquals(baselineDeclarationsFingerprint, declarationsFingerprint)
 
+                val fileDescriptors =
+                    processResourceProbe.awaitStableFileDescriptors(
+                        pid = processIdentity.pid,
+                        label = "Compiler cold process ${iteration + 1}",
+                        maximumCount = baselineFileDescriptorCount?.plus(
+                            COLD_PROCESS_FD_COUNT_ALLOWANCE,
+                        ),
+                        expectedIdentity = processIdentity,
+                    )
+                baselineFileDescriptorCount =
+                    baselineFileDescriptorCount ?: fileDescriptors.count
+                Log.i(
+                    TAG,
+                    "Compiler cold process=${iteration + 1} identity=$processIdentity " +
+                        "stableFdCount=${fileDescriptors.count}",
+                )
+
                 val binderDeath = CountDownLatch(1)
                 session.rawBinder.linkToDeath(
                     { binderDeath.countDown() },
@@ -112,13 +137,13 @@ class R1ProcessRestartInstrumentationTest {
                 // Remove BIND_AUTO_CREATE before killing the remote process. Otherwise Android may
                 // restart the service while this iteration is still waiting for the old PID to die.
                 session.close()
-                killCompilerProcessIfStillRunning(process)
+                killCompilerProcessIfStillRunning(process, processIdentity)
 
                 assertTrue(
-                    "Compiler Binder did not die during iteration $iteration.",
+                    "Compiler Binder did not die during cold process ${iteration + 1}.",
                     binderDeath.await(PROCESS_DEATH_TIMEOUT_SECONDS, TimeUnit.SECONDS),
                 )
-                awaitCompilerProcessGone(process.pid)
+                awaitCompilerProcessIdentityGone(processIdentity)
                 assertFalse(session.rawBinder.isBinderAlive)
             }
         }
@@ -192,27 +217,53 @@ class R1ProcessRestartInstrumentationTest {
 
     private fun killCompilerProcessIfStillRunning(
         expected: ActivityManager.RunningAppProcessInfo,
+        expectedIdentity: RemoteProcessIdentity,
     ) {
         val matchingProcess = runningCompilerProcesses()
             .singleOrNull { process ->
                 process.pid == expected.pid && process.uid == expected.uid
             }
-        if (matchingProcess != null) {
+        if (
+            matchingProcess != null &&
+            processResourceProbe.identityOrNull(matchingProcess.pid) == expectedIdentity
+        ) {
             Process.killProcess(matchingProcess.pid)
         }
     }
 
-    private fun awaitCompilerProcessGone(processId: Int) {
+    private fun terminateCachedCompilerProcessBeforeGate() {
+        runningCompilerProcesses().forEach { process ->
+            val identity = processResourceProbe.requireIdentity(process.pid)
+            Process.killProcess(process.pid)
+            awaitCompilerProcessIdentityGone(identity)
+        }
+        assertTrue(
+            "A cached compiler process remained before the cold-start gate.",
+            runningCompilerProcesses().isEmpty(),
+        )
+    }
+
+    private fun awaitCompilerProcessIdentityGone(
+        expectedIdentity: RemoteProcessIdentity,
+    ) {
         val deadline = SystemClock.uptimeMillis() +
             TimeUnit.SECONDS.toMillis(PROCESS_DEATH_TIMEOUT_SECONDS)
         do {
-            if (runningCompilerProcesses().none { it.pid == processId }) {
+            val matchingCompilerProcess = runningCompilerProcesses()
+                .firstOrNull { process -> process.pid == expectedIdentity.pid }
+            val currentIdentity =
+                processResourceProbe.directIdentityOrNull(expectedIdentity.pid)
+            if (currentIdentity != null && currentIdentity != expectedIdentity) {
+                // The kernel may legally reuse the PID after the old process is gone.
+                return
+            }
+            if (matchingCompilerProcess == null && currentIdentity == null) {
                 return
             }
             SystemClock.sleep(PROCESS_POLL_INTERVAL_MILLIS)
         } while (SystemClock.uptimeMillis() < deadline)
         throw AssertionError(
-            "Compiler process PID $processId remained visible after its Binder died.",
+            "Compiler process identity $expectedIdentity remained visible after its Binder died.",
         )
     }
 
@@ -272,7 +323,9 @@ class R1ProcessRestartInstrumentationTest {
     }
 
     private companion object {
+        const val TAG = "R1ProcessRestart"
         const val PROCESS_RESTART_COUNT = 10
+        const val COLD_PROCESS_FD_COUNT_ALLOWANCE = 4
         const val PROCESS_DISCOVERY_TIMEOUT_SECONDS = 5L
         const val PROCESS_DEATH_TIMEOUT_SECONDS = 10L
         const val PROCESS_POLL_INTERVAL_MILLIS = 50L

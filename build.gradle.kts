@@ -22,7 +22,7 @@ tasks {
         description = "Runs the complete R0 unit, independence, lock, and APK build gates."
         dependsOn(":plugin-api:typescript-api:testDebugUnitTest")
         dependsOn(":app:testDebugUnitTest")
-        dependsOn(":app:verifyNodeRuntimeIndependence")
+        dependsOn(":app:verifyOptionalPluginIndependence")
         dependsOn(":app:verifyCompilerDistributionLock")
         dependsOn(":app:verifyDebugCompilerHostApk")
         dependsOn(":app:verifyR0DebugApkContents")
@@ -34,6 +34,7 @@ tasks {
         group = "verification"
         description = "Runs the R1 Binder and file-descriptor gates on connected devices."
         dependsOn(":app:testDebugUnitTest")
+        dependsOn(":app:verifyOptionalPluginIndependence")
         dependsOn(":app:connectedDebugAndroidTest")
     }
 
@@ -51,6 +52,7 @@ tasks {
     register("verifyR1CompilerHost") {
         group = "verification"
         description = "Runs the R1 compiler host source and debug/release APK security gates."
+        dependsOn(":app:verifyOptionalPluginIndependence")
         dependsOn(":app:verifyCompilerHostSourcePolicy")
         dependsOn(":app:verifyDebugCompilerHostApk")
         dependsOn(":app:verifyReleaseCompilerHostApk")

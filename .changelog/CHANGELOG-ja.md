@@ -4,6 +4,16 @@
 
 ******
 
+# v0.5.0
+
+###### 2026/07/27
+
+* `ヒント` `compilerAvailable=false` は v0.5.0 でも正式な状態を示す: R1 は未完了で, API 24/25 modern-provider matrix, compiler service と renderer の PSS, accepted/cancel 処理は引き続き未完了
+* `修正` service destruction で WebView, Worker, MessagePort, ServiceWorker client, pending request, Handler callback を解放してから close report を公開し waiter を起動; deadline と terminal publication の race も解消
+* `修正` `/proc` と FD の観測を `(pid,starttime)` に結び付け, 利用不能または部分的な shell 出力を fail closed とし, process exit polling 時の UiAutomation finish race を回避
+* `改善` Android 12 と Android 13 の各 device で 10 個の cold compiler process と 100 回の hot prewarm を検証; compiler service FD は staging archive を残さず正確に baseline へ復帰
+* `改善` API 33 と WebView 109 で none, Node-only, Ace-only, Node+Ace の各 installation state を通過; static gate で production source, manifest, direct dependency による Node/Ace の discovery と dependency を禁止
+
 # v0.4.0
 
 ###### 2026/07/27

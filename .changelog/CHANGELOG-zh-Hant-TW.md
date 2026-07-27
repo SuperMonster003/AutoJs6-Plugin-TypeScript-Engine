@@ -4,6 +4,16 @@
 
 ******
 
+# v0.5.0
+
+###### 2026/07/27
+
+* `提示` `compilerAvailable=false` 在 v0.5.0 中仍為權威狀態: R1 尚未完成; API 24/25 modern-provider matrix, compiler service 與獨立 renderer PSS, accepted/cancel 仍待完成
+* `修正` service destruction 先完成 WebView, Worker, MessagePort, ServiceWorker client, pending request 和 Handler callback 清理, 再發布 close report 並喚醒等待方; 同時消除 deadline 與終態 publication 的競態
+* `修正` `/proc` 與 FD 觀測綁定 `(pid,starttime)`, 對不可用或部分 shell 輸出 fail closed, 並避免行程結束輪詢觸發 UiAutomation finish 競態
+* `改善` Android 12 和 Android 13 實機各驗證 10 個 cold compiler process 與 100 次 hot prewarm; compiler service FD 最終精確回到 baseline, 且不殘留 staging archive
+* `改善` API 33 與 WebView 109 通過 none, Node-only, Ace-only 和 Node+Ace 四種安裝態; 靜態門檻禁止 production source, manifest 和 direct dependency 發現或依賴 Node/Ace
+
 # v0.4.0
 
 ###### 2026/07/27

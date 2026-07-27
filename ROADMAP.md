@@ -39,15 +39,21 @@ R1 当前已在 Android 12/API 31 与 Android 13/API 33 的 debug APK 中完成�
 prewarm, 使用独立 WebView/Web Worker 验证 `ts.version=6.0.3`, enum emit,
 structured syntax diagnostic 和 Source Map golden. 每台设备 100 次热探针,
 timeout 后的 Worker 重建, renderer 首次退出后的单次 retry/第二次退出后的稳定
-失败与后续恢复, 以及 10 轮 compiler process restart 后的 fingerprint 稳定性
-均已通过. Binder 门禁也会在 Bundle 反序列化前拒绝并释放 raw transport FD,
-且只接受运行时类型严格为 `String[]` 的字符串数组.
+失败与后续恢复, service destruction teardown/rebind, 以及 10 个冷 compiler
+process 的 fingerprint, identity 和 FD 边界均已通过. Binder 门禁也会在 Bundle
+反序列化前拒绝并释放 raw transport FD, 且只接受运行时类型严格为 `String[]`
+的字符串数组. API 33/WebView 109 另通过 none, Node-only, Ace-only 和 Node+Ace
+四种安装态的相同 runtime golden/fingerprint; 显式 opt-in 的
+`:app:verifyR1OptionalPluginMatrix` 可在指定 disposable emulator 上重复并保存
+该证据.
 
 这不表示 R1 已退出: API 24 虽已通过 6 项 Bundle/FD transport 门禁, 设备自带的
 旧 WebView 却无法解析原始 TypeScript 6.0.3 compiler JavaScript 并报告
-`Unexpected token ?`; API 24/25 modern-provider matrix, service destruction,
-冷启动/资源泄漏, Node/Ace 缺失及 accepted/cancel 门禁仍待完成. minified
-release 已在 Android 13 真机通过独立 smoke helper 验证,
+`Unexpected token ?`; API 24/25 modern-provider matrix, compiler service 与独立
+renderer 的校准 PSS, Rhino context, accepted/cancel/death,
+archive compatibility fixtures 和顶层 envelope 冻结仍待完成. 当前 compiler
+service FD 证据不代表完整 renderer memory leak 门禁. minified release 已在
+Android 13 真机通过独立 smoke helper 验证,
 `compilerAvailable=false` 继续为权威状态.
 
 单人顺序实施约 13-20 个工程周. R2 完成后, AutoJs6 host, Rhino/Node adapters

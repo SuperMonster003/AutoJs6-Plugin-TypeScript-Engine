@@ -99,11 +99,15 @@ Binder Bundle. Worker 不执行 emitted JavaScript. 它使用 TypeScript JS pars
 
 ## `prewarm` 语义
 
-`prewarm(options)` 的 options 仍只允许:
+`prewarm(options)` 的公共 options 仍只允许:
 
 - `contractVersion`.
 - `contractHash`.
 - `timeoutMs`.
+
+Debug instrumentation 可以使用 app-internal lifecycle control key 建立确定性的
+held pending. 该 key 不属于公共 contract, AIDL/API AAR 或 release 行为, 也不能
+由调用方用于普通 prewarm.
 
 接收端先执行 primitive-only, marshalled size, key count, contract 和 timeout
 校验. 校验失败时返回现有稳定错误码. 合法调用同步启动或复用受限 host, 等待真实
@@ -201,7 +205,10 @@ chain 规则.
 当前双设备 instrumentation 已覆盖 timeout 后的 Worker rebuild, 并使用真实
 WebView renderer termination 验证当前 probe 第一次退出只重试一次, 第二次退出
 稳定失败, 随后的普通 probe 可重新创建 session 并恢复. service destruction
-仍未形成验收证据.
+门禁先建立成熟 ready session, 再安装一个不向 Worker dispatch 的确定性 native
+pending; 最后一次真实 unbind 验证 close report 在 waiting Binder latch 之前发布,
+并验证后续两次重新 bind/probe. 因此它覆盖 native pending 与 host ownership 的
+teardown 顺序, 不宣称覆盖 Worker 正在计算时的取消语义.
 
 ## 当前证据和限制
 
@@ -219,8 +226,28 @@ WebView renderer termination 验证当前 probe 第一次退出只重试一次, 
 - 真实终止 WebView renderer 一次时重建 host 并完成 pending probe; 连续终止两次
   时不进行第二次 retry, 返回 compiler unavailable, 随后的普通 probe 恢复.
 - 每台设备完成 10 轮 `:typescript_compiler` process restart, 每轮验证 Binder
-  death 和旧 PID 消失, 下一轮重新绑定新的 remote process, 并验证 runtime
-  golden 及稳定的 distribution/declarations fingerprint.
+  death 和旧 `(pid,starttime)` 身份消失, 下一轮重新绑定新的 remote process,
+  并验证 runtime golden 及稳定的 distribution/declarations fingerprint.
+- 每台设备在 10 次 warmup 后完成 100 次热 prewarm; FD snapshot 绑定相同
+  `(pid,starttime)`, 拒绝部分 shell 观测和 retained `.archive`, 每 10 次采样,
+  最终 compiler service FD 精确回到 baseline. API 31 baseline 为 177, API 33
+  baseline 为 204; 数值只描述当前设备/provider, 不是跨设备常量.
+- 10 个冷 compiler process 均从无缓存 process 的状态开始. API 31 的稳定 FD
+  count 为 177; API 33 为 204 或 208, 并受首个冷 process baseline `+4` 上界约束.
+- 最后一次真实 unbind 在成熟 host 和 held native pending 同时存在时触发 service
+  destruction; MessagePort, WebView, ServiceWorker client, handler callback 和
+  session/recovery state 均在 pending latch 之前完成清理, 随后两次 rebind probe
+  成功.
+- API 33 AVD 使用 WebView `109.0.5414.123`, 在 none, Node-only, Ace-only 和
+  Node+Ace 四种真实 APK 安装态下完成相同 remote prewarm golden/fingerprint.
+  `:app:verifyR1OptionalPluginMatrix` 只接受显式 disposable emulator serial,
+  Node/Ace APK 和匹配的 mutation confirmation; 它先校验 APK package name,
+  再以 Gray-code 顺序成对传入 expected runner arguments, 由 androidTest shell
+  observation 严格核对实际安装态. 任务同时保存设备/provider/APK digest 与四次
+  runner 原始输出, 并在 finally 中清理、复核 none. 普通 connected gate 不查询
+  package state, 该 mutation task 也不接入普通 `check`.
+  静态门禁同时禁止 production source, manifest 和直接 dependency 发现或依赖
+  Node/Ace. 这不构成 Rhino/Node 执行验证.
 - 返回稳定 distribution/declarations fingerprint.
 - prewarm 前后持续报告 `compilerAvailable=false` 及所有项目编译能力为 false.
 - 在 Android 13/API 33 安装临时测试签名的 minified release APK, 通过独立
@@ -230,9 +257,9 @@ WebView renderer termination 验证当前 probe 第一次退出只重试一次, 
 尚未形成完成证据:
 
 - API 24/25 modern WebView provider 下的真实 WebView/Worker 运行.
-- service destruction.
-- 10 次冷启动及 PSS/FD/pending-request 泄漏门禁.
-- Node/Ace 缺失矩阵和 Rhino compiler context probe.
+- API 31/33 上 compiler service 与独立 WebView renderer 的校准 PSS 门禁.
+- distinct-request correlation 和真实 Worker 在途取消门禁.
+- Rhino compiler context probe.
 
 `onRenderProcessGone` 从 API 26 才可用. API 24/25 只能依赖有界 timeout 和完整
 session teardown 作为兜底. API 24 已通过 6 项 Bundle/FD transport

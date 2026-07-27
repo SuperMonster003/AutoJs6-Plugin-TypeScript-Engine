@@ -5,7 +5,9 @@ import java.util.Properties
 import java.util.zip.ZipFile
 import org.autojs.build.DownloadTypeScriptDistributionTarball
 import org.autojs.build.GenerateTypeScriptDistribution
+import org.autojs.build.VerifyR1OptionalPluginMatrix
 import org.autojs.build.VerifyTypeScriptDistribution
+import org.gradle.api.artifacts.FileCollectionDependency
 import org.gradle.api.provider.Property
 
 plugins {
@@ -176,6 +178,20 @@ private fun ByteArray.sha256String(): String =
         .joinToString(separator = "") { byte ->
             "%02x".format(byte.toInt() and 0xff)
         }
+
+private fun ByteArray.containsByteSequence(sequence: ByteArray): Boolean {
+    if (sequence.isEmpty()) return true
+    if (sequence.size > size) return false
+    outer@ for (start in 0..size - sequence.size) {
+        for (offset in sequence.indices) {
+            if (this[start + offset] != sequence[offset]) {
+                continue@outer
+            }
+        }
+        return true
+    }
+    return false
+}
 
 private val expectedCompilerHostAssetNames = setOf(
     "compiler-host.js",
@@ -403,6 +419,7 @@ private fun verifyCompilerHostInApk(
     sourceAssetDirectory: File,
     mergedManifestFile: File,
     typeScriptVersion: String,
+    debugLifecycleControlExpected: Boolean,
 ) {
     val hostAssetPrefix = "assets/typescript-compiler-r1/"
     val expectedHostEntries = expectedCompilerHostAssetNames
@@ -414,6 +431,23 @@ private fun verifyCompilerHostInApk(
 
     ZipFile(apkFile).use { apk ->
         val entries = apk.entries().asSequence().filterNot { it.isDirectory }.toList()
+        val lifecycleControlMarker =
+            "__autojs6_r1_debug_hold_until_service_destroyed"
+                .toByteArray(Charsets.UTF_8)
+        val lifecycleControlPresent = entries
+            .filter { entry ->
+                entry.name.matches(Regex("""classes(?:\d+)?\.dex"""))
+            }
+            .any { entry ->
+                apk.getInputStream(entry).use { input ->
+                    input.readBytes().containsByteSequence(lifecycleControlMarker)
+                }
+            }
+        check(lifecycleControlPresent == debugLifecycleControlExpected) {
+            "Debug lifecycle control marker presence mismatch in ${apkFile.name}: " +
+                "expected=$debugLifecycleControlExpected, actual=$lifecycleControlPresent"
+        }
+
         val hostEntries = entries
             .filter { it.name.startsWith(hostAssetPrefix) }
             .map { it.name }
@@ -781,6 +815,7 @@ fun registerCompilerHostApkVerification(
             sourceAssetDirectory = compilerHostSourceAssetDirectory.asFile,
             mergedManifestFile = mergedManifest.get().asFile,
             typeScriptVersion = typeScriptVersion,
+            debugLifecycleControlExpected = variantName == "debug",
         )
     }
 }
@@ -798,53 +833,400 @@ val verifyReleaseCompilerHostApk =
         variantName = "release",
     )
 
-val r0ScannedSources = files(
-    fileTree(rootProject.projectDir) {
-        include("**/*.gradle.kts")
-        include("**/*.properties")
-        include("app/src/main/**")
-        include("plugin-api/**/src/main/**")
+val optionalPluginIndependenceSources = files(
+    fileTree(layout.projectDirectory.dir("src")) {
+        exclude("test/**")
+        exclude("androidTest/**")
+    },
+    fileTree(rootProject.layout.projectDirectory.dir("plugin-api")) {
+        include("**/src/**")
+        exclude("**/src/test/**")
+        exclude("**/src/androidTest/**")
         exclude("**/build/**")
     },
 )
+val optionalPluginIndependenceBuildInputs = files(
+    layout.projectDirectory.file("build.gradle.kts"),
+    rootProject.layout.projectDirectory.file("build.gradle.kts"),
+    rootProject.layout.projectDirectory.file("settings.gradle.kts"),
+    rootProject.layout.projectDirectory.file("gradle/libs.versions.toml"),
+    fileTree(rootProject.layout.projectDirectory.dir("build-logic")) {
+        include("**/*.gradle.kts")
+        include("**/*.kt")
+        include("**/*.toml")
+        exclude("**/build/**")
+    },
+    fileTree(rootProject.layout.projectDirectory.dir("plugin-api")) {
+        include("**/build.gradle.kts")
+        exclude("**/build/**")
+    },
+)
+val optionalPluginManifest =
+    layout.projectDirectory.file("src/main/AndroidManifest.xml")
+val optionalPluginDependencyProjects = rootProject.subprojects.filter { dependencyProject ->
+    dependencyProject == project ||
+        dependencyProject.path.startsWith(":plugin-api:")
+}
 
 tasks {
     withType(JavaCompile::class.java) {
         options.encoding = "UTF-8"
     }
 
-    register("verifyNodeRuntimeIndependence") {
+    register("verifyOptionalPluginIndependence") {
         group = "verification"
-        description = "Ensures the TypeScript compiler plugin has no Node Runtime dependency."
-        inputs.files(r0ScannedSources)
+        description =
+            "Ensures production compiler code cannot discover or depend on Node/Ace plugins."
+        inputs.files(optionalPluginIndependenceSources)
+        inputs.files(optionalPluginIndependenceBuildInputs)
+        inputs.file(optionalPluginManifest)
         doLast {
-            val forbidden = listOf(
-                "nodejs" + "-api",
-                "org.autojs.plugin." + "nodejs",
-                "io.github.supermonster003.autojs6.plugin." + "nodejs",
-                "lib" + "node.so",
-            )
-            val violations = r0ScannedSources.files
-                .filter(File::isFile)
-                .flatMap { file ->
-                    val text = file.readText()
-                    forbidden.filter(text::contains).map { token ->
-                        "${file.relativeTo(rootProject.projectDir).invariantSeparatorsPath}: $token"
+            fun canonicalSignature(value: String): String =
+                value.lowercase().filter { character ->
+                    character in 'a'..'z' || character in '0'..'9'
+                }
+
+            fun withoutSourceComments(
+                value: String,
+                nestedBlockComments: Boolean = false,
+            ): String = buildString(value.length) {
+                var index = 0
+                var blockCommentDepth = 0
+                var quote: Char? = null
+                var tripleQuoted = false
+                var lineComment = false
+                var xmlComment = false
+
+                while (index < value.length) {
+                    if (lineComment) {
+                        val character = value[index]
+                        if (character == '\r' || character == '\n') {
+                            lineComment = false
+                            append(character)
+                        }
+                        index++
+                        continue
+                    }
+                    if (xmlComment) {
+                        when {
+                            value.startsWith("-->", index) -> {
+                                xmlComment = false
+                                index += 3
+                            }
+                            value[index] == '\r' || value[index] == '\n' -> {
+                                append(value[index])
+                                index++
+                            }
+                            else -> index++
+                        }
+                        continue
+                    }
+                    if (blockCommentDepth > 0) {
+                        when {
+                            nestedBlockComments && value.startsWith("/*", index) -> {
+                                blockCommentDepth++
+                                index += 2
+                            }
+                            value.startsWith("*/", index) -> {
+                                blockCommentDepth--
+                                index += 2
+                            }
+                            value[index] == '\r' || value[index] == '\n' -> {
+                                append(value[index])
+                                index++
+                            }
+                            else -> index++
+                        }
+                        continue
+                    }
+                    val quoteCharacter = quote
+                    if (quoteCharacter != null) {
+                        when {
+                            tripleQuoted && value.startsWith("\"\"\"", index) -> {
+                                append("\"\"\"")
+                                index += 3
+                                tripleQuoted = false
+                                quote = null
+                            }
+                            !tripleQuoted && value[index] == '\\' -> {
+                                append(value[index])
+                                index++
+                                if (index < value.length) {
+                                    append(value[index])
+                                    index++
+                                }
+                            }
+                            !tripleQuoted && value[index] == quoteCharacter -> {
+                                append(value[index])
+                                index++
+                                quote = null
+                            }
+                            else -> {
+                                append(value[index])
+                                index++
+                            }
+                        }
+                        continue
+                    }
+
+                    when {
+                        value.startsWith("<!--", index) -> {
+                            xmlComment = true
+                            index += 4
+                        }
+                        value.startsWith("//", index) -> {
+                            lineComment = true
+                            index += 2
+                        }
+                        value.startsWith("/*", index) -> {
+                            blockCommentDepth = 1
+                            index += 2
+                        }
+                        value.startsWith("\"\"\"", index) -> {
+                            append("\"\"\"")
+                            index += 3
+                            quote = '"'
+                            tripleQuoted = true
+                        }
+                        value[index] == '"' ||
+                            value[index] == '\'' ||
+                            value[index] == '`' -> {
+                            quote = value[index]
+                            append(value[index])
+                            index++
+                        }
+                        else -> {
+                            append(value[index])
+                            index++
+                        }
                     }
                 }
-                .plus(
-                    configurations
-                        .flatMap { configuration -> configuration.dependencies }
-                        .map { dependency ->
-                            listOfNotNull(dependency.group, dependency.name).joinToString(":")
+            }
+
+            val forbiddenPluginSignatures = linkedMapOf(
+                "Node Runtime API artifact" to "nodejs-api",
+                "Node Runtime API namespace" to "org.autojs.plugin.nodejs.api",
+                "Node Runtime application package" to
+                    "io.github.supermonster003.autojs6.plugin.nodejs",
+                "Node Runtime service action" to "org.autojs.plugin.nodejs.RUNTIME",
+                "Node Runtime native library" to "libnode.so",
+                "Ace Editor artifact" to "autojs6-plugin-ace-editor",
+                "Ace Editor API artifact" to "editor-api",
+                "Ace Editor API namespace" to "org.autojs.plugin.editor.api",
+                "Ace Editor application package" to
+                    "io.github.supermonster003.autojs6.plugin.ace.editor",
+                "Ace Editor service action" to "org.autojs.plugin.EDITOR",
+                "Ace Editor wake action" to "org.autojs.plugin.action.WAKE",
+                "Ace Editor wake metadata" to "org.autojs.plugin.WAKE_ACTIVITY",
+            )
+            val forbiddenDiscoverySignatures = linkedMapOf(
+                "PackageManager access" to "android.content.pm.PackageManager",
+                "PackageManager accessor" to "getPackageManager",
+                "installed package discovery" to "getInstalledPackages",
+                "installed application discovery" to "getInstalledApplications",
+                "package info discovery" to "getPackageInfo",
+                "application info discovery" to "getApplicationInfo",
+                "service intent query" to "queryIntentServices",
+                "activity intent query" to "queryIntentActivities",
+                "provider intent query" to "queryIntentContentProviders",
+                "receiver intent query" to "queryBroadcastReceivers",
+                "service resolution" to "resolveService",
+                "activity resolution" to "resolveActivity",
+                "provider resolution" to "resolveContentProvider",
+                "cross-package context creation" to "createPackageContext",
+                "explicit package targeting" to "setPackage(",
+                "explicit component targeting" to "setComponent(",
+                "explicit component construction" to "ComponentName(",
+                "service binding" to "bindService(",
+                "isolated service binding" to "bindIsolatedService(",
+                "service start" to "startService(",
+                "foreground service start" to "startForegroundService(",
+            )
+            val forbiddenSourceSignatures =
+                forbiddenPluginSignatures + forbiddenDiscoverySignatures
+            val canonicalForbiddenSourceSignatures =
+                forbiddenSourceSignatures.mapValues { (_, signature) ->
+                    canonicalSignature(signature)
+                }
+
+            check(
+                canonicalSignature(
+                    """"org.autojs.plugin." + "nodejs"""",
+                ).contains(canonicalSignature("org.autojs.plugin.nodejs")),
+            ) {
+                "Optional plugin signature normalization no longer catches literal concatenation."
+            }
+            check(
+                !canonicalSignature(
+                    withoutSourceComments(
+                        "// android.content.pm.PackageManager is forbidden in production",
+                    ),
+                ).contains(canonicalSignature("android.content.pm.PackageManager")),
+            ) {
+                "Optional plugin independence comments are no longer excluded."
+            }
+            check(
+                canonicalSignature(
+                    withoutSourceComments(
+                        """
+                        val pluginId =
+                            "//io.github.supermonster003.autojs6.plugin.nodejs"
+                                .removePrefix("//")
+                        """.trimIndent(),
+                        nestedBlockComments = true,
+                    ),
+                ).contains(
+                    canonicalSignature(
+                        "io.github.supermonster003.autojs6.plugin.nodejs",
+                    ),
+                ),
+            ) {
+                "Optional plugin signatures inside strings containing // are no longer scanned."
+            }
+            check(
+                canonicalSignature(
+                    withoutSourceComments(
+                        """val pluginId = "/*org.autojs.plugin.nodejs.api*/"""",
+                        nestedBlockComments = true,
+                    ),
+                ).contains(canonicalSignature("org.autojs.plugin.nodejs.api")),
+            ) {
+                "Optional plugin signatures inside strings containing /* */ are no longer scanned."
+            }
+
+            val sourceViolations = optionalPluginIndependenceSources.files
+                .filter(File::isFile)
+                .flatMap { file ->
+                    val source = file.readText(Charsets.UTF_8)
+                    val canonicalSource =
+                        canonicalSignature(
+                            withoutSourceComments(
+                                source,
+                                nestedBlockComments =
+                                    file.extension.equals("kt", ignoreCase = true) ||
+                                        file.extension.equals("kts", ignoreCase = true),
+                            ),
+                        )
+                    canonicalForbiddenSourceSignatures
+                        .filterValues { signature ->
+                            canonicalSource.contains(signature)
                         }
-                        .filter { notation -> forbidden.any(notation::contains) }
-                        .map { notation -> "declared dependency: $notation" },
-                )
+                        .keys
+                        .map { label ->
+                            "${file.relativeTo(rootProject.projectDir).invariantSeparatorsPath}: " +
+                                label
+                        }
+                }
+
+            val manifestPatterns = listOf(
+                Regex("""<\s*queries(?:\s|>)""", RegexOption.IGNORE_CASE) to
+                    "manifest package-visibility queries",
+                Regex("""<\s*uses-library(?:\s|>)""", RegexOption.IGNORE_CASE) to
+                    "manifest optional shared library",
+            )
+            val manifestFiles = optionalPluginIndependenceSources.files.filter { file ->
+                file.isFile && file.name == "AndroidManifest.xml"
+            }
+            check(optionalPluginManifest.asFile in manifestFiles) {
+                "The compiler application manifest is not covered by the independence gate."
+            }
+            val manifestViolations = manifestFiles.flatMap { manifestFile ->
+                val manifestText = manifestFile.readText(Charsets.UTF_8)
+                manifestPatterns.mapNotNull { (pattern, label) ->
+                    label.takeIf { pattern.containsMatchIn(manifestText) }
+                }.map { label ->
+                    "${manifestFile.relativeTo(rootProject.projectDir)}: $label"
+                }
+            }
+
+            val dependencyEvidence =
+                optionalPluginDependencyProjects.flatMap { dependencyProject ->
+                    dependencyProject.configurations
+                        .filterNot { configuration ->
+                            configuration.name.contains("test", ignoreCase = true)
+                        }
+                        .flatMap { configuration ->
+                            configuration.dependencies.flatMap { dependency ->
+                                buildList {
+                                    add(
+                                        listOfNotNull(
+                                            dependency.group,
+                                            dependency.name,
+                                            dependency.version,
+                                        ).joinToString(":"),
+                                    )
+                                    if (dependency is FileCollectionDependency) {
+                                        addAll(dependency.files.files.map(File::getPath))
+                                    }
+                                }.map { notation ->
+                                    "${dependencyProject.path}:" +
+                                        "${configuration.name}:$notation"
+                                }
+                            }
+                        }
+                }.distinct()
+            val canonicalForbiddenDependencies =
+                forbiddenPluginSignatures.mapValues { (_, signature) ->
+                    canonicalSignature(signature)
+                }
+            val dependencyViolations = dependencyEvidence.flatMap { evidence ->
+                val canonicalEvidence = canonicalSignature(evidence)
+                canonicalForbiddenDependencies
+                    .filterValues(canonicalEvidence::contains)
+                    .keys
+                    .map { label -> "declared dependency: $evidence ($label)" }
+            }
+
+            val violations = (
+                sourceViolations +
+                    manifestViolations +
+                    dependencyViolations
+                ).distinct().sorted()
             check(violations.isEmpty()) {
-                "Node Runtime independence check failed:\n${violations.joinToString("\n")}"
+                "Optional plugin independence check failed:\n" +
+                    violations.joinToString("\n")
             }
         }
+    }
+
+    register("verifyNodeRuntimeIndependence") {
+        group = "verification"
+        description =
+            "Compatibility alias for the Node/Ace optional plugin independence gate."
+        dependsOn("verifyOptionalPluginIndependence")
+    }
+
+    register<VerifyR1OptionalPluginMatrix>("verifyR1OptionalPluginMatrix") {
+        dependsOn("assembleDebug", "assembleDebugAndroidTest")
+        adbExecutable.set(androidComponents.sdkComponents.adb)
+        aapt2Executable.set(
+            androidComponents.sdkComponents.aapt2.flatMap { aapt2 ->
+                aapt2.executable
+            },
+        )
+        targetApkDirectory.set(layout.buildDirectory.dir("outputs/apk/debug"))
+        testApkDirectory.set(layout.buildDirectory.dir("outputs/apk/androidTest/debug"))
+        nodeApk.set(
+            layout.file(
+                providers.gradleProperty("r1MatrixNodeApk").map { path ->
+                    rootProject.file(path)
+                },
+            ),
+        )
+        aceApk.set(
+            layout.file(
+                providers.gradleProperty("r1MatrixAceApk").map { path ->
+                    rootProject.file(path)
+                },
+            ),
+        )
+        deviceSerial.set(providers.gradleProperty("r1MatrixSerial"))
+        mutationConfirmation.set(providers.gradleProperty("r1MatrixConfirm"))
+        reportFile.set(
+            layout.buildDirectory.file(
+                "reports/r1/optional-plugin-matrix.txt",
+            ),
+        )
     }
 
     register("verifyCompilerDistributionLock") {
@@ -916,7 +1298,7 @@ tasks {
     }
 
     named("check") {
-        dependsOn("verifyNodeRuntimeIndependence")
+        dependsOn("verifyOptionalPluginIndependence")
         dependsOn("verifyCompilerDistributionLock")
         dependsOn(verifyCompilerHostSourcePolicy)
         dependsOn(verifyDebugCompilerHostApk)

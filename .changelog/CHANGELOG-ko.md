@@ -4,6 +4,16 @@
 
 ******
 
+# v0.5.0
+
+###### 2026/07/27
+
+* `안내` `compilerAvailable=false` 는 v0.5.0에서도 공식 상태를 나타냄: R1은 미완료이며 API 24/25 modern-provider matrix, compiler service 및 renderer PSS, accepted/cancel 처리는 계속 남아 있음
+* `수정` service destruction에서 WebView, Worker, MessagePort, ServiceWorker client, pending request, Handler callback을 해제한 뒤 close report를 게시하고 waiter를 깨우도록 변경; deadline과 terminal publication 사이의 race도 제거
+* `수정` `/proc` 및 FD 관측을 `(pid,starttime)` 에 연결하고 사용할 수 없거나 일부만 존재하는 shell 출력을 fail closed로 처리하며 process exit polling 중 UiAutomation finish race를 방지
+* `개선` Android 12 및 Android 13 각 device에서 10개의 cold compiler process와 100회의 hot prewarm을 검증; compiler service FD는 staging archive를 남기지 않고 정확히 baseline으로 복귀
+* `개선` API 33 및 WebView 109에서 none, Node-only, Ace-only, Node+Ace installation state를 통과; static gate로 production source, manifest, direct dependency의 Node/Ace discovery 및 dependency를 금지
+
 # v0.4.0
 
 ###### 2026/07/27

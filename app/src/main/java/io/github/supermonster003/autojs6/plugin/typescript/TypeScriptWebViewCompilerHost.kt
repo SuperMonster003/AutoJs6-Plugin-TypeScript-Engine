@@ -73,17 +73,31 @@ class TypeScriptWebViewCompilerHost(
         },
     )
 
+    @Volatile
     private var closed = false
+
+    @Volatile
     private var nativePort: WebMessagePort? = null
     private var pendingProbe: PendingProbe? = null
     private var timeoutRecoveryEpoch = 0
     private var timeoutRecoveryPending = false
     private var timeoutRecoveryAttempted = false
+
+    @Volatile
     private var webView: WebView? = null
     private var webViewSessionGeneration = 0
     private var workerGeneration = 0
+
+    @Volatile
     private var workerReady = false
     private var rendererTerminationsForTesting = 0
+    private var serviceWorkerClientInstalled = false
+
+    @Volatile
+    private var closeMessagePostedForTesting = false
+
+    @Volatile
+    private var lastCloseReportForTesting: CompilerHostCloseReport? = null
 
     fun snapshot(): CompilerHostSnapshot = currentSnapshot
 
@@ -113,7 +127,43 @@ class TypeScriptWebViewCompilerHost(
             pendingProbe != null
         }
 
-    fun probe(timeoutMs: Long): CompilerHostProbeOutcome {
+    internal fun lifecycleTelemetryForTesting(): CompilerHostLifecycleTelemetry {
+        check(BuildConfig.DEBUG) {
+            "Compiler lifecycle telemetry is unavailable in release builds."
+        }
+        return CompilerHostLifecycleTelemetry(
+            closed = closed,
+            hasWebView = webView != null,
+            hasNativePort = nativePort != null,
+            hasPendingProbe = hasPendingProbeForTesting(),
+            workerReady = workerReady,
+            closeMessagePosted = closeMessagePostedForTesting,
+        )
+    }
+
+    internal fun closeReportForTesting(): CompilerHostCloseReport? {
+        check(BuildConfig.DEBUG) {
+            "Compiler lifecycle telemetry is unavailable in release builds."
+        }
+        return lastCloseReportForTesting
+    }
+
+    fun probe(timeoutMs: Long): CompilerHostProbeOutcome =
+        probe(timeoutMs = timeoutMs, dispatchOnMain = true)
+
+    internal fun holdProbeUntilCloseForTesting(
+        timeoutMs: Long,
+    ): CompilerHostProbeOutcome {
+        check(BuildConfig.DEBUG) {
+            "Compiler lifecycle controls are unavailable in release builds."
+        }
+        return probe(timeoutMs = timeoutMs, dispatchOnMain = false)
+    }
+
+    private fun probe(
+        timeoutMs: Long,
+        dispatchOnMain: Boolean,
+    ): CompilerHostProbeOutcome {
         val startedAt = SystemClock.elapsedRealtime()
         if (Looper.myLooper() == Looper.getMainLooper()) {
             return CompilerHostProbeOutcome.failed(
@@ -153,6 +203,7 @@ class TypeScriptWebViewCompilerHost(
         }
 
         if (
+            dispatchOnMain &&
             !mainHandler.post {
                 ensureSessionAndDispatchOnMain()
             }
@@ -174,8 +225,10 @@ class TypeScriptWebViewCompilerHost(
             false
         }
         if (!completed) {
+            var terminalCompletionPending = false
             val recoveryEpoch = synchronized(stateLock) {
                 if (pendingProbe !== pending || pending.outcome != null) {
+                    terminalCompletionPending = pending.outcome != null
                     null
                 } else {
                     pendingProbe = null
@@ -201,6 +254,18 @@ class TypeScriptWebViewCompilerHost(
                     }
                 }
             }
+            if (
+                terminalCompletionPending &&
+                !pending.completion.awaitUninterruptibly(
+                    TERMINAL_PUBLICATION_TIMEOUT_MILLIS,
+                )
+            ) {
+                return CompilerHostProbeOutcome.failed(
+                    code = TypeScriptCompilerContract.ERROR_COMPILER_UNAVAILABLE,
+                    message = "Compiler probe terminal publication timed out.",
+                    elapsedMs = elapsedSince(startedAt),
+                )
+            }
             if (recoveryEpoch != null) {
                 if (
                     !mainHandler.post {
@@ -223,12 +288,16 @@ class TypeScriptWebViewCompilerHost(
         )
     }
 
-    fun close() {
+    internal fun close(): CompilerHostCloseReport {
         check(Looper.myLooper() == Looper.getMainLooper()) {
             "Compiler host must be destroyed on its WebView main thread."
         }
         val pending = synchronized(stateLock) {
-            if (closed) return
+            if (closed) {
+                return requireNotNull(lastCloseReportForTesting) {
+                    "Closed compiler host has no lifecycle report."
+                }
+            }
             closed = true
             timeoutRecoveryPending = false
             pendingProbe?.also { probe ->
@@ -240,13 +309,60 @@ class TypeScriptWebViewCompilerHost(
                 pendingProbe = null
             }
         }
-        pending?.completion?.countDown()
-        nativePort.postMessageSafely(CompilerHostProtocol.closeRequest())
-        destroySessionOnMain()
+
+        val hadPendingProbe = pending != null
+        val hadWebView = webView != null
+        val hadNativePort = nativePort != null
+        val hadReadyWorker = workerReady
+        val hadServiceWorkerClient = serviceWorkerClientInstalled
+        val closeMessagePosted =
+            nativePort.postMessageSafely(CompilerHostProtocol.closeRequest())
+        closeMessagePostedForTesting = closeMessagePosted
+        val sessionRelease = destroySessionOnMain()
+        val serviceWorkerClientCleared = clearServiceWorkerClientOnMain()
+
+        timeoutRecoveryAttempted = false
+        timeoutRecoveryEpoch = 0
+        webViewSessionGeneration = 0
+        rendererTerminationsForTesting = 0
+
+        val handlerCallbacksCleared = runCatching {
+            mainHandler.removeCallbacksAndMessages(null)
+        }.isSuccess
         currentSnapshot = currentSnapshot.copy(
             status = TypeScriptCompilerContract.STATUS_FAILED,
             lastError = "Compiler service was destroyed.",
         )
+
+        val report = CompilerHostCloseReport(
+            hadPendingProbe = hadPendingProbe,
+            hadWebView = hadWebView,
+            hadNativePort = hadNativePort,
+            hadReadyWorker = hadReadyWorker,
+            hadServiceWorkerClient = hadServiceWorkerClient,
+            closeMessagePosted = closeMessagePosted,
+            nativePortClosed = sessionRelease.nativePortClosed,
+            webViewDestroyed = sessionRelease.webViewDestroyed,
+            serviceWorkerClientCleared = serviceWorkerClientCleared,
+            handlerCallbacksCleared = handlerCallbacksCleared,
+            closed = closed,
+            pendingProbeReleased = synchronized(stateLock) {
+                pendingProbe == null
+            },
+            webViewReleased = webView == null,
+            nativePortReleased = nativePort == null,
+            workerStateReset = !workerReady && workerGeneration == 0,
+            sessionStateReset = webViewSessionGeneration == 0,
+            timeoutRecoveryReset = synchronized(stateLock) {
+                !timeoutRecoveryPending
+            } && !timeoutRecoveryAttempted && timeoutRecoveryEpoch == 0,
+        )
+        lastCloseReportForTesting = report
+
+        // The waiting Binder transaction must observe a fully released session and a published
+        // close report. CountDownLatch also provides the required cross-thread happens-before.
+        pending?.completion?.countDown()
+        return report
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -322,7 +438,20 @@ class TypeScriptWebViewCompilerHost(
                     ): WebResourceResponse = CompilerAssetOrigin.forbiddenResponse()
                 },
             )
+            serviceWorkerClientInstalled = true
         }
+    }
+
+    private fun clearServiceWorkerClientOnMain(): Boolean {
+        checkMainThread()
+        if (!serviceWorkerClientInstalled) return true
+        val cleared = runCatching {
+            ServiceWorkerController.getInstance().setServiceWorkerClient(null)
+        }.isSuccess
+        if (cleared) {
+            serviceWorkerClientInstalled = false
+        }
+        return cleared
     }
 
     private fun ensureSessionAndDispatchOnMain() {
@@ -645,7 +774,7 @@ class TypeScriptWebViewCompilerHost(
         }
     }
 
-    private fun destroySessionOnMain() {
+    private fun destroySessionOnMain(): CompilerSessionRelease {
         checkMainThread()
         val destroyedSessionGeneration = webViewSessionGeneration
         synchronized(stateLock) {
@@ -660,16 +789,30 @@ class TypeScriptWebViewCompilerHost(
         }
         workerReady = false
         workerGeneration = 0
-        runCatching { nativePort?.close() }
+
+        val port = nativePort
         nativePort = null
-        webView?.let { view ->
+        val view = webView
+        webView = null
+
+        val nativePortClosed =
+            port == null || runCatching { port.close() }.isSuccess
+        val webViewDestroyed = if (view == null) {
+            true
+        } else {
             runCatching { view.stopLoading() }
             runCatching { view.clearHistory() }
             runCatching { view.clearCache(true) }
+            runCatching { view.setDownloadListener(null) }
+            runCatching { view.webChromeClient = null }
+            runCatching { view.webViewClient = WebViewClient() }
             runCatching { view.removeAllViews() }
-            runCatching { view.destroy() }
+            runCatching { view.destroy() }.isSuccess
         }
-        webView = null
+        return CompilerSessionRelease(
+            nativePortClosed = nativePortClosed,
+            webViewDestroyed = webViewDestroyed,
+        )
     }
 
     private fun terminateRendererBeforeDispatchForTestingOnMain(view: WebView): Boolean {
@@ -703,6 +846,28 @@ class TypeScriptWebViewCompilerHost(
 
     private fun elapsedSince(startedAt: Long): Long =
         (SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(0L)
+
+    private fun CountDownLatch.awaitUninterruptibly(timeoutMs: Long): Boolean {
+        val deadline = SystemClock.elapsedRealtime() + timeoutMs
+        var interrupted = false
+        try {
+            while (count != 0L) {
+                val remaining =
+                    (deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+                if (remaining == 0L) return false
+                try {
+                    if (await(remaining, TimeUnit.MILLISECONDS)) return true
+                } catch (_: InterruptedException) {
+                    interrupted = true
+                }
+            }
+            return true
+        } finally {
+            if (interrupted) {
+                Thread.currentThread().interrupt()
+            }
+        }
+    }
 
     private inner class CompilerWebViewClient(
         private val assetLoader: androidx.webkit.WebViewAssetLoader,
@@ -867,6 +1032,11 @@ class TypeScriptWebViewCompilerHost(
         }
     }
 
+    private data class CompilerSessionRelease(
+        val nativePortClosed: Boolean,
+        val webViewDestroyed: Boolean,
+    )
+
     private data class PendingProbe(
         val requestId: String,
         val startedAt: Long,
@@ -878,6 +1048,8 @@ class TypeScriptWebViewCompilerHost(
     )
 
     companion object {
+
+        private const val TERMINAL_PUBLICATION_TIMEOUT_MILLIS = 5_000L
 
         @Volatile
         private var compilerProcessPrepared = false

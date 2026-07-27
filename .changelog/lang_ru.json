@@ -6,6 +6,20 @@
   "changelog_label_improvement": "Улучшение",
   "changelog_label_dependency": "Зависимость",
   "$data": {
+    "v0.5.0": {
+      "released_date": "2026/07/27",
+      "hint": [
+        "`compilerAvailable=false` остается авторитетным состоянием в v0.5.0, поскольку R1 не завершен; матрица modern-provider для API 24/25, PSS compiler service и renderer, а также обработка accepted/cancel остаются в работе"
+      ],
+      "fix": [
+        "При service destruction WebView, Worker, MessagePort, ServiceWorker client, pending requests и Handler callbacks освобождаются до публикации close report и пробуждения waiters; также устранена гонка между deadline и terminal publication",
+        "Наблюдение за `/proc` и FD привязано к `(pid,starttime)`, недоступный или частичный вывод shell приводит к fail closed, а при process exit polling исключена гонка UiAutomation finish"
+      ],
+      "improvement": [
+        "На каждом устройстве Android 12 и Android 13 проверены 10 cold compiler processes и 100 hot prewarms; FD compiler service точно возвращаются к baseline без сохраненных staging archives",
+        "На API 33 с WebView 109 пройдены состояния none, Node-only, Ace-only и Node+Ace; статическая проверка запрещает production source, manifest и direct dependencies обнаруживать Node/Ace или зависеть от них"
+      ]
+    },
     "v0.4.0": {
       "released_date": "2026/07/27",
       "hint": [

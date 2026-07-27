@@ -1,5 +1,6 @@
 package io.github.supermonster003.autojs6.plugin.typescript
 
+import android.app.ActivityManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -7,8 +8,10 @@ import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
+import android.os.Process
 import android.system.Os
 import android.system.OsConstants
+import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
@@ -35,6 +38,12 @@ class R1BinderFdInstrumentationTest {
 
     private val context
         get() = InstrumentationRegistry.getInstrumentation().targetContext
+
+    private val activityManager
+        get() = context.getSystemService(ActivityManager::class.java)
+
+    private val processResourceProbe
+        get() = RemoteProcessResourceProbe(context)
 
     @Test
     fun compilerDiscoveryBindsTheRealRemoteR0ServiceAndReportsCapabilities() {
@@ -76,55 +85,62 @@ class R1BinderFdInstrumentationTest {
 
     @Test
     fun prewarmRunsTheRealTypeScriptWorkerGoldenAndKeepsCompilationUnavailable() {
-        withCompilerService { _, _, compiler ->
-            repeat(HOT_PROBE_COUNT) {
-                val result = compiler.prewarm(validPrewarmOptions())
-                assertFalse(
-                    result.getString(TypeScriptCompilerContract.KEY_ERROR_MESSAGE).orEmpty(),
-                    result.containsKey(TypeScriptCompilerContract.KEY_ERROR_CODE),
+        withCompilerService { serviceInfo, _, compiler ->
+            val compilerPid = awaitCompilerProcessPid(serviceInfo.processName)
+            val processIdentity = processResourceProbe.requireIdentity(compilerPid)
+
+            repeat(HOT_PROBE_WARMUP_COUNT) {
+                assertSuccessfulPrewarm(compiler.prewarm(validPrewarmOptions()))
+            }
+            val baselineFileDescriptors =
+                processResourceProbe.awaitStableFileDescriptors(
+                    pid = compilerPid,
+                    label = "Remote prewarm FD baseline",
+                    expectedIdentity = processIdentity,
                 )
-                assertEquals(
-                    TypeScriptCompilerContract.BACKEND_WEBVIEW_WORKER,
-                    result.getString(TypeScriptCompilerContract.KEY_BACKEND),
-                )
-                assertEquals(
-                    TypeScriptCompilerContract.STATUS_READY,
-                    result.getString(TypeScriptPluginCapabilityKeys.SERVICE_STATUS),
-                )
-                assertEquals(
-                    EXPECTED_DISTRIBUTION_FINGERPRINT,
-                    result.getString(
-                        TypeScriptCompilerContract.KEY_COMPILER_DISTRIBUTION_FINGERPRINT,
-                    ),
-                )
-                assertEquals(
-                    EXPECTED_DECLARATIONS_FINGERPRINT,
-                    result.getString(TypeScriptCompilerContract.KEY_DECLARATIONS_FINGERPRINT),
-                )
-                assertFalse(
-                    result.getBoolean(
-                        TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE,
-                        true,
-                    ),
-                )
-                assertFalse(
-                    result.getBoolean(
-                        TypeScriptPluginCapabilityKeys.PROJECT_COMPILATION,
-                        true,
-                    ),
-                )
-                assertFalse(
-                    result.getBoolean(
-                        TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS,
-                        true,
-                    ),
-                )
-                assertFalse(
-                    result.getBoolean(
-                        TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3,
-                        true,
-                    ),
-                )
+            Log.i(
+                TAG,
+                "Remote prewarm baseline identity=$processIdentity " +
+                    "stableFdCount=${baselineFileDescriptors.count}",
+            )
+            logCompilerServiceMemory(compilerPid, "warmup-baseline")
+
+            repeat(HOT_PROBE_COUNT) { index ->
+                assertSuccessfulPrewarm(compiler.prewarm(validPrewarmOptions()))
+
+                val completedCalls = index + 1
+                if (completedCalls % HOT_PROBE_CHECKPOINT_INTERVAL == 0) {
+                    assertEquals(
+                        "Compiler process identity changed during the hot prewarm gate.",
+                        processIdentity,
+                        processResourceProbe.requireIdentity(compilerPid),
+                    )
+                    val isFinalCheckpoint = completedCalls == HOT_PROBE_COUNT
+                    val maximumCount =
+                        baselineFileDescriptors.count +
+                            if (isFinalCheckpoint) {
+                                FINAL_FD_COUNT_ALLOWANCE
+                            } else {
+                                CHECKPOINT_FD_COUNT_ALLOWANCE
+                            }
+                    val checkpoint =
+                        processResourceProbe.awaitStableFileDescriptors(
+                            pid = compilerPid,
+                            label = "Remote prewarm checkpoint $completedCalls",
+                            maximumCount = maximumCount,
+                            expectedIdentity = processIdentity,
+                        )
+                    Log.i(
+                        TAG,
+                        "Remote prewarm checkpoint=$completedCalls " +
+                            "stableFdCount=${checkpoint.count} " +
+                            "baselineFdCount=${baselineFileDescriptors.count}",
+                    )
+                    logCompilerServiceMemory(
+                        compilerPid,
+                        "hot-prewarm-$completedCalls",
+                    )
+                }
             }
 
             val info = compiler.compilerInfo
@@ -139,6 +155,55 @@ class R1BinderFdInstrumentationTest {
                 ),
             )
         }
+    }
+
+    private fun assertSuccessfulPrewarm(result: Bundle) {
+        assertFalse(
+            result.getString(TypeScriptCompilerContract.KEY_ERROR_MESSAGE).orEmpty(),
+            result.containsKey(TypeScriptCompilerContract.KEY_ERROR_CODE),
+        )
+        assertEquals(
+            TypeScriptCompilerContract.BACKEND_WEBVIEW_WORKER,
+            result.getString(TypeScriptCompilerContract.KEY_BACKEND),
+        )
+        assertEquals(
+            TypeScriptCompilerContract.STATUS_READY,
+            result.getString(TypeScriptPluginCapabilityKeys.SERVICE_STATUS),
+        )
+        assertEquals(
+            EXPECTED_DISTRIBUTION_FINGERPRINT,
+            result.getString(
+                TypeScriptCompilerContract.KEY_COMPILER_DISTRIBUTION_FINGERPRINT,
+            ),
+        )
+        assertEquals(
+            EXPECTED_DECLARATIONS_FINGERPRINT,
+            result.getString(TypeScriptCompilerContract.KEY_DECLARATIONS_FINGERPRINT),
+        )
+        assertFalse(
+            result.getBoolean(
+                TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE,
+                true,
+            ),
+        )
+        assertFalse(
+            result.getBoolean(
+                TypeScriptPluginCapabilityKeys.PROJECT_COMPILATION,
+                true,
+            ),
+        )
+        assertFalse(
+            result.getBoolean(
+                TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS,
+                true,
+            ),
+        )
+        assertFalse(
+            result.getBoolean(
+                TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3,
+                true,
+            ),
+        )
     }
 
     @Test
@@ -440,6 +505,45 @@ class R1BinderFdInstrumentationTest {
         writeBytes(content)
     }
 
+    private fun awaitCompilerProcessPid(expectedProcessName: String): Int {
+        repeat(PROCESS_LOOKUP_ATTEMPTS) {
+            val matches = activityManager.runningAppProcesses
+                .orEmpty()
+                .filter { process ->
+                    process.processName == expectedProcessName &&
+                        process.uid == Process.myUid()
+                }
+            if (matches.size == 1) {
+                return matches.single().pid
+            }
+            Thread.sleep(PROCESS_LOOKUP_INTERVAL_MILLIS)
+        }
+        throw AssertionError(
+            "Could not find exactly one live compiler process $expectedProcessName.",
+        )
+    }
+
+    private fun logCompilerServiceMemory(pid: Int, label: String) {
+        val memory = activityManager
+            .getProcessMemoryInfo(intArrayOf(pid))
+            .singleOrNull()
+        if (memory == null) {
+            Log.w(
+                TAG,
+                "$label compiler-service PSS telemetry is unavailable. " +
+                    "The isolated WebView renderer PSS is not covered.",
+            )
+            return
+        }
+        Log.i(
+            TAG,
+            "$label compiler-service-only totalPssKiB=${memory.totalPss} " +
+                "totalPrivateKiB=${memory.totalPrivateDirty + memory.totalPrivateClean}. " +
+                "The isolated WebView renderer PSS is not covered and this telemetry " +
+                "has no pass/fail threshold.",
+        )
+    }
+
     @Suppress("DEPRECATION")
     private fun withCompilerService(
         block: (
@@ -533,7 +637,14 @@ class R1BinderFdInstrumentationTest {
     }
 
     private companion object {
+        const val TAG = "R1BinderFd"
+        const val HOT_PROBE_WARMUP_COUNT = 10
         const val HOT_PROBE_COUNT = 100
+        const val HOT_PROBE_CHECKPOINT_INTERVAL = 10
+        const val CHECKPOINT_FD_COUNT_ALLOWANCE = 4
+        const val FINAL_FD_COUNT_ALLOWANCE = 0
+        const val PROCESS_LOOKUP_ATTEMPTS = 100
+        const val PROCESS_LOOKUP_INTERVAL_MILLIS = 25L
         const val SERVICE_TIMEOUT_SECONDS = 5L
         const val NO_CALLBACK_WINDOW_MILLIS = 250L
         const val EXPECTED_DECLARATIONS_FINGERPRINT =

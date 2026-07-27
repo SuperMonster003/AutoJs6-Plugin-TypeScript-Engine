@@ -15,6 +15,12 @@ class TypeScriptCompilerPluginService : Service() {
 
     private lateinit var compilerHost: TypeScriptWebViewCompilerHost
 
+    @Volatile
+    private var lifecycleTelemetryEnabledForTesting = false
+
+    @Volatile
+    private var onDestroyEnteredForTesting = false
+
     private val binder = object : ITypeScriptCompilerPlugin.Stub() {
         override fun onTransact(
             code: Int,
@@ -80,8 +86,7 @@ class TypeScriptCompilerPluginService : Service() {
 
         override fun getContractHash() = TypeScriptCompilerContract.HASH
 
-        override fun getCompilerInfo() =
-            TypeScriptPluginMetadata.compilerInfo(compilerHost.snapshot())
+        override fun getCompilerInfo() = compilerInfoWithLifecycleTelemetry()
 
         override fun prewarm(options: Bundle?): Bundle {
             val envelope = options.toPrewarmEnvelopeOrNull()
@@ -95,7 +100,7 @@ class TypeScriptCompilerPluginService : Service() {
                 ),
             )
             if (rejection != null) {
-                return TypeScriptPluginMetadata.compilerInfo(compilerHost.snapshot()).apply {
+                return compilerInfoWithLifecycleTelemetry().apply {
                     putString(
                         TypeScriptCompilerContract.KEY_ERROR_CODE,
                         rejection.errorCode,
@@ -107,8 +112,18 @@ class TypeScriptCompilerPluginService : Service() {
                 }
             }
 
-            val outcome = compilerHost.probe(requireNotNull(envelope).timeoutMs)
-            return TypeScriptPluginMetadata.compilerInfo(compilerHost.snapshot()).apply {
+            val lifecycleTestRequested =
+                options.requestsHeldLifecycleProbeForTesting()
+            if (lifecycleTestRequested) {
+                lifecycleTelemetryEnabledForTesting = true
+            }
+            val timeoutMs = requireNotNull(envelope).timeoutMs
+            val outcome = if (lifecycleTestRequested) {
+                compilerHost.holdProbeUntilCloseForTesting(timeoutMs)
+            } else {
+                compilerHost.probe(timeoutMs)
+            }
+            return compilerInfoWithLifecycleTelemetry().apply {
                 if (!outcome.succeeded) {
                     putString(
                         TypeScriptCompilerContract.KEY_ERROR_CODE,
@@ -118,6 +133,9 @@ class TypeScriptCompilerPluginService : Service() {
                         TypeScriptCompilerContract.KEY_ERROR_MESSAGE,
                         outcome.errorMessage,
                     )
+                }
+                if (lifecycleTestRequested) {
+                    putCloseReportForTesting(compilerHost.closeReportForTesting())
                 }
             }
         }
@@ -163,14 +181,20 @@ class TypeScriptCompilerPluginService : Service() {
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onDestroy() {
-        if (::compilerHost.isInitialized) {
-            compilerHost.close()
+        if (BuildConfig.DEBUG) {
+            onDestroyEnteredForTesting = true
         }
-        super.onDestroy()
+        try {
+            if (::compilerHost.isInitialized) {
+                compilerHost.close()
+            }
+        } finally {
+            super.onDestroy()
+        }
     }
 
     private fun invalidMetadataPrewarmResult() =
-        TypeScriptPluginMetadata.compilerInfo(compilerHost.snapshot()).apply {
+        compilerInfoWithLifecycleTelemetry().apply {
             putString(
                 TypeScriptCompilerContract.KEY_ERROR_CODE,
                 TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
@@ -180,6 +204,140 @@ class TypeScriptCompilerPluginService : Service() {
                 "Prewarm options contain forbidden file descriptors.",
             )
         }
+
+    private fun compilerInfoWithLifecycleTelemetry(): Bundle =
+        TypeScriptPluginMetadata.compilerInfo(compilerHost.snapshot()).apply {
+            if (BuildConfig.DEBUG && lifecycleTelemetryEnabledForTesting) {
+                putLifecycleTelemetryForTesting(
+                    compilerHost.lifecycleTelemetryForTesting(),
+                )
+            }
+        }
+
+    private fun Bundle?.requestsHeldLifecycleProbeForTesting(): Boolean {
+        if (!BuildConfig.DEBUG || this == null) return false
+        return runCatching {
+            getBoolean(
+                CompilerServiceLifecycleTestProtocol.KEY_HOLD_UNTIL_SERVICE_DESTROYED,
+                false,
+            )
+        }.getOrDefault(false)
+    }
+
+    private fun Bundle.putLifecycleTelemetryForTesting(
+        telemetry: CompilerHostLifecycleTelemetry,
+    ) {
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_LIVE_TELEMETRY_ENABLED,
+            true,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_LIVE_CLOSED,
+            telemetry.closed,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_LIVE_HAS_WEB_VIEW,
+            telemetry.hasWebView,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_LIVE_HAS_NATIVE_PORT,
+            telemetry.hasNativePort,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_LIVE_HAS_PENDING_PROBE,
+            telemetry.hasPendingProbe,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_LIVE_WORKER_READY,
+            telemetry.workerReady,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_LIVE_CLOSE_MESSAGE_POSTED,
+            telemetry.closeMessagePosted,
+        )
+    }
+
+    private fun Bundle.putCloseReportForTesting(
+        report: CompilerHostCloseReport?,
+    ) {
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_SERVICE_ON_DESTROY_ENTERED,
+            onDestroyEnteredForTesting,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_REPORT_AVAILABLE,
+            report != null,
+        )
+        report ?: return
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_HAD_PENDING_PROBE,
+            report.hadPendingProbe,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_HAD_WEB_VIEW,
+            report.hadWebView,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_HAD_NATIVE_PORT,
+            report.hadNativePort,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_HAD_READY_WORKER,
+            report.hadReadyWorker,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_HAD_SERVICE_WORKER_CLIENT,
+            report.hadServiceWorkerClient,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_MESSAGE_POSTED,
+            report.closeMessagePosted,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_NATIVE_PORT_CLOSED,
+            report.nativePortClosed,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_WEB_VIEW_DESTROYED,
+            report.webViewDestroyed,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_SERVICE_WORKER_CLIENT_CLEARED,
+            report.serviceWorkerClientCleared,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_HANDLER_CALLBACKS_CLEARED,
+            report.handlerCallbacksCleared,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_CLOSED,
+            report.closed,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_PENDING_PROBE_RELEASED,
+            report.pendingProbeReleased,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_WEB_VIEW_RELEASED,
+            report.webViewReleased,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_NATIVE_PORT_RELEASED,
+            report.nativePortReleased,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_WORKER_STATE_RESET,
+            report.workerStateReset,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_SESSION_STATE_RESET,
+            report.sessionStateReset,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_TIMEOUT_RECOVERY_RESET,
+            report.timeoutRecoveryReset,
+        )
+    }
 
     private fun Parcel.firstTypedBundleContainsFileDescriptors(): Boolean {
         val present = readInt()

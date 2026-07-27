@@ -4,11 +4,12 @@ AutoJs6 的完整 TypeScript 编译前端插件. 插件负责把 TypeScript 项�
 JavaScript, Source Map 和结构化诊断, 最终 JavaScript 仍由 AutoJs6 选择的
 Rhino 或 Node.js 引擎执行.
 
-> 当前状态: R0 插件基线已完成, R1 正在进行. v0.4.0 已加入经过三摘要验证的
+> 当前状态: R0 插件基线已完成, R1 正在进行. v0.5.0 已加入经过三摘要验证的
 > TypeScript 6.0.3 compiler distribution, 真实跨进程 Binder/FD 门禁以及独立
-> WebView/Web Worker prewarm probe. Android 12/13 双设备已通过 renderer
-> recovery, 10 轮 compiler process restart 和 fingerprint 稳定性门禁.
-> minified release probe 也已在 Android 13 真机通过.
+> WebView/Web Worker prewarm probe. Android 12/13 双设备已通过 service
+> destruction, renderer recovery, 10 个冷进程, 100 次热调用和 compiler
+> service FD 门禁; API 33/WebView 109 也通过 Node/Ace 四种安装态矩阵.
+> minified release probe 已在 Android 13 真机通过.
 > `compilerAvailable=false` 仍为权威状态; R2 完成前尚不能编译或执行
 > TypeScript 项目.
 
@@ -86,15 +87,35 @@ runtime golden 门禁:
 
 当前已确认 Android 12/API 31 与 Android 13/API 33 上的 debug 远程 bind,
 每台设备 100 次顺序 prewarm, 1 ms timeout 后的 Worker 重建恢复, 真实
-renderer 首次退出后的单次 retry, 第二次退出后的稳定失败与后续恢复, 以及每台
-设备 10 轮 compiler process restart 后的 fingerprint 稳定性. minified release
-也已在 Android 13 真机通过.
+renderer 首次退出后的单次 retry, 第二次退出后的稳定失败与后续恢复, service
+destruction 的完整 teardown/rebind, 以及每台设备 10 个冷 compiler process 的
+身份, fingerprint 和 FD 边界. API 33/WebView 109 的干净 AVD 还通过了 none,
+Node-only, Ace-only 和 Node+Ace 四种安装态. minified release 也已在 Android 13
+真机通过.
+
+Node/Ace 四态证据可通过显式 opt-in 任务在 disposable emulator 上复现. 任务
+不会加入普通 `check`; 它只接受明确的 `emulator-*` serial 与完全匹配的
+`MUTATE:<serial>` 确认值, 并在任何设备改动前验证两个 APK 的 package name:
+
+```powershell
+.\gradlew.bat :app:verifyR1OptionalPluginMatrix `
+  -Pr1MatrixSerial=emulator-5554 `
+  -Pr1MatrixNodeApk=D:\apk\node.apk `
+  -Pr1MatrixAceApk=D:\apk\ace.apk `
+  -Pr1MatrixConfirm=MUTATE:emulator-5554
+```
+
+该任务会安装 debug target/test APK, 依次验证 none, Node-only, Node+Ace 和
+Ace-only, 最后卸载 Node/Ace 并严格复核 none. 请勿指向保存用户数据的设备.
+设备指纹, WebView provider, APK SHA-256 与四次 runner 原始输出保存在
+`app/build/reports/r1/optional-plugin-matrix.txt`.
 
 API 24 已通过 6 项 Bundle/FD transport 门禁, 但设备自带的旧 WebView 无法解析
 原始 TypeScript 6.0.3 compiler JavaScript, 并报告 `Unexpected token ?`.
 这不构成 compiler host 兼容证据. API 24/25 仍需 modern WebView provider matrix;
-service destruction, 10 次冷启动/100 次热调用资源泄漏和 Node/Ace 缺失矩阵也仍是
-R1 待办.
+compiler service 与独立 renderer 的校准 PSS 门禁, Rhino compiler context,
+accepted/cancel/death 状态机和 archive compatibility fixtures 也仍是 R1 待办.
+当前 FD 证据不能外推为完整 renderer memory leak 结论.
 
 `release-smoke` 是不依赖 AndroidX runner 的 framework-only helper APK, 用于
 验证 R8/minified target. `verifyR1CompilerHost` 会确保 helper 可构建, 但不会
@@ -110,7 +131,7 @@ R0 的细分任务仍可分别运行:
 ```powershell
 .\gradlew.bat :plugin-api:typescript-api:testDebugUnitTest
 .\gradlew.bat :app:testDebugUnitTest
-.\gradlew.bat :app:verifyNodeRuntimeIndependence
+.\gradlew.bat :app:verifyOptionalPluginIndependence
 .\gradlew.bat :app:verifyCompilerDistributionLock
 .\gradlew.bat :app:assembleDebug
 ```
