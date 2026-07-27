@@ -4,12 +4,21 @@ package io.github.supermonster003.autojs6.plugin.typescript
  * Debug-only, app-internal observability for the real remote Service lifecycle gate.
  *
  * These keys are deliberately outside the public compiler contract. Release builds ignore the
- * control key and never add the telemetry keys to a response.
+ * control keys and never add the telemetry keys to a response.
  */
 internal object CompilerServiceLifecycleTestProtocol {
 
     const val KEY_HOLD_UNTIL_SERVICE_DESTROYED =
         "__autojs6_r1_debug_hold_until_service_destroyed"
+    const val KEY_INJECT_WRONG_REQUEST_ID_FAILURE =
+        "__autojs6_r1_debug_inject_wrong_request_id_failure"
+
+    const val KEY_CORRELATION_REPORT_AVAILABLE =
+        "__autojs6_r1_debug_correlation_report_available"
+    const val KEY_CORRELATION_FAULT_INJECTED =
+        "__autojs6_r1_debug_correlation_fault_injected"
+    const val KEY_CORRELATION_FAULT_IGNORED =
+        "__autojs6_r1_debug_correlation_fault_ignored"
 
     const val KEY_LIVE_TELEMETRY_ENABLED =
         "__autojs6_r1_debug_live_telemetry_enabled"
@@ -67,6 +76,11 @@ internal data class CompilerHostLifecycleTelemetry(
     val hasPendingProbe: Boolean,
     val workerReady: Boolean,
     val closeMessagePosted: Boolean,
+)
+
+internal data class CompilerHostCorrelationTestReport(
+    val faultInjected: Boolean,
+    val faultIgnored: Boolean,
 )
 
 internal data class CompilerHostCloseReport(

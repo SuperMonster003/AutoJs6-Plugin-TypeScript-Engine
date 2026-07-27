@@ -1,14 +1,18 @@
 # Compiler IPC v1
 
-R0 提供可构建的 provisional v1 基线. R1 当前在不扩展公开 AIDL 或项目 schema
-的前提下, 通过既有 `prewarm` transaction 验证受限 WebView/Worker host. R1
-完成全部 Binder/FD 和真实 compiler 探针后才冻结顶层 Binder envelope 和 ZIP
-container; input/output manifest, diagnostics schema 和 fingerprint revision 机制在
-R2 冻结, 具体 Rhino/Node profile revision 分别在 R4/R5 的真实执行验证后冻结.
-这样可以稳定跨进程调用方式, 同时避免过早锁死项目语义.
+R0 提供可构建的 provisional v1 基线. R1 在不扩展公开 AIDL 或项目 schema
+的前提下，通过既有 `prewarm` transaction 验证受限 WebView/Worker host，并在
+Binder/FD、真实 compiler probe、冻结 AAR 与双向兼容门禁通过后冻结本文件的顶层
+Binder envelope 和 ZIP container. input/output manifest、diagnostics schema 和
+fingerprint revision 机制在 R2 冻结，具体 Rhino/Node profile revision 分别在
+R4/R5 的真实执行验证后冻结. 这样可以稳定跨进程调用方式，同时避免过早锁死
+项目语义.
 
 R1 host 的 asset origin, Worker 隔离, runtime golden 和当前设备证据见
 [Restricted Compiler Host R1](COMPILER_HOST_R1.md).
+R1 已冻结的 raw ZIP 结构、path 算法和基础配额见
+[ZIP Archive Container v1](ARCHIVE_CONTAINER_V1.md); 该结构层不包含项目
+manifest 或 diagnostics schema.
 
 ## 服务
 
@@ -57,9 +61,12 @@ host 必须先读取 contract version/hash, 再创建请求. `startCompilation` 
 - R2 起增加 profile revision, distribution/declarations fingerprint 和 runtime
   capabilities fingerprint.
 
-R0 以及当前 R1 的 `startCompilation` 始终返回 `accepted=false` 和
-`ERR_AUTOJS6_TYPESCRIPT_R0_NOT_AVAILABLE`. R0 不会发送 callback, 不宣称具备
-compiler 能力; R1 的内部 prewarm probe 也不会改变这一行为.
+R0 以及当前 R1 的 production、release 和外部调用
+`startCompilation` 始终返回 `accepted=false` 和
+`ERR_AUTOJS6_TYPESCRIPT_R0_NOT_AVAILABLE`. R0 不会发送 callback，不宣称具备
+compiler 能力；R1 的内部 prewarm probe 也不会改变这一行为. debug APK 另有
+same-UID、私有 control key 保护的 transport lifecycle probe，只用于验证尚未在
+R2 启用的 accepted 状态机；它不属于公开 Bundle schema、冻结 AAR 或 capability.
 
 ## Bundle schema
 
@@ -133,6 +140,15 @@ R1 的内部 request ID/VFS 消息不是公共 Bundle schema. 调用方不得把
 accepted 只表示进入有界队列, 不表示编译成功. accepted callback 不得在
 `startCompilation()` transaction 返回前发送.
 
+R1 的私有 debug lifecycle probe 使用容量 1 的队列，并要求测试 client 在收到
+ticket 后通过第二个同步 transaction 发送内部 acknowledgement；只有这道
+post-return barrier 之后才 arm timeout/completion callback. admission timeout
+仍从原始 admission 时刻计算. 未 acknowledgement 的内部 probe 最迟在
+`min(timeoutMs, 5s)` 被静默回收 FD，避免调试误用造成资源泄漏；该非公开例外
+不构成 production accepted 语义. 完成历史最多保留 256 项；达到上限后拒绝新
+debug admission 直到 service restart，以同时保持内存有界、重复 request ID
+拒绝和已发 token 的 cancel 幂等.
+
 ### progress/result/cancellation
 
 - progress: `requestId`, `stage`, `elapsedMs`; 不携带 diagnostics 或源码.
@@ -148,6 +164,30 @@ result/cancellation 的 request ID 和 token 仍受上述长度约束. 完整 di
 冻结的 transaction signature, callback signature, primitive-only Bundle 和
 FD envelope 规则; 增加可选 Bundle key 不自动改变 hash. 破坏 envelope 的变更
 必须升级 contract version/hash, 并保留兼容 service 或明确拒绝.
+
+## 冻结 artifact 与兼容门禁
+
+R1 将以下只读 artifact 纳入版本库:
+
+- `compat/v1/typescript-api-v1.aar`, SHA-256
+  `470ba0e823389fc74ea5aba3b82312576d29d954e8817633697a4ab197fd4f79`.
+- `compat/v1/binder-transactions.json`.
+- `compat/v1/bundle-fixtures.json`.
+
+`verifyR1ProtocolCompatibility` 比较当前 AIDL、编译后 contract 和 canonical
+fixtures，验证冻结 AAR bytes，并构建/lint 只依赖该 AAR 的 `r1-compat-v1`.
+重冻只能显式运行 `:plugin-api:typescript-api:freezeTypeScriptApiV1`.
+framework-only 双向 instrumentation 已在 API 31/33 真机验证 frozen client →
+current service 与 current target AIDL → frozen service 的 transaction 1--6、
+未知合法 `String[]`、R1 reject、caller FD 引用/bytes 保持、frozen service
+内部引用计数归零和零 callback. frozen service fixture 的计数不是 OS FD 观测；
+真实 current service 的 service-side `/proc` ownership/close 证据由下述 accepted
+lifecycle 门禁单独提供.
+compat APK 与 app 的 debug/release signing identity 由构建门禁对实际 APK 执行
+`apksigner --print-certs` 后强制一致；当前 debug certificate SHA-256 为
+`31a681fcfffb3e428420cae280ded89292b12a3b0f59e19b7a73e32a8ae4c213`.
+聚合任务不操作设备；README 保存了先安装 current app、再安装 compat APK 并串行
+运行两条 framework-only instrumentation 的精确命令.
 
 ## Job identity, ownership 和取消
 
@@ -194,12 +234,21 @@ R0 只执行同步拒绝, 并在返回 ticket 前关闭 service 收到的两份 
 真实远程 Binder instrumentation 还重复验证 raw Bundle transport FD 在
 `prewarm`, `startCompilation` 和 `cancelCompilation` 的拒绝路径被释放, 调用方
 引用保持有效, compiler process 不残留对应 staging target, 且始终为 0 callback.
+R1 debug lifecycle instrumentation 另在 accepted active 状态从
+`/proc/<compiler-pid>/fd` 观察到两份 `.archive` service 引用，并在 completion、
+cancellation、timeout、callback death 和 unacknowledged reaper 终态后确认
+`.archive` target 归零且进程身份不变；饱和 reject 保持 caller output sentinel
+不变. compiler 总 FD 有界与最终精确回到 warm baseline 由 10 次 warmup + 100 次
+真实 Worker probe 的独立门禁验证，避免把 process/runtime 首用持久 descriptor
+误归因于单个 accepted job. callback death 会释放 accepted job 而保持 compiler Binder 存活；
+service death 的本地 exactly-once 终态由 instrumentation 内的代表性 client
+arbiter 合成，不宣称已经接入 AutoJs6 正式执行链.
 
 ## Input archive v1
 
-容器使用单卷 ZIP, entry name 使用 UTF-8. 只允许未加密的 regular file entry 和
-`STORED`/`DEFLATED`; 禁止 ZIP64, symlink, hardlink, device, data path alias 和
-multi-disk archive.
+底层容器必须通过 [ZIP Archive Container v1](ARCHIVE_CONTAINER_V1.md). 下列
+目录和 `request-manifest.json` 内容仍是 R2 的 provisional input schema, 不属于
+R1 的容器冻结:
 
 ```text
 request-manifest.json
@@ -228,6 +277,10 @@ host 负责安全读取, 按清单解密和打包文件, 不负责解释 TypeScr
 external TypeScript.
 
 ## Output archive v1
+
+底层容器同样必须通过
+[ZIP Archive Container v1](ARCHIVE_CONTAINER_V1.md). 下列目录、提交形态和
+`compilation-manifest.json` 内容仍由 R2 冻结:
 
 ```text
 compilation-manifest.json
@@ -277,30 +330,21 @@ immutable AutoJs6 security/profile constraints
 - request, manifest 和实际 archive bytes 任一 hash 不一致时以 integrity error 拒绝,
   不尝试猜测或合并.
 
-## Canonical path 和配额
+## 容器配额与 R2 语义配额
 
-- path 必须是 NFC 规范化, `/` 分隔, 非空的项目相对路径.
-- 禁止绝对路径, drive/UNC prefix, `.`/`..`, `\`, NUL, symlink 和规范化后重复路径.
-- 大小和摘要由 plugin 重新计算, 不信任 manifest 或 ZIP header.
-- input: container/compressed 最多 64 MiB, 4096 files, uncompressed 64 MiB,
-  单文件 8 MiB.
-- output: container/compressed 最多 128 MiB, 8192 files, uncompressed 256 MiB.
+printable-ASCII/canonical path、ASCII casefold、regular-file、
+container/file/metadata/depth/ratio 的 R1 冻结规则和 exact inclusive limits 以
+[ZIP Archive Container v1](ARCHIVE_CONTAINER_V1.md) 为准. validator 会读取 raw
+local/central records 并按实际 streaming bytes 重算 CRC、size 和 ratio, 不信任
+manifest 或 ZIP header.
+
+以下是尚待 R2 冻结的项目语义配额, 不属于 ZIP v1 结构层:
+
 - 单 JS 16 MiB, 单 Source Map 32 MiB.
 - diagnostics 最多 10000 条, 序列化后最多 8 MiB.
-- entry name UTF-8 最多 1024 bytes, path depth 最多 64.
 - 单 manifest 最多 4 MiB, JSON nesting depth 最多 64.
-- ZIP central-directory/extra/comment 元数据累计最多 8 MiB.
 - input extraction, private output ZIP 和 output copy 同时占用的私有 staging
   总预算最多 384 MiB.
-- 单 entry 和 archive 总压缩比均不得超过 100:1.
-- 超过任一配额立即失败, 停止解压/写入并清理临时文件.
 
-ASCII name 可不带 UTF-8 flag; 任何非 ASCII name 必须带 UTF-8 flag. 非法 UTF-8
-直接拒绝. 为保证 Android/desktop/remote builder 一致, NFC 后大小写折叠冲突也
-拒绝. archive comment 和 entry comment 不参与语义, 但仍计入元数据预算.
-
-全部配额按实际 streaming 读写字节计数, 不能信任 central-directory 或
-`ZipEntry.size`. R2 冻结 schema 前必须直接覆盖 duplicate entry, zip slip,
-Unicode/case-fold collision, symlink, forged size, truncated/oversized central
-directory, invalid flag, bomb 和输出超限测试. format/integrity/path/quota 分别使用
-稳定错误码.
+R2 冻结 schema 前还必须增加 manifest inventory/hash、项目 root allowlist 和
+上述语义配额测试; R1 的 container golden 不能被当成合法项目 archive fixture.

@@ -38,6 +38,7 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
+import org.json.JSONObject
 
 class TypeScriptWebViewCompilerHost(
     context: Context,
@@ -99,6 +100,10 @@ class TypeScriptWebViewCompilerHost(
     @Volatile
     private var lastCloseReportForTesting: CompilerHostCloseReport? = null
 
+    @Volatile
+    private var lastCorrelationReportForTesting:
+        CompilerHostCorrelationTestReport? = null
+
     fun snapshot(): CompilerHostSnapshot = currentSnapshot
 
     internal fun isRendererTerminationSupportedForTesting(): Boolean =
@@ -148,8 +153,34 @@ class TypeScriptWebViewCompilerHost(
         return lastCloseReportForTesting
     }
 
+    internal fun correlationReportForTesting(): CompilerHostCorrelationTestReport? {
+        check(BuildConfig.DEBUG) {
+            "Compiler correlation telemetry is unavailable in release builds."
+        }
+        return lastCorrelationReportForTesting
+    }
+
     fun probe(timeoutMs: Long): CompilerHostProbeOutcome =
-        probe(timeoutMs = timeoutMs, dispatchOnMain = true)
+        probe(
+            timeoutMs = timeoutMs,
+            dispatchOnMain = true,
+            correlationFaultForTesting = null,
+        )
+
+    internal fun probeWithWrongRequestIdFailureForTesting(
+        timeoutMs: Long,
+    ): CompilerHostProbeOutcome {
+        check(BuildConfig.DEBUG) {
+            "Compiler correlation controls are unavailable in release builds."
+        }
+        lastCorrelationReportForTesting = null
+        return probe(
+            timeoutMs = timeoutMs,
+            dispatchOnMain = true,
+            correlationFaultForTesting =
+                CompilerCorrelationFaultForTesting.WRONG_REQUEST_ID_FAILURE,
+        )
+    }
 
     internal fun holdProbeUntilCloseForTesting(
         timeoutMs: Long,
@@ -157,12 +188,17 @@ class TypeScriptWebViewCompilerHost(
         check(BuildConfig.DEBUG) {
             "Compiler lifecycle controls are unavailable in release builds."
         }
-        return probe(timeoutMs = timeoutMs, dispatchOnMain = false)
+        return probe(
+            timeoutMs = timeoutMs,
+            dispatchOnMain = false,
+            correlationFaultForTesting = null,
+        )
     }
 
     private fun probe(
         timeoutMs: Long,
         dispatchOnMain: Boolean,
+        correlationFaultForTesting: CompilerCorrelationFaultForTesting?,
     ): CompilerHostProbeOutcome {
         val startedAt = SystemClock.elapsedRealtime()
         if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -198,6 +234,7 @@ class TypeScriptWebViewCompilerHost(
                 else -> PendingProbe(
                     requestId = UUID.randomUUID().toString(),
                     startedAt = startedAt,
+                    correlationFaultForTesting = correlationFaultForTesting,
                 ).also { pendingProbe = it }
             }
         }
@@ -595,6 +632,7 @@ class TypeScriptWebViewCompilerHost(
         val port = nativePort ?: return
         val view = webView ?: return
         pending.workerGeneration = workerGeneration
+        injectCorrelationFaultForTestingOnMain(port, pending)
         if (terminateRendererBeforeDispatchForTestingOnMain(view)) return
         if (!port.postMessageSafely(CompilerHostProtocol.probeRequest(pending.requestId))) {
             failPendingAndSession(
@@ -602,6 +640,39 @@ class TypeScriptWebViewCompilerHost(
                 message = "Failed to send the compiler probe to the host page.",
             )
         }
+    }
+
+    private fun injectCorrelationFaultForTestingOnMain(
+        port: WebMessagePort,
+        pending: PendingProbe,
+    ) {
+        checkMainThread()
+        val fault = pending.correlationFaultForTesting ?: return
+        if (pending.correlationFaultInjected) return
+        check(BuildConfig.DEBUG) {
+            "Compiler correlation controls are unavailable in release builds."
+        }
+        pending.correlationFaultInjected = true
+        when (fault) {
+            CompilerCorrelationFaultForTesting.WRONG_REQUEST_ID_FAILURE -> {
+                val generation = requireNotNull(pending.workerGeneration)
+                val rawFailure = JSONObject()
+                    .put("kind", "probeError")
+                    .put("requestId", "${pending.requestId}-wrong")
+                    .put("generation", generation)
+                    .put("pageHasTypeScript", false)
+                    .put("message", "Injected wrong-request correlation fault.")
+                    .toString()
+                handlePortMessageOnMain(port, rawFailure)
+            }
+        }
+        val ignored = synchronized(stateLock) {
+            pendingProbe === pending && pending.outcome == null
+        }
+        lastCorrelationReportForTesting = CompilerHostCorrelationTestReport(
+            faultInjected = true,
+            faultIgnored = ignored,
+        )
     }
 
     private fun handleProbeResultOnMain(message: CompilerHostMessage.ProbeResult) {
@@ -1040,12 +1111,18 @@ class TypeScriptWebViewCompilerHost(
     private data class PendingProbe(
         val requestId: String,
         val startedAt: Long,
+        val correlationFaultForTesting: CompilerCorrelationFaultForTesting?,
         val completion: CountDownLatch = CountDownLatch(1),
         var outcome: CompilerHostProbeOutcome? = null,
         var rendererRetryCount: Int = 0,
         var webViewSessionGeneration: Int? = null,
         var workerGeneration: Int? = null,
+        var correlationFaultInjected: Boolean = false,
     )
+
+    private enum class CompilerCorrelationFaultForTesting {
+        WRONG_REQUEST_ID_FAILURE,
+    }
 
     companion object {
 

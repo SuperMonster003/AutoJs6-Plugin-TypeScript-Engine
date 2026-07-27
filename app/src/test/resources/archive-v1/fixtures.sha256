@@ -1,0 +1,3 @@
+# SHA-256 of UTF-8 fixture text after CRLF or CR is canonicalized to LF.
+9dd0594ef28cd49d0903095b15b912142f7909b1ec8fffe2018052efd6c7af4f  valid-golden.hex
+513334e8a499743f6df53e4b155579192a572c677cfaedbaecd714047c7337ef  invalid-golden.hex

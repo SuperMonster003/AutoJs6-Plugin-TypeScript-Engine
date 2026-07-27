@@ -116,20 +116,29 @@ class R1BinderFdInstrumentationTest {
                         processResourceProbe.requireIdentity(compilerPid),
                     )
                     val isFinalCheckpoint = completedCalls == HOT_PROBE_COUNT
-                    val maximumCount =
-                        baselineFileDescriptors.count +
-                            if (isFinalCheckpoint) {
-                                FINAL_FD_COUNT_ALLOWANCE
-                            } else {
-                                CHECKPOINT_FD_COUNT_ALLOWANCE
-                            }
                     val checkpoint =
-                        processResourceProbe.awaitStableFileDescriptors(
-                            pid = compilerPid,
-                            label = "Remote prewarm checkpoint $completedCalls",
-                            maximumCount = maximumCount,
-                            expectedIdentity = processIdentity,
-                        )
+                        if (isFinalCheckpoint) {
+                            processResourceProbe.awaitStableFileDescriptors(
+                                pid = compilerPid,
+                                label = "Remote prewarm final checkpoint",
+                                expectedIdentity = processIdentity,
+                            ).also { finalSnapshot ->
+                                assertFinalFileDescriptorState(
+                                    baseline = baselineFileDescriptors,
+                                    current = finalSnapshot,
+                                    expectedProcessPid = compilerPid,
+                                )
+                            }
+                        } else {
+                            processResourceProbe.awaitStableFileDescriptors(
+                                pid = compilerPid,
+                                label = "Remote prewarm checkpoint $completedCalls",
+                                maximumCount =
+                                    baselineFileDescriptors.count +
+                                        CHECKPOINT_FD_COUNT_ALLOWANCE,
+                                expectedIdentity = processIdentity,
+                            )
+                        }
                     Log.i(
                         TAG,
                         "Remote prewarm checkpoint=$completedCalls " +
@@ -155,6 +164,67 @@ class R1BinderFdInstrumentationTest {
                 ),
             )
         }
+    }
+
+    private fun assertFinalFileDescriptorState(
+        baseline: RemoteFileDescriptorSnapshot,
+        current: RemoteFileDescriptorSnapshot,
+        expectedProcessPid: Int,
+    ) {
+        val unmatchedBaselineTargets = baseline.targets.toMutableList()
+        val addedTargets = buildList {
+            current.targets.forEach { target ->
+                val baselineIndex = unmatchedBaselineTargets.indexOf(target)
+                if (baselineIndex >= 0) {
+                    unmatchedBaselineTargets.removeAt(baselineIndex)
+                } else {
+                    add(target)
+                }
+            }
+        }
+        Log.i(
+            TAG,
+            "Remote prewarm final FD delta " +
+                "baselineCount=${baseline.count} currentCount=${current.count} " +
+                "added=$addedTargets removed=$unmatchedBaselineTargets",
+        )
+        if (current.count <= baseline.count) return
+
+        // Chrome 119 on Android 7 can lazily retain this read-only self-telemetry pair
+        // after the warm baseline. Keep the exception structural and exact so it cannot
+        // hide an app-owned descriptor, a partial pair, or continued growth.
+        assertEquals(
+            "The only permitted final FD growth is Chrome's complete process procfs " +
+                "telemetry pair.",
+            CHROMIUM_PROCESS_PROC_FD_COUNT,
+            current.count - baseline.count,
+        )
+        assertTrue(
+            "Chrome process procfs telemetry must not replace baseline descriptors: " +
+                "removed=$unmatchedBaselineTargets",
+            unmatchedBaselineTargets.isEmpty(),
+        )
+        assertEquals(
+            "Chrome process procfs telemetry must add exactly two descriptors.",
+            CHROMIUM_PROCESS_PROC_FD_COUNT,
+            addedTargets.size,
+        )
+        val procMatches = addedTargets.map(CHROMIUM_PROCESS_PROC_TARGET::matchEntire)
+        assertTrue(
+            "Unexpected final descriptors beyond the warm baseline: $addedTargets",
+            procMatches.all { match -> match != null },
+        )
+        val matchedTargets = procMatches.filterNotNull()
+        assertEquals(
+            "Chrome procfs telemetry descriptors must reference the compiler process.",
+            setOf(expectedProcessPid.toString()),
+            matchedTargets.map { match -> match.groupValues[1] }.toSet(),
+        )
+        assertEquals(
+            "Chrome process procfs telemetry must contain exactly status and statm.",
+            CHROMIUM_PROCESS_PROC_FILES,
+            matchedTargets.map { match -> match.groupValues[2] }.toSet(),
+        )
     }
 
     private fun assertSuccessfulPrewarm(result: Bundle) {
@@ -642,10 +712,12 @@ class R1BinderFdInstrumentationTest {
         const val HOT_PROBE_COUNT = 100
         const val HOT_PROBE_CHECKPOINT_INTERVAL = 10
         const val CHECKPOINT_FD_COUNT_ALLOWANCE = 4
-        const val FINAL_FD_COUNT_ALLOWANCE = 0
+        const val CHROMIUM_PROCESS_PROC_FD_COUNT = 2
         const val PROCESS_LOOKUP_ATTEMPTS = 100
         const val PROCESS_LOOKUP_INTERVAL_MILLIS = 25L
         const val SERVICE_TIMEOUT_SECONDS = 5L
+        val CHROMIUM_PROCESS_PROC_FILES = setOf("statm", "status")
+        val CHROMIUM_PROCESS_PROC_TARGET = Regex("""/proc/([1-9][0-9]*)/(statm|status)""")
         const val NO_CALLBACK_WINDOW_MILLIS = 250L
         const val EXPECTED_DECLARATIONS_FINGERPRINT =
             "6ee5c0bce41694b8ca86430b82abfe4fbb60bf96321fba43e99d9810a44a1c1f"

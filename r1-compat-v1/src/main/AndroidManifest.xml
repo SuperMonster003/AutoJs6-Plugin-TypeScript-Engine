@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="org.autojs.permission.PLUGIN" />
+
+    <queries>
+        <package android:name="io.github.supermonster003.autojs6.plugin.typescript" />
+    </queries>
+
+    <instrumentation
+        android:name=".FrozenClientToCurrentServiceInstrumentation"
+        android:functionalTest="true"
+        android:handleProfiling="false"
+        android:label="Frozen v1 client to current compiler service"
+        android:targetPackage="io.github.supermonster003.autojs6.plugin.typescript.compat.v1" />
+
+    <instrumentation
+        android:name=".CurrentClientToFrozenServiceInstrumentation"
+        android:functionalTest="true"
+        android:handleProfiling="false"
+        android:label="Current compiler client to frozen v1 service"
+        android:targetPackage="io.github.supermonster003.autojs6.plugin.typescript" />
+
+    <application
+        android:allowBackup="false"
+        android:hasCode="true"
+        android:label="TypeScript R1 Compat v1">
+
+        <service
+            android:name=".FrozenR1CompilerService"
+            android:exported="true"
+            android:permission="org.autojs.permission.PLUGIN"
+            android:process=":frozen_compiler">
+
+            <intent-filter>
+                <action android:name="org.autojs.plugin.typescript.compat.v1.COMPILER" />
+                <category android:name="typescript" />
+            </intent-filter>
+        </service>
+
+    </application>
+
+</manifest>

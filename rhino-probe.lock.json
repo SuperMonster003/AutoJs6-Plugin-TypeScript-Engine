@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "purpose": "r1-rhino-typescript-compiler-feasibility-probe",
+  "artifact": {
+    "fileName": "org-mozilla-rhino-2_0_0-SNAPSHOT.jar",
+    "sha256": "712a73d62edc56eb36a909a229eca87ac433afa7aaceb6d60e3acbbc75a9533a"
+  },
+  "rhinoSource": {
+    "commit": "e0dfa6f316bfb5ed99fff3d0cf33310e18458d3d"
+  },
+  "autoJs6Consumer": {
+    "commit": "f78c281985618205d2dc3dd056cf9bf042cc5996"
+  },
+  "policy": {
+    "packaging": "debug-opt-in-only",
+    "expectedOutcome": "unsupported",
+    "fallbackEligible": false
+  }
+}

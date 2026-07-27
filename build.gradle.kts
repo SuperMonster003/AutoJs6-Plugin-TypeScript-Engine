@@ -59,4 +59,19 @@ tasks {
         dependsOn(":release-smoke:assembleDebug")
         dependsOn(":release-smoke:lintDebug")
     }
+
+    register("verifyR1RhinoProbe") {
+        group = "verification"
+        description =
+            "Builds the opt-in debug Rhino feasibility probe and release exclusion gates."
+        dependsOn(":app:verifyR1RhinoProbe")
+    }
+
+    register("verifyR1ProtocolCompatibility") {
+        group = "verification"
+        description =
+            "Verifies the frozen v1 API, canonical fixtures, signing, and compat APKs."
+        dependsOn(":plugin-api:typescript-api:verifyTypeScriptApiV1Freeze")
+        dependsOn(":r1-compat-v1:verifyR1CompatV1Fixture")
+    }
 }

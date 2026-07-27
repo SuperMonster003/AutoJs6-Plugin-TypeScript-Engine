@@ -1,0 +1,276 @@
+{
+  "schema": "autojs6.typescript.binder-transactions.v1",
+  "contract": {
+    "version": 1,
+    "versionConstant": "VERSION",
+    "hashAlgorithm": "SHA-256",
+    "hash": "e35e8c6f71b8e0799678974e95aca9233225b3371c4a484437c7740defe9f86b",
+    "hashConstant": "HASH",
+    "hashInput": "autojs6.typescript.compiler.bundle-envelope.v1|getContractVersion()->int|getContractHash()->String|getCompilerInfo()->Bundle|prewarm(Bundle)->Bundle|startCompilation(Bundle,ParcelFileDescriptor,ParcelFileDescriptor,ITypeScriptCompilationCallback)->Bundle|cancelCompilation(Bundle)->boolean|callback:onProgress(Bundle),onCompleted(Bundle)|bundle:primitive-only|fd:input,output",
+    "hashInputConstant": "HASH_INPUT",
+    "compatibility": "existing transaction prefixes are immutable; new transactions are append-only"
+  },
+  "interfaces": [
+    {
+      "source": "plugin-api/typescript-api/src/main/aidl/org/autojs/plugin/typescript/api/ITypeScriptCompilerPlugin.aidl",
+      "name": "ITypeScriptCompilerPlugin",
+      "descriptor": "org.autojs.plugin.typescript.api.ITypeScriptCompilerPlugin",
+      "oneway": false,
+      "transactions": [
+        {
+          "code": 1,
+          "codeExpression": "IBinder.FIRST_CALL_TRANSACTION + 0",
+          "name": "getContractVersion",
+          "signature": "int getContractVersion()",
+          "hashSignature": "getContractVersion()->int",
+          "returnType": "int",
+          "parameters": []
+        },
+        {
+          "code": 2,
+          "codeExpression": "IBinder.FIRST_CALL_TRANSACTION + 1",
+          "name": "getContractHash",
+          "signature": "String getContractHash()",
+          "hashSignature": "getContractHash()->String",
+          "returnType": "String",
+          "parameters": []
+        },
+        {
+          "code": 3,
+          "codeExpression": "IBinder.FIRST_CALL_TRANSACTION + 2",
+          "name": "getCompilerInfo",
+          "signature": "Bundle getCompilerInfo()",
+          "hashSignature": "getCompilerInfo()->Bundle",
+          "returnType": "Bundle",
+          "parameters": []
+        },
+        {
+          "code": 4,
+          "codeExpression": "IBinder.FIRST_CALL_TRANSACTION + 3",
+          "name": "prewarm",
+          "signature": "Bundle prewarm(in Bundle options)",
+          "hashSignature": "prewarm(Bundle)->Bundle",
+          "returnType": "Bundle",
+          "parameters": [
+            {
+              "name": "options",
+              "type": "Bundle",
+              "direction": "in"
+            }
+          ]
+        },
+        {
+          "code": 5,
+          "codeExpression": "IBinder.FIRST_CALL_TRANSACTION + 4",
+          "name": "startCompilation",
+          "signature": "Bundle startCompilation(in Bundle request, in ParcelFileDescriptor inputArchive, in ParcelFileDescriptor outputArchive, ITypeScriptCompilationCallback callback)",
+          "hashSignature": "startCompilation(Bundle,ParcelFileDescriptor,ParcelFileDescriptor,ITypeScriptCompilationCallback)->Bundle",
+          "returnType": "Bundle",
+          "parameters": [
+            {
+              "name": "request",
+              "type": "Bundle",
+              "direction": "in"
+            },
+            {
+              "name": "inputArchive",
+              "type": "ParcelFileDescriptor",
+              "direction": "in"
+            },
+            {
+              "name": "outputArchive",
+              "type": "ParcelFileDescriptor",
+              "direction": "in"
+            },
+            {
+              "name": "callback",
+              "type": "ITypeScriptCompilationCallback",
+              "direction": "none"
+            }
+          ]
+        },
+        {
+          "code": 6,
+          "codeExpression": "IBinder.FIRST_CALL_TRANSACTION + 5",
+          "name": "cancelCompilation",
+          "signature": "boolean cancelCompilation(in Bundle cancellation)",
+          "hashSignature": "cancelCompilation(Bundle)->boolean",
+          "returnType": "boolean",
+          "parameters": [
+            {
+              "name": "cancellation",
+              "type": "Bundle",
+              "direction": "in"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "plugin-api/typescript-api/src/main/aidl/org/autojs/plugin/typescript/api/ITypeScriptCompilationCallback.aidl",
+      "name": "ITypeScriptCompilationCallback",
+      "descriptor": "org.autojs.plugin.typescript.api.ITypeScriptCompilationCallback",
+      "oneway": true,
+      "hashDescriptor": "callback:onProgress(Bundle),onCompleted(Bundle)",
+      "transactions": [
+        {
+          "code": 1,
+          "codeExpression": "IBinder.FIRST_CALL_TRANSACTION + 0",
+          "name": "onProgress",
+          "signature": "void onProgress(in Bundle progress)",
+          "returnType": "void",
+          "parameters": [
+            {
+              "name": "progress",
+              "type": "Bundle",
+              "direction": "in"
+            }
+          ]
+        },
+        {
+          "code": 2,
+          "codeExpression": "IBinder.FIRST_CALL_TRANSACTION + 1",
+          "name": "onCompleted",
+          "signature": "void onCompleted(in Bundle result)",
+          "returnType": "void",
+          "parameters": [
+            {
+              "name": "result",
+              "type": "Bundle",
+              "direction": "in"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "bundleEnvelope": {
+    "hashToken": "bundle:primitive-only",
+    "topLevelNullValues": "reject",
+    "unknownKeys": "ignore only when the value has an allowed exact runtime type and the complete Bundle stays within every budget",
+    "allowedScalarRuntimeTypes": [
+      "java.lang.Boolean",
+      "java.lang.Byte",
+      "java.lang.Character",
+      "java.lang.Double",
+      "java.lang.Float",
+      "java.lang.Integer",
+      "java.lang.Long",
+      "java.lang.Short",
+      "java.lang.String"
+    ],
+    "allowedArrayRuntimeTypes": [
+      "boolean[]",
+      "byte[]",
+      "char[]",
+      "double[]",
+      "float[]",
+      "int[]",
+      "long[]",
+      "short[]",
+      "java.lang.String[]"
+    ],
+    "stringArrayRule": "runtime component type must be exactly java.lang.String; null elements are allowed",
+    "rejectedRuntimeFamilies": [
+      "android.os.Parcelable",
+      "java.io.Serializable",
+      "android.os.IBinder",
+      "android.os.Bundle",
+      "android.os.Parcelable[]",
+      "file descriptors in Bundle"
+    ],
+    "budgets": {
+      "maxMarshalledBytes": {
+        "value": 65536,
+        "contractConstant": "MAX_METADATA_BYTES"
+      },
+      "maxKeys": {
+        "value": 64,
+        "contractConstant": "MAX_METADATA_KEYS"
+      },
+      "maxArrayElements": {
+        "value": 256,
+        "contractConstant": "MAX_METADATA_ARRAY_ELEMENTS"
+      },
+      "maxCompilerOptionsUtf8Bytes": {
+        "value": 49152,
+        "contractConstant": "MAX_COMPILER_OPTIONS_BYTES"
+      },
+      "maxRequestIdChars": {
+        "value": 128,
+        "contractConstant": "MAX_REQUEST_ID_CHARS"
+      },
+      "maxJobTokenChars": {
+        "value": 256,
+        "contractConstant": "MAX_JOB_TOKEN_CHARS"
+      },
+      "maxProjectIdChars": {
+        "value": 256,
+        "contractConstant": "MAX_PROJECT_ID_CHARS"
+      },
+      "maxSourceUriChars": {
+        "value": 4096,
+        "contractConstant": "MAX_SOURCE_URI_CHARS"
+      },
+      "maxErrorMessageChars": {
+        "value": 4096,
+        "contractConstant": "MAX_ERROR_MESSAGE_CHARS"
+      },
+      "maxTimeoutMs": {
+        "value": 120000,
+        "contractConstant": "MAX_TIMEOUT_MS"
+      }
+    },
+    "rawTransportRules": [
+      "prewarm and cancelCompilation reject any file descriptor before Bundle materialization",
+      "startCompilation inspects only its first typed request Bundle for embedded file descriptors",
+      "startCompilation must not confuse the following input/output ParcelFileDescriptor parameters with request metadata",
+      "an embedded Bundle file descriptor is rejected before readBundle and its transported copy is released by Parcel/Binder ownership",
+      "invalid materialized metadata is cleared after the safe envelope has been read"
+    ]
+  },
+  "fileDescriptorEnvelope": {
+    "hashToken": "fd:input,output",
+    "inputArchiveTransportVersion": {
+      "value": 1,
+      "contractConstant": "INPUT_ARCHIVE_TRANSPORT_VERSION"
+    },
+    "outputArchiveTransportVersion": {
+      "value": 1,
+      "contractConstant": "OUTPUT_ARCHIVE_TRANSPORT_VERSION"
+    },
+    "transactionPolicies": {
+      "getContractVersion": "no file descriptors",
+      "getContractHash": "no file descriptors",
+      "getCompilerInfo": "no file descriptors",
+      "prewarm": "reject any file descriptor",
+      "startCompilation": "exactly two top-level ParcelFileDescriptor parameters; reject file descriptors embedded in request metadata",
+      "cancelCompilation": "reject any file descriptor"
+    },
+    "inputRequirements": [
+      "seekable",
+      "readable",
+      "regular staging file",
+      "not a pipe, socket, or directory"
+    ],
+    "outputRequirements": [
+      "seekable",
+      "writable",
+      "truncatable",
+      "regular staging file",
+      "not a pipe, socket, or directory",
+      "different backing file from input"
+    ],
+    "ownership": [
+      "caller owns and closes its input and output descriptor references",
+      "Binder gives the service independent transported descriptor references",
+      "caller may close its references after startCompilation returns but must not read or reuse output before a terminal callback",
+      "service closes both received references on admission rejection, success, failure, timeout, cancellation, callback death, and service destruction",
+      "R1 rejection closes both service references before returning the ticket and sends zero callbacks",
+      "accepted work truncates output before compilation and commits a fully validated archive before fsync, seek-to-zero, close, and terminal callback",
+      "cancel, timeout, internal failure, and transport failure make a best effort to truncate output before close and callback",
+      "service or callback Binder death causes the surviving side to release all owned descriptors and staging files"
+    ],
+    "terminalCallbackRule": "accepted work with both Binder peers alive sends exactly one terminal callback after service-side output close; admission rejection sends zero callbacks"
+  }
+}

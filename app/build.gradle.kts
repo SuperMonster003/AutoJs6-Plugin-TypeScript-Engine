@@ -30,6 +30,44 @@ val generatedTypeScriptDistributionDirectory =
     generatedTypeScriptAssetsDirectory.map { it.dir("typescript/$typeScriptVersion") }
 val compilerHostSourceAssetDirectory =
     layout.projectDirectory.dir("src/main/assets/typescript-compiler-r1")
+val r1RhinoProbeLockFile =
+    rootProject.layout.projectDirectory.file("rhino-probe.lock.json")
+@Suppress("UNCHECKED_CAST")
+val r1RhinoProbeLock =
+    JsonSlurper().parse(r1RhinoProbeLockFile.asFile) as Map<String, Any?>
+@Suppress("UNCHECKED_CAST")
+val r1RhinoProbeArtifact =
+    r1RhinoProbeLock["artifact"] as? Map<String, Any?>
+        ?: error("Rhino probe lock does not contain artifact metadata.")
+@Suppress("UNCHECKED_CAST")
+val r1RhinoProbeSource =
+    r1RhinoProbeLock["rhinoSource"] as? Map<String, Any?>
+        ?: error("Rhino probe lock does not contain Rhino source metadata.")
+@Suppress("UNCHECKED_CAST")
+val r1RhinoProbeConsumer =
+    r1RhinoProbeLock["autoJs6Consumer"] as? Map<String, Any?>
+        ?: error("Rhino probe lock does not contain AutoJs6 consumer metadata.")
+@Suppress("UNCHECKED_CAST")
+val r1RhinoProbePolicy =
+    r1RhinoProbeLock["policy"] as? Map<String, Any?>
+        ?: error("Rhino probe lock does not contain policy metadata.")
+val r1RhinoProbeArtifactName =
+    r1RhinoProbeArtifact["fileName"] as? String
+        ?: error("Rhino probe lock does not declare artifact.fileName.")
+val r1RhinoProbeArtifactSha256 =
+    r1RhinoProbeArtifact["sha256"] as? String
+        ?: error("Rhino probe lock does not declare artifact.sha256.")
+val r1RhinoProbeSourceCommit =
+    r1RhinoProbeSource["commit"] as? String
+        ?: error("Rhino probe lock does not declare rhinoSource.commit.")
+val r1RhinoProbeConsumerCommit =
+    r1RhinoProbeConsumer["commit"] as? String
+        ?: error("Rhino probe lock does not declare autoJs6Consumer.commit.")
+val r1RhinoProbeJarPath = providers.gradleProperty("r1RhinoProbeJar")
+    .orNull
+    ?.trim()
+    ?.takeIf(String::isNotEmpty)
+val r1RhinoProbeJarFile = r1RhinoProbeJarPath?.let(rootProject::file)
 
 android {
     namespace = globalApplicationId
@@ -80,6 +118,31 @@ android {
             isMinifyEnabled = false
             proguardFiles(*proguardFiles)
             releaseSigning?.let { signingConfig = it }
+            buildConfigField(
+                "String",
+                "R1_RHINO_PROBE_ARTIFACT_NAME",
+                "\"$r1RhinoProbeArtifactName\"",
+            )
+            buildConfigField(
+                "String",
+                "R1_RHINO_PROBE_ARTIFACT_SHA256",
+                "\"$r1RhinoProbeArtifactSha256\"",
+            )
+            buildConfigField(
+                "String",
+                "R1_RHINO_PROBE_SOURCE_COMMIT",
+                "\"$r1RhinoProbeSourceCommit\"",
+            )
+            buildConfigField(
+                "String",
+                "R1_RHINO_PROBE_CONSUMER_COMMIT",
+                "\"$r1RhinoProbeConsumerCommit\"",
+            )
+            buildConfigField(
+                "boolean",
+                "R1_RHINO_PROBE_PACKAGED",
+                (r1RhinoProbeJarFile != null).toString(),
+            )
         }
         release {
             isMinifyEnabled = true
@@ -97,6 +160,11 @@ android {
     sourceSets {
         getByName("main") {
             assets.directories.add(generatedTypeScriptAssetsDirectory.get().asFile.absolutePath)
+        }
+        getByName("androidTest") {
+            assets.directories.add(
+                file("src/test/resources").absolutePath,
+            )
         }
     }
 
@@ -138,9 +206,65 @@ dependencies {
     implementation(project(":plugin-api:common-plugin-api"))
     implementation(project(":plugin-api:typescript-api"))
     implementation(libs.webkit)
+    r1RhinoProbeJarFile?.let { probeJar ->
+        add("debugImplementation", files(probeJar))
+    }
     androidTestImplementation(libs.test.ext.junit)
     androidTestImplementation(libs.test.runner)
     testImplementation(libs.junit)
+}
+
+val verifyR1RhinoProbeJar =
+    tasks.register("verifyR1RhinoProbeJar") {
+        group = "verification"
+        description =
+            "Verifies the explicitly selected AutoJs6 Rhino artifact against the R1 lock."
+        inputs.file(r1RhinoProbeLockFile)
+        inputs.property("r1RhinoProbeJar", r1RhinoProbeJarPath ?: "<missing>")
+        r1RhinoProbeJarFile?.let(inputs::file)
+        doLast {
+            check(r1RhinoProbeLock["schemaVersion"] == 1) {
+                "Unsupported Rhino probe lock schema: ${r1RhinoProbeLock["schemaVersion"]}"
+            }
+            check(r1RhinoProbeArtifactName == "org-mozilla-rhino-2_0_0-SNAPSHOT.jar")
+            check(
+                r1RhinoProbeArtifactSha256 ==
+                    "712a73d62edc56eb36a909a229eca87ac433afa7aaceb6d60e3acbbc75a9533a",
+            )
+            check(
+                r1RhinoProbeSourceCommit ==
+                    "e0dfa6f316bfb5ed99fff3d0cf33310e18458d3d",
+            )
+            check(
+                r1RhinoProbeConsumerCommit ==
+                    "f78c281985618205d2dc3dd056cf9bf042cc5996",
+            )
+            check(r1RhinoProbePolicy["packaging"] == "debug-opt-in-only")
+            check(r1RhinoProbePolicy["expectedOutcome"] == "unsupported")
+            check(r1RhinoProbePolicy["fallbackEligible"] == false)
+
+            val selectedJar = checkNotNull(r1RhinoProbeJarFile) {
+                "R1 Rhino probe is opt-in. Supply the exact AutoJs6 artifact with " +
+                    "-Pr1RhinoProbeJar=<path-to-$r1RhinoProbeArtifactName>."
+            }
+            check(selectedJar.isFile) {
+                "R1 Rhino probe JAR does not exist: $selectedJar"
+            }
+            check(selectedJar.name == r1RhinoProbeArtifactName) {
+                "R1 Rhino probe requires $r1RhinoProbeArtifactName, found ${selectedJar.name}."
+            }
+            val actualSha256 = selectedJar.readBytes().sha256String()
+            check(actualSha256 == r1RhinoProbeArtifactSha256) {
+                "R1 Rhino probe JAR SHA-256 mismatch: expected " +
+                    "$r1RhinoProbeArtifactSha256, actual $actualSha256."
+            }
+        }
+    }
+
+if (r1RhinoProbeJarFile != null) {
+    tasks.matching { task -> task.name == "preDebugBuild" }.configureEach {
+        dependsOn(verifyR1RhinoProbeJar)
+    }
 }
 
 val compilerDistributionLockFile =
@@ -431,23 +555,34 @@ private fun verifyCompilerHostInApk(
 
     ZipFile(apkFile).use { apk ->
         val entries = apk.entries().asSequence().filterNot { it.isDirectory }.toList()
-        val lifecycleControlMarker =
-            "__autojs6_r1_debug_hold_until_service_destroyed"
-                .toByteArray(Charsets.UTF_8)
-        val lifecycleControlPresent = entries
+        val dexBytes = entries
             .filter { entry ->
                 entry.name.matches(Regex("""classes(?:\d+)?\.dex"""))
             }
-            .any { entry ->
+            .map { entry ->
                 apk.getInputStream(entry).use { input ->
-                    input.readBytes().containsByteSequence(lifecycleControlMarker)
+                    input.readBytes()
                 }
             }
-        check(lifecycleControlPresent == debugLifecycleControlExpected) {
-            "Debug lifecycle control marker presence mismatch in ${apkFile.name}: " +
-                "expected=$debugLifecycleControlExpected, actual=$lifecycleControlPresent"
+            .toList()
+        val debugOnlyMarkers = linkedMapOf(
+            "lifecycle control" to "__autojs6_r1_debug_hold_until_service_destroyed",
+            "request correlation control" to
+                "__autojs6_r1_debug_inject_wrong_request_id_failure",
+            "accepted transport control" to "__autojs6_r1_debug_transport_probe",
+            "accepted transport executor" to "typescript-r1-transport-probe",
+            "accepted transport coordinator" to "CompilationTransportProbeCoordinator",
+        )
+        debugOnlyMarkers.forEach { (label, markerText) ->
+            val marker = markerText.toByteArray(Charsets.UTF_8)
+            val present = dexBytes.any { dex ->
+                dex.containsByteSequence(marker)
+            }
+            check(present == debugLifecycleControlExpected) {
+                "Debug-only $label marker presence mismatch in ${apkFile.name}: " +
+                    "expected=$debugLifecycleControlExpected, actual=$present"
+            }
         }
-
         val hostEntries = entries
             .filter { it.name.startsWith(hostAssetPrefix) }
             .map { it.name }
@@ -514,6 +649,61 @@ private fun verifyCompilerHostInApk(
     }
     check("""android:process=":typescript_compiler"""" in mergedManifestText) {
         "Merged compiler service must remain in :typescript_compiler."
+    }
+}
+
+private fun verifyRhinoProbeAbsentFromRelease(
+    apkFile: File,
+    mergedManifestFile: File,
+    artifactName: String,
+) {
+    verifyRhinoProbeAbsentFromReleaseApk(apkFile, artifactName)
+    check(mergedManifestFile.isFile) {
+        "Merged release manifest does not exist: $mergedManifestFile"
+    }
+    val manifestText = mergedManifestFile.readText(Charsets.UTF_8)
+    check("R1RhinoProbeService" !in manifestText)
+    check("typescript_rhino_probe" !in manifestText) {
+        "Release manifest must not contain the debug-only Rhino probe process."
+    }
+}
+
+private fun verifyRhinoProbeAbsentFromReleaseApk(
+    apkFile: File,
+    artifactName: String,
+) {
+    val forbiddenEntries = arrayOf(artifactName, "org/mozilla/javascript/")
+    val forbiddenMarkers = arrayOf(
+        "R1RhinoProbeService".toByteArray(Charsets.UTF_8),
+        "org/mozilla/javascript/Context".toByteArray(Charsets.UTF_8),
+        artifactName.toByteArray(Charsets.UTF_8),
+    )
+    val apk = ZipFile(apkFile)
+    try {
+        val entries = apk.entries()
+        while (entries.hasMoreElements()) {
+            val entry = entries.nextElement()
+            if (entry.isDirectory) continue
+            for (fragment in forbiddenEntries) {
+                check(!entry.name.contains(fragment)) {
+                    "Release APK must not package Rhino entry ${entry.name}."
+                }
+            }
+            if (!entry.name.matches(Regex("""classes(?:\d+)?\.dex"""))) continue
+            val input = apk.getInputStream(entry)
+            val dexBytes = try {
+                input.readBytes()
+            } finally {
+                input.close()
+            }
+            for (marker in forbiddenMarkers) {
+                check(!dexBytes.containsByteSequence(marker)) {
+                    "Release APK contains an R1 Rhino probe service, process, or class marker."
+                }
+            }
+        }
+    } finally {
+        apk.close()
     }
 }
 
@@ -817,6 +1007,13 @@ fun registerCompilerHostApkVerification(
             typeScriptVersion = typeScriptVersion,
             debugLifecycleControlExpected = variantName == "debug",
         )
+        if (variantName == "release") {
+            verifyRhinoProbeAbsentFromRelease(
+                apkFile = resolveSingleApkOutput(apkDirectory.get().asFile),
+                mergedManifestFile = mergedManifest.get().asFile,
+                artifactName = r1RhinoProbeArtifactName,
+            )
+        }
     }
 }
 
@@ -832,9 +1029,58 @@ val verifyReleaseCompilerHostApk =
         assembleTaskName = "assembleRelease",
         variantName = "release",
     )
+val verifyR1RhinoProbe =
+    tasks.register("verifyR1RhinoProbe") {
+        group = "verification"
+        description =
+            "Builds and verifies the opt-in debug Rhino feasibility probe without running devices."
+        dependsOn(verifyR1RhinoProbeJar)
+        dependsOn("assembleDebug", "assembleDebugAndroidTest")
+        dependsOn(verifyDebugCompilerHostApk)
+        dependsOn(verifyReleaseCompilerHostApk)
+        val debugApkDirectory = layout.buildDirectory.dir("outputs/apk/debug")
+        val debugMergedManifest = layout.buildDirectory.file(
+            "intermediates/merged_manifest/debug/processDebugMainManifest/AndroidManifest.xml",
+        )
+        inputs.dir(debugApkDirectory)
+        inputs.file(debugMergedManifest)
+        doLast {
+            val apkFile = resolveSingleApkOutput(debugApkDirectory.get().asFile)
+            val requiredDexMarkers = listOf(
+                "R1RhinoProbeService",
+                "org/mozilla/javascript/Context",
+            ).map { marker -> marker.toByteArray(Charsets.UTF_8) }
+            ZipFile(apkFile).use { apk ->
+                val dexBytes = apk.entries().asSequence()
+                    .filter { entry ->
+                        !entry.isDirectory &&
+                            entry.name.matches(Regex("""classes(?:\d+)?\.dex"""))
+                    }
+                    .map { entry ->
+                        apk.getInputStream(entry).use { input -> input.readBytes() }
+                    }
+                    .toList()
+                requiredDexMarkers.forEach { marker ->
+                    check(dexBytes.any { dex -> dex.containsByteSequence(marker) }) {
+                        "Debug APK is missing a required Rhino probe marker: " +
+                            marker.toString(Charsets.UTF_8)
+                    }
+                }
+            }
+            val manifestText = debugMergedManifest.get().asFile.readText(Charsets.UTF_8)
+            check("R1RhinoProbeService" in manifestText) {
+                "Debug manifest is missing R1RhinoProbeService."
+            }
+            check("""android:exported="false"""" in manifestText)
+            check("""android:process=":typescript_rhino_probe"""" in manifestText)
+        }
+    }
 
 val optionalPluginIndependenceSources = files(
     fileTree(layout.projectDirectory.dir("src")) {
+        // Debug-only probes bind the compiler deliberately; release APK exclusion is verified
+        // separately, while this gate is scoped to production discovery/dependencies.
+        exclude("debug/**")
         exclude("test/**")
         exclude("androidTest/**")
     },

@@ -1,0 +1,437 @@
+{
+  "schema": "autojs6.typescript.typed-bundle-fixtures.v1",
+  "contractVersion": 1,
+  "contractHash": "e35e8c6f71b8e0799678974e95aca9233225b3371c4a484437c7740defe9f86b",
+  "representation": {
+    "entryShape": "Every entry records the Android Bundle key, exact put/get type, semantic value, and whether v1 requires the key.",
+    "types": [
+      "boolean",
+      "int",
+      "long",
+      "string",
+      "string[]"
+    ],
+    "nullRule": "A fixture entry value is never null; only an element inside an exact string[] may be null."
+  },
+  "fixtures": [
+    {
+      "name": "compiler-info-bootstrap",
+      "channel": "getCompilerInfo.result",
+      "semantics": "Minimum frozen envelope plus representative R1 capability state.",
+      "entries": [
+        {
+          "key": "contractVersion",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_CONTRACT_VERSION",
+          "type": "int",
+          "value": 1,
+          "valueConstant": "VERSION",
+          "required": true
+        },
+        {
+          "key": "contractHash",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_CONTRACT_HASH",
+          "type": "string",
+          "value": "e35e8c6f71b8e0799678974e95aca9233225b3371c4a484437c7740defe9f86b",
+          "valueConstant": "HASH",
+          "required": true
+        },
+        {
+          "key": "backend",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_BACKEND",
+          "type": "string",
+          "value": "uninitialized",
+          "valueConstant": "BACKEND_UNINITIALIZED",
+          "required": true
+        },
+        {
+          "key": "typescriptCompilerAvailable",
+          "keyOwner": "TypeScriptPluginCapabilityKeys",
+          "keyConstant": "COMPILER_AVAILABLE",
+          "type": "boolean",
+          "value": false,
+          "required": true
+        },
+        {
+          "key": "typescriptProjectCompilation",
+          "keyOwner": "TypeScriptPluginCapabilityKeys",
+          "keyConstant": "PROJECT_COMPILATION",
+          "type": "boolean",
+          "value": false,
+          "required": true
+        },
+        {
+          "key": "typescriptSemanticDiagnostics",
+          "keyOwner": "TypeScriptPluginCapabilityKeys",
+          "keyConstant": "SEMANTIC_DIAGNOSTICS",
+          "type": "boolean",
+          "value": false,
+          "required": true
+        },
+        {
+          "key": "typescriptSourceMapV3",
+          "keyOwner": "TypeScriptPluginCapabilityKeys",
+          "keyConstant": "SOURCE_MAP_V3",
+          "type": "boolean",
+          "value": false,
+          "required": true
+        },
+        {
+          "key": "typescriptTargetProfiles",
+          "keyOwner": "TypeScriptPluginCapabilityKeys",
+          "keyConstant": "TARGET_PROFILES",
+          "type": "string[]",
+          "value": [
+            "rhino",
+            "node"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "prewarm-options",
+      "channel": "prewarm.options",
+      "semantics": "Valid bounded R1 prewarm request.",
+      "entries": [
+        {
+          "key": "contractVersion",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_CONTRACT_VERSION",
+          "type": "int",
+          "value": 1,
+          "valueConstant": "VERSION",
+          "required": true
+        },
+        {
+          "key": "contractHash",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_CONTRACT_HASH",
+          "type": "string",
+          "value": "e35e8c6f71b8e0799678974e95aca9233225b3371c4a484437c7740defe9f86b",
+          "valueConstant": "HASH",
+          "required": true
+        },
+        {
+          "key": "timeoutMs",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_TIMEOUT_MS",
+          "type": "long",
+          "value": 30000,
+          "valueConstant": "DEFAULT_TIMEOUT_MS",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "compilation-request-with-unknown-legal-key",
+      "channel": "startCompilation.request",
+      "semantics": "Valid R1 request whose future String[] key must be ignored before the stable R1 admission rejection.",
+      "entries": [
+        {
+          "key": "contractVersion",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_CONTRACT_VERSION",
+          "type": "int",
+          "value": 1,
+          "valueConstant": "VERSION",
+          "required": true
+        },
+        {
+          "key": "contractHash",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_CONTRACT_HASH",
+          "type": "string",
+          "value": "e35e8c6f71b8e0799678974e95aca9233225b3371c4a484437c7740defe9f86b",
+          "valueConstant": "HASH",
+          "required": true
+        },
+        {
+          "key": "inputArchiveTransportVersion",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_INPUT_ARCHIVE_TRANSPORT_VERSION",
+          "type": "int",
+          "value": 1,
+          "valueConstant": "INPUT_ARCHIVE_TRANSPORT_VERSION",
+          "required": true
+        },
+        {
+          "key": "outputArchiveTransportVersion",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_OUTPUT_ARCHIVE_TRANSPORT_VERSION",
+          "type": "int",
+          "value": 1,
+          "valueConstant": "OUTPUT_ARCHIVE_TRANSPORT_VERSION",
+          "required": true
+        },
+        {
+          "key": "requestId",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_REQUEST_ID",
+          "type": "string",
+          "value": "compat-v1-request",
+          "required": true
+        },
+        {
+          "key": "projectId",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_PROJECT_ID",
+          "type": "string",
+          "value": "compat-v1-project",
+          "required": true
+        },
+        {
+          "key": "entrySourceUri",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_ENTRY_SOURCE_URI",
+          "type": "string",
+          "value": "autojs://source/compat-v1/main.ts",
+          "required": true
+        },
+        {
+          "key": "targetProfile",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_TARGET_PROFILE",
+          "type": "string",
+          "value": "rhino",
+          "valueConstant": "PROFILE_RHINO",
+          "required": true
+        },
+        {
+          "key": "compilationMode",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_COMPILATION_MODE",
+          "type": "string",
+          "value": "development",
+          "valueConstant": "MODE_DEVELOPMENT",
+          "required": true
+        },
+        {
+          "key": "compilerOptionsJson",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_COMPILER_OPTIONS_JSON",
+          "type": "string",
+          "value": "{}",
+          "required": false
+        },
+        {
+          "key": "timeoutMs",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_TIMEOUT_MS",
+          "type": "long",
+          "value": 30000,
+          "valueConstant": "DEFAULT_TIMEOUT_MS",
+          "required": true
+        },
+        {
+          "key": "futureOptionalMetadata",
+          "type": "string[]",
+          "value": [
+            "alpha",
+            null,
+            "omega"
+          ],
+          "required": false,
+          "unknownLegalKey": true
+        }
+      ]
+    },
+    {
+      "name": "admission-r1-reject",
+      "channel": "startCompilation.ticket",
+      "semantics": "Stable R1 synchronous rejection; accepted is false and no callback follows.",
+      "entries": [
+        {
+          "key": "contractVersion",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_CONTRACT_VERSION",
+          "type": "int",
+          "value": 1,
+          "valueConstant": "VERSION",
+          "required": true
+        },
+        {
+          "key": "contractHash",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_CONTRACT_HASH",
+          "type": "string",
+          "value": "e35e8c6f71b8e0799678974e95aca9233225b3371c4a484437c7740defe9f86b",
+          "valueConstant": "HASH",
+          "required": true
+        },
+        {
+          "key": "requestId",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_REQUEST_ID",
+          "type": "string",
+          "value": "compat-v1-request",
+          "required": true
+        },
+        {
+          "key": "accepted",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_ACCEPTED",
+          "type": "boolean",
+          "value": false,
+          "required": true
+        },
+        {
+          "key": "errorCode",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_ERROR_CODE",
+          "type": "string",
+          "value": "ERR_AUTOJS6_TYPESCRIPT_R0_NOT_AVAILABLE",
+          "valueConstant": "ERROR_R0_NOT_AVAILABLE",
+          "required": true
+        },
+        {
+          "key": "errorMessage",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_ERROR_MESSAGE",
+          "type": "string",
+          "value": "Project compilation is not available in the frozen R1 fixture.",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "cancellation",
+      "channel": "cancelCompilation.cancellation",
+      "semantics": "Owner-scoped cancellation envelope reserved for accepted work.",
+      "entries": [
+        {
+          "key": "contractVersion",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_CONTRACT_VERSION",
+          "type": "int",
+          "value": 1,
+          "valueConstant": "VERSION",
+          "required": true
+        },
+        {
+          "key": "contractHash",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_CONTRACT_HASH",
+          "type": "string",
+          "value": "e35e8c6f71b8e0799678974e95aca9233225b3371c4a484437c7740defe9f86b",
+          "valueConstant": "HASH",
+          "required": true
+        },
+        {
+          "key": "requestId",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_REQUEST_ID",
+          "type": "string",
+          "value": "compat-v1-request",
+          "required": true
+        },
+        {
+          "key": "jobToken",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_JOB_TOKEN",
+          "type": "string",
+          "value": "fixture-only-job-token",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "progress",
+      "channel": "callback.onProgress",
+      "semantics": "Bounded advisory progress metadata with no diagnostics or source text.",
+      "entries": [
+        {
+          "key": "requestId",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_REQUEST_ID",
+          "type": "string",
+          "value": "compat-v1-request",
+          "required": true
+        },
+        {
+          "key": "stage",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_STAGE",
+          "type": "string",
+          "value": "admission",
+          "valueConstant": "STAGE_ADMISSION",
+          "required": true
+        },
+        {
+          "key": "elapsedMs",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_ELAPSED_MS",
+          "type": "long",
+          "value": 0,
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "completion-emitted",
+      "channel": "callback.onCompleted",
+      "semantics": "Representative successful terminal envelope; output bytes are carried only by the output FD.",
+      "entries": [
+        {
+          "key": "requestId",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_REQUEST_ID",
+          "type": "string",
+          "value": "compat-v1-request",
+          "required": true
+        },
+        {
+          "key": "outcome",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_OUTCOME",
+          "type": "string",
+          "value": "emitted",
+          "valueConstant": "OUTCOME_EMITTED",
+          "required": true
+        },
+        {
+          "key": "succeeded",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_SUCCEEDED",
+          "type": "boolean",
+          "value": true,
+          "required": true
+        },
+        {
+          "key": "diagnosticCount",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_DIAGNOSTIC_COUNT",
+          "type": "int",
+          "value": 0,
+          "required": true
+        },
+        {
+          "key": "emittedModuleCount",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_EMITTED_MODULE_COUNT",
+          "type": "int",
+          "value": 1,
+          "required": true
+        },
+        {
+          "key": "elapsedMs",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_ELAPSED_MS",
+          "type": "long",
+          "value": 1,
+          "required": true
+        },
+        {
+          "key": "outputManifestSha256",
+          "keyOwner": "TypeScriptCompilerContract",
+          "keyConstant": "KEY_OUTPUT_MANIFEST_SHA256",
+          "type": "string",
+          "value": "0000000000000000000000000000000000000000000000000000000000000000",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

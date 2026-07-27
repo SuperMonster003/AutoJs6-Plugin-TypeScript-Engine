@@ -114,6 +114,36 @@ internal class RemoteProcessResourceProbe(
         )
     }
 
+    fun awaitStagingArchiveFileDescriptors(
+        pid: Int,
+        label: String,
+        expectedCount: Int,
+        expectedIdentity: RemoteProcessIdentity? = null,
+    ): RemoteFileDescriptorSnapshot {
+        var lastSnapshot: RemoteFileDescriptorSnapshot? = null
+        repeat(FD_STABILITY_LOOKUP_ATTEMPTS) {
+            assertExpectedIdentity(pid, expectedIdentity, label)
+            val snapshot = fileDescriptorSnapshotOrNull(pid)
+            if (snapshot != null) {
+                assertExpectedIdentity(pid, expectedIdentity, label)
+                lastSnapshot = snapshot
+                val stagingTargets = snapshot.targets.filter(::isR1StagingArchiveTarget)
+                if (stagingTargets.size == expectedCount) {
+                    return snapshot
+                }
+            }
+            Thread.sleep(FD_STABILITY_LOOKUP_INTERVAL_MILLIS)
+        }
+        val lastStagingTargets = lastSnapshot
+            ?.targets
+            .orEmpty()
+            .filter(::isR1StagingArchiveTarget)
+        throw AssertionError(
+            "$label did not expose exactly $expectedCount R1 staging archive descriptors; " +
+                "last observed targets=$lastStagingTargets.",
+        )
+    }
+
     private fun assertExpectedIdentity(
         pid: Int,
         expectedIdentity: RemoteProcessIdentity?,

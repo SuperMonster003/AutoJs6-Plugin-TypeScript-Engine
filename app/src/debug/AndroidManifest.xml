@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <service
+            android:name=".R1CallbackClientProbeService"
+            android:exported="false"
+            android:process=":typescript_callback_probe"
+            android:stopWithTask="true" />
+
+        <service
+            android:name=".R1RhinoProbeService"
+            android:exported="false"
+            android:process=":typescript_rhino_probe"
+            android:stopWithTask="true" />
+    </application>
+
+</manifest>
