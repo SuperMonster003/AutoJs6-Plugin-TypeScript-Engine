@@ -4,6 +4,16 @@
 
 ******
 
+# v0.3.0
+
+###### 2026/07/27
+
+* `ヒント` `compilerAvailable=false` は v0.3.0 でも正式な状態を示す: R1 prewarm は制限された compiler host の golden probe のみを実行し, R2 完了前は project compilation を利用できない
+* `追加` 専用 `:typescript_compiler` process に private HTTPS asset origin, 厳密な resource allowlist, WebMessagePort, 制限された network, file, content, storage, window capabilities を持つ WebView/Worker compiler host を構築
+* `追加` R1 prewarm で実際の TypeScript 6.0.3 runtime を読み込み, runtime version, enum emit, structured syntax diagnostic, Source Map v3, 固定 output fingerprints, inline source content がないことを検証
+* `改善` Android 12 と Android 13 の各 device で 100 回の hot probe と timeout 後の Worker rebuild recovery を検証し, Android 13 の独立 helper で minified release も検証しながら全ての project compilation capabilities は false を維持
+* `依存関係` AndroidX WebKit バージョン 1.14.0 を追加
+
 # v0.2.0
 
 ###### 2026/07/27

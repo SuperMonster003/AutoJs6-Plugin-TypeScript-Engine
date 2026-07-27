@@ -26,6 +26,8 @@ val generatedTypeScriptAssetsDirectory =
     layout.buildDirectory.dir("generated/typescriptCompilerAssets/assets")
 val generatedTypeScriptDistributionDirectory =
     generatedTypeScriptAssetsDirectory.map { it.dir("typescript/$typeScriptVersion") }
+val compilerHostSourceAssetDirectory =
+    layout.projectDirectory.dir("src/main/assets/typescript-compiler-r1")
 
 android {
     namespace = globalApplicationId
@@ -133,6 +135,7 @@ androidComponents {
 dependencies {
     implementation(project(":plugin-api:common-plugin-api"))
     implementation(project(":plugin-api:typescript-api"))
+    implementation(libs.webkit)
     androidTestImplementation(libs.test.ext.junit)
     androidTestImplementation(libs.test.runner)
     testImplementation(libs.junit)
@@ -174,6 +177,201 @@ private fun ByteArray.sha256String(): String =
             "%02x".format(byte.toInt() and 0xff)
         }
 
+private val expectedCompilerHostAssetNames = setOf(
+    "compiler-host.js",
+    "compiler-worker.js",
+    "index.html",
+)
+private val expectedCompilerHostOriginPaths = expectedCompilerHostAssetNames +
+    "typescript.js"
+private val compilerHostOrigin = "https://appassets.androidplatform.net"
+private val compilerHostRootPath = "/typescript-compiler-r1/"
+
+private fun verifyCompilerHostSourcePolicy(
+    hostAssetDirectory: File,
+    originSourceFile: File,
+    webViewHostSourceFile: File,
+    productionSourceFiles: Collection<File>,
+    manifestFile: File,
+) {
+    check(hostAssetDirectory.isDirectory) {
+        "Compiler host asset directory does not exist: $hostAssetDirectory"
+    }
+    val actualHostAssets = hostAssetDirectory.walkTopDown()
+        .filter(File::isFile)
+        .map { it.relativeTo(hostAssetDirectory).invariantSeparatorsPath }
+        .toSet()
+    check(actualHostAssets == expectedCompilerHostAssetNames) {
+        "Compiler host assets must match the exact allowlist: " +
+            "expected=$expectedCompilerHostAssetNames, actual=$actualHostAssets"
+    }
+
+    val hostAssetText = expectedCompilerHostAssetNames.associateWith { name ->
+        hostAssetDirectory.resolve(name).also { file ->
+            check(file.isFile && file.length() > 0L) {
+                "Compiler host asset is missing or empty: $file"
+            }
+        }.readText(Charsets.UTF_8)
+    }
+    val forbiddenJavaScriptPatterns = mapOf(
+        "eval(...)" to Regex("""(?:^|[^\w$])eval\s*\("""),
+        "Function(...)" to Regex("""(?:^|[^\w$])(?:new\s+)?Function\s*\("""),
+        "javascript: URL" to Regex("""["']javascript\s*:""", RegexOption.IGNORE_CASE),
+    )
+    hostAssetText.forEach { (name, source) ->
+        forbiddenJavaScriptPatterns.forEach { (label, pattern) ->
+            check(!pattern.containsMatchIn(source)) {
+                "Compiler host asset $name contains forbidden JavaScript: $label"
+            }
+        }
+        check(!Regex("""https?://""", RegexOption.IGNORE_CASE).containsMatchIn(source)) {
+            "Compiler host asset $name must not embed an absolute network URL."
+        }
+    }
+
+    val indexHtml = hostAssetText.getValue("index.html")
+    val requiredCspDirectives = setOf(
+        "default-src 'none'",
+        "script-src 'self'",
+        "worker-src 'self'",
+        "child-src 'self'",
+        "connect-src 'none'",
+        "frame-src 'none'",
+        "object-src 'none'",
+        "base-uri 'none'",
+        "form-action 'none'",
+    )
+    check(indexHtml.contains("http-equiv=\"Content-Security-Policy\"")) {
+        "Compiler host index must declare a Content-Security-Policy meta element."
+    }
+    check(requiredCspDirectives.all(indexHtml::contains)) {
+        "Compiler host index CSP is missing a required directive."
+    }
+    check(indexHtml.contains("src=\"compiler-host.js\"")) {
+        "Compiler host index must load only compiler-host.js."
+    }
+    check(
+        !Regex(
+            """<script\b(?![^>]*\bsrc\s*=)[^>]*>""",
+            RegexOption.IGNORE_CASE,
+        ).containsMatchIn(indexHtml),
+    ) {
+        "Compiler host index must not contain inline script."
+    }
+
+    val pageSource = hostAssetText.getValue("compiler-host.js")
+    val workerSource = hostAssetText.getValue("compiler-worker.js")
+    check(pageSource.contains("new Worker(\"compiler-worker.js\"")) {
+        "Compiler host page must create only the allowlisted compiler-worker.js."
+    }
+    check(workerSource.contains("""importScripts("typescript.js");""")) {
+        "Compiler worker must load the versioned compiler through the typescript.js alias."
+    }
+
+    check(originSourceFile.isFile) {
+        "Compiler asset origin source does not exist: $originSourceFile"
+    }
+    val originSource = originSourceFile.readText(Charsets.UTF_8)
+    val declaredOrigins = Regex(
+        """https?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+""",
+    ).findAll(originSource).map(MatchResult::value).toSet()
+    check(declaredOrigins == setOf(compilerHostOrigin)) {
+        "Compiler asset origin must be exactly $compilerHostOrigin, found $declaredOrigins"
+    }
+    check(originSource.contains("const val ROOT_PATH = \"$compilerHostRootPath\"")) {
+        "Compiler asset root path must be exactly $compilerHostRootPath."
+    }
+    check(originSource.contains("uri.scheme == \"https\"")) {
+        "Compiler asset origin must require HTTPS."
+    }
+    check(originSource.contains("uri.encodedAuthority == WebViewAssetLoader.DEFAULT_DOMAIN")) {
+        "Compiler asset origin must require the reserved appassets authority."
+    }
+    check(originSource.contains("uri.encodedQuery == null")) {
+        "Compiler asset origin must reject query strings."
+    }
+    check(originSource.contains("uri.encodedFragment == null")) {
+        "Compiler asset origin must reject fragments."
+    }
+    check(!originSource.contains(".setHttpAllowed(true)")) {
+        "Compiler asset loader must not allow HTTP."
+    }
+    check(
+        originSource.contains(
+            "assetPath = \"typescript/\$compilerVersion/lib/typescript.js\"",
+        ),
+    ) {
+        "Compiler asset origin must map typescript.js to the pinned version directory."
+    }
+    val allowlistBlock = Regex(
+        """private val ALLOWED_ENCODED_PATHS\s*=\s*setOf\((.*?)\n\s*\)""",
+        RegexOption.DOT_MATCHES_ALL,
+    ).find(originSource)?.groupValues?.get(1)
+        ?: error("Compiler asset origin does not declare ALLOWED_ENCODED_PATHS.")
+    val declaredOriginPaths = Regex(
+        """\$\{ROOT_PATH}([A-Za-z0-9.-]+)""",
+    ).findAll(allowlistBlock).map { it.groupValues[1] }.toSet()
+    check(declaredOriginPaths == expectedCompilerHostOriginPaths) {
+        "Compiler HTTPS origin allowlist mismatch: " +
+            "expected=$expectedCompilerHostOriginPaths, actual=$declaredOriginPaths"
+    }
+    check(requiredCspDirectives.all(originSource::contains)) {
+        "Compiler asset response headers are missing a required CSP directive."
+    }
+    check(originSource.contains("frame-ancestors 'none'")) {
+        "Compiler asset response CSP must deny frame ancestors."
+    }
+
+    val forbiddenAndroidBridgeApis = setOf(
+        "addJavascriptInterface",
+        "evaluateJavascript",
+    )
+    val forbiddenBridgeUses = productionSourceFiles
+        .filter(File::isFile)
+        .flatMap { file ->
+            val source = file.readText(Charsets.UTF_8)
+            forbiddenAndroidBridgeApis
+                .filter(source::contains)
+                .map { api -> "${file.name}: $api" }
+        }
+    check(forbiddenBridgeUses.isEmpty()) {
+        "Compiler host must use origin-bound WebMessagePort only: $forbiddenBridgeUses"
+    }
+
+    check(webViewHostSourceFile.isFile) {
+        "Compiler WebView host source does not exist: $webViewHostSourceFile"
+    }
+    val webViewHostSource = webViewHostSourceFile.readText(Charsets.UTF_8)
+    val requiredWebViewRestrictions = setOf(
+        "allowFileAccess = false",
+        "allowContentAccess = false",
+        "allowFileAccessFromFileURLs = false",
+        "allowUniversalAccessFromFileURLs = false",
+        "blockNetworkLoads = true",
+        "databaseEnabled = false",
+        "domStorageEnabled = false",
+        "javaScriptCanOpenWindowsAutomatically = false",
+        "mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW",
+        "setSupportMultipleWindows(false)",
+        "setAcceptCookie(false)",
+        "setAcceptThirdPartyCookies(createdWebView, false)",
+    )
+    check(requiredWebViewRestrictions.all(webViewHostSource::contains)) {
+        "Compiler WebView source is missing a required security restriction."
+    }
+
+    check(manifestFile.isFile) {
+        "Application manifest does not exist: $manifestFile"
+    }
+    val manifestText = manifestFile.readText(Charsets.UTF_8)
+    check("android.permission.INTERNET" !in manifestText) {
+        "Compiler plugin manifest must not request INTERNET permission."
+    }
+    check("""android:usesCleartextTraffic="false"""" in manifestText) {
+        "Compiler plugin manifest must explicitly disable cleartext traffic."
+    }
+}
+
 @Suppress("UNCHECKED_CAST")
 private fun resolveSingleApkOutput(apkDirectory: File): File {
     val metadataFile = apkDirectory.resolve("output-metadata.json")
@@ -196,6 +394,92 @@ private fun resolveSingleApkOutput(apkDirectory: File): File {
         check(apkFile.isFile) {
             "APK declared by output metadata does not exist: $apkFile"
         }
+    }
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun verifyCompilerHostInApk(
+    apkFile: File,
+    sourceAssetDirectory: File,
+    mergedManifestFile: File,
+    typeScriptVersion: String,
+) {
+    val hostAssetPrefix = "assets/typescript-compiler-r1/"
+    val expectedHostEntries = expectedCompilerHostAssetNames
+        .associateWith { name -> sourceAssetDirectory.resolve(name).readBytes() }
+        .mapKeys { (name, _) -> "$hostAssetPrefix$name" }
+    val expectedCompilerEntry = "assets/typescript/$typeScriptVersion/lib/typescript.js"
+    val expectedDistributionManifestEntry =
+        "assets/typescript/$typeScriptVersion/distribution.json"
+
+    ZipFile(apkFile).use { apk ->
+        val entries = apk.entries().asSequence().filterNot { it.isDirectory }.toList()
+        val hostEntries = entries
+            .filter { it.name.startsWith(hostAssetPrefix) }
+            .map { it.name }
+            .toSet()
+        check(hostEntries == expectedHostEntries.keys) {
+            "APK compiler host assets must match the exact allowlist: " +
+                "expected=${expectedHostEntries.keys}, actual=$hostEntries"
+        }
+        expectedHostEntries.forEach { (entryName, expectedBytes) ->
+            val entry = requireNotNull(apk.getEntry(entryName)) {
+                "APK is missing compiler host asset $entryName."
+            }
+            val actualBytes = apk.getInputStream(entry).use { it.readBytes() }
+            check(MessageDigest.isEqual(expectedBytes, actualBytes)) {
+                "APK compiler host asset differs from its verified source: $entryName"
+            }
+        }
+
+        val compilerEntries = entries.filter {
+            it.name.substringAfterLast('/') == "typescript.js"
+        }
+        check(compilerEntries.map { it.name } == listOf(expectedCompilerEntry)) {
+            "APK must contain exactly one TypeScript compiler at $expectedCompilerEntry, found " +
+                compilerEntries.map { it.name }
+        }
+        val distributionManifestEntry = requireNotNull(
+            apk.getEntry(expectedDistributionManifestEntry),
+        ) {
+            "APK is missing the versioned TypeScript distribution manifest."
+        }
+        val distributionManifest = apk.getInputStream(distributionManifestEntry).use {
+            JsonSlurper().parse(it) as Map<String, Any?>
+        }
+        val packageInfo = distributionManifest["package"] as? Map<String, Any?>
+            ?: error("Packaged TypeScript distribution manifest has no package metadata.")
+        check(packageInfo["name"] == "typescript")
+        check(packageInfo["version"] == typeScriptVersion) {
+            "Packaged TypeScript version ${packageInfo["version"]} does not match " +
+                typeScriptVersion
+        }
+        val files = distributionManifest["files"] as? List<Map<String, Any?>>
+            ?: error("Packaged TypeScript distribution manifest has no file list.")
+        val compilerMetadata = files.singleOrNull { it["path"] == "lib/typescript.js" }
+            ?: error("Packaged distribution must declare exactly one lib/typescript.js.")
+        val compilerEntry = compilerEntries.single()
+        val compilerBytes = apk.getInputStream(compilerEntry).use { it.readBytes() }
+        check((compilerMetadata["size"] as? Number)?.toLong() == compilerBytes.size.toLong()) {
+            "Packaged TypeScript compiler size does not match distribution.json."
+        }
+        check(compilerMetadata["sha256"] == compilerBytes.sha256String()) {
+            "Packaged TypeScript compiler SHA-256 does not match distribution.json."
+        }
+    }
+
+    check(mergedManifestFile.isFile) {
+        "Merged manifest does not exist: $mergedManifestFile"
+    }
+    val mergedManifestText = mergedManifestFile.readText(Charsets.UTF_8)
+    check("android.permission.INTERNET" !in mergedManifestText) {
+        "Merged compiler plugin manifest must not request INTERNET permission."
+    }
+    check("""android:usesCleartextTraffic="false"""" in mergedManifestText) {
+        "Merged compiler plugin manifest must disable cleartext traffic."
+    }
+    check("""android:process=":typescript_compiler"""" in mergedManifestText) {
+        "Merged compiler service must remain in :typescript_compiler."
     }
 }
 
@@ -337,6 +621,83 @@ val verifyReleaseTypeScriptDistributionApk =
         apkDirectoryPath = "outputs/apk/release",
     )
 
+val compilerHostProductionSources = fileTree("src/main/java") {
+    include("**/*.java")
+    include("**/*.kt")
+}
+val compilerAssetOriginSource = layout.projectDirectory.file(
+    "src/main/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+        "CompilerAssetOrigin.kt",
+)
+val compilerWebViewHostSource = layout.projectDirectory.file(
+    "src/main/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+        "TypeScriptWebViewCompilerHost.kt",
+)
+val compilerHostManifest = layout.projectDirectory.file("src/main/AndroidManifest.xml")
+val verifyCompilerHostSourcePolicy =
+    tasks.register("verifyCompilerHostSourcePolicy") {
+        group = "verification"
+        description =
+            "Verifies the R1 compiler host asset allowlist and static WebView security policy."
+        inputs.dir(compilerHostSourceAssetDirectory)
+        inputs.file(compilerAssetOriginSource)
+        inputs.file(compilerWebViewHostSource)
+        inputs.files(compilerHostProductionSources)
+        inputs.file(compilerHostManifest)
+        doLast {
+            verifyCompilerHostSourcePolicy(
+                hostAssetDirectory = compilerHostSourceAssetDirectory.asFile,
+                originSourceFile = compilerAssetOriginSource.asFile,
+                webViewHostSourceFile = compilerWebViewHostSource.asFile,
+                productionSourceFiles = compilerHostProductionSources.files,
+                manifestFile = compilerHostManifest.asFile,
+            )
+        }
+    }
+
+fun registerCompilerHostApkVerification(
+    taskName: String,
+    assembleTaskName: String,
+    variantName: String,
+) = tasks.register(taskName) {
+    group = "verification"
+    description =
+        "Verifies the R1 compiler host security boundary in the $variantName APK."
+    dependsOn(assembleTaskName)
+    dependsOn(verifyCompilerHostSourcePolicy)
+    dependsOn(verifyTypeScriptDistribution)
+    val apkDirectory = layout.buildDirectory.dir("outputs/apk/$variantName")
+    val mergedManifest = layout.buildDirectory.file(
+        "intermediates/merged_manifest/$variantName/" +
+            "process${variantName.replaceFirstChar(Char::uppercase)}MainManifest/" +
+            "AndroidManifest.xml",
+    )
+    inputs.dir(apkDirectory)
+    inputs.dir(compilerHostSourceAssetDirectory)
+    inputs.file(mergedManifest)
+    doLast {
+        verifyCompilerHostInApk(
+            apkFile = resolveSingleApkOutput(apkDirectory.get().asFile),
+            sourceAssetDirectory = compilerHostSourceAssetDirectory.asFile,
+            mergedManifestFile = mergedManifest.get().asFile,
+            typeScriptVersion = typeScriptVersion,
+        )
+    }
+}
+
+val verifyDebugCompilerHostApk =
+    registerCompilerHostApkVerification(
+        taskName = "verifyDebugCompilerHostApk",
+        assembleTaskName = "assembleDebug",
+        variantName = "debug",
+    )
+val verifyReleaseCompilerHostApk =
+    registerCompilerHostApkVerification(
+        taskName = "verifyReleaseCompilerHostApk",
+        assembleTaskName = "assembleRelease",
+        variantName = "release",
+    )
+
 val r0ScannedSources = files(
     fileTree(rootProject.projectDir) {
         include("**/*.gradle.kts")
@@ -457,6 +818,8 @@ tasks {
     named("check") {
         dependsOn("verifyNodeRuntimeIndependence")
         dependsOn("verifyCompilerDistributionLock")
+        dependsOn(verifyCompilerHostSourcePolicy)
+        dependsOn(verifyDebugCompilerHostApk)
         dependsOn("verifyR0DebugApkContents")
         dependsOn(verifyTypeScriptDistribution)
         dependsOn(verifyDebugTypeScriptDistributionApk)

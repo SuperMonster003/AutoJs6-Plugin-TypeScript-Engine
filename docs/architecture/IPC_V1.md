@@ -1,9 +1,14 @@
 # Compiler IPC v1
 
-R0 提供可构建的 provisional v1 基线. R1 只冻结顶层 Binder envelope 和 ZIP
+R0 提供可构建的 provisional v1 基线. R1 当前在不扩展公开 AIDL 或项目 schema
+的前提下, 通过既有 `prewarm` transaction 验证受限 WebView/Worker host. R1
+完成全部 Binder/FD 和真实 compiler 探针后才冻结顶层 Binder envelope 和 ZIP
 container; input/output manifest, diagnostics schema 和 fingerprint revision 机制在
 R2 冻结, 具体 Rhino/Node profile revision 分别在 R4/R5 的真实执行验证后冻结.
 这样可以稳定跨进程调用方式, 同时避免过早锁死项目语义.
+
+R1 host 的 asset origin, Worker 隔离, runtime golden 和当前设备证据见
+[Restricted Compiler Host R1](COMPILER_HOST_R1.md).
 
 ## 服务
 
@@ -41,9 +46,9 @@ host 必须先读取 contract version/hash, 再创建请求. `startCompilation` 
 - R2 起增加 profile revision, distribution/declarations fingerprint 和 runtime
   capabilities fingerprint.
 
-R0 始终返回 `accepted=false` 和
+R0 以及当前 R1 的 `startCompilation` 始终返回 `accepted=false` 和
 `ERR_AUTOJS6_TYPESCRIPT_R0_NOT_AVAILABLE`. R0 不会发送 callback, 不宣称具备
-compiler 能力.
+compiler 能力; R1 的内部 prewarm probe 也不会改变这一行为.
 
 ## Bundle schema
 
@@ -62,13 +67,29 @@ job token 256 chars, project ID 256 chars, URI/error message 4096 chars. 未知 
 | capability keys | primitives | 是 | availability, revisions, profiles, fingerprints |
 
 R0 不打包 distribution, 因此不得伪造 distribution/declarations fingerprint.
+R1 打包经过验证的 distribution 后, `compilerInfo` 可以报告其 canonical
+distribution/declarations fingerprint 和实际 `webview_worker` backend. 这些值
+不覆盖 `compilerAvailable=false`.
 
 ### prewarm options/result
 
 options 只含 `contractVersion`, `contractHash` 和 `timeoutMs`; result 使用
 compilerInfo schema 并可带有界 `errorCode/errorMessage`. prewarm 不读取项目,
-不接受 FD, 也不代表下一次 compile 一定成功. R0 已校验上述字段和 metadata
-预算, 合法调用仍返回 `ERR_AUTOJS6_TYPESCRIPT_R0_NOT_AVAILABLE`.
+不接受 FD, 也不代表下一次 compile 一定成功.
+
+R0 的合法调用返回 `ERR_AUTOJS6_TYPESCRIPT_R0_NOT_AVAILABLE`. R1 在相同
+transaction 内运行固定的内部 Worker golden:
+
+- 成功时返回 `compilerInfo`, 不附加 `errorCode`; backend/status/fingerprint
+  可以反映 probe host 已 ready.
+- 失败时返回 `compilerInfo + errorCode/errorMessage`.
+- 成功或失败均保持 `compilerAvailable=false`, `projectCompilation=false`,
+  `semanticDiagnostics=false` 和 `sourceMapV3=false`.
+- 完整 probe VFS, emit, Source Map 和 diagnostic evidence 不进入 Binder Bundle.
+
+R1 的内部 request ID/VFS 消息不是公共 Bundle schema. 调用方不得把 prewarm
+成功解释为 compilation admission, 仍必须以 `compilerAvailable` 和
+`startCompilation` ticket 为准.
 
 ### compilation request
 

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <instrumentation
+        android:name=".R1ReleaseSmokeInstrumentation"
+        android:functionalTest="false"
+        android:handleProfiling="false"
+        android:label="R1 minified release smoke"
+        android:targetPackage="io.github.supermonster003.autojs6.plugin.typescript" />
+
+    <application
+        android:allowBackup="false"
+        android:hasCode="true"
+        android:label="R1 Release Smoke" />
+
+</manifest>

@@ -24,20 +24,30 @@ object TypeScriptPluginMetadata {
         engine = TypeScriptPluginIds.ENGINE,
         variant = TypeScriptPluginIds.variant(BuildConfig.TYPESCRIPT_VERSION),
         supportedAbis = null,
-        capabilities = capabilityBundle(),
+        capabilities = capabilityBundle(bootstrapSnapshot(context)),
     )
 
-    fun compilerInfo(): Bundle = capabilityBundle().apply {
+    fun compilerInfo(snapshot: CompilerHostSnapshot): Bundle =
+        capabilityBundle(snapshot).apply {
         putInt(TypeScriptCompilerContract.KEY_CONTRACT_VERSION, TypeScriptCompilerContract.VERSION)
         putString(TypeScriptCompilerContract.KEY_CONTRACT_HASH, TypeScriptCompilerContract.HASH)
-        putString(TypeScriptCompilerContract.KEY_BACKEND, TypeScriptCompilerContract.BACKEND_UNINITIALIZED)
+        putString(TypeScriptCompilerContract.KEY_BACKEND, snapshot.backend)
+        snapshot.distributionFingerprint?.let { fingerprint ->
+            putString(
+                TypeScriptCompilerContract.KEY_COMPILER_DISTRIBUTION_FINGERPRINT,
+                fingerprint,
+            )
+        }
+        snapshot.declarationsFingerprint?.let { fingerprint ->
+            putString(TypeScriptCompilerContract.KEY_DECLARATIONS_FINGERPRINT, fingerprint)
+        }
     }
 
-    private fun capabilityBundle() = Bundle().apply {
+    private fun capabilityBundle(snapshot: CompilerHostSnapshot) = Bundle().apply {
         putInt(PluginCapabilityKeys.REQUIRES_HOST_VERSION, BuildConfig.REQUIRED_HOST_VERSION)
         putString(
             TypeScriptPluginCapabilityKeys.COMPILER_BACKEND,
-            TypeScriptCompilerContract.BACKEND_UNINITIALIZED,
+            snapshot.backend,
         )
         putBoolean(TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE, false)
         putInt(
@@ -56,6 +66,18 @@ object TypeScriptPluginMetadata {
             TypeScriptPluginCapabilityKeys.COMPILER_VERSION,
             BuildConfig.TYPESCRIPT_VERSION,
         )
+        snapshot.distributionFingerprint?.let { fingerprint ->
+            putString(
+                TypeScriptPluginCapabilityKeys.COMPILER_DISTRIBUTION_FINGERPRINT,
+                fingerprint,
+            )
+        }
+        snapshot.declarationsFingerprint?.let { fingerprint ->
+            putString(
+                TypeScriptPluginCapabilityKeys.DECLARATIONS_FINGERPRINT,
+                fingerprint,
+            )
+        }
         putInt(
             TypeScriptPluginCapabilityKeys.INPUT_ARCHIVE_TRANSPORT_VERSION,
             TypeScriptCompilerContract.INPUT_ARCHIVE_TRANSPORT_VERSION,
@@ -77,7 +99,7 @@ object TypeScriptPluginMetadata {
         putBoolean(TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS, false)
         putString(
             TypeScriptPluginCapabilityKeys.SERVICE_STATUS,
-            TypeScriptCompilerContract.STATUS_BOOTSTRAP,
+            snapshot.status,
         )
         putBoolean(TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3, false)
         putStringArray(
@@ -97,4 +119,27 @@ object TypeScriptPluginMetadata {
             TypeScriptCompilerContract.TARGET_PROFILES,
         )
     }
+
+    private fun bootstrapSnapshot(context: Context): CompilerHostSnapshot =
+        runCatching {
+            CompilerDistributionMetadata.load(context)
+        }.fold(
+            onSuccess = { metadata ->
+                CompilerHostSnapshot(
+                    backend = TypeScriptCompilerContract.BACKEND_WEBVIEW_WORKER,
+                    status = TypeScriptCompilerContract.STATUS_BOOTSTRAP,
+                    compilerVersion = null,
+                    distributionFingerprint = metadata.distributionFingerprint,
+                    declarationsFingerprint = metadata.declarationsFingerprint,
+                    generatorFingerprint = metadata.generatorFingerprint,
+                    lastError = null,
+                )
+            },
+            onFailure = { error ->
+                CompilerHostSnapshot.failed(
+                    "Compiler distribution metadata is unavailable: " +
+                        (error.message ?: error.javaClass.simpleName),
+                )
+            },
+        )
 }

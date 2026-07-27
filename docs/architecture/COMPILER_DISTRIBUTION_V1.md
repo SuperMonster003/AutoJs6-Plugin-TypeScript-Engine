@@ -83,6 +83,8 @@ Debug 和 release APK 校验必须重新读取实际 ZIP entry bytes, 对照
 
 运行时 compiler host 仍需在受限 JavaScript context 内读取 `ts.version`, 并要求
 它与 distribution version 完全一致. 文件摘要验证不能替代该运行时探针.
+R1 已在专用 Web Worker 内验证此约束; host 边界, runtime golden 和当前设备证据
+见 [Restricted Compiler Host R1](COMPILER_HOST_R1.md).
 
 ## TypeScript 6.0.3 golden
 
@@ -97,3 +99,7 @@ R1 generator revision 1 对 lock 内 tarball 产生:
 | standard libraries fingerprint | `6ee5c0bce41694b8ca86430b82abfe4fbb60bf96321fba43e99d9810a44a1c1f` |
 | generator fingerprint | `1b60932afd24b6efb99a61ef9a87694af2e3e3ab412d55bf470b7ce1aea6fb76` |
 | distribution fingerprint | `3855b04b968db8a9529b60c96dd8b8ec94fa1ee040cac10a5ab569aa6e33f658` |
+
+此表只冻结发行目录结果. `transpileModule` emit, diagnostics 和 Source Map 的
+runtime golden 位于 [Restricted Compiler Host R1](COMPILER_HOST_R1.md), 且不属于
+distribution schema.

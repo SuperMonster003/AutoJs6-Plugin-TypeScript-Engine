@@ -2,26 +2,26 @@ package io.github.supermonster003.autojs6.plugin.typescript
 
 import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
 
-data class R0PrewarmEnvelope(
+data class CompilerPrewarmEnvelope(
     val contractVersion: Int,
     val contractHash: String,
     val timeoutMs: Long,
 )
 
-data class R0PrewarmAdmission(
-    val options: R0PrewarmEnvelope?,
+data class CompilerPrewarmAdmission(
+    val options: CompilerPrewarmEnvelope?,
     val primitiveMetadataOnly: Boolean,
     val metadataWithinBudget: Boolean,
 )
 
-data class R0PrewarmDecision(
+data class CompilerPrewarmRejection(
     val errorCode: String,
     val errorMessage: String,
 )
 
-object R0PrewarmGate {
+object CompilerPrewarmGate {
 
-    fun reject(admission: R0PrewarmAdmission): R0PrewarmDecision {
+    fun validate(admission: CompilerPrewarmAdmission): CompilerPrewarmRejection? {
         val options = admission.options ?: return rejected(
             code = TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
             message = "Prewarm options are required.",
@@ -47,16 +47,13 @@ object R0PrewarmGate {
                 message = "timeoutMs is outside the supported range.",
             )
         }
-        return rejected(
-            code = TypeScriptCompilerContract.ERROR_R0_NOT_AVAILABLE,
-            message = "R0 exposes compiler discovery but has no compiler host to prewarm.",
-        )
+        return null
     }
 
     private fun rejected(
         code: String,
         message: String,
-    ) = R0PrewarmDecision(
+    ) = CompilerPrewarmRejection(
         errorCode = code,
         errorMessage = message,
     )

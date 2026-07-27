@@ -23,6 +23,11 @@
 - 不发现或调用 Node Runtime.
 - 不直接打开宿主项目路径.
 
+R1 的 [Restricted Compiler Host](COMPILER_HOST_R1.md) 只运行固定单文件 golden.
+host page 不加载 TypeScript, 专用 Worker 不访问 DOM 或原生 bridge, emitted JS
+不在生产 compiler host 内执行. R1 的内存 VFS 消息不接收项目输入, 也不是 R2
+archive/manifest/diagnostics contract.
+
 ### Rhino adapter
 
 - 消费 Rhino profile 的 CommonJS 产物.

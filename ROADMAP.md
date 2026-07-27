@@ -35,6 +35,14 @@
 | R7 | Ace, APK Builder, 加密与后台任务 | R2+R6 | 2-3 | 未开始 | [R7](docs/roadmap/R7.md) |
 | R8 | Beta, GA 与迁移清理 | R0-R7 | 1-2 | 未开始 | [R8](docs/roadmap/R8.md) |
 
+R1 当前已在 Android 12/API 31 与 Android 13/API 33 的 debug APK 中完成远程
+prewarm, 使用独立 WebView/Web Worker 验证 `ts.version=6.0.3`, enum emit,
+structured syntax diagnostic 和 Source Map golden. 每台设备 100 次热探针及
+timeout 后的 Worker 重建恢复已通过. 这不表示 R1 已退出: API 24/25,
+renderer recovery, 冷启动/资源泄漏测试和 Binder/FD freeze 仍待完成.
+minified release 已在 Android 13 真机通过独立 smoke helper 验证,
+`compilerAvailable=false` 继续为权威状态.
+
 单人顺序实施约 13-20 个工程周. R2 完成后, AutoJs6 host, Rhino/Node adapters
 和 Ace/Builder 的部分工作可并行; 两名熟悉现有仓库的工程师可将日历时间压缩到
 约 9-12 周. 任何阶段只有在其退出条件全部勾选后才能推进状态.

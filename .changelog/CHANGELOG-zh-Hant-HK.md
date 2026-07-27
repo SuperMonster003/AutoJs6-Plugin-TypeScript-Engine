@@ -4,6 +4,16 @@
 
 ******
 
+# v0.3.0
+
+###### 2026/07/27
+
+* `提示` `compilerAvailable=false` 在 v0.3.0 中仍為權威狀態: R1 prewarm 僅執行受限 compiler host golden 探針, R2 完成前仍不可進行項目編譯
+* `新增` 獨立 `:typescript_compiler` 進程中的 WebView/Worker compiler host 使用私有 HTTPS asset origin, 精確資源 allowlist, WebMessagePort 和收緊的 network, file, content, storage 及 window 權限
+* `新增` R1 prewarm 實際載入 TypeScript 6.0.3 並驗證 runtime version, enum emit, 結構化語法診斷, Source Map v3, 固定輸出 fingerprints 和無 inline source content
+* `優化` Android 12 和 Android 13 真機門禁覆蓋每部裝置 100 次熱探針及逾時後的 Worker 重建恢復, Android 13 亦透過獨立 helper 驗證 minified release, 同時保持全部項目編譯能力為 false
+* `依賴` 附加 AndroidX WebKit 版本 1.14.0
+
 # v0.2.0
 
 ###### 2026/07/27

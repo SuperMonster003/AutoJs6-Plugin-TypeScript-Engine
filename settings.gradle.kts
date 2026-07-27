@@ -17,6 +17,7 @@ private val pluginApi = listOf(
 
 include(
     ":app",
+    ":release-smoke",
     *modules.map { ":modules:$it" }.toTypedArray(),
     *libs.map { ":libs:$it" }.toTypedArray(),
     *pluginApi.map { ":plugin-api:$it" }.toTypedArray(),

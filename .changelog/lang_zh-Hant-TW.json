@@ -6,6 +6,22 @@
   "changelog_label_improvement": "改善",
   "changelog_label_dependency": "依賴",
   "$data": {
+    "v0.3.0": {
+      "released_date": "2026/07/27",
+      "hint": [
+        "`compilerAvailable=false` 在 v0.3.0 中仍為權威狀態: R1 prewarm 僅執行受限 compiler host golden 探針, R2 完成前仍無法進行專案編譯"
+      ],
+      "feature": [
+        "獨立 `:typescript_compiler` 行程中的 WebView/Worker compiler host 使用私有 HTTPS asset origin, 精確資源 allowlist, WebMessagePort 和收緊的 network, file, content, storage 及 window 權限",
+        "R1 prewarm 實際載入 TypeScript 6.0.3 並驗證 runtime version, enum emit, 結構化語法診斷, Source Map v3, 固定輸出 fingerprints 和無 inline source content"
+      ],
+      "improvement": [
+        "Android 12 和 Android 13 實機門禁涵蓋每部裝置 100 次熱探針及逾時後的 Worker 重建恢復, Android 13 亦透過獨立 helper 驗證 minified release, 同時保持全部專案編譯能力為 false"
+      ],
+      "dependency": [
+        "附加 AndroidX WebKit 版本 1.14.0"
+      ]
+    },
     "v0.2.0": {
       "released_date": "2026/07/27",
       "hint": [

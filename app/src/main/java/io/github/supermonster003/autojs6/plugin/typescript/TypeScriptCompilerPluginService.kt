@@ -12,25 +12,52 @@ import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
 
 class TypeScriptCompilerPluginService : Service() {
 
+    private lateinit var compilerHost: TypeScriptWebViewCompilerHost
+
     private val binder = object : ITypeScriptCompilerPlugin.Stub() {
         override fun getContractVersion() = TypeScriptCompilerContract.VERSION
 
         override fun getContractHash() = TypeScriptCompilerContract.HASH
 
-        override fun getCompilerInfo() = TypeScriptPluginMetadata.compilerInfo()
+        override fun getCompilerInfo() =
+            TypeScriptPluginMetadata.compilerInfo(compilerHost.snapshot())
 
-        override fun prewarm(options: Bundle?): Bundle =
-            TypeScriptPluginMetadata.compilerInfo().apply {
-                val decision = R0PrewarmGate.reject(
-                    R0PrewarmAdmission(
-                        options = options.toPrewarmEnvelopeOrNull(),
-                        primitiveMetadataOnly = options.hasPrimitiveMetadataOnly(),
-                        metadataWithinBudget = options.isWithinMetadataBudget(),
-                    ),
-                )
-                putString(TypeScriptCompilerContract.KEY_ERROR_CODE, decision.errorCode)
-                putString(TypeScriptCompilerContract.KEY_ERROR_MESSAGE, decision.errorMessage)
+        override fun prewarm(options: Bundle?): Bundle {
+            val envelope = options.toPrewarmEnvelopeOrNull()
+            val rejection = CompilerPrewarmGate.validate(
+                CompilerPrewarmAdmission(
+                    options = envelope,
+                    primitiveMetadataOnly = options.hasPrimitiveMetadataOnly(),
+                    metadataWithinBudget = options.isWithinMetadataBudget(),
+                ),
+            )
+            if (rejection != null) {
+                return TypeScriptPluginMetadata.compilerInfo(compilerHost.snapshot()).apply {
+                    putString(
+                        TypeScriptCompilerContract.KEY_ERROR_CODE,
+                        rejection.errorCode,
+                    )
+                    putString(
+                        TypeScriptCompilerContract.KEY_ERROR_MESSAGE,
+                        rejection.errorMessage,
+                    )
+                }
             }
+
+            val outcome = compilerHost.probe(requireNotNull(envelope).timeoutMs)
+            return TypeScriptPluginMetadata.compilerInfo(compilerHost.snapshot()).apply {
+                if (!outcome.succeeded) {
+                    putString(
+                        TypeScriptCompilerContract.KEY_ERROR_CODE,
+                        outcome.errorCode,
+                    )
+                    putString(
+                        TypeScriptCompilerContract.KEY_ERROR_MESSAGE,
+                        outcome.errorMessage,
+                    )
+                }
+            }
+        }
 
         override fun startCompilation(
             request: Bundle?,
@@ -61,11 +88,24 @@ class TypeScriptCompilerPluginService : Service() {
         override fun cancelCompilation(cancellation: Bundle?): Boolean = false
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        TypeScriptWebViewCompilerHost.prepareCompilerProcess()
+        compilerHost = TypeScriptWebViewCompilerHost(this)
+    }
+
     override fun onBind(intent: Intent?): IBinder = binder
 
-    private fun Bundle?.toPrewarmEnvelopeOrNull(): R0PrewarmEnvelope? = runCatching {
+    override fun onDestroy() {
+        if (::compilerHost.isInitialized) {
+            compilerHost.close()
+        }
+        super.onDestroy()
+    }
+
+    private fun Bundle?.toPrewarmEnvelopeOrNull(): CompilerPrewarmEnvelope? = runCatching {
         this ?: return null
-        R0PrewarmEnvelope(
+        CompilerPrewarmEnvelope(
             contractVersion = getInt(TypeScriptCompilerContract.KEY_CONTRACT_VERSION, -1),
             contractHash = getString(TypeScriptCompilerContract.KEY_CONTRACT_HASH).orEmpty(),
             timeoutMs = getLong(TypeScriptCompilerContract.KEY_TIMEOUT_MS, -1L),

@@ -53,7 +53,7 @@ class R1BinderFdInstrumentationTest {
 
             val info = compiler.compilerInfo
             assertEquals(
-                TypeScriptCompilerContract.BACKEND_UNINITIALIZED,
+                TypeScriptCompilerContract.BACKEND_WEBVIEW_WORKER,
                 info.getString(TypeScriptCompilerContract.KEY_BACKEND),
             )
             assertFalse(
@@ -70,6 +70,100 @@ class R1BinderFdInstrumentationTest {
             assertEquals(
                 TypeScriptCompilerContract.HASH,
                 info.getString(TypeScriptPluginCapabilityKeys.COMPILER_CONTRACT_HASH),
+            )
+        }
+    }
+
+    @Test
+    fun prewarmRunsTheRealTypeScriptWorkerGoldenAndKeepsCompilationUnavailable() {
+        withCompilerService { _, _, compiler ->
+            repeat(HOT_PROBE_COUNT) {
+                val result = compiler.prewarm(validPrewarmOptions())
+                assertFalse(
+                    result.getString(TypeScriptCompilerContract.KEY_ERROR_MESSAGE).orEmpty(),
+                    result.containsKey(TypeScriptCompilerContract.KEY_ERROR_CODE),
+                )
+                assertEquals(
+                    TypeScriptCompilerContract.BACKEND_WEBVIEW_WORKER,
+                    result.getString(TypeScriptCompilerContract.KEY_BACKEND),
+                )
+                assertEquals(
+                    TypeScriptCompilerContract.STATUS_READY,
+                    result.getString(TypeScriptPluginCapabilityKeys.SERVICE_STATUS),
+                )
+                assertEquals(
+                    EXPECTED_DISTRIBUTION_FINGERPRINT,
+                    result.getString(
+                        TypeScriptCompilerContract.KEY_COMPILER_DISTRIBUTION_FINGERPRINT,
+                    ),
+                )
+                assertEquals(
+                    EXPECTED_DECLARATIONS_FINGERPRINT,
+                    result.getString(TypeScriptCompilerContract.KEY_DECLARATIONS_FINGERPRINT),
+                )
+                assertFalse(
+                    result.getBoolean(
+                        TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE,
+                        true,
+                    ),
+                )
+                assertFalse(
+                    result.getBoolean(
+                        TypeScriptPluginCapabilityKeys.PROJECT_COMPILATION,
+                        true,
+                    ),
+                )
+                assertFalse(
+                    result.getBoolean(
+                        TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS,
+                        true,
+                    ),
+                )
+                assertFalse(
+                    result.getBoolean(
+                        TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3,
+                        true,
+                    ),
+                )
+            }
+
+            val info = compiler.compilerInfo
+            assertEquals(
+                TypeScriptCompilerContract.STATUS_READY,
+                info.getString(TypeScriptPluginCapabilityKeys.SERVICE_STATUS),
+            )
+            assertEquals(
+                EXPECTED_DISTRIBUTION_FINGERPRINT,
+                info.getString(
+                    TypeScriptPluginCapabilityKeys.COMPILER_DISTRIBUTION_FINGERPRINT,
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun timedOutProbeRebuildsTheWorkerAndTheNextProbeSucceeds() {
+        withCompilerService { _, _, compiler ->
+            val timedOut = compiler.prewarm(validPrewarmOptions(timeoutMs = 1L))
+            assertEquals(
+                TypeScriptCompilerContract.ERROR_TIMEOUT,
+                timedOut.getString(TypeScriptCompilerContract.KEY_ERROR_CODE),
+            )
+
+            val recovered = compiler.prewarm(validPrewarmOptions())
+            assertFalse(
+                recovered.getString(TypeScriptCompilerContract.KEY_ERROR_MESSAGE).orEmpty(),
+                recovered.containsKey(TypeScriptCompilerContract.KEY_ERROR_CODE),
+            )
+            assertEquals(
+                TypeScriptCompilerContract.STATUS_READY,
+                recovered.getString(TypeScriptPluginCapabilityKeys.SERVICE_STATUS),
+            )
+            assertFalse(
+                recovered.getBoolean(
+                    TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE,
+                    true,
+                ),
             )
         }
     }
@@ -283,6 +377,23 @@ class R1BinderFdInstrumentationTest {
         )
     }
 
+    private fun validPrewarmOptions(
+        timeoutMs: Long = TypeScriptCompilerContract.DEFAULT_TIMEOUT_MS,
+    ) = Bundle().apply {
+        putInt(
+            TypeScriptCompilerContract.KEY_CONTRACT_VERSION,
+            TypeScriptCompilerContract.VERSION,
+        )
+        putString(
+            TypeScriptCompilerContract.KEY_CONTRACT_HASH,
+            TypeScriptCompilerContract.HASH,
+        )
+        putLong(
+            TypeScriptCompilerContract.KEY_TIMEOUT_MS,
+            timeoutMs,
+        )
+    }
+
     private fun assertRejected(
         ticket: Bundle,
         requestId: String,
@@ -422,7 +533,12 @@ class R1BinderFdInstrumentationTest {
     }
 
     private companion object {
+        const val HOT_PROBE_COUNT = 100
         const val SERVICE_TIMEOUT_SECONDS = 5L
         const val NO_CALLBACK_WINDOW_MILLIS = 250L
+        const val EXPECTED_DECLARATIONS_FINGERPRINT =
+            "6ee5c0bce41694b8ca86430b82abfe4fbb60bf96321fba43e99d9810a44a1c1f"
+        const val EXPECTED_DISTRIBUTION_FINGERPRINT =
+            "3855b04b968db8a9529b60c96dd8b8ec94fa1ee040cac10a5ab569aa6e33f658"
     }
 }

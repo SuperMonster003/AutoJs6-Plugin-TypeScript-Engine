@@ -4,6 +4,16 @@
 
 ******
 
+# v0.3.0
+
+###### 2026/07/27
+
+* `Hint` `compilerAvailable=false` remains authoritative in v0.3.0: R1 prewarm only runs the restricted compiler-host golden probe; project compilation stays unavailable until R2
+* `Feature` Established a WebView/Worker compiler host in the dedicated `:typescript_compiler` process with a private HTTPS asset origin, exact resource allowlist, WebMessagePort, and restricted network, file, content, storage, and window capabilities
+* `Feature` Made R1 prewarm load the real TypeScript 6.0.3 runtime and verify its runtime version, enum emit, structured syntax diagnostic, Source Map v3, fixed output fingerprints, and absence of inline source content
+* `Improvement` Covered 100 hot probes per Android 12 and Android 13 device plus Worker rebuild recovery after a timeout, and verified the minified release through a standalone Android 13 helper while keeping every project-compilation capability false
+* `Dependency` Added AndroidX WebKit version 1.14.0
+
 # v0.2.0
 
 ###### 2026/07/27

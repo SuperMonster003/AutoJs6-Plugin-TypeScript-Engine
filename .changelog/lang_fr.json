@@ -6,6 +6,22 @@
   "changelog_label_improvement": "Amélioration",
   "changelog_label_dependency": "Dépendance",
   "$data": {
+    "v0.3.0": {
+      "released_date": "2026/07/27",
+      "hint": [
+        "`compilerAvailable=false` reste l'etat faisant autorite dans v0.3.0: le prewarm R1 execute uniquement le golden probe du compiler host restreint; la compilation de projet reste indisponible jusqu'a R2"
+      ],
+      "feature": [
+        "Mise en place d'un compiler host WebView/Worker dans le processus dedie `:typescript_compiler` avec une origine HTTPS privee pour les assets, une allowlist exacte, WebMessagePort et des capacites network, file, content, storage et window restreintes",
+        "Le prewarm R1 charge le runtime TypeScript 6.0.3 reel et verifie sa runtime version, l'enum emit, un diagnostic syntaxique structure, une Source Map v3, les fingerprints de sortie fixes et l'absence de inline source content"
+      ],
+      "improvement": [
+        "Couverture de 100 hot probes par appareil Android 12 et Android 13 ainsi que de la reconstruction du Worker apres timeout, avec verification du minified release par un helper Android 13 autonome, tout en conservant toutes les capacites de compilation de projet a false"
+      ],
+      "dependency": [
+        "Ajout de AndroidX WebKit version 1.14.0"
+      ]
+    },
     "v0.2.0": {
       "released_date": "2026/07/27",
       "hint": [

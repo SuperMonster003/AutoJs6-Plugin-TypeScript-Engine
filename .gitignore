@@ -21,6 +21,7 @@
 /build-logic/**/.kotlin/
 /gradle/wrappers/backup/
 /plugin-api/**/build/
+/release-smoke/build/
 
 /local.properties
 /sign.properties

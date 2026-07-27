@@ -2,48 +2,58 @@ package io.github.supermonster003.autojs6.plugin.typescript
 
 import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
-class R0PrewarmGateTest {
+class CompilerPrewarmGateTest {
 
     @Test
-    fun validPrewarmIsExplicitlyUnavailableInR0() {
-        val decision = R0PrewarmGate.reject(validAdmission())
+    fun validPrewarmIsAdmittedToTheR1Host() {
+        val rejection = CompilerPrewarmGate.validate(validAdmission())
 
-        assertEquals(TypeScriptCompilerContract.ERROR_R0_NOT_AVAILABLE, decision.errorCode)
+        assertNull(rejection)
     }
 
     @Test
     fun contractMismatchIsRejectedBeforeAvailability() {
-        val decision = R0PrewarmGate.reject(
+        val rejection = CompilerPrewarmGate.validate(
             validAdmission().copy(
                 options = validOptions().copy(contractHash = "unexpected"),
             ),
         )
 
-        assertEquals(TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH, decision.errorCode)
+        assertEquals(
+            TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
+            rejection?.errorCode,
+        )
     }
 
     @Test
     fun nonPrimitiveOrOversizedMetadataIsRejected() {
-        val nonPrimitive = R0PrewarmGate.reject(
+        val nonPrimitive = CompilerPrewarmGate.validate(
             validAdmission().copy(primitiveMetadataOnly = false),
         )
-        val oversized = R0PrewarmGate.reject(
+        val oversized = CompilerPrewarmGate.validate(
             validAdmission().copy(metadataWithinBudget = false),
         )
 
-        assertEquals(TypeScriptCompilerContract.ERROR_INVALID_REQUEST, nonPrimitive.errorCode)
-        assertEquals(TypeScriptCompilerContract.ERROR_INVALID_REQUEST, oversized.errorCode)
+        assertEquals(
+            TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+            nonPrimitive?.errorCode,
+        )
+        assertEquals(
+            TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+            oversized?.errorCode,
+        )
     }
 
-    private fun validAdmission() = R0PrewarmAdmission(
+    private fun validAdmission() = CompilerPrewarmAdmission(
         options = validOptions(),
         primitiveMetadataOnly = true,
         metadataWithinBudget = true,
     )
 
-    private fun validOptions() = R0PrewarmEnvelope(
+    private fun validOptions() = CompilerPrewarmEnvelope(
         contractVersion = TypeScriptCompilerContract.VERSION,
         contractHash = TypeScriptCompilerContract.HASH,
         timeoutMs = TypeScriptCompilerContract.DEFAULT_TIMEOUT_MS,
