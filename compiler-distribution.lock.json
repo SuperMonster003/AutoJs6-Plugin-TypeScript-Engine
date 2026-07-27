@@ -1,14 +1,16 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "package": "typescript",
   "version": "6.0.3",
   "source": "https://registry.npmjs.org/typescript/-/typescript-6.0.3.tgz",
   "sha1": "90251dc007916e972786cb94d74d15b185577d21",
+  "sha256": "33cd0ee1beaa8c9e9d15a9da836c62ddea4c34a42d7c2d349dbc80d94165d22a",
   "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==",
   "runtimeEntry": "package/lib/typescript.js",
+  "declarationEntry": "package/lib/typescript.d.ts",
   "licenseEntry": "package/LICENSE.txt",
   "thirdPartyNoticeEntry": "package/ThirdPartyNoticeText.txt",
   "standardLibraryGlob": "package/lib/lib*.d.ts",
-  "bundled": false,
-  "note": "R0 pins the distribution. R1 verifies and bundles the selected files."
+  "bundled": true,
+  "note": "R1 verifies the pinned tarball and bundles only the allowlisted compiler distribution files."
 }

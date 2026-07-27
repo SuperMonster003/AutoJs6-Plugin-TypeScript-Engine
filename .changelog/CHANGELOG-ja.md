@@ -4,6 +4,17 @@
 
 ******
 
+# v0.2.0
+
+###### 2026/07/27
+
+* `ヒント` `compilerAvailable=false` は v0.2.0 でも正式な状態を示す: R1 は compiler distribution と IPC/FD transport の準備と検証のみを行い, R2 完了前は project compilation を利用できない
+* `追加` 公式 TypeScript 6.0.3 distribution の再現可能な pipeline で SHA-1, SHA-256, SRI SHA-512 の 3 種類の digest を検証し, 厳格な tar entry allowlist だけを安全に抽出して canonical `distribution.json` と compiler, standard libraries, generator, distribution fingerprints を生成
+* `追加` Debug/release APK content gate で `distribution.json` に基づいて実際の package bytes を再検証し, allowlist 内の `lib/typescript.js` が 1 つだけ存在することと declarations, license, third-party notice の完全性を保証
+* `追加` Instrumentation で実際のリモート `:typescript_compiler` プロセスの Binder discovery/capability と R0 の同期拒否を検証し, 拒否後も呼び出し側が所有する FD は有効であり, 無効または共有された descriptor は有界の短い観測時間内に callback を発生させないことを確認
+* `依存関係` AndroidX Test Runner バージョン 1.7.0 を追加
+* `依存関係` AndroidX Test JUnit Extension バージョン 1.3.0 を追加
+
 # v0.1.0
 
 ###### 2026/07/27

@@ -4,6 +4,17 @@
 
 ******
 
+# v0.2.0
+
+###### 2026/07/27
+
+* `Indication` `compilerAvailable=false` reste l'etat faisant autorite dans v0.2.0: R1 prepare et valide uniquement la distribution du compilateur et le transport IPC/FD; la compilation de projet reste indisponible jusqu'a R2
+* `Fonctionnalité` Mise en place d'un pipeline reproductible pour la distribution officielle TypeScript 6.0.3 qui verifie SHA-1, SHA-256 et SRI SHA-512, extrait de maniere sure une allowlist stricte des entrees tar et produit un `distribution.json` canonique ainsi que les fingerprints du compiler, des standard libraries, du generator et de la distribution
+* `Fonctionnalité` Renforcement des controles de contenu des APK debug/release par le recalcul des octets empaquetes selon `distribution.json`, avec exactement un `lib/typescript.js` autorise et la verification des declarations, de la license et de la third-party notice
+* `Fonctionnalité` L'instrumentation couvre la découverte et les capacités Binder du véritable service distant `:typescript_compiler`, ainsi que le rejet synchrone R0; elle vérifie que les FD détenus par l'appelant restent valides après le rejet et que les descripteurs non valides ou partagés ne déclenchent aucun callback pendant une courte fenêtre d'observation bornée
+* `Dépendance` Ajout de AndroidX Test Runner version 1.7.0
+* `Dépendance` Ajout de AndroidX Test JUnit Extension version 1.3.0
+
 # v0.1.0
 
 ###### 2026/07/27

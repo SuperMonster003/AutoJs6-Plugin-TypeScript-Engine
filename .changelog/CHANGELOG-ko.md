@@ -4,6 +4,17 @@
 
 ******
 
+# v0.2.0
+
+###### 2026/07/27
+
+* `안내` `compilerAvailable=false` 는 v0.2.0에서도 공식 상태를 나타냄: R1은 compiler distribution 및 IPC/FD transport를 준비하고 검증할 뿐이며 R2 완료 전에는 project compilation을 사용할 수 없음
+* `추가` 공식 TypeScript 6.0.3 distribution의 재현 가능한 pipeline에서 SHA-1, SHA-256, SRI SHA-512 세 digest를 검증하고 엄격한 tar entry allowlist만 안전하게 추출하며 canonical `distribution.json`과 compiler, standard libraries, generator, distribution fingerprints를 생성
+* `추가` Debug/release APK content gate가 `distribution.json`에 따라 실제 package bytes를 다시 검증하고 allowlist의 `lib/typescript.js`가 하나만 존재하는지와 declarations, license, third-party notice의 무결성을 확인
+* `추가` Instrumentation으로 실제 원격 `:typescript_compiler` 프로세스의 Binder discovery/capability 및 R0 동기 거부를 검증하고, 거부 후에도 호출자가 소유한 FD는 유효하며 잘못되었거나 공유된 descriptor가 제한된 짧은 관찰 시간 동안 callback을 발생시키지 않음을 확인
+* `의존성` AndroidX Test Runner 버전 1.7.0 추가
+* `의존성` AndroidX Test JUnit Extension 버전 1.3.0 추가
+
 # v0.1.0
 
 ###### 2026/07/27

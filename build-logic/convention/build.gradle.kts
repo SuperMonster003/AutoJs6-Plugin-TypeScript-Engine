@@ -15,6 +15,8 @@ dependencies {
 
     implementation(libs.apache.commons.compress)
     implementation(libs.tukaani.xz)
+
+    testImplementation(libs.junit)
 }
 
 gradlePlugin {

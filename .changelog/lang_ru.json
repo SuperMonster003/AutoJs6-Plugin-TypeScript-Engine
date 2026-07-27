@@ -6,6 +6,21 @@
   "changelog_label_improvement": "Улучшение",
   "changelog_label_dependency": "Зависимость",
   "$data": {
+    "v0.2.0": {
+      "released_date": "2026/07/27",
+      "hint": [
+        "`compilerAvailable=false` остается авторитетным состоянием в v0.2.0: R1 только подготавливает и проверяет compiler distribution и IPC/FD transport; компиляция проектов недоступна до R2"
+      ],
+      "feature": [
+        "Реализован воспроизводимый pipeline официального дистрибутива TypeScript 6.0.3 с проверкой SHA-1, SHA-256 и SRI SHA-512, безопасным извлечением строгого allowlist для tar entries и генерацией canonical `distribution.json`, а также fingerprints для compiler, standard libraries, generator и всего дистрибутива",
+        "Усилены проверки содержимого debug/release APK: фактически упакованные bytes повторно проверяются по `distribution.json`, допускается ровно один allowlisted `lib/typescript.js`, а declarations, license и third-party notice проверяются на полноту",
+        "Инструментальные тесты охватывают обнаружение и возможности реальной удаленной Binder-службы `:typescript_compiler`, а также синхронный отказ R0; подтверждено, что принадлежащие вызывающей стороне FD остаются действительными после отказа, а недопустимые или общие дескрипторы не вызывают callback в пределах короткого ограниченного окна наблюдения"
+      ],
+      "dependency": [
+        "Добавлен AndroidX Test Runner версии 1.7.0",
+        "Добавлен AndroidX Test JUnit Extension версии 1.3.0"
+      ]
+    },
     "v0.1.0": {
       "released_date": "2026/07/27",
       "hint": [

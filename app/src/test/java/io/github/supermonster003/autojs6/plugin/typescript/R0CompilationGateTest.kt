@@ -63,6 +63,16 @@ class R0CompilationGateTest {
     }
 
     @Test
+    fun inputAndOutputMustNotShareTheSameBackingFile() {
+        val decision = R0CompilationGate.reject(
+            validAdmission().copy(backingFilesDistinct = false),
+        )
+
+        assertFalse(decision.accepted)
+        assertEquals(TypeScriptCompilerContract.ERROR_INVALID_REQUEST, decision.errorCode)
+    }
+
+    @Test
     fun oversizedMetadataIsRejectedBeforeCompilerAvailability() {
         val decision = R0CompilationGate.reject(
             validAdmission().copy(metadataWithinBudget = false),

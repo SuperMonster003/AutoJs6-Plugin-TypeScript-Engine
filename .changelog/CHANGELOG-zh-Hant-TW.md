@@ -4,6 +4,17 @@
 
 ******
 
+# v0.2.0
+
+###### 2026/07/27
+
+* `提示` `compilerAvailable=false` 在 v0.2.0 中仍為權威狀態: R1 僅準備並驗證 compiler distribution 和 IPC/FD transport, R2 完成前仍無法進行專案編譯
+* `新增` TypeScript 6.0.3 官方發行套件管線驗證 SHA-1, SHA-256 和 SRI SHA-512 三種摘要, 透過嚴格 tar entry allowlist 安全擷取檔案, 並產生 canonical `distribution.json` 以及 compiler, standard libraries, generator 和 distribution fingerprints
+* `新增` Debug/release APK 內容門檻依據 `distribution.json` 重新驗證實際封裝位元組, 確保 APK 僅包含一份 allowlist 內的 `lib/typescript.js`, 且 declarations, license 和 third-party notice 完整一致
+* `新增` Instrumentation 涵蓋真實遠端 `:typescript_compiler` 行程的 Binder 服務探索/能力與 R0 同步拒絕, 驗證拒絕後呼叫端持有的 FD 仍然有效, 且無效或共用 descriptor 在有界短觀察窗內未觸發 callback
+* `依賴` 附加 AndroidX Test Runner 版本 1.7.0
+* `依賴` 附加 AndroidX Test JUnit Extension 版本 1.3.0
+
 # v0.1.0
 
 ###### 2026/07/27

@@ -28,4 +28,21 @@ tasks {
         dependsOn(":app:lintDebug")
         dependsOn(":app:assembleDebug")
     }
+
+    register("verifyR1BinderFdDebug") {
+        group = "verification"
+        description = "Runs the R1 Binder and file-descriptor gates on connected devices."
+        dependsOn(":app:testDebugUnitTest")
+        dependsOn(":app:connectedDebugAndroidTest")
+    }
+
+    register("verifyR1CompilerDistribution") {
+        group = "verification"
+        description = "Runs the R1 compiler distribution and debug/release APK gates."
+        dependsOn(gradle.includedBuild("build-logic").task(":convention:check"))
+        dependsOn(":app:verifyCompilerDistributionLock")
+        dependsOn(":app:verifyTypeScriptDistribution")
+        dependsOn(":app:verifyDebugTypeScriptDistributionApk")
+        dependsOn(":app:verifyReleaseTypeScriptDistributionApk")
+    }
 }

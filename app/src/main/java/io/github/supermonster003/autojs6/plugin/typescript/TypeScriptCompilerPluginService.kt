@@ -38,14 +38,19 @@ class TypeScriptCompilerPluginService : Service() {
             outputArchive: ParcelFileDescriptor?,
             callback: ITypeScriptCompilationCallback?,
         ): Bundle = try {
+            val archiveDescriptors = ArchiveFileDescriptorValidator.validate(
+                inputArchive = inputArchive,
+                outputArchive = outputArchive,
+            )
             R0CompilationGate.reject(
                 R0CompilationAdmission(
                     request = request.toEnvelopeOrNull(),
                     primitiveMetadataOnly = request.hasPrimitiveMetadataOnly(),
                     metadataWithinBudget = request.isWithinMetadataBudget(),
-                    inputArchiveValid = inputArchive.isValid(),
-                    outputArchiveValid = outputArchive.isValid(),
+                    inputArchiveValid = archiveDescriptors.inputArchiveValid,
+                    outputArchiveValid = archiveDescriptors.outputArchiveValid,
                     callbackValid = callback?.asBinder()?.isBinderAlive == true,
+                    backingFilesDistinct = archiveDescriptors.backingFilesDistinct,
                 ),
             ).toBundle()
         } finally {
@@ -146,10 +151,6 @@ class TypeScriptCompilerPluginService : Service() {
         putString(TypeScriptCompilerContract.KEY_ERROR_CODE, errorCode)
         putString(TypeScriptCompilerContract.KEY_ERROR_MESSAGE, errorMessage)
     }
-
-    private fun ParcelFileDescriptor?.isValid() = runCatching {
-        this != null && fileDescriptor.valid()
-    }.getOrDefault(false)
 
     private fun ParcelFileDescriptor?.closeQuietly() {
         runCatching { this?.close() }

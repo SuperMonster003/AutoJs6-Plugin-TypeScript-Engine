@@ -23,6 +23,7 @@ data class R0CompilationAdmission(
     val inputArchiveValid: Boolean,
     val outputArchiveValid: Boolean,
     val callbackValid: Boolean,
+    val backingFilesDistinct: Boolean = true,
 )
 
 data class R0CompilationDecision(
@@ -141,6 +142,7 @@ object R0CompilationGate {
         if (
             !admission.inputArchiveValid ||
             !admission.outputArchiveValid ||
+            !admission.backingFilesDistinct ||
             !admission.callbackValid
         ) {
             return rejected(
@@ -159,7 +161,7 @@ object R0CompilationGate {
         return rejected(
             requestId = request.requestId,
             code = TypeScriptCompilerContract.ERROR_R0_NOT_AVAILABLE,
-            message = "R0 exposes the versioned compiler envelope; compilation starts in R1.",
+            message = "R1 prepares the compiler host; project compilation starts in R2.",
         )
     }
 
