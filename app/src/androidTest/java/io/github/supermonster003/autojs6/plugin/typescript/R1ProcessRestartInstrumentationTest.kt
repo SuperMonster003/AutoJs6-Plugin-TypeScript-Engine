@@ -89,10 +89,10 @@ class R1ProcessRestartInstrumentationTest {
                     TypeScriptCompilerContract.STATUS_READY,
                     result.getString(TypeScriptPluginCapabilityKeys.SERVICE_STATUS),
                 )
-                assertFalse(
+                assertTrue(
                     result.getBoolean(
                         TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE,
-                        true,
+                        false,
                     ),
                 )
 

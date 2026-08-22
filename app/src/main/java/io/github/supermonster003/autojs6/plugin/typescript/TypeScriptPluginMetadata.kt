@@ -12,6 +12,12 @@ import org.autojs.plugin.typescript.api.TypeScriptR2Contract
 
 object TypeScriptPluginMetadata {
 
+    internal const val ADVERTISED_COMPILER_AVAILABLE = true
+    internal const val ADVERTISED_PROJECT_COMPILATION = true
+    internal const val ADVERTISED_SEMANTIC_DIAGNOSTICS = true
+    internal const val ADVERTISED_SOURCE_MAP_V3 = true
+    internal const val ADVERTISED_NODE_RUNTIME_REQUIRED = false
+
     fun pluginInfo(context: Context): PluginInfo = PluginInfo(
         name = context.getString(R.string.app_name),
         description = context.getString(R.string.plugin_description),
@@ -63,11 +69,11 @@ object TypeScriptPluginMetadata {
     private fun capabilityBundle(snapshot: CompilerHostSnapshot) = Bundle().apply {
         val compatibilityRevision =
             TypeScriptR2Contract.CAPABILITY_PROMOTION_COMPATIBILITY_REVISION
-        val compilerAvailable = false
-        val projectCompilation = false
-        val semanticDiagnostics = false
-        val sourceMapV3 = false
-        val nodeRuntimeRequired = false
+        val compilerAvailable = ADVERTISED_COMPILER_AVAILABLE
+        val projectCompilation = ADVERTISED_PROJECT_COMPILATION
+        val semanticDiagnostics = ADVERTISED_SEMANTIC_DIAGNOSTICS
+        val sourceMapV3 = ADVERTISED_SOURCE_MAP_V3
+        val nodeRuntimeRequired = ADVERTISED_NODE_RUNTIME_REQUIRED
         check(
             TypeScriptR2Contract.isCapabilityPromotionStructurallyCompatible(
                 compatibilityRevision = compatibilityRevision,

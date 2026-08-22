@@ -7368,19 +7368,19 @@ public final class R2PublicPreviewInstrumentation extends Instrumentation {
                             info.getString(
                                     TypeScriptCompilerContract.KEY_CONTRACT_HASH)),
                     "compilerInfo contract hash mismatch.");
-            requireFalseCapability(
+            requireTrueCapability(
                     info,
                     TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE,
                     "compilerAvailable");
-            requireFalseCapability(
+            requireTrueCapability(
                     info,
                     TypeScriptPluginCapabilityKeys.PROJECT_COMPILATION,
                     "projectCompilation");
-            requireFalseCapability(
+            requireTrueCapability(
                     info,
                     TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS,
                     "semanticDiagnostics");
-            requireFalseCapability(
+            requireTrueCapability(
                     info,
                     TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3,
                     "sourceMapV3");
@@ -7548,6 +7548,13 @@ public final class R2PublicPreviewInstrumentation extends Instrumentation {
             require(
                     info.containsKey(key) && !info.getBoolean(key, true),
                     "compilerInfo " + label + " preview capability must remain false.");
+        }
+
+        private static void requireTrueCapability(
+                Bundle info, String key, String label) {
+            require(
+                    info.containsKey(key) && info.getBoolean(key, false),
+                    "compilerInfo " + label + " capability must be advertised.");
         }
     }
 

@@ -297,10 +297,10 @@ class R1RhinoFeasibilityInstrumentationTest {
                 TypeScriptCompilerContract.STATUS_READY,
                 result.getString(TypeScriptPluginCapabilityKeys.SERVICE_STATUS),
             )
-            assertFalse(
+            assertTrue(
                 result.getBoolean(
                     TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE,
-                    true,
+                    false,
                 ),
             )
             assertEquals(
@@ -315,8 +315,8 @@ class R1RhinoFeasibilityInstrumentationTest {
                 TypeScriptCompilerContract.BACKEND_WEBVIEW_WORKER,
                 info.getString(TypeScriptCompilerContract.KEY_BACKEND),
             )
-            assertFalse(
-                info.getBoolean(TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE, true),
+            assertTrue(
+                info.getBoolean(TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE, false),
             )
         } finally {
             context.unbindService(connection)

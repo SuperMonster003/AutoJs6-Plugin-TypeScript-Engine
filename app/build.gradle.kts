@@ -81,26 +81,54 @@ val r1RhinoProbeJarPath = providers.gradleProperty("r1RhinoProbeJar")
     ?.takeIf(String::isNotEmpty)
 val r1RhinoProbeJarFile = r1RhinoProbeJarPath?.let(rootProject::file)
 
-fun requireDisabledTypeScriptCompilerCapabilities(
+fun requireAdvertisedTypeScriptCompilerCapabilities(
     metadataSource: String,
     owner: String,
 ) {
-    linkedMapOf(
-        "COMPILER_AVAILABLE" to "compilerAvailable",
-        "PROJECT_COMPILATION" to "projectCompilation",
-        "SEMANTIC_DIAGNOSTICS" to "semanticDiagnostics",
-        "SOURCE_MAP_V3" to "sourceMapV3",
-        "NODE_RUNTIME_REQUIRED" to "nodeRuntimeRequired",
-    ).forEach { (capability, variable) ->
+    listOf(
+        listOf(
+            "COMPILER_AVAILABLE",
+            "ADVERTISED_COMPILER_AVAILABLE",
+            "compilerAvailable",
+            "true",
+        ),
+        listOf(
+            "PROJECT_COMPILATION",
+            "ADVERTISED_PROJECT_COMPILATION",
+            "projectCompilation",
+            "true",
+        ),
+        listOf(
+            "SEMANTIC_DIAGNOSTICS",
+            "ADVERTISED_SEMANTIC_DIAGNOSTICS",
+            "semanticDiagnostics",
+            "true",
+        ),
+        listOf(
+            "SOURCE_MAP_V3",
+            "ADVERTISED_SOURCE_MAP_V3",
+            "sourceMapV3",
+            "true",
+        ),
+        listOf(
+            "NODE_RUNTIME_REQUIRED",
+            "ADVERTISED_NODE_RUNTIME_REQUIRED",
+            "nodeRuntimeRequired",
+            "false",
+        ),
+    ).forEach { (capability, constant, variable, expected) ->
         check(
-            Regex("""val\s+$variable\s*=\s*false""").containsMatchIn(metadataSource) &&
+            Regex(
+                """internal\s+const\s+val\s+$constant\s*=\s*$expected""",
+            ).containsMatchIn(metadataSource) &&
+                Regex("""val\s+$variable\s*=\s*$constant""").containsMatchIn(metadataSource) &&
                 Regex(
                     """putBoolean\(\s*TypeScriptPluginCapabilityKeys\.$capability,""" +
                         """\s*$variable\s*,?\s*\)""",
                     RegexOption.DOT_MATCHES_ALL,
                 ).containsMatchIn(metadataSource),
         ) {
-            "$owner must keep TypeScriptPluginCapabilityKeys.$capability disabled " +
+            "$owner must advertise TypeScriptPluginCapabilityKeys.$capability=$expected " +
                 "through its single validated advertisement tuple."
         }
     }
@@ -2298,7 +2326,7 @@ val verifyR2M2C1ControlledTsConfigPolicy =
             }
 
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C1")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C1")
         }
     }
 
@@ -2573,7 +2601,7 @@ val verifyR2M2C2ControlledTsConfigParser =
             }
 
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C2")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C2")
         }
     }
 
@@ -2922,7 +2950,7 @@ val verifyR2M2C3ControlledTsConfigEffectiveOptions =
             }
 
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C3")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C3")
 
             check(
                 parseAidlTransactionNames(
@@ -3351,7 +3379,7 @@ val verifyR2M2C4CompilerEscapeClosure =
                 "R2-M2-C4 must not activate controlled tsconfig in the production profile."
             }
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C4")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C4")
             check(
                 parseAidlTransactionNames(
                     compilerApiAidl.asFile,
@@ -3647,7 +3675,7 @@ val verifyR2M2C5ControlledPackageMetadataTransport =
                 "R2-M2-C5 must not activate controlled config/package metadata in production."
             }
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C5")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C5")
             check(
                 parseAidlTransactionNames(
                     compilerApiAidl.asFile,
@@ -3959,7 +3987,7 @@ val verifyR2M2C7ControlledTsConfigRootSelection =
                 "R2-M2-C7 must not activate controlled compilation in production."
             }
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C7")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C7")
             check(
                 parseAidlTransactionNames(
                     compilerApiAidl.asFile,
@@ -4235,7 +4263,7 @@ val verifyR2M2C6BPackageTargetsAndNodeResolutionParity =
                 "R2-M2-C6-B must not activate controlled project compilation in production."
             }
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C6-B")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-C6-B")
             check(
                 parseAidlTransactionNames(
                     compilerApiAidl.asFile,
@@ -4668,10 +4696,10 @@ val verifyR2M2P1ProvisionalNodeNextProfile =
         doLast {
             val metadataSource =
                 r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-P1")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-P1")
             logger.lifecycle(
                 "R2-M2-P1 NodeNext profile verified: config=none, source=.ts, output=.js, " +
-                    "module=199, moduleResolution=99, public capabilities=false, " +
+                    "module=199, moduleResolution=99, compiler capability mask=15, " +
                     "Node Runtime required=false",
             )
         }
@@ -4809,7 +4837,7 @@ val verifyR2M2P2AuthorityFoundation =
             logger.lifecycle(
                 "R2-M2-P2 authority foundation verified: P2-0 exact policy=" +
                     "$r2M2P2NodeModuleOutputPolicyFingerprint, P2-1 authorities=3/" +
-                    "admitted=2, P2-2 parity=10/19, public capabilities=false, " +
+                    "admitted=2, P2-2 parity=10/19, compiler capability mask=15, " +
                     "Node Runtime required=false",
             )
         }
@@ -5257,7 +5285,7 @@ val verifyR2M2P2P4NodeSourceKindAdmission =
                     "P2-4 regression inventory is missing: $marker"
                 }
             }
-            requireDisabledTypeScriptCompilerCapabilities(metadata, "P2-4")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadata, "P2-4")
 
             logger.lifecycle(
                 "R2-M2-P2-4 Node source-kind admission verified: exact Node revision 2 " +
@@ -5808,7 +5836,7 @@ val verifyR2M2P2P5NodePackageTargetResolutionV2 =
 
             val metadataSource =
                 r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "P2-5")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "P2-5")
 
             logger.lifecycle(
                 "R2-M2-P2-5 resolver/package-target v2 verified: target kinds=6, " +
@@ -6068,7 +6096,7 @@ val verifyR2M2P2P6NodeNextProgramIntegration =
             }
             val metadataSource =
                 r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "P2-6")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "P2-6")
 
             logger.lifecycle(
                 "R2-M2-P2-6 production Worker Program verified: exact starts=30/40/47, " +
@@ -6310,7 +6338,7 @@ val verifyR2M2P2P7NodeNextResultAndPrivateOutput =
 
             val metadataSource =
                 r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "P2-7")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "P2-7")
 
             logger.lifecycle(
                 "R2-M2-P2-7 result/private output verified: Worker result=11 keys, " +
@@ -6628,13 +6656,13 @@ val verifyR2M2P2P8FinalAggregate =
 
             val metadataSource =
                 r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "P2-8")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "P2-8")
 
             logger.lifecycle(
                 "R2-M2-P2-8 final aggregate verified: P1 + C6 v1=12/6 + P2-0..P2-7, " +
                     "mapping=10/19, catalog=4/8/5, resolver v2=14/4, exact starts=30/40/47, " +
                     "result=11 keys, outputs=4 keys, APK/API/source/public fences closed, " +
-                    "Node revision 2 Worker-result-only, public/end-to-end capabilities=false",
+                    "Node revision 2 Worker-result-only, compiler capability mask=15",
             )
         }
     }
@@ -6932,7 +6960,7 @@ val verifyR2M2P3CompilerBundleGolden =
 
             val metadataSource =
                 r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-P3")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-P3")
 
             val buildScriptSource = r2M2P3BuildScript.asFile.readText(Charsets.UTF_8)
             val publicSourcePolicy = between(
@@ -6959,7 +6987,7 @@ val verifyR2M2P3CompilerBundleGolden =
                 "R2-M2-P3 compiler-bundle golden verified: desktop TypeScript semantics + " +
                     "JVM fixture contract, production allowJs/resolveJsonModule/source-kind/" +
                     "JSON-output admission unchanged, Node revision 2 Worker-result-only, " +
-                    "public/end-to-end capabilities=false, runtime engines=0",
+                    "compiler capability mask=15, runtime engines=0",
             )
         }
     }
@@ -7342,7 +7370,7 @@ val verifyR2M2P4CompilerSyntax =
 
             val metadataSource =
                 r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-P4")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-P4")
 
             val buildScriptSource = r2M2P3BuildScript.asFile.readText(Charsets.UTF_8)
             val publicSourcePolicy = between(
@@ -7367,8 +7395,8 @@ val verifyR2M2P4CompilerSyntax =
             logger.lifecycle(
                 "R2-M2-P4 compiler syntax verified: TypeScript 6.0.3, syntax=7, profiles=2, " +
                     "cases=14, compiles=56, two executable roots/four outputs per case, " +
-                    "standard decorators, Node revision 2 Worker-result-only, public/" +
-                    "end-to-end capabilities=false, runtime engines=0",
+                    "standard decorators, Node revision 2 Worker-result-only, " +
+                    "compiler capability mask=15, runtime engines=0",
             )
         }
     }
@@ -7423,7 +7451,7 @@ val verifyR2M2P5CompilerBoundaries =
         description =
             "Closes R2-M2-P5 with deterministic compiler-boundary desktop/JVM evidence " +
                 "while keeping production paths printable-ASCII, collisions fail-closed, " +
-                "and public/runtime capabilities disabled."
+                "and runtime execution out of scope."
 
         dependsOn(verifyR2M2P4CompilerSyntax)
         dependsOn(verifyR2M2P5CompilerBoundariesDesktop)
@@ -7863,7 +7891,7 @@ val verifyR2M2P5CompilerBoundaries =
                 ),
             )
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-P5")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-P5")
 
             val buildScriptSource = r2M2P3BuildScript.asFile.readText(Charsets.UTF_8)
             val publicSourcePolicy = between(
@@ -7888,7 +7916,7 @@ val verifyR2M2P5CompilerBoundaries =
                 "R2-M2-P5 compiler boundaries verified: TypeScript 6.0.3, kinds=7, " +
                     "profiles=2, rows=14, positive=12, compiles=48, production Unicode " +
                     "paths rejected, ordinary space paths accepted, 65,536-token inclusive, " +
-                    "ASCII collision pre-Program, public/runtime capabilities=false",
+                    "ASCII collision pre-Program, compiler capability mask=15",
             )
         }
     }
@@ -7900,7 +7928,7 @@ val verifyR2M2X1PublicShapedDeterministicBundle =
             "Verifies the source/JVM/APK side of R2-M2-X1 for deterministic Rhino " +
                 "revision-1 and NodeNext revision-1 " +
                 "bundles over the private-admission public-shaped Binder service surface " +
-                "while public/runtime capabilities remain disabled; roadmap closure still " +
+                "with compiler capability mask 15; roadmap closure still " +
                 "requires the focused Android runtime receipt."
 
         dependsOn(verifyR2M2P5CompilerBoundaries)
@@ -8020,7 +8048,7 @@ val verifyR2M2X1PublicShapedDeterministicBundle =
                     "R2OutputArchiveSchemaV1.artifactInventoryFingerprint(normalizedOutputFiles)",
                     "R2OutputArchiveSchemaV1.moduleInventoryFingerprint(outputFiles)",
                     "assertStableServiceBundlesEqual(",
-                    "The external public preview remains Rhino-only before M5 promotion.",
+                    "The external public preview remains Rhino-only until S1-5 NodeNext admission.",
                     "remove(R2CompilationProbeProtocol.KEY_EXPANDED_WORKER_CAPACITY)",
                     "TypeScriptPluginCapabilityKeys.NODE_RUNTIME_REQUIRED",
                 ),
@@ -8049,7 +8077,7 @@ val verifyR2M2X1PublicShapedDeterministicBundle =
             )
 
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-X1")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-X1")
 
             val buildScriptSource = r2M2P3BuildScript.asFile.readText(Charsets.UTF_8)
             val publicSourcePolicy = between(
@@ -8074,7 +8102,7 @@ val verifyR2M2X1PublicShapedDeterministicBundle =
                 "R2-M2-X1 pre-device source/JVM/APK evidence verified: private same-UID " +
                     "admission over frozen Binder/PFD/ACK/callback service surface, Rhino r1 + " +
                     "NodeNext r1, two roots/two repeats, Node r2 Worker-result-only, " +
-                    "public/runtime capabilities=false",
+                    "compiler capability mask=15",
             )
         }
     }
@@ -8348,7 +8376,7 @@ val verifyR2M2X2DiagnosticStopEmitModel =
             )
 
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-X2")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-X2")
 
             val buildScriptSource = r2M2P3BuildScript.asFile.readText(Charsets.UTF_8)
             val publicSourcePolicy = between(
@@ -8372,7 +8400,7 @@ val verifyR2M2X2DiagnosticStopEmitModel =
                 "R2-M2-X2 pre-device source/JVM/APK evidence verified: unified options/" +
                     "syntactic/global/semantic no-emit model; Android Rhino r1 + NodeNext r1 " +
                     "source-reachable diagnostics-only matrix; Node r2 Worker-result-only; " +
-                    "public/tsconfig/runtime capabilities=false",
+                    "compiler capability mask=15; tsconfig/runtime activation remains pending",
             )
         }
     }
@@ -8647,7 +8675,7 @@ val verifyR2M2X3StableConfigurationAndResolutionFailures =
                 ),
             )
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M2-X3")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M2-X3")
 
             val buildScriptSource = r2M2P3BuildScript.asFile.readText(Charsets.UTF_8)
             val publicSourcePolicy = between(
@@ -8671,7 +8699,7 @@ val verifyR2M2X3StableConfigurationAndResolutionFailures =
                     "resolution=18/18 with 900001..900018, pre-Program/stop-emit isolation, " +
                     "outside-snapshot positive reads/default resolver/ts.sys/network=0, " +
                     "formal input-archive schema v1, Node r2 Worker-result-only, " +
-                    "public/runtime capabilities=false",
+                    "compiler capability mask=15",
             )
         }
     }
@@ -9230,7 +9258,7 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
             )
 
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M3-D1")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M3-D1")
 
             val buildScriptSource = r2M2P3BuildScript.asFile.readText(Charsets.UTF_8)
             val publicSourcePolicy = between(
@@ -9255,7 +9283,7 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                     "Node declarations=167/4031330 with headroom=345/4357278; " +
                     "64 MiB transport and 72 MiB TEST_ONLY Worker evidence remain isolated; " +
                     "quota rejection is pre-dispatch with empty-output contract; " +
-                    "public/runtime capabilities=false",
+                    "compiler capability mask=15",
             )
         }
     }
@@ -9738,7 +9766,7 @@ val verifyR2M3D2OrdinaryOutputQuotaFixture =
             )
 
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-            requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2-M3-D2")
+            requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2-M3-D2")
 
             val buildScriptSource = r2M2P3BuildScript.asFile.readText(Charsets.UTF_8)
             val sourcePolicyStart = buildScriptSource.indexOf(
@@ -9761,7 +9789,7 @@ val verifyR2M3D2OrdinaryOutputQuotaFixture =
                 "R2-M3-D2 ordinary output quota fixture verified: final packaged JS/maps=" +
                     "512 files, 512 KiB per artifact, 1 MiB aggregate inclusive; " +
                     "pre-C8 b2k raw=976438 vs packaged=978486 with 70090-byte headroom; " +
-                    "diagnostics/result/ZIP domains remain separate and Public capabilities=false",
+                    "diagnostics/result/ZIP domains remain separate; compiler capability mask=15",
             )
         }
     }
@@ -9792,7 +9820,7 @@ val verifyR2M3D3CapabilityPromotionCompatibilityFixture =
         group = "verification"
         description =
             "Freezes the R2-M3-D3 revision-1 capability dependency matrix, strict metadata " +
-                "compatibility, legacy-disabled exception, host route closure, and current mask 0."
+                "compatibility, legacy-disabled exception, host route closure, and current mask 15."
 
         dependsOn("testDebugUnitTest")
         dependsOn(":plugin-api:typescript-api:testDebugUnitTest")
@@ -9908,11 +9936,13 @@ val verifyR2M3D3CapabilityPromotionCompatibilityFixture =
                 markers = listOf(
                     "val compatibilityRevision =",
                     "TypeScriptR2Contract.CAPABILITY_PROMOTION_COMPATIBILITY_REVISION",
-                    "val compilerAvailable = false",
-                    "val projectCompilation = false",
-                    "val semanticDiagnostics = false",
-                    "val sourceMapV3 = false",
-                    "val nodeRuntimeRequired = false",
+                    "ADVERTISED_COMPILER_AVAILABLE = true",
+                    "ADVERTISED_PROJECT_COMPILATION = true",
+                    "ADVERTISED_SEMANTIC_DIAGNOSTICS = true",
+                    "ADVERTISED_SOURCE_MAP_V3 = true",
+                    "ADVERTISED_NODE_RUNTIME_REQUIRED = false",
+                    "val compilerAvailable = ADVERTISED_COMPILER_AVAILABLE",
+                    "val nodeRuntimeRequired = ADVERTISED_NODE_RUNTIME_REQUIRED",
                     "TypeScriptR2Contract.isCapabilityPromotionStructurallyCompatible(",
                     "TypeScriptR2Contract.KEY_CAPABILITY_PROMOTION_COMPATIBILITY_REVISION",
                     "putBoolean(TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE, compilerAvailable)",
@@ -9940,7 +9970,7 @@ val verifyR2M3D3CapabilityPromotionCompatibilityFixture =
             logger.lifecycle(
                 "R2-M3-D3 capability promotion compatibility fixture verified: revision=1, " +
                     "masks=0/1/3/7/11/15, legacy=explicit-all-false discovery-only, " +
-                    "Node runtime=false and current Public/runtime capabilities remain disabled",
+                    "Node runtime=false and current compiler capability mask=15",
             )
         }
     }
@@ -10750,16 +10780,16 @@ val verifyR2M3S2OutputArchiveSchemaV1Fixture =
             }
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
             listOf(
-                "val compilerAvailable = false",
-                "val projectCompilation = false",
-                "val semanticDiagnostics = false",
-                "val sourceMapV3 = false",
-                "val nodeRuntimeRequired = false",
+                "ADVERTISED_COMPILER_AVAILABLE = true",
+                "ADVERTISED_PROJECT_COMPILATION = true",
+                "ADVERTISED_SEMANTIC_DIAGNOSTICS = true",
+                "ADVERTISED_SOURCE_MAP_V3 = true",
+                "ADVERTISED_NODE_RUNTIME_REQUIRED = false",
                 "TypeScriptR2Contract.KEY_OUTPUT_ARCHIVE_SCHEMA_REVISION",
                 "TypeScriptR2Contract.OUTPUT_ARCHIVE_SCHEMA_REVISION",
             ).forEach { marker ->
                 check(marker in metadataSource) {
-                    "R2-M3-S2 capability fence drifted: $marker"
+                    "R2-M3-S2 current capability advertisement drifted: $marker"
                 }
             }
 
@@ -11134,14 +11164,14 @@ val verifyR2M3S3DiagnosticsSchemaV1Fixture =
                 "R2-M3-S3 must not promote Public/runtime/device state."
             }
             listOf(
-                "val compilerAvailable = false",
-                "val projectCompilation = false",
-                "val semanticDiagnostics = false",
-                "val sourceMapV3 = false",
-                "val nodeRuntimeRequired = false",
+                "ADVERTISED_COMPILER_AVAILABLE = true",
+                "ADVERTISED_PROJECT_COMPILATION = true",
+                "ADVERTISED_SEMANTIC_DIAGNOSTICS = true",
+                "ADVERTISED_SOURCE_MAP_V3 = true",
+                "ADVERTISED_NODE_RUNTIME_REQUIRED = false",
             ).forEach { marker ->
                 check(marker in metadataSource) {
-                    "R2-M3-S3 capability fence drifted: $marker"
+                    "R2-M3-S3 current capability advertisement drifted: $marker"
                 }
             }
 
@@ -11346,8 +11376,8 @@ val verifyR2ReleaseCompatibilityApks =
 tasks.register("verifyR2PublicPreviewSourcePolicy") {
     group = "verification"
     description =
-        "Verifies production R2 wiring for complete M3-S2 plus M3-S3 while public " +
-            "capability flags remain disabled."
+        "Verifies production R2 wiring for complete M3-S2 plus M3-S3 with compiler " +
+            "capability mask 15 and no Node Runtime dependency."
     inputs.files(
         r2PublicPreviewServiceSource,
         r2PublicPreviewMetadataSource,
@@ -12004,7 +12034,7 @@ tasks.register("verifyR2PublicPreviewSourcePolicy") {
         )
 
         val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
-        requireDisabledTypeScriptCompilerCapabilities(metadataSource, "R2 through P3b-b2e")
+        requireAdvertisedTypeScriptCompilerCapabilities(metadataSource, "R2 through P3b-b2e")
     }
 }
 

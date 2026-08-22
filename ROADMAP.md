@@ -48,7 +48,7 @@
 
 | 阶段 | 主题 | 用户可感知结果 | 状态 |
 |---|---|---|---|
-| S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII 拦下 | 未开始 |
+| S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII 拦下 | 进行中 (1/7) |
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 未开始 |
 | S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 未开始 |
 | S4 | Node profile 与项目级能力 | `.mts/.cts`、多文件项目、tsconfig 常用项 | 未开始 |
@@ -69,7 +69,7 @@ S4/S5 在 S2 跑通后即可按需插队。唯一硬前提: **S2 之前必须完
 目标: 移除"契约层可用、广告层关闭"的错位与脱离真实脚本的限制。
 全部工作在本仓库完成, 不依赖宿主。
 
-- [ ] **S1-1 capability 广告翻转**: `typescriptCompilerAvailable`、
+- [x] **S1-1 capability 广告翻转**: `typescriptCompilerAvailable`、
       `projectCompilation`、`semanticDiagnostics`、`sourceMapV3` 置
       `true` (mask 15); `nodeRuntimeRequired` 保持 `false`。删除
       "promotion 需 M5 审计"的流程约束。

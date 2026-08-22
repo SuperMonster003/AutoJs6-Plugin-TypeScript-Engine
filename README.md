@@ -4,6 +4,15 @@ AutoJs6 的完整 TypeScript 编译前端插件. 插件负责把 TypeScript 项�
 JavaScript, Source Map 和结构化诊断, 最终 JavaScript 仍由 AutoJs6 选择的
 Rhino 或 Node.js 引擎执行.
 
+> 当前状态（2026-08-23）：新版 Roadmap 的 `S1-1` 已完成。插件现在通过
+> `getCompilerInfo()` 广告 `typescriptCompilerAvailable`、项目编译、语义诊断与
+> Source Map v3 四项 capability（mask `15`）；`nodeRuntimeRequired` 仍为 `false`。
+> 编译服务已经可由宿主集成，但 AutoJs6 主仓库的消费端尚未实现，因此终端用户还不能
+> 直接点击运行 `.ts`。当前工作清单以 [ROADMAP.md](ROADMAP.md) 为准。
+
+<details>
+<summary>查看旧 R2 路线截至 2026-08-22 的阶段性记录</summary>
+
 > 当前状态（2026-08-22）：R0、R1 已完成；R2 已完成路线 Rebaseline 与 **M2 功能闭环
 > 18/18**，并在 **M3 Contract/Output Freeze** 完成 `R2-M3-D1/D2/D3/S1/S2/S3`，M3 当前为 **9/18**；
 > 下一活动项为 `R2-M3-S4` manifest identity/pairing freeze（M3 不存在 D4）。后续 critical path 为
@@ -203,6 +212,8 @@ Rhino 或 Node.js 引擎执行.
 > 两轮均未运行 ADB、connected tests 或 instrumentation；五项 capability/dependency metadata 继续为 `false`。见
 > [S3 Diagnostics JSON Schema v1](docs/architecture/DIAGNOSTICS_SCHEMA_V1_R2_M3_S3.md)。
 > M2 保持 `18/18`；M3 当前为 `9/18`，下一活动项为 `R2-M3-S4`；不存在 `R2-M3-D4`。
+
+</details>
 
 <details>
 <summary>查看 R2 重构前的 29 项内部证据摘要</summary>
@@ -406,8 +417,8 @@ AutoJs6 host
   Language Service, AST 或生命周期.
 - R1 compiler host 使用受限 HTTPS asset origin 和专用 Web Worker. 它只运行
   固定 golden, 不接收真实项目 VFS, 不执行 emitted JavaScript.
-- R2 provisional path 在同一隔离 host 上接受 framed project VFS，但 capability
-  仍关闭；完整边界见
+- R2 project path 在同一隔离 host 上接受 framed project VFS，四项 compiler
+  capability 已按 S1-1 开启；宿主消费与运行时执行仍待 S2。完整边界见
   [R2 Public-shaped Admission Preview](docs/architecture/PUBLIC_ADMISSION_R2_PREVIEW.md)
   与
   [R2 Profile/Config Authority](docs/architecture/PROFILE_AUTHORITY_R2_PROVISIONAL.md)，

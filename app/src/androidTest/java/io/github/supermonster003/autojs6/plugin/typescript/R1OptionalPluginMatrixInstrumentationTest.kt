@@ -146,17 +146,17 @@ class R1OptionalPluginMatrixInstrumentationTest {
         assertFalse(
             info.getBoolean(TypeScriptPluginCapabilityKeys.NODE_RUNTIME_REQUIRED, true),
         )
-        assertFalse(
-            info.getBoolean(TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE, true),
+        assertTrue(
+            info.getBoolean(TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE, false),
         )
-        assertFalse(
-            info.getBoolean(TypeScriptPluginCapabilityKeys.PROJECT_COMPILATION, true),
+        assertTrue(
+            info.getBoolean(TypeScriptPluginCapabilityKeys.PROJECT_COMPILATION, false),
         )
-        assertFalse(
-            info.getBoolean(TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS, true),
+        assertTrue(
+            info.getBoolean(TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS, false),
         )
-        assertFalse(
-            info.getBoolean(TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3, true),
+        assertTrue(
+            info.getBoolean(TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3, false),
         )
     }
 

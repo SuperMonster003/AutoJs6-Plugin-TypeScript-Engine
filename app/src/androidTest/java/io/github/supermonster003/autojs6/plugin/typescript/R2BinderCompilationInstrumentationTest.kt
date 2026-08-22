@@ -67,30 +67,7 @@ class R2BinderCompilationInstrumentationTest {
             )
             try {
                 val compilerInfo = session.compiler.compilerInfo
-                assertFalse(
-                    compilerInfo.getBoolean(
-                        TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE,
-                        true,
-                    ),
-                )
-                assertFalse(
-                    compilerInfo.getBoolean(
-                        TypeScriptPluginCapabilityKeys.PROJECT_COMPILATION,
-                        true,
-                    ),
-                )
-                assertFalse(
-                    compilerInfo.getBoolean(
-                        TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS,
-                        true,
-                    ),
-                )
-                assertFalse(
-                    compilerInfo.getBoolean(
-                        TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3,
-                        true,
-                    ),
-                )
+                assertAdvertisedCompilerCapabilities(compilerInfo)
                 assertEquals(
                     R2RuntimeCapabilityMetadata.fingerprint,
                     compilerInfo.getString(
@@ -290,18 +267,7 @@ class R2BinderCompilationInstrumentationTest {
     fun rhinoAndNodeRevisionOneProduceDeterministicBundlesThroughPublicShapedService() {
         bindCompilerService().use { session ->
             val compilerInfo = session.compiler.compilerInfo
-            listOf(
-                TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE,
-                TypeScriptPluginCapabilityKeys.PROJECT_COMPILATION,
-                TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS,
-                TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3,
-                TypeScriptPluginCapabilityKeys.NODE_RUNTIME_REQUIRED,
-            ).forEach { capability ->
-                assertFalse(
-                    "$capability must remain disabled while X1 uses private admission.",
-                    compilerInfo.getBoolean(capability, true),
-                )
-            }
+            assertAdvertisedCompilerCapabilities(compilerInfo)
 
             listOf(
                 "rhino" to R2CompilationProfileRegistry.PROVISIONAL_RHINO,
@@ -374,18 +340,7 @@ class R2BinderCompilationInstrumentationTest {
     fun rhinoAndNodeRevisionOneStopEmitForSourceDiagnosticsThroughPublicShapedService() {
         bindCompilerService().use { session ->
             val compilerInfo = session.compiler.compilerInfo
-            listOf(
-                TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE,
-                TypeScriptPluginCapabilityKeys.PROJECT_COMPILATION,
-                TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS,
-                TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3,
-                TypeScriptPluginCapabilityKeys.NODE_RUNTIME_REQUIRED,
-            ).forEach { capability ->
-                assertFalse(
-                    "$capability must remain disabled while X2 uses private admission.",
-                    compilerInfo.getBoolean(capability, true),
-                )
-            }
+            assertAdvertisedCompilerCapabilities(compilerInfo)
 
             val sourceCases = listOf(
                 X2SourceDiagnosticCase(
@@ -2494,7 +2449,7 @@ class R2BinderCompilationInstrumentationTest {
 
     private fun CompilationFixture.publicRequest() = request().apply {
         check(profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO) {
-            "The external public preview remains Rhino-only before M5 promotion."
+            "The external public preview remains Rhino-only until S1-5 NodeNext admission."
         }
         remove(R2CompilationProbeProtocol.KEY_ENABLED)
         remove(R2CompilationProbeProtocol.KEY_INPUT_ARCHIVE_SHA256)
@@ -2640,6 +2595,24 @@ class R2BinderCompilationInstrumentationTest {
         assertEquals(
             TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
             ticket.getString(TypeScriptCompilerContract.KEY_ERROR_CODE),
+        )
+    }
+
+    private fun assertAdvertisedCompilerCapabilities(info: Bundle) {
+        listOf(
+            TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE,
+            TypeScriptPluginCapabilityKeys.PROJECT_COMPILATION,
+            TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS,
+            TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3,
+        ).forEach { capability ->
+            assertTrue(
+                "$capability must be advertised after S1-1 promotion.",
+                info.getBoolean(capability, false),
+            )
+        }
+        assertFalse(
+            "Node Runtime must remain an optional host-side execution dependency.",
+            info.getBoolean(TypeScriptPluginCapabilityKeys.NODE_RUNTIME_REQUIRED, true),
         )
     }
 

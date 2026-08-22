@@ -65,8 +65,8 @@ class R1BinderFdInstrumentationTest {
                 TypeScriptCompilerContract.BACKEND_WEBVIEW_WORKER,
                 info.getString(TypeScriptCompilerContract.KEY_BACKEND),
             )
-            assertFalse(
-                info.getBoolean(TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE, true),
+            assertTrue(
+                info.getBoolean(TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE, false),
             )
             assertEquals(
                 TypeScriptPluginActions.COMPILER,
@@ -250,28 +250,28 @@ class R1BinderFdInstrumentationTest {
             EXPECTED_DECLARATIONS_FINGERPRINT,
             result.getString(TypeScriptCompilerContract.KEY_DECLARATIONS_FINGERPRINT),
         )
-        assertFalse(
+        assertTrue(
             result.getBoolean(
                 TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE,
-                true,
+                false,
             ),
         )
-        assertFalse(
+        assertTrue(
             result.getBoolean(
                 TypeScriptPluginCapabilityKeys.PROJECT_COMPILATION,
-                true,
+                false,
             ),
         )
-        assertFalse(
+        assertTrue(
             result.getBoolean(
                 TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS,
-                true,
+                false,
             ),
         )
-        assertFalse(
+        assertTrue(
             result.getBoolean(
                 TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3,
-                true,
+                false,
             ),
         )
     }
@@ -294,10 +294,10 @@ class R1BinderFdInstrumentationTest {
                 TypeScriptCompilerContract.STATUS_READY,
                 recovered.getString(TypeScriptPluginCapabilityKeys.SERVICE_STATUS),
             )
-            assertFalse(
+            assertTrue(
                 recovered.getBoolean(
                     TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE,
-                    true,
+                    false,
                 ),
             )
         }
