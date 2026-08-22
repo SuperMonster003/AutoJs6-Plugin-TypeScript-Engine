@@ -1,4 +1,7 @@
+import java.io.ByteArrayInputStream
 import java.security.MessageDigest
+import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
 
 plugins {
     id("org.autojs.build.versions")
@@ -55,6 +58,35 @@ fun sha256(file: File): String =
         .digest(file.readBytes())
         .joinToString("") { "%02x".format(it) }
 
+fun classesJarEntries(aar: File): Map<String, ByteArray> =
+    ZipFile(aar).use { aarZip ->
+        val classesJar = checkNotNull(aarZip.getEntry("classes.jar")) {
+            "AAR does not contain classes.jar: $aar"
+        }
+        ZipInputStream(
+            ByteArrayInputStream(aarZip.getInputStream(classesJar).use { it.readBytes() }),
+        ).use { classesZip ->
+            buildMap {
+                while (true) {
+                    val entry = classesZip.nextEntry ?: break
+                    if (!entry.isDirectory && !entry.name.isKotlinModuleMetadata()) {
+                        put(entry.name, classesZip.readBytes())
+                    }
+                }
+            }
+        }
+    }
+
+fun String.isKotlinModuleMetadata(): Boolean =
+    startsWith("META-INF/") && endsWith(".kotlin_module")
+
+fun String.isTypeScriptR2ContractClass(): Boolean {
+    val contractClass =
+        "org/autojs/plugin/typescript/api/TypeScriptR2Contract"
+    return this == "$contractClass.class" ||
+        startsWith("${contractClass}\$") && endsWith(".class")
+}
+
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
     inputs.files(protocolFreezeSourceInputs)
     systemProperty(
@@ -66,19 +98,13 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
 tasks.register("freezeTypeScriptApiV1") {
     group = "release"
     description =
-        "Explicitly replaces the checked-in v1 API AAR and SHA-256 with the current release AAR."
-    dependsOn("bundleReleaseAar")
-    inputs.file(releaseApiAar)
-    outputs.files(frozenApiAar, frozenApiChecksum)
+        "Refuses to replace the immutable v1 API baseline with a post-v1 release AAR."
 
     doLast {
-        val source = releaseApiAar.get().asFile
-        check(source.isFile) { "Release API AAR is missing: $source" }
-        val target = frozenApiAar.asFile
-        target.parentFile.mkdirs()
-        source.copyTo(target, overwrite = true)
-        frozenApiChecksum.asFile.writeText(
-            "${sha256(target)}  ${target.name}\n",
+        throw GradleException(
+            "The TypeScript API v1 baseline is immutable and cannot be regenerated " +
+                "from the current post-v1 sources. Restore compat/v1/typescript-api-v1.aar " +
+                "and its .sha256 from version control or a trusted legacy v1 release.",
         )
     }
 }
@@ -86,7 +112,7 @@ tasks.register("freezeTypeScriptApiV1") {
 val verifyTypeScriptApiV1Freeze = tasks.register("verifyTypeScriptApiV1Freeze") {
     group = "verification"
     description =
-        "Read-only comparison of real AIDL/contract fixtures and the current release AAR against v1."
+        "Verifies frozen v1 bytes and permits only the additive R2 contract in the current AAR."
     dependsOn("testDebugUnitTest", "bundleReleaseAar")
     inputs.files(frozenApiAar, frozenApiChecksum, releaseApiAar)
 
@@ -95,17 +121,43 @@ val verifyTypeScriptApiV1Freeze = tasks.register("verifyTypeScriptApiV1Freeze") 
         val checksum = frozenApiChecksum.asFile
         val current = releaseApiAar.get().asFile
         check(frozen.isFile) {
-            "Frozen API AAR is missing. Run freezeTypeScriptApiV1 explicitly."
+            "Frozen API AAR is missing: $frozen. Do not run freezeTypeScriptApiV1: " +
+                "the current AAR contains post-v1 additive API. Restore the immutable " +
+                "baseline from version control or a trusted legacy v1 release."
         }
-        check(checksum.isFile) { "Frozen API checksum is missing: $checksum" }
+        check(checksum.isFile) {
+            "Frozen API checksum is missing: $checksum. Restore it together with the " +
+                "immutable v1 AAR from version control or a trusted legacy v1 release."
+        }
         val checksumLine = checksum.readText().trim()
         val expectedLine = "${sha256(frozen)}  ${frozen.name}"
         check(checksumLine == expectedLine) {
             "Frozen API checksum does not match ${frozen.name}."
         }
-        check(sha256(current) == sha256(frozen)) {
-            "Current release API AAR drifted from compat/v1/typescript-api-v1.aar. " +
-                "Verification is read-only; review the protocol before explicitly freezing it."
+        val frozenEntries = classesJarEntries(frozen)
+        val currentEntries = classesJarEntries(current)
+        val missingEntries = frozenEntries.keys - currentEntries.keys
+        check(missingEntries.isEmpty()) {
+            "Current classes.jar removed frozen v1 entries: " +
+                missingEntries.sorted().joinToString()
+        }
+        val changedEntries = frozenEntries.keys.filter { entry ->
+            !checkNotNull(currentEntries[entry]).contentEquals(
+                checkNotNull(frozenEntries[entry]),
+            )
+        }
+        check(changedEntries.isEmpty()) {
+            "Current classes.jar changed frozen v1 entries: " +
+                changedEntries.sorted().joinToString()
+        }
+        val addedEntries = currentEntries.keys - frozenEntries.keys
+        val disallowedEntries = addedEntries.filterNot(String::isTypeScriptR2ContractClass)
+        check(disallowedEntries.isEmpty()) {
+            "Current classes.jar contains non-R2 API additions: " +
+                disallowedEntries.sorted().joinToString()
+        }
+        check(addedEntries.any(String::isTypeScriptR2ContractClass)) {
+            "Current classes.jar does not contain the additive TypeScriptR2Contract API."
         }
     }
 }
