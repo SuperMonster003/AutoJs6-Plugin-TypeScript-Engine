@@ -1,5 +1,9 @@
 # ZIP Archive Container v1
 
+> **S1-2 UTF-8 amendment（2026-08-23）。** 结构版本仍为 v1；对先前合法的 ASCII
+> archive 完全兼容，并新增带 bit 11 的严格 UTF-8 entry name。下文路径规则已按当前
+> production 实现更新；历史 golden 文件名中的 `invalid` 不再代表其中每个 section 都拒绝。
+
 R1 只冻结 input/output FD 所承载的 ZIP **结构层**. 本文不定义或解析
 `request-manifest.json`, `compilation-manifest.json`, diagnostics, compiler profile,
 允许的项目根目录或文件之间的语义关系; 这些内容仍由 R2 冻结. 因此一个结构上
@@ -43,7 +47,7 @@ general-purpose flags 只允许:
 | Bit | 含义 | v1 规则 |
 |---:|---|---|
 | 3 | data descriptor | 只允许 `DEFLATED`; local CRC/size 必须为 0 |
-| 11 | UTF-8 name | printable ASCII path 可选; 不放宽 path 字符集 |
+| 11 | UTF-8 name | entry name 含 non-ASCII byte 时必须设置；纯 ASCII path 可选 |
 
 bit 0 encryption、deflate tuning bits 1/2 和其他所有 bit 均拒绝. AES/strong
 encryption 因此也被拒绝.
@@ -72,18 +76,18 @@ descriptor, 且 CRC/compressed/uncompressed size 与 central header 精确一致
   Unix mode 的 file-type bits 可以为 0 (未声明) 或 `S_IFREG`; symlink,
   directory, socket, FIFO 和 device 均拒绝. ZIP v1 不把 entry materialize 为链接.
 
-## Printable ASCII 与 canonical path
+## UTF-8 与 canonical path
 
-- entry name 的 raw bytes 非空且最多 1024 bytes, 每个 byte 必须位于 printable
-  ASCII `0x20..0x7e`. UTF-8 flag 可以存在, 但由于 ASCII 是 UTF-8 的严格子集,
-  它不允许任何 non-ASCII byte.
+- entry name 的 raw bytes 非空且最多 1024 bytes。含任意 high-bit byte 时必须设置
+  UTF-8 flag；设置后（以及纯 ASCII name）都按 strict UTF-8 解码，malformed、overlong
+  或不可映射序列拒绝。不得用平台默认 charset、CP437 fallback 或 replacement character。
 - path 使用 `/`, 是非空相对路径. 禁止 leading `/`, ASCII drive prefix,
-  backslash, C0/DEL control, 空 segment, `.`、`..` 和 trailing `/`.
+  backslash, C0/C1 control, 空 segment, `.`、`..` 和 trailing `/`; UTF-16 lone
+  surrogate 不能形成合法 UTF-8，因此同样拒绝。
 - path depth 是 `/` 分隔后的 segment 数, 最多 64.
 - 每个 entry 都必须是 regular file; directory placeholder 也不允许.
-- 原始 Unicode 文件名不直接进入 ZIP container path. R2 的 manifest/schema 可以
-  冻结 Unicode display/source name 到 ASCII container path 的显式映射; 在此之前
-  不依赖 Android API 的 Unicode normalization 或 casing 数据.
+- Unicode 文件名按原始 scalar sequence 保留，不做 NFC/NFD normalization，也不依赖
+  Android API 或 locale 的 Unicode casing 数据。
 
 duplicate/case collision key 冻结为:
 
@@ -91,7 +95,7 @@ duplicate/case collision key 冻结为:
 ASCII-lowercase(path)
 ```
 
-其中只把 `A..Z` 加上固定偏移转换为 `a..z`, 其他 printable ASCII byte 原样保留.
+其中只把 `A..Z` 加上固定偏移转换为 `a..z`, 其他 Unicode code unit 原样保留.
 同一 archive 中 key 重复即拒绝. 实现不得调用设备 locale、`Normalizer` 或运行时
 Unicode casing table. 因此同一 ZIP v1 在 Android API 24/25/31/33 上具有相同的
 path 接受集和 collision key.
@@ -138,18 +142,21 @@ uncompressedBytes <= compressedBytes * maximumRatio
 ## Golden 与错误类别
 
 文本 `.hex` fixtures 位于 `app/src/test/resources/archive-v1/`. 它们固定 valid
-STORED/DEFLATED/ASCII-with-UTF-8-flag/descriptor/comment/empty、精确
+STORED/DEFLATED/ASCII-with-UTF-8-flag/descriptor/comment/empty、带 UTF-8 flag 的
+non-ASCII path、精确
 `1200 / 12 == 100:1` 压缩比边界, 以及 encryption、ZIP64、extra、
-preamble/trailing、non-ASCII path、ASCII case collision、DOS/Unix
+preamble/trailing、未带 UTF-8 flag 的 non-ASCII path、malformed UTF-8、control path、
+ASCII case collision、DOS/Unix
 non-regular、local/central 不一致和 CRC 等拒绝. `fixtures.sha256` 固定两个
 fixture 文件在换行统一为 LF 后的 SHA-256.
 
 结构或不支持的 feature 映射为 `FORMAT`; header/data/CRC 不一致映射为
-`INTEGRITY`; printable-ASCII/canonical path、collision 和 non-regular 映射为
+`INTEGRITY`; UTF-8/canonical path、collision 和 non-regular 映射为
 `PATH`; 超过任一 inclusive limit 映射为 `QUOTA`. 这些类别不冻结 R2 的 manifest
 或 diagnostics 错误 schema.
 
 `R1ZipArchiveV1InstrumentationTest` 直接把同一 `src/test/resources/archive-v1`
 corpus 打入 androidTest assets，不维护第二份 fixture. 它在官方 API 24/25 x86
-镜像和 API 31/33 真机上均为 1/1 pass，逐项复核 4 个 valid、17 个 invalid 的
+镜像和 API 31/33 真机上均为 1/1 pass。S1-2 后同一 corpus 复核 4 个原 valid、
+1 个历史 non-ASCII-with-flag fixture 的新增 positive，以及其余 16 个 invalid 的
 错误类别及 `100:1` pass / `99:1` reject，固定 Android zlib/Inflater 的当前接受集.

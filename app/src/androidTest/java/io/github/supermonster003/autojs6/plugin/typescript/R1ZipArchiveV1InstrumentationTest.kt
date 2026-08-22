@@ -63,10 +63,16 @@ class R1ZipArchiveV1InstrumentationTest {
         }
 
         val invalid = goldenSections(invalidText)
+        assertEquals(
+            "e\u0301.ts",
+            ZipArchiveV1Validator.validate(
+                invalid.getValue("non-ascii-with-utf8-flag"),
+                ZipArchiveV1Limits.INPUT,
+            ).entries.single().path,
+        )
         val expected = linkedMapOf(
             "encrypted" to ZipArchiveV1FailureKind.FORMAT,
             "non-ascii-without-utf8-flag" to ZipArchiveV1FailureKind.PATH,
-            "non-ascii-with-utf8-flag" to ZipArchiveV1FailureKind.PATH,
             "parent-traversal" to ZipArchiveV1FailureKind.PATH,
             "casefold-collision" to ZipArchiveV1FailureKind.PATH,
             "unix-symlink" to ZipArchiveV1FailureKind.PATH,
@@ -82,7 +88,7 @@ class R1ZipArchiveV1InstrumentationTest {
             "unsigned-data-descriptor" to ZipArchiveV1FailureKind.FORMAT,
             "unsupported-method" to ZipArchiveV1FailureKind.FORMAT,
         )
-        assertEquals(expected.keys, invalid.keys)
+        assertEquals(expected.keys + "non-ascii-with-utf8-flag", invalid.keys)
         expected.forEach { (label, kind) ->
             assertRejected(kind, label) {
                 ZipArchiveV1Validator.validate(

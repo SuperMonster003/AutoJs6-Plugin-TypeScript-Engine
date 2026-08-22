@@ -1,5 +1,9 @@
 # R2 Provisional Framed Project Transport
 
+> **S1-2 amendment（2026-08-23）。** 本文中的 printable-ASCII VFS path 是历史边界；
+> 当前 framed transport 与 Worker VFS 接受 canonical UTF-8 path，安全规则见
+> [ZIP Archive Container v1](ARCHIVE_CONTAINER_V1.md)。
+
 > **R2-M3-S1 supersession（2026-08-14）。** 本页中的旧 projectInputStart shapes 只保留为
 > pre-S1 transport provenance，不是当前 accepted frame。Formal input revision 1 的 Worker
 > exact counts 为 24/37 与 30/40/47，见

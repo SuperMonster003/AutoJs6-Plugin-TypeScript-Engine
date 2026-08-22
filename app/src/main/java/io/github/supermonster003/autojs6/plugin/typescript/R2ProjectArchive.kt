@@ -990,28 +990,10 @@ internal class R2ProvisionalRequestManifest private constructor(
             path: String,
             label: String,
         ) {
-            if (
-                path.isEmpty() ||
-                path.length > TypeScriptCompilerContract.MAX_ARCHIVE_ENTRY_NAME_BYTES ||
-                path.startsWith('/') ||
-                '\\' in path ||
-                path.any { character -> character.code !in PRINTABLE_ASCII }
-            ) {
+            if (!R2UnicodePathPolicy.isCanonicalRelativePath(path)) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_PATH,
-                    "$label is not a bounded printable-ASCII relative path.",
-                )
-            }
-            val segments = path.split('/')
-            if (
-                segments.size > TypeScriptCompilerContract.MAX_ARCHIVE_PATH_DEPTH ||
-                segments.any { segment ->
-                    segment.isEmpty() || segment == "." || segment == ".."
-                }
-            ) {
-                fail(
-                    TypeScriptCompilerContract.ERROR_ARCHIVE_PATH,
-                    "$label is not a canonical relative path.",
+                    "$label is not a bounded canonical UTF-8 relative path.",
                 )
             }
         }
@@ -1031,7 +1013,7 @@ internal class R2ProvisionalRequestManifest private constructor(
                         )
                     }
                 }
-                val collisionKey = path.asciiCaseFold()
+                val collisionKey = R2UnicodePathPolicy.asciiCaseFold(path)
                 val existing = folded.putIfAbsent(collisionKey, path)
                 if (existing != null) {
                     fail(
@@ -1159,18 +1141,6 @@ internal class R2ProvisionalRequestManifest private constructor(
             }
         }
 
-        private fun String.asciiCaseFold(): String = buildString(length) {
-            this@asciiCaseFold.forEach { character ->
-                append(
-                    if (character in 'A'..'Z') {
-                        (character.code + ASCII_CASE_OFFSET).toChar()
-                    } else {
-                        character
-                    },
-                )
-            }
-        }
-
         internal const val MAXIMUM_MANIFEST_BYTES = 512L * 1024L
         internal const val MAXIMUM_CONTROLLED_TSCONFIG_SOURCE_FILES =
             TypeScriptCompilerContract.MAX_INPUT_FILES - 2
@@ -1181,8 +1151,6 @@ internal class R2ProvisionalRequestManifest private constructor(
         private const val COMPILER_PACKAGE = "typescript"
         private const val SOURCES_ROOT = "sources/"
         private const val MAXIMUM_ERROR_SAMPLE_CHARS = 128
-        private const val ASCII_CASE_OFFSET = 'a'.code - 'A'.code
-        private val PRINTABLE_ASCII = ' '.code..'~'.code
         private val NON_NEGATIVE_INTEGER = Regex("0|[1-9][0-9]*")
         private val FILE_KEYS = setOf("path", "sha256", "size")
         private val CONFIG_KEYS = setOf(

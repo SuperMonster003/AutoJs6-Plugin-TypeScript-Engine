@@ -1071,7 +1071,7 @@ internal class R2ProjectSnapshot private constructor(
                 require(paths.add(file.path)) {
                     "Project snapshot contains a duplicate path: ${file.path}."
                 }
-                val collisionKey = file.path.asciiCaseFold()
+                val collisionKey = R2UnicodePathPolicy.asciiCaseFold(file.path)
                 val previousPath = collisionPaths.putIfAbsent(collisionKey, file.path)
                 require(previousPath == null) {
                     "Project snapshot contains a duplicate or ASCII case-fold collision: " +
@@ -1144,17 +1144,8 @@ internal class R2ProjectSnapshot private constructor(
             profileAuthority: R2CompilationProfileAuthority =
                 R2CompilationProfileRegistry.PROVISIONAL_RHINO,
         ) {
-            require(path.startsWith('/')) {
-                "Project VFS path must be absolute: $path."
-            }
-            require(path.all { character -> character.code in PRINTABLE_ASCII_RANGE }) {
-                "Project VFS path must contain only printable ASCII: $path."
-            }
-            require(path.length <= TypeScriptCompilerContract.MAX_SOURCE_URI_CHARS) {
-                "Project VFS path exceeds the supported character limit: $path."
-            }
-            require('\\' !in path) {
-                "Project VFS path must not contain a backslash: $path."
+            require(R2UnicodePathPolicy.isCanonicalAbsolutePath(path)) {
+                "Project VFS path must be a bounded canonical UTF-8 absolute path: $path."
             }
 
             val segments = path.drop(1).split('/')
@@ -1296,23 +1287,9 @@ internal class R2ProjectSnapshot private constructor(
                 R2CompilationProfileRegistry.PROVISIONAL_RHINO,
             )
 
-        internal fun String.asciiCaseFold(): String = buildString(length) {
-            this@asciiCaseFold.forEach { character ->
-                append(
-                    if (character in 'A'..'Z') {
-                        (character.code + ASCII_CASE_OFFSET).toChar()
-                    } else {
-                        character
-                    },
-                )
-            }
-        }
-
         private const val SOURCES_ROOT = "sources"
         private const val DECLARATIONS_ROOT = "declarations"
         private const val REQUIRED_DEFAULT_LIBRARY = "/declarations/lib.d.ts"
-        private const val ASCII_CASE_OFFSET = 'a'.code - 'A'.code
-        private val PRINTABLE_ASCII_RANGE = ' '.code..'~'.code
     }
 }
 

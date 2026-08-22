@@ -71,10 +71,16 @@ class ZipArchiveV1ValidatorTest {
     @Test
     fun invalidTextGoldensFreezeFormatIntegrityPathAndQuotaIndependentRejections() {
         val fixtures = goldenSections("invalid-golden.hex")
+        assertEquals(
+            "e\u0301.ts",
+            ZipArchiveV1Validator.validate(
+                fixtures.getValue("non-ascii-with-utf8-flag"),
+                TEST_LIMITS,
+            ).entries.single().path,
+        )
         val expected = linkedMapOf(
             "encrypted" to ZipArchiveV1FailureKind.FORMAT,
             "non-ascii-without-utf8-flag" to ZipArchiveV1FailureKind.PATH,
-            "non-ascii-with-utf8-flag" to ZipArchiveV1FailureKind.PATH,
             "parent-traversal" to ZipArchiveV1FailureKind.PATH,
             "casefold-collision" to ZipArchiveV1FailureKind.PATH,
             "unix-symlink" to ZipArchiveV1FailureKind.PATH,
@@ -90,7 +96,7 @@ class ZipArchiveV1ValidatorTest {
             "unsigned-data-descriptor" to ZipArchiveV1FailureKind.FORMAT,
             "unsupported-method" to ZipArchiveV1FailureKind.FORMAT,
         )
-        assertEquals(expected.keys, fixtures.keys)
+        assertEquals(expected.keys + "non-ascii-with-utf8-flag", fixtures.keys)
         expected.forEach { (name, kind) ->
             assertRejected(kind, name) {
                 ZipArchiveV1Validator.validate(fixtures.getValue(name), TEST_LIMITS)
@@ -197,25 +203,41 @@ class ZipArchiveV1ValidatorTest {
             }
         }
 
-        goldenSections("invalid-golden.hex").forEach { (name, archive) ->
-            val expectedKind = rejectedKind {
-                ZipArchiveV1Validator.validate(archive, TEST_LIMITS)
-            }
-            withTemporaryArchive("archive-v1-held-invalid-", archive) { file ->
-                RandomAccessFile(file, "r").use { heldReader ->
-                    assertRejected(expectedKind, name) {
-                        ZipArchiveV1Validator.validateImmutable(
-                            heldReader,
-                            TEST_LIMITS,
-                        )
-                    }
-                    assertTrue(
-                        "$name: rejected immutable validation must leave the caller's handle open.",
-                        heldReader.fd.valid(),
-                    )
-                }
+        val formerlyInvalid = goldenSections("invalid-golden.hex")
+            .getValue("non-ascii-with-utf8-flag")
+        withTemporaryArchive("archive-v1-held-utf8-", formerlyInvalid) { file ->
+            RandomAccessFile(file, "r").use { heldReader ->
+                assertEquals(
+                    "e\u0301.ts",
+                    ZipArchiveV1Validator.validateImmutable(
+                        heldReader,
+                        TEST_LIMITS,
+                    ).entries.single().path,
+                )
             }
         }
+
+        goldenSections("invalid-golden.hex")
+            .filterKeys { name -> name != "non-ascii-with-utf8-flag" }
+            .forEach { (name, archive) ->
+                val expectedKind = rejectedKind {
+                    ZipArchiveV1Validator.validate(archive, TEST_LIMITS)
+                }
+                withTemporaryArchive("archive-v1-held-invalid-", archive) { file ->
+                    RandomAccessFile(file, "r").use { heldReader ->
+                        assertRejected(expectedKind, name) {
+                            ZipArchiveV1Validator.validateImmutable(
+                                heldReader,
+                                TEST_LIMITS,
+                            )
+                        }
+                        assertTrue(
+                            "$name: rejected immutable validation must leave the caller's handle open.",
+                            heldReader.fd.valid(),
+                        )
+                    }
+                }
+            }
     }
 
     @Test
@@ -457,7 +479,7 @@ class ZipArchiveV1ValidatorTest {
     }
 
     @Test
-    fun printableAsciiPathsAndAsciiOnlyCaseCollisionsAreEnforced() {
+    fun utf8PathsRequireTheirFlagWhileControlsMalformedTextAndCaseCollisionsStayClosed() {
         val printableAscii = storedArchive(
             RawEntry("AZ az-09_~.ts".toByteArray(Charsets.US_ASCII), flags = FLAG_UTF8),
         )
@@ -468,19 +490,47 @@ class ZipArchiveV1ValidatorTest {
 
         val nonAsciiWithUtf8Flag = storedArchive(
             RawEntry(
-                "é.ts".toByteArray(Charsets.UTF_8),
+                "中文目录/入口.ts".toByteArray(Charsets.UTF_8),
                 flags = FLAG_UTF8,
             ),
         )
-        assertRejected(ZipArchiveV1FailureKind.PATH, "non-ASCII with UTF-8 flag") {
+        assertEquals(
+            "中文目录/入口.ts",
             ZipArchiveV1Validator.validate(nonAsciiWithUtf8Flag, TEST_LIMITS)
-        }
+                .entries.single().path,
+        )
 
         val nonAsciiWithoutUtf8Flag = storedArchive(
             RawEntry("é.ts".toByteArray(Charsets.UTF_8)),
         )
         assertRejected(ZipArchiveV1FailureKind.PATH, "non-ASCII without UTF-8 flag") {
             ZipArchiveV1Validator.validate(nonAsciiWithoutUtf8Flag, TEST_LIMITS)
+        }
+
+        val malformedUtf8 = storedArchive(
+            RawEntry(
+                byteArrayOf(
+                    0xc3.toByte(),
+                    0x28,
+                    '.'.code.toByte(),
+                    't'.code.toByte(),
+                    's'.code.toByte(),
+                ),
+                flags = FLAG_UTF8,
+            ),
+        )
+        assertRejected(ZipArchiveV1FailureKind.PATH, "malformed UTF-8") {
+            ZipArchiveV1Validator.validate(malformedUtf8, TEST_LIMITS)
+        }
+
+        val unicodeControl = storedArchive(
+            RawEntry(
+                "sources/\u0085main.ts".toByteArray(Charsets.UTF_8),
+                flags = FLAG_UTF8,
+            ),
+        )
+        assertRejected(ZipArchiveV1FailureKind.PATH, "Unicode control character") {
+            ZipArchiveV1Validator.validate(unicodeControl, TEST_LIMITS)
         }
 
         val asciiCaseCollision = storedArchive(

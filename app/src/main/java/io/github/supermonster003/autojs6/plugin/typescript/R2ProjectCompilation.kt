@@ -331,12 +331,7 @@ internal class R2ProjectCompilation(
 private fun String.isControlledProjectRootPath(): Boolean =
     startsWith("/sources/") &&
         endsWith(".ts") &&
-        length <= TypeScriptCompilerContract.MAX_SOURCE_URI_CHARS &&
-        '\\' !in this &&
-        all { character -> character.code in 0x20..0x7e } &&
-        drop(1).split('/').all { segment ->
-            segment.isNotEmpty() && segment != "." && segment != ".."
-        }
+        R2UnicodePathPolicy.isCanonicalAbsolutePath(this)
 
 internal data class R2ProjectCompilationOutcome(
     val compilation: R2ProjectCompilation?,

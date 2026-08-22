@@ -87,7 +87,7 @@ class R2CompilerBoundaryMatrixFixtureTest {
     }
 
     @Test
-    fun productionPathPolicyKeepsUnicodeNegativeSpacePositiveAndCollisionFailClosed() {
+    fun productionPathPolicyAcceptsUtf8AndSpaceWhileKeepingCollisionsFailClosed() {
         val root = loadFixture()
         verifyGeneratorAuthority(root.objectValue("generatorAuthority"))
 
@@ -119,7 +119,7 @@ class R2CompilerBoundaryMatrixFixtureTest {
                 ),
                 rootNames = listOf(SPACE_PATH),
                 profileAuthority = authority,
-                limits = R2ProjectSnapshotLimits.PROVISIONAL_WORKER,
+                limits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION,
                 entryPath = SPACE_PATH,
             ).use { snapshot ->
                 assertEquals(listOf(SPACE_PATH), snapshot.rootNames)
@@ -137,10 +137,27 @@ class R2CompilerBoundaryMatrixFixtureTest {
                     authority,
                 ),
             )
-            val unicodePathFailure = assertThrows(IllegalArgumentException::class.java) {
-                R2ProjectSnapshot.validateProjectPath(CHINESE_PATH, authority)
+            R2ProjectSnapshot.validateProjectPath(CHINESE_PATH, authority)
+            R2ProjectSnapshot.create(
+                files = listOf(
+                    R2ProjectTextFile(DEFAULT_LIBRARY, ""),
+                    R2ProjectTextFile(CHINESE_PATH, exactText),
+                ),
+                rootNames = listOf(CHINESE_PATH),
+                profileAuthority = authority,
+                limits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION,
+                entryPath = CHINESE_PATH,
+            ).use { snapshot ->
+                assertEquals(listOf(CHINESE_PATH), snapshot.rootNames)
+                assertEquals(CHINESE_PATH, snapshot.entryPath)
+                assertEquals(exactText, snapshot.readText(CHINESE_PATH))
+                val metadata = snapshot.fileInventory.single { file ->
+                    file.path == CHINESE_PATH
+                }
+                assertEquals(exactBytes.size.toLong(), metadata.utf8Bytes)
+                assertEquals(exactText.length, metadata.utf16CodeUnits)
+                assertEquals(R2Digests.sha256(exactBytes), metadata.sha256)
             }
-            assertTrue(unicodePathFailure.message.orEmpty().contains("printable ASCII"))
 
             val collisionFailure = assertThrows(IllegalArgumentException::class.java) {
                 R2ProjectSnapshot.create(
@@ -151,7 +168,7 @@ class R2CompilerBoundaryMatrixFixtureTest {
                     ),
                     rootNames = listOf(COLLISION_UPPER_PATH, COLLISION_LOWER_PATH),
                     profileAuthority = authority,
-                    limits = R2ProjectSnapshotLimits.PROVISIONAL_WORKER,
+                    limits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION,
                     entryPath = COLLISION_UPPER_PATH,
                 )
             }
@@ -165,7 +182,7 @@ class R2CompilerBoundaryMatrixFixtureTest {
                     R2ProjectTextFile("/sources/lone-surrogate.ts", "\ud800"),
                 ),
                 rootNames = listOf("/sources/lone-surrogate.ts"),
-                limits = R2ProjectSnapshotLimits.PROVISIONAL_WORKER,
+                limits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION,
             )
         }
 

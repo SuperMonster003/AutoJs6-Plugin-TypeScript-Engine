@@ -85,6 +85,18 @@ class R2DiagnosticsSchemaV1Test {
             "autojs://source/$namespace/packages/pkg/index.d.mts",
             R2DiagnosticsSchemaV1.sourceUri(projectId, "/packages/pkg/index.d.mts"),
         )
+        val unicodePath = "/sources/中文目录/错误😀.ts"
+        val unicodeUri = R2DiagnosticsSchemaV1.sourceUri(projectId, unicodePath)
+        assertEquals(
+            R2GeneratedModuleMappingPolicy.originalSourceUri(projectId, unicodePath),
+            unicodeUri,
+        )
+        assertTrue(
+            unicodeUri.endsWith(
+                "/sources/%E4%B8%AD%E6%96%87%E7%9B%AE%E5%BD%95/" +
+                    "%E9%94%99%E8%AF%AF%F0%9F%98%80.ts",
+            ),
+        )
 
         listOf(
             "sources/main.ts",
@@ -92,6 +104,8 @@ class R2DiagnosticsSchemaV1Test {
             "/sources/../main.ts",
             "/unknown/main.ts",
             "/sources/raw\\name.ts",
+            "/sources/control\u0085name.ts",
+            "/sources/bad\ud800name.ts",
         ).forEach { invalidPath ->
             assertThrows(IllegalArgumentException::class.java) {
                 R2DiagnosticsSchemaV1.sourceUri(projectId, invalidPath)

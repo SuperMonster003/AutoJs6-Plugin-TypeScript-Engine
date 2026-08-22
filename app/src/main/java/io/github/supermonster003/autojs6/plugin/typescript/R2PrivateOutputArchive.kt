@@ -8,7 +8,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.RandomAccessFile
-import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.zip.CRC32
 import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
@@ -949,7 +948,7 @@ internal object R2PrivateOutputArchive {
             if (
                 !output.path.isCanonicalCompilerOutputPath(profileAuthority) ||
                 !allPaths.add(output.path) ||
-                !foldedPaths.add(output.path.asciiCaseFold())
+                !foldedPaths.add(R2UnicodePathPolicy.asciiCaseFold(output.path))
             ) {
                 fail("Compiler result contains a non-canonical or colliding output path.")
             }
@@ -1056,7 +1055,10 @@ internal object R2PrivateOutputArchive {
 
     private fun requireTerminalSourceMappingUrl(module: R2ProjectOutput) {
         val expected =
-            "//# sourceMappingURL=${module.path.substringAfterLast('/')}.map"
+            "//# sourceMappingURL=" +
+                encodeTypeScriptSourceMappingUrl(
+                    "${module.path.substringAfterLast('/')}.map",
+                )
         val withoutFinalLf = module.text.removeSuffix("\n")
         if (
             '\r' in module.text ||
@@ -1097,26 +1099,57 @@ internal object R2PrivateOutputArchive {
         }
     }
 
-    private fun encodeRelativeArchiveUrl(path: String): String = buildString(path.length) {
-        path.forEach { character ->
-            if (
-                character in 'a'..'z' ||
-                character in 'A'..'Z' ||
-                character in '0'..'9' ||
-                character == '-' ||
-                character == '.' ||
-                character == '_' ||
-                character == '~' ||
-                character == '/'
-            ) {
-                append(character)
-            } else {
-                append('%')
-                append(HEX_DIGITS[character.code ushr 4])
-                append(HEX_DIGITS[character.code and 0x0f])
+    private fun encodeRelativeArchiveUrl(path: String): String {
+        return percentEncodeUtf8(
+            value = path,
+            label = "Relative Source Map archive URL",
+        ) { value -> isUriUnreserved(value) || value == '/'.code }
+    }
+
+    /** Mirrors TypeScript's `encodeURI(sourceMapFile)` terminal directive exactly. */
+    private fun encodeTypeScriptSourceMappingUrl(fileName: String): String =
+        percentEncodeUtf8(
+            value = fileName,
+            label = "TypeScript Source Map URL",
+            isAllowed = ::isEncodeUriByte,
+        )
+
+    private fun percentEncodeUtf8(
+        value: String,
+        label: String,
+        isAllowed: (Int) -> Boolean,
+    ): String {
+        val bytes = R2Utf8.encode(value, label)
+        return try {
+            buildString(bytes.size) {
+                bytes.forEach { byte ->
+                    val byteValue = byte.toInt() and 0xff
+                    if (isAllowed(byteValue)) {
+                        append(byteValue.toChar())
+                    } else {
+                        append('%')
+                        append(HEX_DIGITS[byteValue ushr 4])
+                        append(HEX_DIGITS[byteValue and 0x0f])
+                    }
+                }
             }
+        } finally {
+            bytes.fill(0)
         }
     }
+
+    private fun isUriUnreserved(value: Int): Boolean =
+        value in 'a'.code..'z'.code ||
+            value in 'A'.code..'Z'.code ||
+            value in '0'.code..'9'.code ||
+            value == '-'.code ||
+            value == '.'.code ||
+            value == '_'.code ||
+            value == '~'.code
+
+    private fun isEncodeUriByte(value: Int): Boolean =
+        isUriUnreserved(value) ||
+            value.toChar() in TYPE_SCRIPT_ENCODE_URI_EXTRA_SAFE
 
     private fun resolveSourceMapSource(
         mapPath: String,
@@ -1138,9 +1171,7 @@ internal object R2PrivateOutputArchive {
                     resolved.removeAt(resolved.lastIndex)
                 }
                 else -> {
-                    if (
-                        segment.any { character -> character.code !in 0x20..0x7e }
-                    ) {
+                    if (!R2UnicodePathPolicy.isSafeSegment(segment)) {
                         fail("Compiler Source Map contains a non-canonical source.")
                     }
                     resolved += segment
@@ -1705,7 +1736,7 @@ internal object R2PrivateOutputArchive {
             if (
                 !entry.path.isCanonicalArchivePath() ||
                 !paths.add(entry.path) ||
-                !foldedPaths.add(entry.path.asciiCaseFold())
+                !foldedPaths.add(R2UnicodePathPolicy.asciiCaseFold(entry.path))
             ) {
                 fail("Formal output contains a non-canonical or colliding path.")
             }
@@ -1766,10 +1797,14 @@ internal object R2PrivateOutputArchive {
         }
         val storedMetadataBytes =
             entries.fold(END_OF_CENTRAL_DIRECTORY_BYTES) { total, entry ->
+                val pathBytes = R2UnicodePathPolicy.encodedByteCount(
+                    entry.path,
+                    "Output ZIP entry path",
+                )
                 total +
                     LOCAL_FILE_HEADER_BYTES +
                     CENTRAL_DIRECTORY_HEADER_BYTES +
-                    entry.path.length * 2L
+                    pathBytes * 2L
             }
         if (storedMetadataBytes > TypeScriptCompilerContract.MAX_ZIP_METADATA_BYTES) {
             fail("Private output exceeds the frozen ZIP metadata limit.")
@@ -1803,12 +1838,13 @@ internal object R2PrivateOutputArchive {
         val records = ArrayList<StoredRecord>(entries.size)
         var position = 0L
         entries.forEach { entry ->
-            val name = entry.path.toByteArray(StandardCharsets.US_ASCII)
+            val name = R2Utf8.encode(entry.path, "Output ZIP entry path")
+            val flags = if (name.any { byte -> byte.toInt() and 0x80 != 0 }) FLAG_UTF8 else 0
             val crc32 = CRC32().apply { update(entry.bytes) }.value
             val localOffset = position
             output.putU32(LOCAL_FILE_HEADER_SIGNATURE)
             output.putU16(VERSION_STORED)
-            output.putU16(0)
+            output.putU16(flags)
             output.putU16(COMPRESSION_STORED)
             output.putU16(0)
             output.putU16(0)
@@ -1823,6 +1859,7 @@ internal object R2PrivateOutputArchive {
             records += StoredRecord(
                 entry = entry,
                 name = name,
+                flags = flags,
                 crc32 = crc32,
                 localOffset = localOffset,
             )
@@ -1832,7 +1869,7 @@ internal object R2PrivateOutputArchive {
             output.putU32(CENTRAL_DIRECTORY_SIGNATURE)
             output.putU16(VERSION_MADE_BY)
             output.putU16(VERSION_STORED)
-            output.putU16(0)
+            output.putU16(record.flags)
             output.putU16(COMPRESSION_STORED)
             output.putU16(0)
             output.putU16(0)
@@ -2022,18 +2059,6 @@ internal object R2PrivateOutputArchive {
         return archivePath
     }
 
-    private fun String.asciiCaseFold(): String = buildString(length) {
-        this@asciiCaseFold.forEach { character ->
-            append(
-                if (character in 'A'..'Z') {
-                    (character.code + ('a'.code - 'A'.code)).toChar()
-                } else {
-                    character
-                },
-            )
-        }
-    }
-
     private fun ByteArray.toLowerHex(): String =
         joinToString(separator = "") { byte ->
             "%02x".format(byte.toInt() and 0xff)
@@ -2070,6 +2095,7 @@ internal object R2PrivateOutputArchive {
     private data class StoredRecord(
         val entry: OutputEntry,
         val name: ByteArray,
+        val flags: Int,
         val crc32: Long,
         val localOffset: Long,
     )
@@ -2083,6 +2109,7 @@ internal object R2PrivateOutputArchive {
     private const val COMPRESSION_STORED = 0
     private const val VERSION_STORED = 10
     private const val VERSION_MADE_BY = 20
+    private const val FLAG_UTF8 = 1 shl 11
     private const val LOCAL_FILE_HEADER_BYTES = 30L
     private const val CENTRAL_DIRECTORY_HEADER_BYTES = 46L
     private const val END_OF_CENTRAL_DIRECTORY_BYTES = 22L
@@ -2099,6 +2126,7 @@ internal object R2PrivateOutputArchive {
         "names",
         "mappings",
     )
+    private const val TYPE_SCRIPT_ENCODE_URI_EXTRA_SAFE = ";,/?:@&=+$#!*'()"
     private const val HEX_DIGITS = "0123456789ABCDEF"
     private val SUPPORTS_UNLINK_WHILE_OPEN = File.separatorChar != '\\'
 }
@@ -2115,20 +2143,7 @@ internal class R2PrivateOutputCleanupUnprovenException(
 ) : IOException(message, cause)
 
 private fun String.isCanonicalArchivePath(): Boolean {
-    if (
-        isEmpty() ||
-        length > TypeScriptCompilerContract.MAX_ARCHIVE_ENTRY_NAME_BYTES ||
-        startsWith('/') ||
-        '\\' in this ||
-        any { character -> character.code !in 0x20..0x7e }
-    ) {
-        return false
-    }
-    val segments = split('/')
-    return segments.size <= TypeScriptCompilerContract.MAX_ARCHIVE_PATH_DEPTH &&
-        segments.all { segment ->
-            segment.isNotEmpty() && segment != "." && segment != ".."
-        }
+    return R2UnicodePathPolicy.isCanonicalRelativePath(this)
 }
 
 private fun digestReader(reader: RandomAccessFile): String {

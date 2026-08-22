@@ -222,7 +222,7 @@ class R2OutputArchiveSchemaV1FixtureTest {
         files.sortedBy(R2OutputArchiveFile::path).forEach { file ->
             digest.update(file.kind.toByteArray(StandardCharsets.US_ASCII))
             digest.update(0)
-            digest.update(file.path.toByteArray(StandardCharsets.US_ASCII))
+            digest.update(file.path.toByteArray(StandardCharsets.UTF_8))
             digest.update(0)
             digest.update(file.size.toString().toByteArray(StandardCharsets.US_ASCII))
             digest.update(0)
@@ -231,7 +231,7 @@ class R2OutputArchiveSchemaV1FixtureTest {
             digest.update(file.sourcePaths.size.toString().toByteArray(StandardCharsets.US_ASCII))
             file.sourcePaths.forEach { sourcePath ->
                 digest.update(0)
-                digest.update(sourcePath.toByteArray(StandardCharsets.US_ASCII))
+                digest.update(sourcePath.toByteArray(StandardCharsets.UTF_8))
             }
             digest.update('\n'.code.toByte())
         }

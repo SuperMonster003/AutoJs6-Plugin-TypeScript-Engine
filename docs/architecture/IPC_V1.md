@@ -452,7 +452,7 @@ callback；`createIncrementalProgram` 只接收 `host/options/rootNames`，`emit
 
 ## 容器配额与 R2 语义配额
 
-printable-ASCII/canonical path、ASCII casefold、regular-file、
+strict UTF-8/canonical path、ASCII casefold、regular-file、
 container/file/metadata/depth/ratio 的 R1 冻结规则和 exact inclusive limits 以
 [ZIP Archive Container v1](ARCHIVE_CONTAINER_V1.md) 为准. validator 会读取 raw
 local/central records 并按实际 streaming bytes 重算 CRC、size 和 ratio, 不信任

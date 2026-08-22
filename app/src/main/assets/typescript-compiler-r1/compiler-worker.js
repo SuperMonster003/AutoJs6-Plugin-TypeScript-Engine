@@ -73,6 +73,27 @@ const maximumProjectResultBytes = 6 * 1024 * 1024;
 const sha256Pattern = /^[0-9a-f]{64}$/;
 const compareCodeUnits = (left, right) =>
     left < right ? -1 : left > right ? 1 : 0;
+const asciiCaseFold = (value) =>
+    value.replace(/[A-Z]/g, (character) =>
+        String.fromCharCode(character.charCodeAt(0) + 0x20),
+    );
+const isSafeUnicodePathText = (value) => {
+    for (let index = 0; index < value.length; index += 1) {
+        const code = value.charCodeAt(index);
+        if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) {
+            return false;
+        }
+        if (code >= 0xd800 && code <= 0xdbff) {
+            if (index + 1 >= value.length) return false;
+            const trailing = value.charCodeAt(index + 1);
+            if (trailing < 0xdc00 || trailing > 0xdfff) return false;
+            index += 1;
+        } else if (code >= 0xdc00 && code <= 0xdfff) {
+            return false;
+        }
+    }
+    return true;
+};
 const inputInventoryDomainOrder = Object.freeze({
     source: 0,
     declaration: 1,
@@ -2836,15 +2857,10 @@ const validateCanonicalVfsPath = (
         path.length < 2 ||
         path.length > maximumVfsPathChars ||
         !path.startsWith("/") ||
-        path.includes("\\")
+        path.includes("\\") ||
+        !isSafeUnicodePathText(path)
     ) {
         throw new Error("Project VFS path is not a canonical absolute path.");
-    }
-    for (const character of path) {
-        const code = character.charCodeAt(0);
-        if (code < 0x20 || code > 0x7e) {
-            throw new Error("Project VFS path must use printable ASCII.");
-        }
     }
     const segments = path.slice(1).split("/");
     if (
@@ -3397,7 +3413,7 @@ const createReadonlyProjectVfs = (project) => {
                 "Node revision 2 source inventory contains an unsupported source kind.",
             );
         }
-        const foldedPath = path.toLowerCase();
+        const foldedPath = asciiCaseFold(path);
         if (files.has(path) || foldedPaths.has(foldedPath)) {
             throw new Error("Project snapshot contains a canonical path collision.");
         }
@@ -3451,7 +3467,7 @@ const createReadonlyProjectVfs = (project) => {
             null,
             isNodeRevisionTwoProject,
         );
-        const foldedRoot = rootName.toLowerCase();
+        const foldedRoot = asciiCaseFold(rootName);
         if (
             (
                 isNodeRevisionTwoProject
@@ -3520,7 +3536,7 @@ const createReadonlyProjectVfs = (project) => {
     if (
         isConfigNoneProject &&
         (sourcePaths.length !== rootNames.length ||
-            sourcePaths.some((path) => !foldedRoots.has(path.toLowerCase())))
+            sourcePaths.some((path) => !foldedRoots.has(asciiCaseFold(path))))
     ) {
         throw new Error("Project roots do not exactly cover the source inventory.");
     }
@@ -7051,7 +7067,7 @@ const acceptProjectInputFileStart = (message) => {
             "Node revision 2 Program source-kind ingress is not supported.",
         );
     }
-    const foldedPath = isPackageMetadata ? null : path.toLowerCase();
+    const foldedPath = isPackageMetadata ? null : asciiCaseFold(path);
     if (
         !isPackageMetadata &&
         !isPackageTarget &&

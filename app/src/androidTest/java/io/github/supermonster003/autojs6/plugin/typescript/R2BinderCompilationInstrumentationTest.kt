@@ -264,6 +264,161 @@ class R2BinderCompilationInstrumentationTest {
     }
 
     @Test
+    fun utf8SourcePathsCompileEmitAndMapDiagnosticsThroughThePublicService() {
+        bindCompilerService().use { session ->
+            val unicodeSourcePath = "sources/中文目录/工具😀.ts"
+            val emittedFixture = createFixture(
+                requestId = newRequestId("utf8-emitted"),
+                sources = linkedMapOf(
+                    "sources/main.ts" to
+                        "import { 答案 } from \"./中文目录/工具😀\";\n" +
+                        "export const result: number = 答案 + 1;\n",
+                    unicodeSourcePath to "export const 答案: number = 41;\n",
+                ),
+                rootPaths = listOf("sources/main.ts", unicodeSourcePath),
+            )
+            try {
+                val terminal = compileAndAcknowledge(
+                    compiler = session.compiler,
+                    fixture = emittedFixture,
+                    request = emittedFixture.publicRequest(),
+                    publicShapedAcknowledgement = true,
+                )
+                assertEmittedTerminal(terminal)
+                assertEquals(
+                    2,
+                    terminal.getInt(
+                        TypeScriptCompilerContract.KEY_EMITTED_MODULE_COUNT,
+                        -1,
+                    ),
+                )
+
+                ZipArchiveV1Validator.validate(
+                    emittedFixture.output,
+                    ZipArchiveV1Limits.OUTPUT,
+                )
+                ZipFile(emittedFixture.output).use { archive ->
+                    val names = archive.entries().asSequence().map { it.name }.toSet()
+                    assertEquals(
+                        setOf(
+                            R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH,
+                            R2PrivateOutputArchive.DIAGNOSTICS_PATH,
+                            "maps/main.js.map",
+                            "maps/中文目录/工具😀.js.map",
+                            "modules/main.js",
+                            "modules/中文目录/工具😀.js",
+                        ),
+                        names,
+                    )
+                    val manifest = R2StrictJson.parseObject(
+                        archive.getInputStream(
+                            archive.getEntry(R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH),
+                        ).use { input -> input.readBytes() },
+                    )
+                    val files = manifest["files"] as List<*>
+                    val unicodeModule = files
+                        .map { file -> file as Map<*, *> }
+                        .single { file ->
+                            file["path"] == "modules/中文目录/工具😀.js"
+                        }
+                    assertEquals(
+                        listOf(unicodeSourcePath),
+                        unicodeModule["sourcePaths"],
+                    )
+                    val moduleText = archive.getInputStream(
+                        archive.getEntry("modules/中文目录/工具😀.js"),
+                    ).bufferedReader(StandardCharsets.UTF_8).use { input ->
+                        input.readText()
+                    }
+                    assertEquals(
+                        "//# sourceMappingURL=../../maps/" +
+                            "%E4%B8%AD%E6%96%87%E7%9B%AE%E5%BD%95/" +
+                            "%E5%B7%A5%E5%85%B7%F0%9F%98%80.js.map",
+                        moduleText.removeSuffix("\n").substringAfterLast('\n'),
+                    )
+                }
+            } finally {
+                emittedFixture.delete()
+            }
+
+            val diagnosticSourcePath = "sources/中文目录/错误😀.ts"
+            val diagnosticsFixture = createFixture(
+                requestId = newRequestId("utf8-diagnostics"),
+                sources = linkedMapOf(
+                    "sources/main.ts" to
+                        "import { 数值 } from \"./中文目录/错误😀\";\n" +
+                        "export const result = 数值;\n",
+                    diagnosticSourcePath to
+                        "export const 数值: number = \"错误\";\n",
+                ),
+                rootPaths = listOf("sources/main.ts", diagnosticSourcePath),
+            )
+            try {
+                val terminal = compileAndAcknowledge(
+                    compiler = session.compiler,
+                    fixture = diagnosticsFixture,
+                    request = diagnosticsFixture.publicRequest(),
+                    publicShapedAcknowledgement = true,
+                )
+                assertEquals(
+                    TypeScriptCompilerContract.OUTCOME_DIAGNOSTICS,
+                    terminal.getString(TypeScriptCompilerContract.KEY_OUTCOME),
+                )
+                assertEquals(
+                    1,
+                    terminal.getInt(
+                        TypeScriptCompilerContract.KEY_DIAGNOSTIC_COUNT,
+                        -1,
+                    ),
+                )
+
+                ZipArchiveV1Validator.validate(
+                    diagnosticsFixture.output,
+                    ZipArchiveV1Limits.OUTPUT,
+                )
+                ZipFile(diagnosticsFixture.output).use { archive ->
+                    val manifest = R2StrictJson.parseObject(
+                        archive.getInputStream(
+                            archive.getEntry(R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH),
+                        ).use { input -> input.readBytes() },
+                    )
+                    val diagnosticFile = (manifest["files"] as List<*>)
+                        .map { file -> file as Map<*, *> }
+                        .single()
+                    assertEquals(
+                        listOf(diagnosticSourcePath),
+                        diagnosticFile["sourcePaths"],
+                    )
+
+                    val diagnostics = R2StrictJson.parseObject(
+                        archive.getInputStream(
+                            archive.getEntry(R2PrivateOutputArchive.DIAGNOSTICS_PATH),
+                        ).use { input -> input.readBytes() },
+                    )
+                    val diagnostic = (diagnostics["diagnostics"] as List<*>)
+                        .map { item -> item as Map<*, *> }
+                        .single()
+                    val expectedUri = R2DiagnosticsSchemaV1.sourceUri(
+                        projectId = "binder-project",
+                        sourcePath = "/$diagnosticSourcePath",
+                    )
+                    assertEquals(expectedUri, diagnostic["uri"])
+                    assertTrue(
+                        expectedUri.endsWith(
+                            "/sources/" +
+                                "%E4%B8%AD%E6%96%87%E7%9B%AE%E5%BD%95/" +
+                                "%E9%94%99%E8%AF%AF%F0%9F%98%80.ts",
+                        ),
+                    )
+                    assertFalse(expectedUri.contains("中文目录"))
+                }
+            } finally {
+                diagnosticsFixture.delete()
+            }
+        }
+    }
+
+    @Test
     fun rhinoAndNodeRevisionOneProduceDeterministicBundlesThroughPublicShapedService() {
         bindCompilerService().use { session ->
             val compilerInfo = session.compiler.compilerInfo
@@ -1697,6 +1852,12 @@ class R2BinderCompilationInstrumentationTest {
 
     private fun assertEmittedTerminal(terminal: Bundle) {
         assertEquals(
+            "Compilation terminal: stage=" +
+                terminal.getString(TypeScriptCompilerContract.KEY_STAGE) +
+                ", code=" +
+                terminal.getString(TypeScriptCompilerContract.KEY_ERROR_CODE) +
+                ", message=" +
+                terminal.getString(TypeScriptCompilerContract.KEY_ERROR_MESSAGE),
             TypeScriptCompilerContract.OUTCOME_EMITTED,
             terminal.getString(TypeScriptCompilerContract.KEY_OUTCOME),
         )
@@ -2666,12 +2827,13 @@ class R2BinderCompilationInstrumentationTest {
             val records = ArrayList<StoredRecord>(entries.size)
             var position = 0L
             entries.forEach { (path, bytes) ->
-                val name = path.toByteArray(StandardCharsets.US_ASCII)
+                val name = path.toByteArray(StandardCharsets.UTF_8)
+                val flags = if (name.any { byte -> byte.toInt() and 0x80 != 0 }) FLAG_UTF8 else 0
                 val crc = CRC32().apply { update(bytes) }.value
-                records += StoredRecord(name, bytes, crc, position)
+                records += StoredRecord(name, bytes, flags, crc, position)
                 output.putU32(LOCAL_FILE_HEADER_SIGNATURE)
                 output.putU16(VERSION_STORED)
-                output.putU16(0)
+                output.putU16(flags)
                 output.putU16(0)
                 output.putU16(0)
                 output.putU16(0)
@@ -2689,7 +2851,7 @@ class R2BinderCompilationInstrumentationTest {
                 output.putU32(CENTRAL_DIRECTORY_SIGNATURE)
                 output.putU16(VERSION_STORED)
                 output.putU16(VERSION_STORED)
-                output.putU16(0)
+                output.putU16(record.flags)
                 output.putU16(0)
                 output.putU16(0)
                 output.putU16(0)
@@ -2815,6 +2977,7 @@ class R2BinderCompilationInstrumentationTest {
     private data class StoredRecord(
         val name: ByteArray,
         val bytes: ByteArray,
+        val flags: Int,
         val crc: Long,
         val localOffset: Long,
     )
@@ -2961,6 +3124,7 @@ class R2BinderCompilationInstrumentationTest {
         val COMPILER_EVENT_LOOP_FD_TARGETS =
             setOf("anon_inode:[eventpoll]", "anon_inode:[eventfd]")
         const val VERSION_STORED = 10
+        const val FLAG_UTF8 = 1 shl 11
         const val LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50L
         const val CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50L
         const val END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50L

@@ -313,6 +313,19 @@ class R2InputArchiveSchemaV1FixtureTest {
             R2InputArchiveSchemaV1.fingerprint(listOf(productionRecords[1])),
         )
 
+        val unicodeEntry = source.copy(path = "/sources/中文目录/入口.ts")
+        val otherUnicodeEntry = source.copy(path = "/sources/中文目录/工具.ts")
+        val unicodeRecord = unicodeEntry.toProductionRecord()
+        val otherUnicodeRecord = otherUnicodeEntry.toProductionRecord()
+        assertEquals(
+            inventoryFingerprint(listOf(unicodeEntry)),
+            R2InputArchiveSchemaV1.fingerprint(listOf(unicodeRecord)),
+        )
+        assertNotEquals(
+            R2InputArchiveSchemaV1.fingerprint(listOf(unicodeRecord)),
+            R2InputArchiveSchemaV1.fingerprint(listOf(otherUnicodeRecord)),
+        )
+
         val callerFingerprint = R2InputArchiveSchemaV1.callerInventoryFingerprint(
             sources = listOf(
                 R2ProjectArchiveFile(
@@ -497,7 +510,7 @@ class R2InputArchiveSchemaV1FixtureTest {
         ).forEach { record ->
             digest.update(record.domain.toByteArray(StandardCharsets.US_ASCII))
             digest.update(0)
-            digest.update(record.path.toByteArray(StandardCharsets.US_ASCII))
+            digest.update(record.path.toByteArray(StandardCharsets.UTF_8))
             digest.update(0)
             digest.update(record.bytes.size.toString().toByteArray(StandardCharsets.US_ASCII))
             digest.update(0)
@@ -506,6 +519,13 @@ class R2InputArchiveSchemaV1FixtureTest {
         }
         return digest.digest().toLowerHex()
     }
+
+    private fun FixtureRecord.toProductionRecord() = R2InputArchiveSchemaV1.Record(
+        domain = domain,
+        path = path,
+        size = bytes.size.toLong(),
+        sha256 = sha256(bytes),
+    )
 
     private fun sha256(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-256").digest(bytes).toLowerHex()

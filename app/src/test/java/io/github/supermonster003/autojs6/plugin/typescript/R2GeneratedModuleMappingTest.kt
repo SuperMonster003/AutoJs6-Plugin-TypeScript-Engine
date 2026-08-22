@@ -156,6 +156,31 @@ class R2GeneratedModuleMappingTest {
     }
 
     @Test
+    fun unicodeSourcePathKeepsRawModuleIdentityAndUtf8PercentEncodedUris() {
+        val sourcePath = "/sources/中文目录/入口😀.ts"
+        val mapping = R2GeneratedModuleMappingPolicy.map(
+            rhinoRequest(sourcePath = sourcePath),
+        )
+
+        assertEquals(sourcePath, mapping.sourcePath)
+        assertEquals("/outputs/中文目录/入口😀.js", mapping.generatedPath)
+        assertEquals("/outputs/中文目录/入口😀.js.map", mapping.sourceMapPath)
+        assertTrue(
+            mapping.originalSourceUri.endsWith(
+                "/sources/%E4%B8%AD%E6%96%87%E7%9B%AE%E5%BD%95/" +
+                    "%E5%85%A5%E5%8F%A3%F0%9F%98%80.ts",
+            ),
+        )
+        assertTrue(
+            mapping.generatedUri.endsWith(
+                "/outputs/%E4%B8%AD%E6%96%87%E7%9B%AE%E5%BD%95/" +
+                    "%E5%85%A5%E5%8F%A3%F0%9F%98%80.js",
+            ),
+        )
+        assertFalse(mapping.canonicalEvidence.contains(sourcePath))
+    }
+
+    @Test
     fun strictUnicodeAndTransportRelativeBudgetsFailClosed() {
         val invalidProjectId = "bad\ud800id"
         assertEquals(
@@ -172,6 +197,19 @@ class R2GeneratedModuleMappingTest {
                 R2GeneratedModuleMappingPolicy.map(rhinoRequest(projectId = "x".repeat(257)))
             }.policyCode,
         )
+        listOf(
+            "/sources/control\u0085name.ts",
+            "/sources/bad\ud800name.ts",
+        ).forEach { invalidSourcePath ->
+            assertEquals(
+                R2GeneratedModuleMappingFailureCode.INVALID_SOURCE_PATH,
+                assertFails<R2GeneratedModuleMappingException> {
+                    R2GeneratedModuleMappingPolicy.map(
+                        rhinoRequest(sourcePath = invalidSourcePath),
+                    )
+                }.policyCode,
+            )
+        }
         val maximumFileName =
             "a".repeat(1_024 - "outputs/".length - ".js.map".length) + ".ts"
         assertEquals(

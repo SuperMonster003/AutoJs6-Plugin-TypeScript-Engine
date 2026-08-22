@@ -916,7 +916,7 @@ class R2ProjectArchiveTest {
     }
 
     @Test
-    fun p5ManifestAuthorityKeepsUnicodeNegativeSpacePositiveAndCollisionFailClosed() {
+    fun manifestAuthorityAcceptsSafeUtf8AndSpacePathsWhileCaseCollisionsStayClosed() {
         val authorities = listOf(
             R2CompilationProfileRegistry.PROVISIONAL_RHINO,
             R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_1,
@@ -939,25 +939,23 @@ class R2ProjectArchiveTest {
                 )
             }
 
-            val unicodeFailure = assertArchiveFailure(
-                TypeScriptCompilerContract.ERROR_ARCHIVE_PATH,
-            ) {
-                adapt(
-                    validFixture(
-                        fileOverrides = mapOf(
-                            "sources/\u4e2d\u6587/main.ts" to
-                                "export const unicodePath = true;\n"
-                                    .toByteArray(StandardCharsets.UTF_8),
-                        ),
-                        profileAuthority = authority,
-                    ),
+            val unicodePath = "sources/中文目录/入口.ts"
+            val unicodeFixture = validFixture(
+                fileOverrides = mapOf(
+                    unicodePath to
+                        "export const unicodePath = true;\n"
+                            .toByteArray(StandardCharsets.UTF_8),
+                ),
+                profileAuthority = authority,
+            )
+            adapt(unicodeFixture).use { adapted ->
+                assertTrue(adapted.manifest.rootPaths.contains(unicodePath))
+                assertTrue(adapted.snapshot.rootNames.contains("/$unicodePath"))
+                assertEquals(
+                    "export const unicodePath = true;\n",
+                    adapted.snapshot.readText("/$unicodePath"),
                 )
             }
-            assertTrue(
-                unicodeFailure.message.orEmpty().contains(
-                    "bounded printable-ASCII relative path",
-                ),
-            )
 
             val collisionFailure = assertArchiveFailure(
                 TypeScriptCompilerContract.ERROR_ARCHIVE_PATH,

@@ -10,6 +10,10 @@ capability promotion。
 > 2026-08-22 supersession：S2 完成时有意保留的 provisional diagnostics document 已由
 > [R2-M3-S3 Diagnostics JSON Schema v1](DIAGNOSTICS_SCHEMA_V1_R2_M3_S3.md) 正式替代。本文中
 > provisional revision 2 的描述只记录 S2 当时的任务边界，不再描述当前 production output。
+>
+> 2026-08-23 S1-2 amendment：schema revision 保持 1；此前不可达的 artifact/source path
+> 现可使用 canonical UTF-8，inventory fingerprint 对 path 使用 UTF-8 bytes。此前合法的
+> ASCII archive、排序与 fingerprint 不变。
 
 ## Schema identity 与版本边界
 
@@ -177,8 +181,8 @@ javascript  -> modules/**.(js|mjs|cjs)
 source_map  -> maps/**.(js|mjs|cjs).map
 ```
 
-inventory 必须按 canonical archive path 升序；path 必须是 printable ASCII relative path，满足既有
-entry-name/path-depth 上限，不含反斜杠、空 segment、`.` 或 `..`，并拒绝 exact duplicate 与 ASCII
+inventory 必须按 canonical archive path 升序；path 必须是 strict UTF-8 relative path，满足既有
+1024-byte entry-name/path-depth 上限，不含控制字符、反斜杠、空 segment、`.` 或 `..`，并拒绝 exact duplicate 与 ASCII
 case-fold collision。SHA-256 必须是 lowercase hex；`sourcePaths` 必须排序、去重且仅位于
 `sources/`、`declarations/` 或 `packages/`。JS/map 各自只关联一个 `sources/**` source；
 diagnostics descriptor 可以关联可达 source/declaration/package diagnostics authority。

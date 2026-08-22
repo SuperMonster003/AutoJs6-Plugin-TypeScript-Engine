@@ -123,6 +123,41 @@ class R2OutputArchiveSchemaV1Test {
         }
     }
 
+    @Test
+    fun unicodePathsUseTheirExactUtf8BytesInBothInventoryFingerprints() {
+        val first = unicodeFiles("入口")
+        val second = unicodeFiles("工具")
+
+        R2OutputArchiveSchemaV1.requireArtifactInventory(first)
+        R2OutputArchiveSchemaV1.requireArtifactInventory(second)
+        assertNotEquals(
+            R2OutputArchiveSchemaV1.artifactInventoryFingerprint(first),
+            R2OutputArchiveSchemaV1.artifactInventoryFingerprint(second),
+        )
+        assertNotEquals(
+            R2OutputArchiveSchemaV1.moduleInventoryFingerprint(first),
+            R2OutputArchiveSchemaV1.moduleInventoryFingerprint(second),
+        )
+    }
+
+    private fun unicodeFiles(stem: String): List<R2OutputArchiveFile> = listOf(
+        diagnosticsFile(),
+        R2OutputArchiveFile(
+            path = "maps/中文目录/$stem.js.map",
+            kind = R2OutputArchiveSchemaV1.KIND_SOURCE_MAP,
+            size = 96,
+            sha256 = sha256("same source map"),
+            sourcePaths = listOf("sources/中文目录/$stem.ts"),
+        ),
+        R2OutputArchiveFile(
+            path = "modules/中文目录/$stem.js",
+            kind = R2OutputArchiveSchemaV1.KIND_JAVASCRIPT,
+            size = 64,
+            sha256 = sha256("same javascript"),
+            sourcePaths = listOf("sources/中文目录/$stem.ts"),
+        ),
+    )
+
     private fun emittedFiles(): List<R2OutputArchiveFile> = listOf(
         diagnosticsFile(),
         R2OutputArchiveFile(

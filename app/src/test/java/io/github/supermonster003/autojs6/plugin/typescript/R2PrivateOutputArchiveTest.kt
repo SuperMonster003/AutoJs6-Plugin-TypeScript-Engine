@@ -155,6 +155,79 @@ class R2PrivateOutputArchiveTest {
     }
 
     @Test
+    fun unicodeModuleAndSourceMapPathsRoundTripThroughFormalUtf8Zip() {
+        val privateDirectory = temporaryFolder.newFolder("unicode-output")
+        val sourcePath = "/sources/中文目录/入口😀.ts"
+        val modulePath = "/outputs/中文目录/入口😀.js"
+        val sourceMapPath = "$modulePath.map"
+        val outputAuthority = authority().copy(
+            entrySourceUri = R2DiagnosticsSchemaV1.sourceUri(
+                projectId = "project-output-1",
+                sourcePath = sourcePath,
+            ),
+            entryPath = sourcePath.removePrefix("/"),
+        )
+        val sourceMap = sourceMap(
+            file = "入口😀.js",
+            source = "../../sources/中文目录/入口😀.ts",
+        )
+        val unicodeCompilation = compilation(
+            diagnostics = emptyList(),
+            outputs = listOf(
+                output(
+                    path = modulePath,
+                    text =
+                        "export const 答案 = 42;\n" +
+                            "//# sourceMappingURL=" +
+                            "%E5%85%A5%E5%8F%A3%F0%9F%98%80.js.map\n",
+                    sourcePath = sourcePath,
+                ),
+                output(sourceMapPath, sourceMap, sourcePath),
+            ),
+            emitSkipped = false,
+        )
+
+        R2PrivateOutputArchive.stageForTesting(
+            privateDirectory = privateDirectory,
+            authority = outputAuthority,
+            compilation = unicodeCompilation,
+        ).use { staged ->
+            val contents = staged.withImmutableReader { reader ->
+                ZipArchiveV1Validator.validateImmutableAndRead(
+                    file = reader,
+                    limits = ZipArchiveV1Limits.OUTPUT,
+                )
+            }
+            assertEquals(
+                listOf(
+                    R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH,
+                    R2PrivateOutputArchive.DIAGNOSTICS_PATH,
+                    "maps/中文目录/入口😀.js.map",
+                    "modules/中文目录/入口😀.js",
+                ),
+                contents.entries.keys.toList(),
+            )
+            val manifest = R2StrictJson.parseObject(
+                requireNotNull(
+                    contents.entries[R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH],
+                ),
+            )
+            assertEquals("modules/中文目录/入口😀.js", manifest["entryModulePath"])
+            val emittedJavaScript = requireNotNull(
+                contents.entries["modules/中文目录/入口😀.js"],
+            ).toString(StandardCharsets.UTF_8)
+            assertTrue(
+                emittedJavaScript.endsWith(
+                    "//# sourceMappingURL=../../maps/" +
+                        "%E4%B8%AD%E6%96%87%E7%9B%AE%E5%BD%95/" +
+                        "%E5%85%A5%E5%8F%A3%F0%9F%98%80.js.map\n",
+                ),
+            )
+        }
+        assertTrue(privateDirectory.listFiles().orEmpty().isEmpty())
+    }
+
+    @Test
     fun blockingDiagnosticsCommitDiagnosticsOnlyArchiveWithNoModules() {
         val privateDirectory = temporaryFolder.newFolder("diagnostics")
         R2PrivateOutputArchive.stageForTesting(

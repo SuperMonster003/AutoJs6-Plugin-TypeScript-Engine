@@ -97,16 +97,12 @@ internal object R2DiagnosticsSchemaV1 {
 
     private fun requireCanonicalSourcePath(sourcePath: String): String {
         require(
-            sourcePath.startsWith('/') &&
+            R2UnicodePathPolicy.isCanonicalAbsolutePath(sourcePath) &&
                 (
                     sourcePath.startsWith("/sources/") ||
                         sourcePath.startsWith("/declarations/") ||
                         sourcePath.startsWith("/packages/")
-                    ) &&
-                sourcePath.length - 1 <=
-                TypeScriptCompilerContract.MAX_ARCHIVE_ENTRY_NAME_BYTES &&
-                '\\' !in sourcePath &&
-                sourcePath.all { character -> character.code in PRINTABLE_ASCII },
+                    ),
         ) {
             "Diagnostic source path is outside the frozen snapshot URI domains."
         }

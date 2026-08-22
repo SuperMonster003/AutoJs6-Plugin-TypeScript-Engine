@@ -173,7 +173,7 @@ internal object R2OutputArchiveSchemaV1 {
         files.sortedBy(R2OutputArchiveFile::path).forEach { file ->
             digest.update(file.kind.toByteArray(StandardCharsets.US_ASCII))
             digest.update(0)
-            digest.update(file.path.toByteArray(StandardCharsets.US_ASCII))
+            digest.update(file.path.toByteArray(StandardCharsets.UTF_8))
             digest.update(0)
             digest.update(file.size.toString().toByteArray(StandardCharsets.US_ASCII))
             digest.update(0)
@@ -182,7 +182,7 @@ internal object R2OutputArchiveSchemaV1 {
             digest.update(file.sourcePaths.size.toString().toByteArray(StandardCharsets.US_ASCII))
             file.sourcePaths.forEach { sourcePath ->
                 digest.update(0)
-                digest.update(sourcePath.toByteArray(StandardCharsets.US_ASCII))
+                digest.update(sourcePath.toByteArray(StandardCharsets.UTF_8))
             }
             digest.update('\n'.code.toByte())
         }
@@ -190,18 +190,7 @@ internal object R2OutputArchiveSchemaV1 {
     }
 
     private fun String.isCanonicalOutputArchivePath(): Boolean {
-        if (
-            isEmpty() ||
-            length > TypeScriptCompilerContract.MAX_ARCHIVE_ENTRY_NAME_BYTES ||
-            startsWith('/') ||
-            '\\' in this ||
-            any { character -> character.code !in 0x20..0x7e }
-        ) {
-            return false
-        }
-        val segments = split('/')
-        return segments.size <= TypeScriptCompilerContract.MAX_ARCHIVE_PATH_DEPTH &&
-            segments.all { segment -> segment.isNotEmpty() && segment != "." && segment != ".." }
+        return R2UnicodePathPolicy.isCanonicalRelativePath(this)
     }
 
     private fun String.isCanonicalOutputSourcePath(): Boolean =

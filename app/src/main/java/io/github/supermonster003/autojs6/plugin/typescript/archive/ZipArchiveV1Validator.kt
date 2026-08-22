@@ -1,11 +1,11 @@
 package io.github.supermonster003.autojs6.plugin.typescript.archive
 
+import io.github.supermonster003.autojs6.plugin.typescript.R2Utf8
 import java.io.Closeable
 import java.io.EOFException
 import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
-import java.nio.charset.StandardCharsets
 import java.util.Collections
 import java.util.zip.CRC32
 import java.util.zip.DataFormatException
@@ -689,6 +689,7 @@ internal object ZipArchiveV1Validator {
             )
             val path = decodeAndValidatePath(
                 rawName = rawName,
+                flags = flags,
                 maximumDepth = limits.maximumPathDepth,
             )
             val collisionKey = asciiLowercase(path)
@@ -1281,20 +1282,24 @@ internal object ZipArchiveV1Validator {
 
     private fun decodeAndValidatePath(
         rawName: ByteArray,
+        flags: Int,
         maximumDepth: Int,
     ): String {
-        if (
-            rawName.any { byte ->
-                (byte.toInt() and 0xff) !in
-                    MINIMUM_PRINTABLE_ASCII..MAXIMUM_PRINTABLE_ASCII
-            }
-        ) {
+        val containsNonAsciiByte = rawName.any { byte -> byte.toInt() and 0x80 != 0 }
+        if (containsNonAsciiByte && flags and FLAG_UTF8 == 0) {
             fail(
                 ZipArchiveV1FailureKind.PATH,
-                "ZIP entry path contains bytes outside printable ASCII.",
+                "ZIP entry path contains non-ASCII bytes without the UTF-8 flag.",
             )
         }
-        val path = String(rawName, StandardCharsets.US_ASCII)
+        val path = try {
+            R2Utf8.decode(rawName, "ZIP entry path")
+        } catch (_: IllegalArgumentException) {
+            fail(
+                ZipArchiveV1FailureKind.PATH,
+                "ZIP entry path is not valid UTF-8.",
+            )
+        }
         if (
             path.startsWith('/') ||
             path.length >= 2 &&
@@ -1312,7 +1317,7 @@ internal object ZipArchiveV1Validator {
                 "ZIP entry path contains a backslash: ${path.asPrintablePath()}",
             )
         }
-        if (path.any { character -> character.code < 0x20 || character.code == 0x7f }) {
+        if (path.any { character -> Character.isISOControl(character.code) }) {
             fail(
                 ZipArchiveV1FailureKind.PATH,
                 "ZIP entry path contains a control character: ${path.asPrintablePath()}",
@@ -1634,8 +1639,6 @@ internal object ZipArchiveV1Validator {
     private const val FLAG_UTF8 = 1 shl 11
     private const val ALLOWED_FLAGS = FLAG_DATA_DESCRIPTOR or FLAG_UTF8
 
-    private const val MINIMUM_PRINTABLE_ASCII = 0x20
-    private const val MAXIMUM_PRINTABLE_ASCII = 0x7e
     private const val ASCII_CASE_OFFSET = 'a'.code - 'A'.code
 
     private const val CREATOR_FAT = 0

@@ -370,7 +370,6 @@ class R2ProjectSnapshotTest {
             "/sources/main.ts/",
             "/sources\\main.ts",
             "/outside/main.ts",
-            "/sources/caf\u00e9.ts",
             "/declarations/not-a-declaration.ts",
         )
 
@@ -430,6 +429,37 @@ class R2ProjectSnapshotTest {
         assertTrue(snapshot.files.containsKey(MAIN_SOURCE))
         assertTrue(snapshot.files.containsKey(sourceDeclaration))
         assertEquals(listOf(MAIN_SOURCE), snapshot.rootNames)
+    }
+
+    @Test
+    fun safeUnicodeProjectPathsRoundTripWhileControlsAndMalformedTextStayClosed() {
+        val unicodeSource = "/sources/中文目录/入口😀.ts"
+        val snapshot = R2ProjectSnapshot.create(
+            files = listOf(
+                R2ProjectTextFile(DEFAULT_LIBRARY, ""),
+                R2ProjectTextFile(unicodeSource, "export const 答案 = 42;\n"),
+            ),
+            rootNames = listOf(unicodeSource),
+        )
+
+        assertEquals(listOf(unicodeSource), snapshot.rootNames)
+        assertEquals("export const 答案 = 42;\n", snapshot.readText(unicodeSource))
+
+        listOf(
+            "/sources/中文/\u0085control.ts",
+            "/sources/中文/bad\ud800.ts",
+            "/sources/中文/../escape.ts",
+        ).forEach { invalidPath ->
+            assertFails<IllegalArgumentException> {
+                R2ProjectSnapshot.create(
+                    files = listOf(
+                        R2ProjectTextFile(DEFAULT_LIBRARY, ""),
+                        R2ProjectTextFile(invalidPath, ""),
+                    ),
+                    rootNames = listOf(invalidPath),
+                )
+            }
+        }
     }
 
     @Test

@@ -1,5 +1,10 @@
 # R2-M2-P5 Compiler Boundary Fixture Matrix
 
+> **S1-2 supersession（2026-08-23）。** 本文与 `p5-v1.json` 记录 2026-08-11
+> direct-compiler 阶段的历史 production-negative 判定。当前 archive、snapshot、Worker、
+> generated mapping、diagnostics 与 output ZIP 已端到端接纳 canonical UTF-8 path；P5 的
+> compiler golden 与 collision/token 证据仍保留，但不再定义当前路径准入。
+
 日期：2026-08-11
 
 状态：**已完成。checked-in golden、desktop oracle、JVM contract、P5 aggregate 与最终
@@ -26,8 +31,8 @@ revision 固定为：
   2 个 Source Map v3 outputs；
 - `ts.sys`、host filesystem、network 与 emitted-JavaScript execution 全部为 0。
 
-P5 的关键边界是：**TypeScript compiler 能处理中文路径，不等于 production 接纳中文
-路径。** 当前 production path authority 继续冻结为 printable ASCII。中文路径只能形成
+P5 的关键边界是：**TypeScript compiler 能处理中文路径，不等于当时的 production 接纳中文
+路径。** P5 当时的 production path authority 继续冻结为 printable ASCII。中文路径只能形成
 direct-compiler positive；archive、snapshot、Worker、generated mapping 与 private output
 必须继续稳定拒绝。ASCII 空格属于 printable ASCII，可作为 ordinary `/sources/*.ts`
 production-compatible positive，但不得外推到具有更窄 grammar 的 package-target path。
@@ -61,7 +66,7 @@ Node revision 2 不增加第三套 boundary golden。它与 revision 1 的 compi
 每个 positive row 的 `files` 与 `rootNames` 都必须是两个元素、路径集合完全相等，且两个
 roots 都是 direct compiler executable `.ts`，不是 `.d.ts`。其中除中文路径 row 外，路径应
 保持在当前 production ordinary source path domain；中文路径 row 必须显式携带
-`productionAdmission=direct-only/rejected-non-ascii`，不得使用与 P4 相同的
+当时的 `productionAdmission=direct-only/rejected-non-ascii`，不得使用与 P4 相同的
 `production-admitted` 描述。
 
 两个 collision rows 各使用一组只在 ASCII 大小写上不同的 source paths，例如
@@ -165,7 +170,7 @@ P5 只关闭当前 printable-ASCII domain 内的 exact duplicate/ASCII case-fold
 archive、manifest、snapshot、Worker VFS 与 output authority 必须继续在 Program 或 commit 前
 fail closed，不能让 `Map` 后写覆盖前写，也不能依赖 platform filesystem case behavior。
 
-NFC-equivalent Unicode path collision 仍属于 `R2-M3-S6`。当前 production 会先以 non-ASCII
+NFC-equivalent Unicode path collision 仍属于 `R2-M3-S6`。P5 当时的 production 会先以 non-ASCII
 path 拒绝两条候选，因此 P5 不证明 NFC collision ordering、Unicode case folding 或正式
 schema behavior。
 
@@ -234,7 +239,7 @@ JVM contract 必须至少证明：
 
 1. strict parse fixture exact schema、authority、row、source/generator、expected/output/map keys；
 2. 重建所有 source texts、UTF-8 identities、token counts 与 output collection SHA-256；
-3. 中文 path direct-positive 但被 production printable-ASCII authority 稳定拒绝；
+3. 中文 path direct-positive 但被当时的 production printable-ASCII authority 稳定拒绝；
 4. ASCII space ordinary source path 被 Rhino/Node revision-1 source admission 接受；
 5. CRLF/BOM/raw Unicode 未在 identity 前被规范化，lone surrogate fail closed；
 6. 65,536-token generated source exact，profile aggregate 不超过 262,144；
@@ -274,7 +279,7 @@ P5 closure。
   declarations 与第二个 root 后，Rhino/Node profile aggregate 分别为 152,036 / 191,040 tokens，
   均未越过 262,144-token project ceiling；
 - JVM contract、production authority regressions 与 P5 aggregate 均通过；中文路径保持
-  direct-compiler positive / production printable-ASCII negative，ordinary ASCII 空格 source path
+  direct-compiler positive / 当时的 production printable-ASCII negative，ordinary ASCII 空格 source path
   保持 production-compatible；
 - 最终 `verifyR2ProjectCompilerCore`：`BUILD SUCCESSFUL in 4m 19s`，521 actionable tasks
   （109 executed、412 up-to-date）；

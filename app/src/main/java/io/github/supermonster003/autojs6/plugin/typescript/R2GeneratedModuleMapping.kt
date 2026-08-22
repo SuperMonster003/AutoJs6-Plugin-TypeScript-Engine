@@ -322,21 +322,22 @@ internal object R2GeneratedModuleMappingPolicy {
         val prefix = "${R2NodeModuleOutputPolicy.SOURCE_ROOT}/"
         if (
             !sourcePath.startsWith(prefix) ||
-            '\\' in sourcePath ||
-            sourcePath.any { character -> character.code !in PRINTABLE_ASCII }
+            !R2UnicodePathPolicy.isCanonicalAbsolutePath(
+                path = sourcePath,
+                maximumRelativeUtf8Bytes =
+                    R2NodeModuleOutputPolicy.MAXIMUM_RELATIVE_PATH_CHARS.toLong(),
+                maximumDepth = R2NodeModuleOutputPolicy.MAXIMUM_PATH_DEPTH,
+            )
         ) {
             reject(
                 R2GeneratedModuleMappingFailureCode.INVALID_SOURCE_PATH,
-                "Generated mapping source path is not a printable canonical /sources path.",
+                "Generated mapping source path is not a canonical UTF-8 /sources path.",
             )
         }
         val relative = sourcePath.removePrefix(prefix)
         val segments = relative.split('/')
-        val transportRelative = "sources/$relative"
         if (
             relative.isEmpty() ||
-            transportRelative.length >
-                R2NodeModuleOutputPolicy.MAXIMUM_RELATIVE_PATH_CHARS ||
             segments.size + 1 > R2NodeModuleOutputPolicy.MAXIMUM_PATH_DEPTH ||
             segments.any { segment ->
                 segment.isEmpty() || segment == "." || segment == ".."
@@ -367,10 +368,14 @@ internal object R2GeneratedModuleMappingPolicy {
     }
 
     private fun validateGeneratedPath(path: String) {
-        val transportRelative = path.removePrefix("/")
         if (
-            transportRelative.length > R2NodeModuleOutputPolicy.MAXIMUM_RELATIVE_PATH_CHARS ||
-            transportRelative.split('/').size > R2NodeModuleOutputPolicy.MAXIMUM_PATH_DEPTH
+            !path.startsWith("${R2NodeModuleOutputPolicy.OUTPUT_ROOT}/") ||
+            !R2UnicodePathPolicy.isCanonicalAbsolutePath(
+                path = path,
+                maximumRelativeUtf8Bytes =
+                    R2NodeModuleOutputPolicy.MAXIMUM_RELATIVE_PATH_CHARS.toLong(),
+                maximumDepth = R2NodeModuleOutputPolicy.MAXIMUM_PATH_DEPTH,
+            )
         ) {
             reject(
                 R2GeneratedModuleMappingFailureCode.OUTPUT_PATH_LIMIT_EXCEEDED,

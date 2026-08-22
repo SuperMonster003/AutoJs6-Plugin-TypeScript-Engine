@@ -880,7 +880,10 @@ internal object CompilerHostProtocol {
             val output = value.requireObject("Project output[$index]")
             val path = output.requireString("path")
             validateProjectOutputPath(path, profileAuthority)
-            check(paths.add(path) && foldedPaths.add(path.asciiLowercase())) {
+            check(
+                paths.add(path) &&
+                    foldedPaths.add(R2UnicodePathPolicy.asciiCaseFold(path)),
+            ) {
                 "Project compiler returned a duplicate output path."
             }
             val text = output.requireString("text")
@@ -1086,28 +1089,7 @@ internal object CompilerHostProtocol {
     }
 
     private fun String.isCanonicalProtocolPath(): Boolean =
-        length <= TypeScriptCompilerContract.MAX_SOURCE_URI_CHARS &&
-            startsWith("/") &&
-            '\\' !in this &&
-            all { character -> character.code in 0x20..0x7e } &&
-            drop(1).split('/').let { segments ->
-                segments.size <= TypeScriptCompilerContract.MAX_ARCHIVE_PATH_DEPTH &&
-                    segments.all { segment ->
-                        segment.isNotEmpty() && segment != "." && segment != ".."
-                    }
-            }
-
-    private fun String.asciiLowercase(): String = buildString(length) {
-        this@asciiLowercase.forEach { character ->
-            append(
-                if (character in 'A'..'Z') {
-                    (character.code + ASCII_CASE_OFFSET).toChar()
-                } else {
-                    character
-                },
-            )
-        }
-    }
+        R2UnicodePathPolicy.isCanonicalAbsolutePath(this)
 
     private fun ByteArray.sha256(): String =
         MessageDigest.getInstance("SHA-256")
@@ -1618,7 +1600,6 @@ internal object CompilerHostProtocol {
     private const val MAX_SOURCE_MAP_MAPPINGS_CHARS = 16 * 1024
     private const val TYPESCRIPT_ERROR_CATEGORY =
         TypeScriptR2Contract.DIAGNOSTIC_CATEGORY_ERROR
-    private const val ASCII_CASE_OFFSET = 'a'.code - 'A'.code
     private val SHA256_PATTERN = Regex("[0-9a-f]{64}")
     private val NON_NEGATIVE_INTEGER_PATTERN = Regex("0|[1-9][0-9]*")
     private val FRAMED_MESSAGE_KINDS = setOf(

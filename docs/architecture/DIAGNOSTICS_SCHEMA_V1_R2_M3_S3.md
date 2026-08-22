@@ -7,6 +7,10 @@ gate、TypeScript 6.0.3 desktop Worker、public-preview consumer compile、Debug
 AndroidTest compile-and-package、S3 aggregate 与最终无排除 Core 均已在当前源码上通过。本项没有运行 ADB、
 connected tests 或 device instrumentation，也没有扩大 Public/runtime evidence。
 
+> **S1-2 amendment（2026-08-23）。** schema revision 保持 1；snapshot source path
+> 现接受 canonical UTF-8，`uri` 继续是 printable ASCII，并对每个 UTF-8 byte 使用大写
+> `%HH` 编码。此前合法的 ASCII URI 完全不变。
+
 ## Schema identity 与版本边界
 
 `diagnostics.json` 的唯一 formal identity 为：
@@ -150,7 +154,7 @@ autojs://source/p-<lowercase-sha256(projectId UTF-8)>/<canonical-domain-path>
 - `projectId` 先按 strict UTF-8 编码，再计算 lowercase SHA-256；namespace 固定带 `p-` 前缀；
 - path 逐 segment 编码，ASCII unreserved `A-Z a-z 0-9 - . _ ~` 原样保留，其余 byte 使用大写
   `%HH`；`/` 只作为 canonical segment separator；
-- 接受的 snapshot path 本身受 printable-ASCII、depth、length、`.`/`..`、backslash 与 source-kind
+- 接受的 snapshot path 本身受 strict UTF-8 byte length、depth、控制字符、`.`/`..`、backslash 与 source-kind
   admission 约束；URI 生成不会重新接受 archive parser 已拒绝的名字；
 - URI 最长 4096 个 printable ASCII characters；超限 fail closed；
 - `/sources/` domain 与现有 generated-module mapping 的 `originalSourceUri` 使用相同 project

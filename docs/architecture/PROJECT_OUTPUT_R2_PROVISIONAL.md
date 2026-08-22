@@ -1,5 +1,9 @@
 # R2 Provisional Project Output (Historical Foundation)
 
+> **S1-2 amendment（2026-08-23）。** 本文中的 printable-ASCII output path 是历史边界；
+> 当前 formal output ZIP 保留原始 canonical UTF-8 path，并将最终 `sourceMappingURL`
+> 按 UTF-8 bytes 百分号编码。
+
 > **R2-M3-S2 supersession（2026-08-22）。** 本文是 S4 private-output foundation 的历史切片。
 > 其中 `autojs6.typescript.compilation.provisional/revision=2`、单一
 > `inventoryFingerprint` 与“output schema 仍 provisional”的叙述已经被 formal
