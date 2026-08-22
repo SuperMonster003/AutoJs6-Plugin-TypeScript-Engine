@@ -1,5 +1,11 @@
 # Compiler IPC v1
 
+> **R2-M3-S1 input supersession（2026-08-14）。** 本页继续定义 frozen AIDL/Bundle/ZIP
+> transport；`Input archive v1` 一节中的 manifest revisions `2..7`、caller-carried declarations
+> 与旧 start shapes 只保留为 pre-S1 provenance，不是当前 formal alias/fallback。当前 formal input
+> 只接受 `autojs6.typescript.input-archive/revision=1`，caller archive 不携带 declarations，见
+> [S1 Input Archive Schema v1](INPUT_ARCHIVE_SCHEMA_V1_R2_M3_S1.md)。
+
 R0 提供可构建的 provisional v1 基线. R1 在不扩展公开 AIDL 或项目 schema
 的前提下，通过既有 `prewarm` transaction 验证受限 WebView/Worker host，并在
 Binder/FD、真实 compiler probe、冻结 AAR 与双向兼容门禁通过后冻结本文件的顶层
@@ -13,6 +19,12 @@ R1 host 的 asset origin, Worker 隔离, runtime golden 和当前设备证据见
 R1 已冻结的 raw ZIP 结构、path 算法和基础配额见
 [ZIP Archive Container v1](ARCHIVE_CONTAINER_V1.md); 该结构层不包含项目
 manifest 或 diagnostics schema.
+R2-P3a 的 production native file-backed input 实现与非 Public 容量边界见
+[R2-P3a File-backed Native Input](FILE_BACKED_INPUT_R2_P3A.md)；后续 DEBUG
+device capacity/realm-retirement 见
+[R2-P3b-b1 Android Device Capacity and Exact Realm Retirement](WORKER_INPUT_R2_P3B_B1.md)，
+phase-entry/renderer-loss fault boundary 见
+[R2-P3b-b2a DEBUG Phase-entry Hard-stop and Active Renderer-loss](WORKER_FAULT_R2_P3B_B2A.md).
 
 ## 服务
 
@@ -61,12 +73,25 @@ host 必须先读取 contract version/hash, 再创建请求. `startCompilation` 
 - R2 起增加 profile revision, distribution/declarations fingerprint 和 runtime
   capabilities fingerprint.
 
-R0 以及当前 R1 的 production、release 和外部调用
-`startCompilation` 始终返回 `accepted=false` 和
-`ERR_AUTOJS6_TYPESCRIPT_R0_NOT_AVAILABLE`. R0 不会发送 callback，不宣称具备
-compiler 能力；R1 的内部 prewarm probe 也不会改变这一行为. debug APK 另有
-same-UID、私有 control key 保护的 transport lifecycle probe，只用于验证尚未在
-R2 启用的 accepted 状态机；它不属于公开 Bundle schema、冻结 AAR 或 capability.
+R0/R1 以及普通 frozen-v1 production、release 和外部调用的
+`startCompilation` 继续返回 `accepted=false` 和
+`ERR_AUTOJS6_TYPESCRIPT_R0_NOT_AVAILABLE`。
+R2-P1/P2/P3a/P3b-a/P3b-b1/P3b-b2a 仅为携带完整 additive profile/config
+revision、fingerprint 与 archive-digest metadata 的
+production-shaped request 增加
+accepted preview；这不改变 capability=false。debug APK 另有 same-UID、私有
+control key 保护的 lifecycle probe；它不属于公开 Bundle schema、冻结 AAR 或
+capability。
+
+R2-P3a 改变的是 accepted preview 内部的 native input ownership：production
+loader 使用 app-private spool/metadata-only snapshot。P3b-a 改变的是 Worker
+内部 direct-framing capacity、complexity budgets 与 per-job lifetime；P3b-b1
+把当前 raw frame/internal envelope 调整为 64/128 KiB，并加入 same-UID
+DEBUG-only expanded capacity control。P3b-b2a 为相同内部 transport 加入严格
+ingress/parse/semantic/emit phase events，以及与 spin phase 成对的 same-UID
+DEBUG-only fault control；production 固定为 zero spin/`none`。它们都没有新增
+public Bundle key、AIDL transaction 或 capability，也没有扩大 Android
+production admission。
 
 ## Bundle schema
 
@@ -123,9 +148,13 @@ R1 的内部 request ID/VFS 消息不是公共 Bundle schema. 调用方不得把
 | `entrySourceUri` | String | 是 | `autojs://source/`, <=4096 |
 | `targetProfile` | String | 是 | Rhino/Node |
 | `compilationMode` | String | 是 | development/release |
-| `compilerOptionsJson` | String | 否 | 缺省 `{}`, R0 视为 opaque UTF-8; R2 仅用于无 tsconfig 的虚拟单文件项目 |
-| `timeoutMs` | Long | 是 | 1..120000, 从 admission 开始计时 |
-| profile/fingerprint keys | String/Int | R2 | revision 机制冻结后必需 |
+| `compilerOptionsJson` | String | 否 | R0 同步只接受缺省或精确 `{}`；不建立 inline options authority |
+| `timeoutMs` | Long | 是 | frozen envelope 为 1..120000；R2 public preview 为 6000..120000，server clock 从 output ownership commit 开始 |
+| `profileSchemaRevision` / `profileRevision` | Int | R2 preview | 必须匹配本地 profile authority |
+| `configSchemaRevision` / `configKind` | Int / String | R2 preview | 当前必须精确匹配本地 revision 与 `none` |
+| `runtimeCapabilitySchemaRevision` | Int | R2 preview | 必须匹配本地 runtime authority |
+| compiler/declarations/runtime fingerprints | String | R2 preview | lowercase SHA-256，必须与本地可信发行包匹配 |
+| `inputArchiveSha256` / `requestManifestSha256` | String | R2 preview | lowercase SHA-256，分别绑定完整容器与 manifest bytes |
 
 ### admission ticket
 
@@ -135,19 +164,37 @@ R1 的内部 request ID/VFS 消息不是公共 Bundle schema. 调用方不得把
 | `requestId` | String | 可安全解析时回显 |
 | `accepted` | Boolean | 始终返回 |
 | `jobToken` | String | 只在 accepted 时返回 |
+| `acknowledgementRequired` | Boolean | R2 accepted 时为 `true` |
+| `acknowledgementTimeoutMs` | Long | R2 public preview accepted 时固定为 `5000` |
 | `errorCode`/`errorMessage` | String | reject 时返回 |
 
 accepted 只表示进入有界队列, 不表示编译成功. accepted callback 不得在
 `startCompilation()` transaction 返回前发送.
 
-R1 的私有 debug lifecycle probe 使用容量 1 的队列，并要求测试 client 在收到
-ticket 后通过第二个同步 transaction 发送内部 acknowledgement；只有这道
-post-return barrier 之后才 arm timeout/completion callback. admission timeout
-仍从原始 admission 时刻计算. 未 acknowledgement 的内部 probe 最迟在
-`min(timeoutMs, 5s)` 被静默回收 FD，避免调试误用造成资源泄漏；该非公开例外
-不构成 production accepted 语义. 完成历史最多保留 256 项；达到上限后拒绝新
-debug admission 直到 service restart，以同时保持内存有界、重复 request ID
-拒绝和已发 token 的 cancel 幂等.
+R2-P1 将 post-return barrier 固定为 v1 transaction 6 上的 additive operation：
+accepted client 必须在 ticket 返回后，以相同 request ID/job token 调用
+`cancelCompilation`, 并设置 `cancellationOperation=acknowledge`。只有 ACK
+成功后才 arm pipeline/callback；因此 callback 不会抢在同步 ticket 前发布。
+缺省或显式 `cancellationOperation=cancel` 保持取消语义。ACK 窗口为
+5s，public preview 的 compilation timeout 下限为 6s。慢速且不修改输出的 FD
+preflight 与普通同步 reject gate 都在 `ftruncate` 前完成；成功 `ftruncate` 是
+ownership commit 和两个 server clock 的共同锚点。该 budget 不保证 ticket 返回后
+仍有完整 5s。窗口后任务静默清理，public late-unack ACK 返回 `false`；
+成功 ACK 的重复调用可幂等命中 terminal tombstone，但不能复活任务。private
+debug probe 保留既有 late-unack 幂等返回值。
+
+这组 optional key 位于 additive `TypeScriptR2Contract`，不改变 frozen AIDL、
+contract version/hash 或 `TypeScriptCompilerContract`。当前 capability 仍为
+`false`，因为 archive/profile 仍是 provisional，NodeNext 尚未完成，且 P3a 只
+完成 native file-backed streaming；P3b-a 虽把 Worker 内部 envelope 提升到
+4607 files/72 MiB 并加入 bounded lifetime，production 仍保留 512 files/8 MiB
+total admission。P3b-b1 的 DEBUG Android capacity/realm proof 不改变该围栏，
+Worker 最终仍可能同时持有 String/AST。P3b-b2a 的 synthetic phase-entry
+cancel/timeout 与主动 renderer termination 同样不改变围栏；它不是 natural
+mid-phase、PSS、LMK 或 OOM evidence。
+P1/P2/P3a/P3b-a/P3b-b1/P3b-b2a 是 production/public-shaped preview，不等同于
+Public R2。P2 的 config-none request manifest、framed Worker result 与 output
+revision 2 必须绑定同一个本地 profile/config authority。
 
 ### progress/result/cancellation
 
@@ -155,7 +202,8 @@ debug admission 直到 service restart，以同时保持内存有界、重复 re
 - result: `requestId`, `outcome`, `succeeded`, `errorCode/errorMessage`,
   `diagnosticCount`, `emittedModuleCount`, `elapsedMs`,
   `outputManifestSha256`.
-- cancellation: `contractVersion`, `contractHash`, `requestId`, `jobToken`.
+- cancellation: `contractVersion`, `contractHash`, `requestId`, `jobToken`，以及可选
+  `cancellationOperation=cancel|acknowledge`.
 
 result/cancellation 的 request ID 和 token 仍受上述长度约束. 完整 diagnostics
 只存在于 output archive, Bundle 中只返回数量和有界摘要.
@@ -175,8 +223,14 @@ R1 将以下只读 artifact 纳入版本库:
 - `compat/v1/bundle-fixtures.json`.
 
 `verifyR1ProtocolCompatibility` 比较当前 AIDL、编译后 contract 和 canonical
-fixtures，验证冻结 AAR bytes，并构建/lint 只依赖该 AAR 的 `r1-compat-v1`.
-重冻只能显式运行 `:plugin-api:typescript-api:freezeTypeScriptApiV1`.
+fixtures，验证冻结 AAR/checksum，并构建/lint 只依赖该 AAR 的 `r1-compat-v1`。
+R2-P1/P2 后当前 AAR 可以新增独立 `TypeScriptR2Contract`；freeze gate 仍要求 frozen
+`classes.jar` 的每个 v1 class 条目逐 byte 不变，且只允许这一组 R2 additive class，
+不会重冻或覆盖 `compat/v1`。
+`compat/v1` 基线不可从当前 post-v1 source/AAR 重建：
+`:plugin-api:typescript-api:freezeTypeScriptApiV1` 永久 fail-closed，避免把
+additive R2 class 污染进 v1 artifact。基线缺失或损坏时只能从版本控制或可信的
+legacy v1 release 同时恢复 AAR 与 checksum。
 framework-only 双向 instrumentation 已在 API 31/33 真机验证 frozen client →
 current service 与 current target AIDL → frozen service 的 transaction 1--6、
 未知合法 `String[]`、R1 reject、caller FD 引用/bytes 保持、frozen service
@@ -198,9 +252,10 @@ compat APK 与 app 的 debug/release signing identity 由构建门禁对实际 A
 - `cancelCompilation` Bundle 必须携带 request ID 和 job token; owner 不匹配时返回
   `false`, 不泄露任务是否存在.
 - service 对 callback 执行 `linkToDeath`; client death 等价于取消并立即清理.
-- cancel 幂等. admission reject 不发送 callback. accepted 且双方 Binder 存活时,
-  callback 恰好发送一次终态. client/service death 时无法保证远端 callback, host
-  通过 binding death/timeout 合成本地稳定终态.
+- cancel 幂等。admission reject 不发送 callback；未 ACK 的 accepted preview
+  静默回收且不发送 callback。成功 ACK、callback 已 arm 且双方 Binder 存活时，
+  callback 恰好发送一次终态。client/service death 时无法保证远端 callback，host
+  通过 binding death/timeout 合成本地稳定终态。
 - progress 是有界提示, host 不依赖其完整性.
 
 ## FD 所有权和终态
@@ -246,9 +301,9 @@ arbiter 合成，不宣称已经接入 AutoJs6 正式执行链.
 
 ## Input archive v1
 
-底层容器必须通过 [ZIP Archive Container v1](ARCHIVE_CONTAINER_V1.md). 下列
-目录和 `request-manifest.json` 内容仍是 R2 的 provisional input schema, 不属于
-R1 的容器冻结:
+底层容器必须通过 [ZIP Archive Container v1](ARCHIVE_CONTAINER_V1.md). 下列目录曾是
+pre-S1 provisional target，仅为历史上下文，不属于 R1 容器冻结，也不描述当前 formal
+revision-1 caller archive：
 
 ```text
 request-manifest.json
@@ -259,6 +314,13 @@ packages/<allowed-package-root>/**
 declarations/common/**
 declarations/rhino/** or declarations/node/**
 ```
+
+上述完整目录不是当前 formal archive shape。以下 revision 2/3 描述只记录 pre-S1
+provenance：revision 2 只允许 `request-manifest.json + sources/**`，revision 3 只再增加 root
+`tsconfig.json`。C4 当时对两个 revision 保持 deny-only closure：manifest 声明或 actual extra
+出现 reserved package/deferred path 均返回 `ERROR_ARCHIVE_PATH`；普通 undeclared extra
+entry 返回 `ERROR_ARCHIVE_INTEGRITY`。C5 只有通过新的 manifest revision 才能正向加入
+`package.json` 与 allowlisted package metadata。
 
 `request-manifest.json` 至少包含:
 
@@ -275,6 +337,27 @@ host 负责安全读取, 按清单解密和打包文件, 不负责解释 TypeScr
 `exports`, `imports`, nested package boundary 和声明文件必须随 snapshot 提供.
 首个 GA 不在执行中回读宿主任意路径, 不访问网络, 也不接受 snapshot 之外的 late
 external TypeScript.
+
+当前 P3a production loader 先以 fixed-offset copy 把 caller FD 捕获到
+app-private read-only staging inode，再用 ZIP sink 以最多 16 KiB callback 校验
+raw records、actual size、CRC 和 ratio，并把实际 payload 写入第二个 private VFS
+spool。只有 provisional `request-manifest.json` 可以在 512 KiB 上限内短暂
+materialize；source 通过 spool range 执行 size/hash/fatal UTF-8 检查。最终
+snapshot 只保留 metadata/offset/read-only inode，native framer 通过 cursor
+随机读取当前最多 64 KiB（P3a 初始为 16 KiB）。validator/sink failure 调用
+sink `abort`；后续
+manifest/UTF-8 failure 同样 fail closed 并关闭、丢弃 spool。
+
+上述实现允许 native 层覆盖冻结的 64 MiB container/64 MiB actual uncompressed
+结构 envelope，但不是 public 语言服务容量声明。P3b-a Worker 内部已加入
+4607 files/8 MiB/file/72 MiB total、path/directory/token budgets、单份 decoded
+String/lazy SourceFile 与 per-job release；dispatch 前的 Android production gate
+仍为 512 files、8 MiB/file、8 MiB total，Worker 最终仍可能同时持有 decoded
+strings 与 TypeScript AST。P3b-b1 已证明 DEBUG low-token ASCII 的 direct/Binder
+boundary；P3b-b2a 已证明 same-UID DEBUG synthetic phase-entry hard-stop 与一次
+active exact-64-MiB renderer loss/recovery。Public end-to-end 64 MiB 仍需
+external-UID debug/minified-release、自然零 spin mid-phase 与完整
+memory/system-fault device gates。
 
 ## Output archive v1
 
@@ -306,7 +389,14 @@ cancel, timeout, internal error 和 transport error 不提交 ZIP, output 必须
 
 ## Compiler options authority
 
-R2 冻结以下唯一优先级:
+[R2-M2-C1 Controlled tsconfig Policy](CONTROLLED_TSCONFIG_R2_M2_C1.md) 冻结以下
+唯一优先级；[R2-M2-C2 Raw tsconfig Identity/Parser](CONTROLLED_TSCONFIG_R2_M2_C2.md)
+已完成内部 bytes/hash、revision 3 manifest、独立 framing 与 plugin-owned parse；
+[R2-M2-C3 Effective Options Authority](CONTROLLED_TSCONFIG_R2_M2_C3.md) 已完成 41-key
+merge、canonicalization 与 fingerprint；
+[R2-M2-C4 Compiler Escape Closure](COMPILER_ESCAPE_CLOSURE_R2_M2_C4.md) 已关闭
+transformer/plugin、package/deferred path、Binder 与 host/network escape。当前 production
+request 仍为 `configKind=none`，C1-C4 的 internal completion 不表示 tsconfig 已可调用：
 
 ```text
 immutable AutoJs6 security/profile constraints
@@ -314,21 +404,51 @@ immutable AutoJs6 security/profile constraints
 > TypeScript explicit defaults
 ```
 
-- 项目 snapshot 存在 `tsconfig.json` 时, request 的 `compilerOptionsJson` 必须缺省
-  或为 `{}`.
-- 虚拟单文件项目可以用 `compilerOptionsJson` 代替 tsconfig; R2 必须解析为 JSON
-  object 并执行同一 allowlist/denylist.
+- request 的 `compilerOptionsJson` 必须缺省或精确为 `{}`；项目与虚拟单文件都只使用
+  snapshot 中受控的 raw `tsconfig.json`。虚拟单文件需要配置时，由 host 构造同一
+  policy revision 的 config，不建立第二套 inline authority。
+- service 可在 R0 decision 前执行 non-owning descriptor inspection；任何其他 inline 值在
+  R0 decision 中先于 descriptor-validity rejection，并在 coordinator admission/FD ownership
+  transfer 前返回 `ERROR_INVALID_REQUEST`。
+- 若未来需要 non-empty inline options，必须使用独立 `configKind`、raw hash 与 schema
+  revision，并与 archive `tsconfig.json` 严格互斥；不得静默复用 frozen v1 field。
 - plugin 是 options 的唯一解释者. host/input manifest 只声明原始 bytes hash,
   不得声称 effective options fingerprint.
 - plugin 过滤用户配置后, 最后覆盖 target/module/moduleResolution/sourceMap/outDir/
   noEmitOnError 等 immutable profile; 禁止项直接诊断, 不静默执行.
-- effective options 使用 TypeScript enum canonical value, 显式默认值, 稳定 key
-  排序和规范化 URI/path 生成 canonical JSON.
-- output manifest 的 options fingerprint =
-  canonical effective options + profile revision + runtime capability fingerprint +
-  compiler distribution/declarations fingerprint.
+- controlled effective options 精确为 41 keys：历史 18-key inventory、16 个新增 C1
+  boolean key 与 7 个 TypeScript 6.0.3 profile pin；历史 config-none 18-key JSON 与
+  fingerprint 不变。
+- effective options 使用 TypeScript numeric enum、显式值、`types=[]`、UTF-16 code-unit
+  稳定 key 排序和 compact printable-ASCII JSON。
+- `effectiveOptionsFingerprint` 精确等于 canonical effective-options JSON bytes 的
+  lowercase SHA-256。它没有 domain separator，也不拼接 profile/config revision、raw
+  config、selectors、runtime capability、compiler distribution 或 declarations fingerprint；
+  这些 authority 分字段记录。M3 若需要 composite identity，必须另定义字段与 revision。
+- effective `strictNullChecks=false` 与 effective `exactOptionalPropertyTypes=true` 或
+  `strictPropertyInitialization=true` 的组合按 `CONFIG_INVALID_VALUE` 形成 typed config
+  diagnostics failure，不进入 Program。
 - request, manifest 和实际 archive bytes 任一 hash 不一致时以 integrity error 拒绝,
   不尝试猜测或合并.
+
+C2 additive metadata 为 `configSchemaRevision=2/configKind=tsconfig` 以及
+`configByteLength(Long)`、`configSha256`、`configPolicyRevision=1`、
+`configPolicyFingerprint`。service 必须识别这些 key：malformed/incomplete 返回
+`ERROR_INVALID_REQUEST`，unsupported authority 或完整但尚未公开激活的 controlled declaration 返回
+`ERROR_CONTRACT_MISMATCH`，均不接管 caller FD。历史 manifest revision 2/config-none exact
+shape 不变；revision 3 才携带 root `tsconfig.json` descriptor。
+
+controlled `projectInputConfigEnd` 的 ACK 是 parse、precedence、组合校验、canonical/fingerprint
+与 immutable state freeze 的原子 commit point；任一步失败都不 ACK，也不继续 source
+framing。成功 ACK 后 selectors 仍只保存给 C7。C7 完成前 project end fail closed，不创建
+Program、compiler result 或 output/diagnostics ZIP。config policy failure 目前只形成内部
+typed `stage=config/outcome=diagnostics/policyCode=CONFIG_*` terminal 并保持 output 为空；
+正式 diagnostics-only ZIP schema 仍由 M3 冻结。
+
+C4 还要求九个 active input frame handler 各自只接受 exact key set，拒绝 transformer/plugin
+注入字段；revision 2/3 archive、heap/file-backed snapshot 与 Worker VFS 逐层拒绝 reserved
+package/deferred path。Worker compiler host 只读 snapshot VFS，不使用 `ts.sys`、网络或 caller
+callback；`createIncrementalProgram` 只接收 `host/options/rootNames`，`emit()` 保持无参。
 
 ## 容器配额与 R2 语义配额
 
@@ -337,6 +457,25 @@ container/file/metadata/depth/ratio 的 R1 冻结规则和 exact inclusive limit
 [ZIP Archive Container v1](ARCHIVE_CONTAINER_V1.md) 为准. validator 会读取 raw
 local/central records 并按实际 streaming bytes 重算 CRC、size 和 ratio, 不信任
 manifest 或 ZIP header.
+
+P3a 已在 production native loader 上使用该 frozen input limit 和 streaming sink：
+64 MiB container、4096 entries、64 MiB actual uncompressed total、8 MiB/entry
+可以在不建立全 entry byte map 的情况下完成结构校验。plugin-owned declarations
+写入同一 VFS spool 后，revision 2 的 private native VFS index capacity 为 4607
+source/declaration files，revision 3 因 raw config 占用一个 caller archive entry 而为
+4606；storage envelope 均不超过 72 MiB（physical spool 另含唯一 request manifest，
+revision 3 还包含 offset-backed raw config）；
+这只是 `64 MiB caller input + 8 MiB trusted declarations` 的存储上界。
+
+P3b-a Worker 内部 direct-framing capacity 已对齐 4607 files、8 MiB/file、
+72 MiB，并用 complexity budgets 和 explicit release 约束 allocation shape；
+Android production admission 继续独立限制为 512 files、8 MiB/file、8 MiB
+total。P3b-b1 已增加 DEBUG device boundary 与 exact realm retirement，但仍不能
+推导 Public R2 已具备端到端 64 MiB 编译能力；P3b-b2a 增加 strict phase
+protocol、synthetic phase-entry stop 与主动 renderer loss/recovery，也不改变
+这一结论。四项 capability 与 0/54 Public checklist 均不变，必须由
+external-UID debug/minified-release、自然 mid-phase、重复大任务 PSS/cleanup、
+真实 LMK/OOM 与其余 P3b-b gates 另行关闭。
 
 以下是尚待 R2 冻结的项目语义配额, 不属于 ZIP v1 结构层:
 

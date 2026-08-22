@@ -1,0 +1,185 @@
+# R2-M2-C8 Declaration Profile Layering
+
+> **R2-M3-S1 binding（2026-08-14）。** Formal input revision 1 现在绑定所选 C8 exact
+> `declarationProfileFingerprint`，并由 plugin-local loader 派生 declaration inventory/count/bytes；
+> caller wire 不能提供这些本地 authority。见
+> [S1 Input Archive Schema v1](INPUT_ARCHIVE_SCHEMA_V1_R2_M3_S1.md)。本页的 M2 declaration source lock/provenance 继续保留。
+
+日期：2026-08-02
+
+状态：**internal C8 完成；production/public project compilation 仍未激活。**
+
+## 目标与边界
+
+C8 把 compiler-owned declarations 明确拆成 `common`、`rhino` 与 `node` 三层，并冻结
+每层来源、转换、资产清单和 fingerprint。Rhino Program 只能装入 `common + rhino`，Node
+Program 只能装入 `common + node`；声明入口是 compiler-only root，不得进入 caller
+`selectedRootNames`、emit inventory 或 output manifest 的 source roots。
+
+C8 不激活 provisional NodeNext profile，不改变 CommonJS/Node10 module semantics，不开放
+`.mts/.cts`，也不提升四项 public capability。P1/P2 仍负责 Node profile 与 module-kind/output
+规则，M3 再冻结 public R2 wire/output schema。
+
+## Authority 更正
+
+实施前重新核验了候选资产，而不是沿用相邻项目中的复制品：
+
+- 截至 2026-08-02，npm registry 实际公开的 `@sm003/autojs6-dts` 最新版是 `2.1.3`；
+  本机 Ace 镜像中的 `3.0.0`
+  不是 npm 发布物，不能被描述为 npm authority；
+- Rhino npm 包中的完整声明内容超过现有 8 MiB / Worker token envelope，且大文件在 TypeScript 6.0.3
+  下无法通过 `65,536 tokens/file` 与 `262,144 tokens/project`；C8 因而锁定 npm tarball
+  后执行 fail-closed conversion-v1，只投影由真实上游声明定义、且能在
+  `skipLibCheck=false` 下独立验证的核心全局 surface；
+- build 5253 的 Node declaration subtree 来自 AutoJs6 host commit
+  `1d74c57aee7d4f6e300acedee395da6110fc8954`。该提交尚未进入公开 AutoJs6 仓库，因此
+  C8 将 exact Git-blob snapshot vendoring 到本项目并逐文件锁 hash；clean build 不读取
+  本机兄弟仓库，也不伪造公开 raw URL。
+
+Rhino conversion-v1 只从 npm 2.1.3 的 `aj6-int-toast.d.ts`、`aj6-int-init.d.ts` 与
+`aj6-int-globals.d.ts` 提取 genuine `Internal.Toast`、`Toast` option types、`toast`、`$toast`、
+`HEIGHT`、`WIDTH`、三个 `sleep` overload 和 `toastLog`。转换要求输入 tarball、三个源文件
+和每条目标 declaration 精确匹配；缺失、重复或漂移均中止生成，而不是退化为空层或 canary。
+
+## 独立 distribution
+
+C8 不修改已冻结的 TypeScript/R1 distribution。新增资产根为：
+
+```text
+assets/r2-declarations/v1/
+  distribution.json
+  layers/common/binding.json
+  layers/rhino/index.d.ts
+  layers/node/*.d.ts
+  layers/node/package.json
+  licenses/rhino/MPL-2.0.txt
+  licenses/node/MPL-2.0.txt
+  notices/rhino-source.txt
+  notices/node-source.txt
+```
+
+`common` 继续引用 TypeScript 6.0.3 标准库的既有 authority：108 files、3,784,758 bytes、
+fingerprint `6ee5c0bce41694b8ca86430b82abfe4fbb60bf96321fba43e99d9810a44a1c1f`。
+`binding.json` 只是跨 distribution 绑定记录，不伪装成 common declaration，也不替换该
+fingerprint。
+
+生成后的 C8 authority 为：
+
+| Authority | files | bytes | Worker tokens | fingerprint |
+| --- | ---: | ---: | ---: | --- |
+| common | 108 | 3,784,758 | 86,329 | `6ee5c0bce41694b8ca86430b82abfe4fbb60bf96321fba43e99d9810a44a1c1f` |
+| rhino layer | 1 | 825 | 163 | `5101be87aa34b4fdc8f3b1a62fcac5ac54159bceaa95f2dd3e11a19a07adac22` |
+| node layer | 59 | 246,572 | 39,167 | `f38e4e384cd67fdad4134aa0400ba164704c987ee9683327fbe3eacdfa134603` |
+
+Rhino profile fingerprint 为
+`eebe5ac0a8ca346a0a2c7951af9feb31cfb3a90073e763d978d4fa4bc1620cd6`，Node profile
+fingerprint 为 `8cec5b8e610960a522cab3520784ceccd7bf6f4a008e79503e209b04b65012c4`。
+独立 distribution 共 66 个 manifest-owned 文件、282,563 bytes，fingerprint 为
+`7de0b902551ba283145119bf8a86fac14e56c0d99d4477e35d93394e7eb0fc60`。
+
+Manifest 使用 exact-key schema。顶层固定包含 `schemaVersion`、`generator`、`sources`、
+`layers`、`profiles`、`files` 与 `fingerprint`：
+
+- `files` 是除 manifest 自身外所有 packaged bytes 的 sorted exact inventory；
+- engine layer fingerprint 使用 `path NUL size NUL sha256 LF` 绑定真实 `.d.ts` inventory；
+- Rhino profile fingerprint 域分隔绑定 profile id、ordered `common/rhino` layer
+  name/fingerprint 以及 Rhino entry point；Node 对 `common/node` 做同样计算；
+- distribution fingerprint 继续绑定 generator、source descriptors、layer/profile
+  fingerprints 与全局 packaged inventory。
+
+下载、生成与验证使用独立 staging/output root。验证任务重新读取 locked source 和输出，拒绝
+symlink、absolute/traversal path、非 UTF-8、case-fold collision、missing、extra、size/hash
+漂移及 license/source identity 漂移。Debug/Release APK gate 再对签名候选中的完整 asset
+prefix 做 exact inventory 对照。
+
+## Runtime 与 Program 隔离
+
+Runtime 先独立验证 TypeScript standard-library manifest，再验证 C8 manifest 与所有实际
+asset bytes。`R2TrustedDeclarations.fingerprint` 保留 R1/common identity；新增
+profile/layer identities 仅用于 R2 internal declaration authority，避免在 M3 前重解释冻结的
+R1 metadata key。
+
+在 C8 关闭时，production registry 只选择 Rhino，因此 snapshot 只 materialize：
+
+```text
+/declarations/lib*.d.ts
+/declarations/rhino/index.d.ts
+```
+
+P1 随后已把 Node layer 接入 internal/debug-only、config-none 的 NodeNext revision 1 snapshot；
+public/production-shaped admission 仍保持 Rhino-only，不能由 public caller 选择 Node。
+上游 Node snapshot 中 `input_observer.d.ts` 是 `index.d.ts` 不可达的唯一孤儿；它仍被 source
+lock、layer fingerprint、runtime asset hash 与 APK exact inventory 覆盖，但不会被追加为第二个
+compiler root。真实 Program 必须精确装入其余 58 个 index-reachable Node declarations。
+Worker 在 ingress 和 Program VFS 两处执行双向隔离：Rhino project 拒绝任何
+`/declarations/node/**`，Node project 拒绝任何 `/declarations/rhino/**`；所选 layer 若缺少
+canonical entry，也会在 Program 前失败。
+
+Worker 分开保留两个 root 集合：
+
+- `rootNames`：caller/config 选择的 canonical `/sources/*.ts`，继续返回并绑定 output；
+- `compilerRootNames`：`rootNames` 加当前 profile 的 compiler-owned declaration entry，只传给
+  `createIncrementalProgram`。
+
+Program 创建后必须精确回报 `compilerRootNames`，但 result 中仍只能出现 caller
+`rootNames`。Declaration files 不进入 executable source/emit accounting。
+
+## 预算
+
+C8 不改变任何生产常量：ordinary admission 仍为 512 files、8 MiB/file、8 MiB total；Worker
+仍为 65,536 tokens/file、262,144 tokens/project。Common declarations 计入既有 snapshot
+预算，selected engine layer 也继续计入，不能通过“trusted”身份绕过 file、byte、path 或 token
+fence。
+
+当前 profile 的原始 caller 余量（尚未扣除 caller config/package 等其他输入）为：
+
+| Profile | trusted files / bytes / tokens | caller 剩余 files / bytes / tokens |
+| --- | --- | --- |
+| production Rhino | 109 / 3,785,583 / 86,492 | 403 / 4,603,025 / 175,652 |
+| verification-only Node | 167 / 4,031,330 / 125,496 | 345 / 4,357,278 / 136,648 |
+
+最大 common 文件仍是 `lib.dom.d.ts`（2,349,483 bytes / 34,857 tokens）；最大 Node 文件是
+`autojs_global.d.ts`（42,003 bytes / 5,407 tokens）。两者均未改变或逼近既有 per-file fence。
+
+## 验收结果
+
+C8 专属 gate 已同时证明：
+
+- source lock、deterministic generation、tamper/missing/extra/collision 与 Debug/Release APK
+  exact inventory；
+- Kotlin runtime loader 的 common binding、profile selection、实际 asset hash 和 entry point；
+- Rhino genuine `toast/sleep` 正例以及 Node `autojs6:profile` TS2307 反例；
+- Node `autojs6:profile`/`toast` module 正例以及 Rhino-only `toast()`/`sleep()` 两个 TS2304
+  反例；
+- 两个真实 Program 的 source inventory 无反向 layer，compiler-only roots 不污染
+  selected roots 或 emit；
+- config-none exact shape、R1 metadata/AIDL freeze、public capability=false 与 C1-C7/C6
+  aggregate gates 无回归。
+
+2026-08-02 的串行结果：
+
+- build-logic 完整 suite：19 tests PASS，覆盖 deterministic generation、tamper、missing、
+  extra、source hash、tar symlink 与 case-fold collision；
+- `:app:verifyR2M2C8DeclarationProgramLayering`：TypeScript 6.0.3、2 种 Program API、4/4
+  profile isolation PASS；
+- `:app:verifyR2M2C8DeclarationWorkerLayering`：compiler-only/user roots 为 1/1、Node 双层
+  rejection 为 2、legacy common-only 为 1；
+- `:app:verifyR2M2C8DeclarationLayering`：265 tasks，Debug/Release APK 均以 67 entries
+  exact inventory PASS；
+- `:app:verifyR2ProjectCompilerCore`：495 tasks，完整 R2 compiler core PASS。
+
+统一执行形式为：
+
+```powershell
+.\gradlew.bat --no-daemon "-Pkotlin.compiler.execution.strategy=in-process" `
+  :app:verifyR2M2C8DeclarationLayering
+.\gradlew.bat --no-daemon "-Pkotlin.compiler.execution.strategy=in-process" `
+  :app:verifyR2ProjectCompilerCore
+```
+
+## 后续
+
+C8 关闭后，`R2-M2-P1` 已把锁定的 Node declaration layer 接入 internal/debug-only、
+config-none 的 provisional NodeNext revision 1，并通过 production Worker framed gate；它仍只
+接受 `.ts -> .js`，且不表示 Node compiler profile 已对 public caller 激活。下一项
+`R2-M2-P2` 负责冻结 `.ts/.mts/.cts` module-kind、resolver v2 与 output/generated URI rules。
