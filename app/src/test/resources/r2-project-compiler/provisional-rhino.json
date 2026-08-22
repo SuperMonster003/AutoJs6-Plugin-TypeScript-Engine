@@ -1,0 +1,193 @@
+{
+  "fixtureRevision": 1,
+  "targetProfile": "rhino",
+  "profileAuthority": {
+    "profileSchemaRevision": 1,
+    "profileRevision": 1,
+    "configSchemaRevision": 1,
+    "configKind": "none"
+  },
+  "effectiveOptions": {
+    "allowJs": false,
+    "checkJs": false,
+    "ignoreDeprecations": "6.0",
+    "incremental": false,
+    "inlineSourceMap": false,
+    "inlineSources": false,
+    "module": 1,
+    "moduleResolution": 2,
+    "newLine": 1,
+    "noEmitOnError": true,
+    "noLib": false,
+    "outDir": "/outputs",
+    "rootDir": "/sources",
+    "skipLibCheck": false,
+    "sourceMap": true,
+    "strict": true,
+    "target": 5,
+    "types": []
+  },
+  "rootNames": [
+    "/sources/dependency.ts",
+    "/sources/main.ts"
+  ],
+  "commonFiles": [
+    {
+      "path": "/declarations/lib.d.ts",
+      "text": "interface Array<T> { readonly length: number; [n: number]: T; }\ninterface Boolean {}\ninterface CallableFunction extends Function {}\ninterface Function {}\ninterface IArguments { length: number; [n: number]: any; }\ninterface NewableFunction extends Function {}\ninterface Number {}\ninterface Object {}\ninterface RegExp {}\ninterface String {}\n"
+    },
+    {
+      "path": "/sources/dependency.ts",
+      "text": "export const answer: number = 21;\n"
+    }
+  ],
+  "success": {
+    "mainSource": "import { answer } from \"./dependency\";\nexport const doubled: number = answer * 2;\n",
+    "outputs": [
+      {
+        "path": "/outputs/dependency.js",
+        "bytes": 161,
+        "sha256": "8d2d8a9fc42748f15fcd20b847ac17b04d95c968d1be16e284fd64ff3418d9e7"
+      },
+      {
+        "path": "/outputs/dependency.js.map",
+        "bytes": 148,
+        "sha256": "673783a8b1a6e1c2dd6352e2bb8bff71e82f8003011356e43870a59e22c57faa"
+      },
+      {
+        "path": "/outputs/main.js",
+        "bytes": 224,
+        "sha256": "1a6905122061abe3d40c53327a9c3ed85c227eb2a8328f50747050a4b515fcaa"
+      },
+      {
+        "path": "/outputs/main.js.map",
+        "bytes": 160,
+        "sha256": "a857739c69c7204ece66c4fba468dc9417ecfd8827eecf29b0900cbc0409d256"
+      }
+    ]
+  },
+  "semanticError": {
+    "mainSource": "import { answer } from \"./dependency\";\nexport const text: string = answer;\n",
+    "diagnostic": {
+      "phase": "semantic",
+      "category": 1,
+      "code": 2322,
+      "message": "Type 'number' is not assignable to type 'string'.",
+      "sourcePath": "/sources/main.ts",
+      "start": 52,
+      "length": 4,
+      "line": 2,
+      "column": 14
+    }
+  },
+  "declarationError": {
+    "rootNames": [
+      "/sources/main.ts"
+    ],
+    "libraryText": "interface Array<T> { readonly length: number; [n: number]: T; }\ninterface Boolean {}\ninterface CallableFunction extends Function {}\ninterface Function {}\ninterface IArguments { length: number; [n: number]: any; }\ninterface NewableFunction extends Function {}\ninterface Number {}\ninterface Object {}\ninterface RegExp {}\ninterface String {}\ninterface Broken { value: ; }\n",
+    "mainSource": "export const value: number = 1;\n",
+    "diagnostic": {
+      "phase": "syntactic",
+      "category": 1,
+      "code": 1110,
+      "message": "Type expected.",
+      "sourcePath": "/declarations/lib.d.ts",
+      "start": 365,
+      "length": 1,
+      "line": 11,
+      "column": 27
+    }
+  },
+  "sourceDeclarationError": {
+    "rootNames": [
+      "/sources/main.ts"
+    ],
+    "files": [
+      {
+        "path": "/sources/types.d.ts",
+        "text": "export interface Broken { value: ; }\n"
+      },
+      {
+        "path": "/sources/main.ts",
+        "text": "import type { Broken } from \"./types\";\nexport const value: number = 1;\n"
+      }
+    ],
+    "diagnostic": {
+      "phase": "syntactic",
+      "category": 1,
+      "code": 1110,
+      "message": "Type expected.",
+      "sourcePath": "/sources/types.d.ts",
+      "start": 33,
+      "length": 1,
+      "line": 1,
+      "column": 34
+    }
+  },
+  "typeOnlyRootImport": {
+    "rootNames": [
+      "/sources/model.ts",
+      "/sources/type-consumer.ts"
+    ],
+    "files": [
+      {
+        "path": "/sources/model.ts",
+        "text": "export interface Model { readonly value: number; }\n"
+      },
+      {
+        "path": "/sources/type-consumer.ts",
+        "text": "import type { Model } from \"./model\";\nexport const model: Model = { value: 42 };\n"
+      }
+    ],
+    "outputs": [
+      {
+        "path": "/outputs/model.js",
+        "bytes": 110,
+        "sha256": "3f07ae96f6136ed954645f44d9f06a3099babc4760b129f4f26da154b0f2c543",
+        "sourcePaths": [
+          "/sources/model.ts"
+        ]
+      },
+      {
+        "path": "/outputs/model.js.map",
+        "bytes": 106,
+        "sha256": "4284383109f740e2e480268a08bf51ec98816cea7b2aa02a9a734f492803b71c",
+        "sourcePaths": [
+          "/sources/model.ts"
+        ],
+        "sourceMap": {
+          "file": "model.js",
+          "sourceRoot": "",
+          "sources": [
+            "../sources/model.ts"
+          ],
+          "mappingsEmpty": true
+        }
+      },
+      {
+        "path": "/outputs/type-consumer.js",
+        "bytes": 173,
+        "sha256": "c9714ea62f2efc218fe7e4843a02867323226d4faa3c44f24a7eb2c841073626",
+        "sourcePaths": [
+          "/sources/type-consumer.ts"
+        ]
+      },
+      {
+        "path": "/outputs/type-consumer.js.map",
+        "bytes": 174,
+        "sha256": "af529b6017e41cd8e80919852293367aeefb3cc5abdf668acb57efa30483ce61",
+        "sourcePaths": [
+          "/sources/type-consumer.ts"
+        ],
+        "sourceMap": {
+          "file": "type-consumer.js",
+          "sourceRoot": "",
+          "sources": [
+            "../sources/type-consumer.ts"
+          ],
+          "mappingsEmpty": false
+        }
+      }
+    ]
+  }
+}

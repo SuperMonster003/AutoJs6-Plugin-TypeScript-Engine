@@ -1,0 +1,45 @@
+{
+  "schema": "autojs6.typescript.node-package-target-policy",
+  "schemaRevision": 1,
+  "policyRevision": 2,
+  "fingerprint": "175cc694dae3e925d66eac3f77f308c95dc0db7b939238a33022d27812578224",
+  "profileSchemaRevision": 1,
+  "profileRevision": 2,
+  "nodeModuleOutputPolicySchemaRevision": 1,
+  "nodeModuleOutputPolicyRevision": 1,
+  "nodeModuleOutputPolicyFingerprint": "5c2294f0ee9d6d25bd2132b4ea24866d0a5f9caaa521a63bf81ffe1d897f6ce7",
+  "resolverPolicyRevision": 2,
+  "resolverConditionSource": "implied-module-format",
+  "resolverTrustedCustomConditionCount": 0,
+  "packageMetadataPolicyFingerprint": "fab8fec29ed0f0a1de65594620e233c9a9bef2fa514dac16c3079d5570325e97",
+  "dependencyRootPrefix": "packages/",
+  "inventoryCanonicalDomain": "autojs6.typescript.node-package-target.inventory.v2",
+  "metadataBindingMode": "exact-c5-inventory-fingerprint",
+  "sharedAggregateBudgetMode": "required-non-additive",
+  "safeRelativePathGrammar": "^[A-Za-z0-9@._/+~-]+$",
+  "sourceKindMode": "declaration-first-exact-lowercase",
+  "allowedExecutableSuffixes": [".ts", ".mts", ".cts"],
+  "allowedDeclarationSuffixes": [".d.ts", ".d.mts", ".d.cts"],
+  "v1Compatibility": "unchanged-reject-new-kinds",
+  "budgets": {
+    "maximumFiles": 256,
+    "maximumPathChars": 1024,
+    "maximumAggregatePathChars": 32768,
+    "maximumFileBytes": 8388608,
+    "maximumTotalBytes": 8388608
+  },
+  "policyCodes": [
+    "PACKAGE_TARGET_PATH_INVALID",
+    "PACKAGE_TARGET_ROOT_NOT_ALLOWED",
+    "PACKAGE_TARGET_SOURCE_KIND_UNSUPPORTED",
+    "PACKAGE_TARGET_INVENTORY_INVALID",
+    "PACKAGE_TARGET_CASE_COLLISION",
+    "PACKAGE_TARGET_QUOTA_EXCEEDED",
+    "PACKAGE_TARGET_METADATA_IDENTITY_INVALID"
+  ],
+  "example": {
+    "packageMetadataInventoryFingerprint": "15b6208eccedc31e14cb18fe085762066e1668d3652e44319e4813e0a57ef447",
+    "canonicalInput": "autojs6.typescript.node-package-target.inventory.v2|packageMetadataInventoryFingerprint=15b6208eccedc31e14cb18fe085762066e1668d3652e44319e4813e0a57ef447|file=packages/pkg/index.mts,source,0,e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fingerprint": "342a64aeef906a0b89360c60e1e2b22e684d03fec324463868c4fe4458281487"
+  }
+}

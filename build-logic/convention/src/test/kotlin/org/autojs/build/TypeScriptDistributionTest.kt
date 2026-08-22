@@ -428,9 +428,7 @@ class TypeScriptDistributionTest {
         transform: (ByteArray) -> ByteArray,
     ): File {
         val expanded = Files.newInputStream(source.toPath()).use { sourceInput ->
-            GzipCompressorInputStream.builder()
-                .setInputStream(sourceInput)
-                .get()
+            GzipCompressorInputStream(sourceInput)
                 .use { gzipInput -> gzipInput.readBytes() }
         }
         return File(temporaryFolder.root, name).apply {

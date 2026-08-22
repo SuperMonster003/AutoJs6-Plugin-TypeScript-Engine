@@ -1,0 +1,50 @@
+{
+  "schema": "autojs6.typescript.compiler-escape-policy",
+  "revision": 1,
+  "fingerprint": "ac6acb29d2c544584a84a4c5fe5828e5d7958755aade00cebf224191faf0a9fb",
+  "configPolicyFingerprint": "849f882618d294d61683cc5930ecd4855f53435d7a673ceda08ad127504fa24d",
+  "inlineCompilerOptionsJson": "{}",
+  "escapeForbiddenCompilerOptions": [
+    "baseUrl",
+    "customConditions",
+    "lib",
+    "moduleSuffixes",
+    "paths",
+    "plugins",
+    "rootDirs",
+    "traceResolution",
+    "typeRoots",
+    "types"
+  ],
+  "customTransformerOptionNames": [
+    "customTransformer",
+    "customTransformers",
+    "transformers"
+  ],
+  "forbiddenPackageMetadataKeys": [
+    "scripts"
+  ],
+  "forbiddenPackageFileNames": [
+    "package.json"
+  ],
+  "forbiddenPackagePathSegments": [
+    "node_modules"
+  ],
+  "deferredNodeSourceSuffixes": [
+    ".cts",
+    ".mts"
+  ],
+  "fixedWorkerImportScript": "typescript.js",
+  "forbiddenWorkerNetworkGlobals": [
+    "EventSource",
+    "RTCPeerConnection",
+    "SharedWorker",
+    "WebSocket",
+    "WebTransport",
+    "XMLHttpRequest",
+    "fetch",
+    "navigator.sendBeacon"
+  ],
+  "binderMetadataMode": "primitive-additive-no-executable-authority",
+  "hostIoMode": "snapshot-only-no-ts-sys"
+}

@@ -1,0 +1,125 @@
+{
+  "schema": "autojs6.typescript.controlled-tsconfig-effective-options",
+  "revision": 1,
+  "profileSchemaRevision": 1,
+  "profileRevision": 1,
+  "configSchemaRevision": 2,
+  "configKind": "tsconfig",
+  "canonicalOptionKeys": [
+    "allowJs",
+    "allowSyntheticDefaultImports",
+    "alwaysStrict",
+    "checkJs",
+    "esModuleInterop",
+    "exactOptionalPropertyTypes",
+    "forceConsistentCasingInFileNames",
+    "ignoreDeprecations",
+    "incremental",
+    "inlineSourceMap",
+    "inlineSources",
+    "module",
+    "moduleDetection",
+    "moduleResolution",
+    "newLine",
+    "noEmitOnError",
+    "noFallthroughCasesInSwitch",
+    "noImplicitAny",
+    "noImplicitOverride",
+    "noImplicitReturns",
+    "noImplicitThis",
+    "noLib",
+    "noPropertyAccessFromIndexSignature",
+    "noUncheckedIndexedAccess",
+    "noUnusedLocals",
+    "noUnusedParameters",
+    "outDir",
+    "resolveJsonModule",
+    "rootDir",
+    "skipLibCheck",
+    "sourceMap",
+    "strict",
+    "strictBindCallApply",
+    "strictBuiltinIteratorReturn",
+    "strictFunctionTypes",
+    "strictNullChecks",
+    "strictPropertyInitialization",
+    "target",
+    "types",
+    "useDefineForClassFields",
+    "useUnknownInCatchVariables"
+  ],
+  "accepted": [
+    {
+      "name": "explicit-defaults",
+      "explicitBooleanOptions": {},
+      "canonicalJson": "{\"allowJs\":false,\"allowSyntheticDefaultImports\":true,\"alwaysStrict\":true,\"checkJs\":false,\"esModuleInterop\":true,\"exactOptionalPropertyTypes\":false,\"forceConsistentCasingInFileNames\":true,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":1,\"moduleDetection\":2,\"moduleResolution\":2,\"newLine\":1,\"noEmitOnError\":true,\"noFallthroughCasesInSwitch\":false,\"noImplicitAny\":true,\"noImplicitOverride\":false,\"noImplicitReturns\":false,\"noImplicitThis\":true,\"noLib\":false,\"noPropertyAccessFromIndexSignature\":false,\"noUncheckedIndexedAccess\":false,\"noUnusedLocals\":false,\"noUnusedParameters\":false,\"outDir\":\"/outputs\",\"resolveJsonModule\":false,\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true,\"strict\":true,\"strictBindCallApply\":true,\"strictBuiltinIteratorReturn\":true,\"strictFunctionTypes\":true,\"strictNullChecks\":true,\"strictPropertyInitialization\":true,\"target\":5,\"types\":[],\"useDefineForClassFields\":false,\"useUnknownInCatchVariables\":true}",
+      "fingerprint": "2d8daf5f2f3516c9684f8e4659f51dfb9b037d21849bc2bbafca2fbaf034bd42"
+    },
+    {
+      "name": "strict-false-inheritance",
+      "explicitBooleanOptions": {"strict": false},
+      "canonicalJson": "{\"allowJs\":false,\"allowSyntheticDefaultImports\":true,\"alwaysStrict\":true,\"checkJs\":false,\"esModuleInterop\":true,\"exactOptionalPropertyTypes\":false,\"forceConsistentCasingInFileNames\":true,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":1,\"moduleDetection\":2,\"moduleResolution\":2,\"newLine\":1,\"noEmitOnError\":true,\"noFallthroughCasesInSwitch\":false,\"noImplicitAny\":false,\"noImplicitOverride\":false,\"noImplicitReturns\":false,\"noImplicitThis\":false,\"noLib\":false,\"noPropertyAccessFromIndexSignature\":false,\"noUncheckedIndexedAccess\":false,\"noUnusedLocals\":false,\"noUnusedParameters\":false,\"outDir\":\"/outputs\",\"resolveJsonModule\":false,\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true,\"strict\":false,\"strictBindCallApply\":false,\"strictBuiltinIteratorReturn\":false,\"strictFunctionTypes\":false,\"strictNullChecks\":false,\"strictPropertyInitialization\":false,\"target\":5,\"types\":[],\"useDefineForClassFields\":false,\"useUnknownInCatchVariables\":false}",
+      "fingerprint": "b8d434800163fc2aa8d87f237d667dbd3744c3ce7e714adaa5405b25c22e8dbe"
+    },
+    {
+      "name": "strict-false-child-true",
+      "explicitBooleanOptions": {"strict": false, "noImplicitAny": true},
+      "canonicalJson": "{\"allowJs\":false,\"allowSyntheticDefaultImports\":true,\"alwaysStrict\":true,\"checkJs\":false,\"esModuleInterop\":true,\"exactOptionalPropertyTypes\":false,\"forceConsistentCasingInFileNames\":true,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":1,\"moduleDetection\":2,\"moduleResolution\":2,\"newLine\":1,\"noEmitOnError\":true,\"noFallthroughCasesInSwitch\":false,\"noImplicitAny\":true,\"noImplicitOverride\":false,\"noImplicitReturns\":false,\"noImplicitThis\":false,\"noLib\":false,\"noPropertyAccessFromIndexSignature\":false,\"noUncheckedIndexedAccess\":false,\"noUnusedLocals\":false,\"noUnusedParameters\":false,\"outDir\":\"/outputs\",\"resolveJsonModule\":false,\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true,\"strict\":false,\"strictBindCallApply\":false,\"strictBuiltinIteratorReturn\":false,\"strictFunctionTypes\":false,\"strictNullChecks\":false,\"strictPropertyInitialization\":false,\"target\":5,\"types\":[],\"useDefineForClassFields\":false,\"useUnknownInCatchVariables\":false}",
+      "fingerprint": "27d1f63a361faadc0fe8fce7d3aa1f2686acfa0d4c66181a3b6be0db6e067d22"
+    },
+    {
+      "name": "strict-true-child-false",
+      "explicitBooleanOptions": {"strict": true, "noImplicitAny": false},
+      "canonicalJson": "{\"allowJs\":false,\"allowSyntheticDefaultImports\":true,\"alwaysStrict\":true,\"checkJs\":false,\"esModuleInterop\":true,\"exactOptionalPropertyTypes\":false,\"forceConsistentCasingInFileNames\":true,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":1,\"moduleDetection\":2,\"moduleResolution\":2,\"newLine\":1,\"noEmitOnError\":true,\"noFallthroughCasesInSwitch\":false,\"noImplicitAny\":false,\"noImplicitOverride\":false,\"noImplicitReturns\":false,\"noImplicitThis\":true,\"noLib\":false,\"noPropertyAccessFromIndexSignature\":false,\"noUncheckedIndexedAccess\":false,\"noUnusedLocals\":false,\"noUnusedParameters\":false,\"outDir\":\"/outputs\",\"resolveJsonModule\":false,\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true,\"strict\":true,\"strictBindCallApply\":true,\"strictBuiltinIteratorReturn\":true,\"strictFunctionTypes\":true,\"strictNullChecks\":true,\"strictPropertyInitialization\":true,\"target\":5,\"types\":[],\"useDefineForClassFields\":false,\"useUnknownInCatchVariables\":true}",
+      "fingerprint": "34e5ca9103836bea23f799ac9f11304ad19be043365cf1df4557ea0e6a55e6db"
+    },
+    {
+      "name": "strict-null-disabled-valid",
+      "explicitBooleanOptions": {"strict": true, "strictNullChecks": false, "strictPropertyInitialization": false},
+      "canonicalJson": "{\"allowJs\":false,\"allowSyntheticDefaultImports\":true,\"alwaysStrict\":true,\"checkJs\":false,\"esModuleInterop\":true,\"exactOptionalPropertyTypes\":false,\"forceConsistentCasingInFileNames\":true,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":1,\"moduleDetection\":2,\"moduleResolution\":2,\"newLine\":1,\"noEmitOnError\":true,\"noFallthroughCasesInSwitch\":false,\"noImplicitAny\":true,\"noImplicitOverride\":false,\"noImplicitReturns\":false,\"noImplicitThis\":true,\"noLib\":false,\"noPropertyAccessFromIndexSignature\":false,\"noUncheckedIndexedAccess\":false,\"noUnusedLocals\":false,\"noUnusedParameters\":false,\"outDir\":\"/outputs\",\"resolveJsonModule\":false,\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true,\"strict\":true,\"strictBindCallApply\":true,\"strictBuiltinIteratorReturn\":true,\"strictFunctionTypes\":true,\"strictNullChecks\":false,\"strictPropertyInitialization\":false,\"target\":5,\"types\":[],\"useDefineForClassFields\":false,\"useUnknownInCatchVariables\":true}",
+      "fingerprint": "cad86da02fa01f88bc9906a62c5a01704f58dfe650bf5ed40d403ac1b4117531"
+    },
+    {
+      "name": "full-allowlist-mixed",
+      "explicitBooleanOptions": {
+        "strict": false,
+        "noImplicitAny": true,
+        "strictNullChecks": true,
+        "strictFunctionTypes": true,
+        "strictBindCallApply": false,
+        "strictPropertyInitialization": true,
+        "strictBuiltinIteratorReturn": false,
+        "noImplicitThis": true,
+        "useUnknownInCatchVariables": false,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "exactOptionalPropertyTypes": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "noUncheckedIndexedAccess": true,
+        "noImplicitOverride": true,
+        "noPropertyAccessFromIndexSignature": true,
+        "skipLibCheck": true
+      },
+      "canonicalJson": "{\"allowJs\":false,\"allowSyntheticDefaultImports\":true,\"alwaysStrict\":true,\"checkJs\":false,\"esModuleInterop\":true,\"exactOptionalPropertyTypes\":true,\"forceConsistentCasingInFileNames\":true,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":1,\"moduleDetection\":2,\"moduleResolution\":2,\"newLine\":1,\"noEmitOnError\":true,\"noFallthroughCasesInSwitch\":true,\"noImplicitAny\":true,\"noImplicitOverride\":true,\"noImplicitReturns\":true,\"noImplicitThis\":true,\"noLib\":false,\"noPropertyAccessFromIndexSignature\":true,\"noUncheckedIndexedAccess\":true,\"noUnusedLocals\":true,\"noUnusedParameters\":true,\"outDir\":\"/outputs\",\"resolveJsonModule\":false,\"rootDir\":\"/sources\",\"skipLibCheck\":true,\"sourceMap\":true,\"strict\":false,\"strictBindCallApply\":false,\"strictBuiltinIteratorReturn\":false,\"strictFunctionTypes\":true,\"strictNullChecks\":true,\"strictPropertyInitialization\":true,\"target\":5,\"types\":[],\"useDefineForClassFields\":false,\"useUnknownInCatchVariables\":false}",
+      "fingerprint": "eb37acf3d350023e2efce015ba901e7c4d2d739714b05b37366a90cc221d1890"
+    }
+  ],
+  "rejected": [
+    {
+      "name": "strict-false-exact-optional-true",
+      "explicitBooleanOptions": {"strict": false, "exactOptionalPropertyTypes": true},
+      "policyCode": "CONFIG_INVALID_VALUE"
+    },
+    {
+      "name": "strict-false-property-initialization-true",
+      "explicitBooleanOptions": {"strict": false, "strictPropertyInitialization": true},
+      "policyCode": "CONFIG_INVALID_VALUE"
+    },
+    {
+      "name": "strict-null-disabled-inherited-property-initialization",
+      "explicitBooleanOptions": {"strict": true, "strictNullChecks": false},
+      "policyCode": "CONFIG_INVALID_VALUE"
+    }
+  ]
+}

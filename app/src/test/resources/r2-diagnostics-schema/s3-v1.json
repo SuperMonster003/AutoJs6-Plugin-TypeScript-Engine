@@ -1,0 +1,147 @@
+{
+  "schema": "autojs6.typescript.r2-m3-s3.diagnostics-schema",
+  "revision": 1,
+  "decision": "formal-diagnostics-v1-with-project-scoped-uri-utf16-range-related-information-and-bounded-document",
+  "publicContract": {
+    "schemaRevisionKey": "diagnosticsSchemaRevision",
+    "schemaName": "autojs6.typescript.diagnostics",
+    "schemaRevision": 1,
+    "diagnosticsPath": "diagnostics.json",
+    "acceptedSchemaRevisions": [1],
+    "rejectedLegacyIdentities": ["autojs6.typescript.diagnostics.provisional@2"],
+    "unknownRevisionPolicy": "fail-closed"
+  },
+  "documentShape": {
+    "topLevelKeys": [
+      "schema",
+      "revision",
+      "diagnosticsQuotaRevision",
+      "requestId",
+      "projectId",
+      "targetProfile",
+      "profileSchemaRevision",
+      "profileRevision",
+      "configSchemaRevision",
+      "configKind",
+      "positionEncoding",
+      "lineBase",
+      "columnBase",
+      "diagnosticCount",
+      "relatedInformationCount",
+      "diagnostics"
+    ],
+    "diagnosticCountMatchesArray": true,
+    "relatedInformationCountMatchesNestedArrays": true,
+    "canonicalUtf8": true
+  },
+  "primaryDiagnosticShape": {
+    "baseKeys": [
+      "phase",
+      "uri",
+      "range",
+      "category",
+      "code",
+      "message",
+      "relatedInformation"
+    ],
+    "nodeResolutionConditionalKey": "nodeResolution",
+    "phaseOrder": ["options", "syntactic", "global", "resolution", "semantic", "emit"],
+    "uriNullable": true,
+    "rangeNullable": true,
+    "relatedInformationAlwaysArray": true
+  },
+  "relatedInformationShape": {
+    "keys": ["uri", "range", "category", "code", "message"],
+    "phaseInheritedFromPrimaryForPathAdmission": true,
+    "uriNullable": true,
+    "rangeNullable": true,
+    "canonicalOrder": ["uri", "range", "category", "code", "message"]
+  },
+  "uriPolicy": {
+    "scheme": "autojs",
+    "authority": "source",
+    "namespace": "p-<lower-sha256(projectId-utf8)>",
+    "pathDomains": ["sources", "declarations", "packages"],
+    "segmentEncoding": "uppercase-percent-encoded-strict-utf8-unreserved-pass-through",
+    "entrySelectionIndependent": true,
+    "sourceDomainMatchesGeneratedMappingOriginalUri": true,
+    "maximumAsciiCharacters": 4096
+  },
+  "rangePolicy": {
+    "keys": ["start", "length", "line", "column"],
+    "positionEncoding": "utf-16-code-unit",
+    "startAndLengthBase": 0,
+    "lineBase": 1,
+    "columnBase": 1,
+    "partialRangePolicy": "reject",
+    "nullUriRequiresNullRange": true,
+    "uriMayHaveNullRange": true
+  },
+  "categories": {
+    "warning": 0,
+    "error": 1,
+    "suggestion": 2,
+    "message": 3
+  },
+  "limits": {
+    "quotaRevision": 1,
+    "maximumDiagnostics": 1000,
+    "maximumDocumentUtf8Bytes": 524288,
+    "maximumRelatedInformationPerDiagnostic": 1000,
+    "maximumRelatedInformationTotal": 1000,
+    "maximumMessageUtf16Characters": 4096,
+    "boundariesInclusive": true,
+    "legacyTransportMaximumDiagnostics": 10000,
+    "legacyTransportMaximumDiagnosticsBytes": 8388608,
+    "legacyTransportIsOrdinarySchemaAuthority": false
+  },
+  "consumerFixture": {
+    "schema": "autojs6.typescript.diagnostics",
+    "revision": 1,
+    "diagnosticsQuotaRevision": 1,
+    "requestId": "diagnostics-schema-request",
+    "projectId": "diagnostics-schema-project",
+    "targetProfile": "rhino",
+    "profileSchemaRevision": 1,
+    "profileRevision": 1,
+    "configSchemaRevision": 1,
+    "configKind": "none",
+    "positionEncoding": "utf-16-code-unit",
+    "lineBase": 1,
+    "columnBase": 1,
+    "diagnosticCount": 1,
+    "relatedInformationCount": 1,
+    "diagnostics": [
+      {
+        "phase": "semantic",
+        "uri": "autojs://source/p-9876095ce2297318967f87b9d9e90bd863e8c90940a23bb3b74079cfaa74526a/sources/nested/hash%23%20percent%25.ts",
+        "range": {"start": 7, "length": 5, "line": 2, "column": 3},
+        "category": 1,
+        "code": 2322,
+        "message": "Type mismatch.",
+        "relatedInformation": [
+          {
+            "uri": "autojs://source/p-9876095ce2297318967f87b9d9e90bd863e8c90940a23bb3b74079cfaa74526a/declarations/lib.d.ts",
+            "range": {"start": 11, "length": 4, "line": 3, "column": 2},
+            "category": 3,
+            "code": 6500,
+            "message": "Declared here."
+          }
+        ]
+      }
+    ]
+  },
+  "failurePolicy": {
+    "oversizedDocument": "output-transport-failure-empty-output-no-retry",
+    "countOverflow": "fail-before-archive-commit",
+    "invalidUriOrRange": "fail-before-archive-commit",
+    "relatedInformationOutsideAcceptedSnapshot": "fail-before-archive-commit"
+  },
+  "promotionState": {
+    "typescriptCompilerAvailable": false,
+    "typescriptProjectCompilation": false,
+    "typescriptSemanticDiagnostics": false,
+    "typescriptSourceMapV3": false,
+    "nodeRuntimeRequired": false
+  }
+}

@@ -2,22 +2,33 @@ package io.github.supermonster003.autojs6.plugin.typescript
 
 import android.app.Service
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.Bundle
 import android.os.IBinder
 import android.os.Parcel
 import android.os.ParcelFileDescriptor
 import android.os.Parcelable
+import android.os.Process
+import android.os.SystemClock
+import android.system.Os
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import org.autojs.plugin.typescript.api.ITypeScriptCompilationCallback
 import org.autojs.plugin.typescript.api.ITypeScriptCompilerPlugin
 import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
+import org.autojs.plugin.typescript.api.TypeScriptR2Contract
 
 class TypeScriptCompilerPluginService : Service() {
 
     private lateinit var compilerHost: TypeScriptWebViewCompilerHost
+    private lateinit var admissionArbiter: R2GlobalAdmissionArbiter
 
     @Volatile
     private var transportProbeCoordinator: CompilationTransportProbeCoordinator? = null
+
+    @Volatile
+    private var r2CompilationCoordinator: R2CompilationCoordinator? = null
 
     @Volatile
     private var lifecycleTelemetryEnabledForTesting = false
@@ -27,6 +38,16 @@ class TypeScriptCompilerPluginService : Service() {
 
     @Volatile
     private var transportProbeTelemetryEnabledForTesting = false
+
+    @Volatile
+    private var quarantinedBySupervisorFence = false
+
+    @Volatile
+    private var supervisorRecoveryScheduled = false
+
+    private val quarantineReleaseWatcherActive = AtomicBoolean(false)
+    private val declarationProfileFingerprintCache =
+        ConcurrentHashMap<R2ProjectProfile, String>()
 
     private val binder = object : ITypeScriptCompilerPlugin.Stub() {
         override fun onTransact(
@@ -120,6 +141,66 @@ class TypeScriptCompilerPluginService : Service() {
             }
 
             val callingUid = Binder.getCallingUid()
+            if (
+                options.requestsProductionSupervisorOwnerForTesting(
+                    callingUid,
+                )
+            ) {
+                R2CompilerProcessSupervisorClient
+                    .enableAutomaticTerminationForTesting()
+                transportProbeTelemetryEnabledForTesting = true
+            }
+            options.supervisorReconnectPauseForTesting(callingUid)
+                ?.let { paused ->
+                    R2CompilerProcessSupervisorClient
+                        .setReconnectPausedForTesting(paused)
+                    transportProbeTelemetryEnabledForTesting = true
+                }
+            options.supervisorRetiredCallbackCommandForTesting(callingUid)
+                ?.let { command ->
+                    R2CompilerProcessSupervisorClient
+                        .executeRetiredCallbackCommandForTesting(command)
+                    transportProbeTelemetryEnabledForTesting = true
+                    return compilerInfoWithLifecycleTelemetry()
+                }
+            val processSupervisorCommandRequested =
+                options.requestsProcessSupervisorTerminationForTesting(callingUid)
+            if (
+                options.requestsProcessSupervisorTelemetryForTesting(callingUid) ||
+                processSupervisorCommandRequested
+            ) {
+                transportProbeTelemetryEnabledForTesting = true
+            }
+            if (processSupervisorCommandRequested) {
+                val terminationAccepted =
+                    Binder.getCallingPid() != Process.myPid() &&
+                        admissionArbiter.requiresExternalSupervision() &&
+                        R2CompilerProcessEpoch.scheduleExactSelfTermination(
+                            context = this@TypeScriptCompilerPluginService,
+                            request = requireNotNull(options),
+                        )
+                return compilerInfoWithLifecycleTelemetry().apply {
+                    putBoolean(
+                        R2CompilerProcessSupervisorProtocol.KEY_TERMINATION_ACCEPTED,
+                        terminationAccepted,
+                    )
+                }
+            }
+            if (
+                !BuildConfig.DEBUG &&
+                !R2CompilerProcessSupervisorClient.isReady()
+            ) {
+                return compilerInfoWithLifecycleTelemetry().apply {
+                    putString(
+                        TypeScriptCompilerContract.KEY_ERROR_CODE,
+                        TypeScriptCompilerContract.ERROR_COMPILER_UNAVAILABLE,
+                    )
+                    putString(
+                        TypeScriptCompilerContract.KEY_ERROR_MESSAGE,
+                        "Compiler process supervisor registration is not ready.",
+                    )
+                }
+            }
             val lifecycleTestRequested =
                 options.requestsHeldLifecycleProbeForTesting(callingUid)
             val correlationTestRequested =
@@ -129,13 +210,31 @@ class TypeScriptCompilerPluginService : Service() {
             if (lifecycleTestRequested) {
                 lifecycleTelemetryEnabledForTesting = true
             }
+            val globalAdmission = admissionArbiter.admitInternal(Any())
+            val globalLease = globalAdmission.lease
+                ?: return compilerInfoWithLifecycleTelemetry().apply {
+                    putString(
+                        TypeScriptCompilerContract.KEY_ERROR_CODE,
+                        globalAdmission.errorCode,
+                    )
+                    putString(
+                        TypeScriptCompilerContract.KEY_ERROR_MESSAGE,
+                        globalAdmission.errorMessage,
+                    )
+                }
             val timeoutMs = requireNotNull(envelope).timeoutMs
-            val outcome = when {
-                lifecycleTestRequested ->
-                    compilerHost.holdProbeUntilCloseForTesting(timeoutMs)
-                correlationTestRequested ->
-                    compilerHost.probeWithWrongRequestIdFailureForTesting(timeoutMs)
-                else -> compilerHost.probe(timeoutMs)
+            val outcome = try {
+                when {
+                    lifecycleTestRequested ->
+                        compilerHost.holdProbeUntilCloseForTesting(timeoutMs)
+                    correlationTestRequested ->
+                        compilerHost.probeWithWrongRequestIdFailureForTesting(timeoutMs)
+                    else -> compilerHost.probe(timeoutMs)
+                }
+            } finally {
+                check(admissionArbiter.releaseInternal(globalLease)) {
+                    "Compiler prewarm lost its global admission lease."
+                }
             }
             return compilerInfoWithLifecycleTelemetry().apply {
                 if (!outcome.succeeded) {
@@ -168,7 +267,74 @@ class TypeScriptCompilerPluginService : Service() {
             var archiveOwnershipTransferred = false
             return try {
                 val callingUid = Binder.getCallingUid()
-                val controls = request.transportProbeControlsOrNull(callingUid)
+                val transportControls = request.transportProbeControlsOrNull(callingUid)
+                val debugR2Requested =
+                    request.r2DebugCompilationRequested()
+                val supportedDeclarationProfileFingerprint =
+                    compilerHost.snapshot().declarationProfileFingerprint
+                val debugR2FormalAuthorityError =
+                    if (debugR2Requested) {
+                        request.r2DebugFormalInputAuthorityError(
+                            callingUid = callingUid,
+                        )
+                    } else {
+                        null
+                    }
+                val debugR2Controls =
+                    request.r2DebugCompilationControlsOrNull(
+                        callingUid = callingUid,
+                    )
+                val r2ControlPlaneRoute = request.r2CompilationControlPlaneRoute(
+                    debugControlPlaneRequested = debugR2Requested,
+                    debugControlPlaneAccepted = debugR2Controls != null,
+                )
+                val publicR2Requested =
+                    r2ControlPlaneRoute == R2CompilationControlPlaneRoute.PUBLIC
+                val publicR2Classification =
+                    if (publicR2Requested) {
+                        request.r2PublicCompilationClassification(
+                            supportedDeclarationProfileFingerprint,
+                        )
+                    } else {
+                        null
+                    }
+                val publicR2Controls =
+                    publicR2Classification?.controls
+                val externalEvidenceAttestation =
+                    if (
+                        BuildConfig.R2_EXTERNAL_CAPACITY_EVIDENCE &&
+                        publicR2Controls != null
+                    ) {
+                        r2ExternalEvidenceAttestationOrNull(
+                            callingUid = callingUid,
+                            inputArchive = inputArchive,
+                        )
+                    } else {
+                        null
+                    }
+                val cleanupObservedPublicR2Controls =
+                    externalEvidenceAttestation?.let { attestation ->
+                        R2ExternalCapacityEvidenceProtocol
+                            .cleanupEvidenceControlsOrNull(
+                                baseControls = publicR2Controls,
+                                attestation = attestation,
+                            )
+                    } ?: publicR2Controls
+                val externalCapacityEvidenceRequested =
+                    BuildConfig.R2_EXTERNAL_CAPACITY_EVIDENCE &&
+                        request.requestsR2ExternalCapacityEvidence()
+                val externalCapacityEvidenceControls =
+                    if (
+                        publicR2Controls != null &&
+                        externalCapacityEvidenceRequested
+                    ) {
+                        request.r2ExternalCapacityEvidenceControlsOrNull(
+                            baseControls = publicR2Controls,
+                            attestation = externalEvidenceAttestation,
+                        )
+                    } else {
+                        null
+                    }
                 val envelope = request.toEnvelopeOrNull()
                 val metadata = BinderMetadataValidator.validate(request)
                 request.discardIfInvalid(metadata)
@@ -187,15 +353,112 @@ class TypeScriptCompilerPluginService : Service() {
                         backingFilesDistinct = archiveDescriptors.backingFilesDistinct,
                     ),
                 )
+                if (debugR2Requested && debugR2Controls == null) {
+                    return R0CompilationDecision(
+                        requestId = envelope?.requestId.orEmpty()
+                            .take(TypeScriptCompilerContract.MAX_REQUEST_ID_CHARS),
+                        accepted = false,
+                        errorCode = debugR2FormalAuthorityError ?:
+                            TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+                        errorMessage =
+                            "Debug R2 profile authority is incomplete, malformed, or inactive.",
+                    ).toBundle()
+                }
+                if (r2ControlPlaneRoute == R2CompilationControlPlaneRoute.CONFLICT) {
+                    return R0CompilationDecision(
+                        requestId = envelope?.requestId.orEmpty()
+                            .take(TypeScriptCompilerContract.MAX_REQUEST_ID_CHARS),
+                        accepted = false,
+                        errorCode = TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+                        errorMessage =
+                            "Debug and public R2 control planes cannot be combined.",
+                    ).toBundle()
+                }
                 if (
-                    controls == null ||
+                    publicR2Requested &&
+                    publicR2Controls == null
+                ) {
+                    return R0CompilationDecision(
+                        requestId = envelope?.requestId.orEmpty()
+                            .take(TypeScriptCompilerContract.MAX_REQUEST_ID_CHARS),
+                        accepted = false,
+                        errorCode =
+                            publicR2Classification?.errorCode
+                                ?: TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+                        errorMessage =
+                            publicR2Classification?.errorMessage
+                                ?: "Public R2 metadata is incomplete or malformed.",
+                    ).toBundle()
+                }
+                if (
+                    publicR2Requested &&
+                    externalCapacityEvidenceRequested &&
+                    externalCapacityEvidenceControls == null
+                ) {
+                    return R0CompilationDecision(
+                        requestId = envelope?.requestId.orEmpty()
+                            .take(TypeScriptCompilerContract.MAX_REQUEST_ID_CHARS),
+                        accepted = false,
+                        errorCode = TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+                        errorMessage =
+                            "Public R2 metadata or external evidence authority is " +
+                                "incomplete, malformed, or unsupported.",
+                    ).toBundle()
+                }
+                val r2Controls = debugR2Controls ?:
+                    externalCapacityEvidenceControls ?:
+                    cleanupObservedPublicR2Controls
+                if (
+                    (transportControls == null && r2Controls == null) ||
+                    (transportControls != null && r2Controls != null) ||
                     rejection.errorCode != TypeScriptCompilerContract.ERROR_R0_NOT_AVAILABLE
                 ) {
                     return rejection.toBundle()
                 }
+                if (r2Controls != null) {
+                    if (
+                        r2Controls.origin != R2CompilationControlOrigin.DEBUG_PROBE &&
+                        !R2CompilerProcessSupervisorClient.isReady()
+                    ) {
+                        return R2CompilationAdmissionDecision(
+                            requestId = requireNotNull(envelope).requestId,
+                            accepted = false,
+                            jobToken = null,
+                            errorCode =
+                                TypeScriptCompilerContract.ERROR_COMPILER_UNAVAILABLE,
+                            errorMessage =
+                                "Compiler process supervisor registration is not ready.",
+                        ).toBundle()
+                    }
+                    val coordinator =
+                        r2CompilationCoordinator ?: return rejection.toBundle()
+                    val admission = runCatching {
+                        coordinator.admit(
+                            request = requireNotNull(envelope),
+                            callingUid = callingUid,
+                            inputArchive = requireNotNull(inputArchive),
+                            outputArchive = requireNotNull(outputArchive),
+                            callback = requireNotNull(callback),
+                            controls = r2Controls,
+                        )
+                    }.getOrElse { error ->
+                        R2CompilationAdmissionDecision(
+                            requestId = envelope?.requestId.orEmpty(),
+                            accepted = false,
+                            jobToken = null,
+                            errorCode = TypeScriptCompilerContract.ERROR_COMPILER_UNAVAILABLE,
+                            errorMessage =
+                                "R2 compilation admission failed: ${error.safeMessage()}",
+                        )
+                    }
+                    archiveOwnershipTransferred = admission.accepted
+                    if (admission.accepted) {
+                        transportProbeTelemetryEnabledForTesting = true
+                    }
+                    return admission.toBundle()
+                }
                 val coordinator =
                     transportProbeCoordinator ?: return rejection.toBundle()
-
                 val admission = runCatching {
                     coordinator.admit(
                         request = requireNotNull(envelope),
@@ -203,7 +466,7 @@ class TypeScriptCompilerPluginService : Service() {
                         inputArchive = requireNotNull(inputArchive),
                         outputArchive = requireNotNull(outputArchive),
                         callback = requireNotNull(callback),
-                        controls = controls,
+                        controls = requireNotNull(transportControls),
                     )
                 }.getOrElse { error ->
                     TransportProbeAdmissionDecision(
@@ -229,8 +492,12 @@ class TypeScriptCompilerPluginService : Service() {
 
         override fun cancelCompilation(cancellation: Bundle?): Boolean {
             val callingUid = Binder.getCallingUid()
-            if (!BuildConfig.DEBUG || callingUid != applicationInfo.uid) return false
-            val coordinator = transportProbeCoordinator ?: return false
+            val r2Coordinator = r2CompilationCoordinator
+            val debugSameUid =
+                BuildConfig.DEBUG && callingUid == applicationInfo.uid
+            val r1Coordinator =
+                if (debugSameUid) transportProbeCoordinator else null
+            if (r2Coordinator == null && r1Coordinator == null) return false
             val metadata = BinderMetadataValidator.validate(cancellation)
             cancellation.discardIfInvalid(metadata)
             if (!metadata.primitiveMetadataOnly || !metadata.metadataWithinBudget) return false
@@ -245,50 +512,240 @@ class TypeScriptCompilerPluginService : Service() {
             ) {
                 return false
             }
-            val probeCommand = runCatching {
+            val probeCommand =
+                if (debugSameUid) {
+                    runCatching {
+                        cancellation?.getString(
+                            CompilerTransportProbeProtocol.KEY_CANCELLATION_COMMAND,
+                        )
+                    }.getOrNull()
+                } else {
+                    null
+                }
+            if (
+                probeCommand != null &&
+                probeCommand != CompilerTransportProbeProtocol.COMMAND_ACKNOWLEDGE
+            ) {
+                return false
+            }
+            val publicOperation = runCatching {
                 cancellation?.getString(
-                    CompilerTransportProbeProtocol.KEY_CANCELLATION_COMMAND,
+                    TypeScriptR2Contract.KEY_CANCELLATION_OPERATION,
+                    TypeScriptR2Contract.CANCELLATION_OPERATION_CANCEL,
                 )
-            }.getOrNull()
-            if (probeCommand == CompilerTransportProbeProtocol.COMMAND_ACKNOWLEDGE) {
-                return coordinator.acknowledge(
+            }.getOrNull() ?: return false
+            if (
+                probeCommand == CompilerTransportProbeProtocol.COMMAND_ACKNOWLEDGE
+            ) {
+                return r2Coordinator?.acknowledge(
                     callingUid = callingUid,
                     requestId = envelope.requestId,
                     jobToken = envelope.jobToken,
-                )
+                ) == true ||
+                    r1Coordinator?.acknowledge(
+                        callingUid = callingUid,
+                        requestId = envelope.requestId,
+                        jobToken = envelope.jobToken,
+                    ) == true
             }
-            return coordinator.cancel(
-                callingUid = callingUid,
-                requestId = envelope.requestId,
-                jobToken = envelope.jobToken,
-            )
+            return when (publicOperation) {
+                TypeScriptR2Contract.CANCELLATION_OPERATION_ACKNOWLEDGE ->
+                    r2Coordinator?.acknowledge(
+                        callingUid = callingUid,
+                        requestId = envelope.requestId,
+                        jobToken = envelope.jobToken,
+                    ) == true
+                TypeScriptR2Contract.CANCELLATION_OPERATION_CANCEL ->
+                    r2Coordinator?.cancel(
+                        callingUid = callingUid,
+                        requestId = envelope.requestId,
+                        jobToken = envelope.jobToken,
+                    ) == true ||
+                        r1Coordinator?.cancel(
+                            callingUid = callingUid,
+                            requestId = envelope.requestId,
+                            jobToken = envelope.jobToken,
+                        ) == true
+                else -> false
+            }
         }
     }
 
     override fun onCreate() {
         super.onCreate()
+        if (R2CompilerProcessQuarantine.hasMarker(this)) {
+            quarantinedBySupervisorFence = true
+            startQuarantineReleaseWatcher()
+            return
+        }
+        R2CompilerProcessSupervisorClient.start(this)
+        admissionArbiter = R2ProcessAdmissionAuthority.openServiceEpoch()
+        if (admissionArbiter.requiresExternalSupervision()) {
+            throw R2ServiceShutdownCleanupUnprovenException(
+                "Compiler process poison survived a same-process service recreation.",
+            )
+        }
+        try {
+            R2PrivateTransientOrphanScavenger.scavenge(
+                inputStagingDirectory = getDir(
+                    R2PrivateTransientOrphanScavenger.INPUT_STAGING_DIRECTORY_NAME,
+                    MODE_PRIVATE,
+                ),
+                outputStagingDirectory = getDir(
+                    R2PrivateTransientOrphanScavenger.OUTPUT_STAGING_DIRECTORY_NAME,
+                    MODE_PRIVATE,
+                ),
+            )
+        } catch (failure: R2PrivateTransientCleanupUnprovenException) {
+            admissionArbiter.failClosed()
+            throw R2ServiceShutdownCleanupUnprovenException(
+                "Compiler startup could not prove private transient cleanup.",
+                failure,
+            )
+        }
         TypeScriptWebViewCompilerHost.prepareCompilerProcess()
         compilerHost = TypeScriptWebViewCompilerHost(this)
+        compilerHost.installExternalTeardownObserver(
+            admissionArbiter::failClosed,
+        )
+        r2CompilationCoordinator = R2CompilationCoordinator(
+            context = this,
+            compilerHost = compilerHost,
+            admissionArbiter = admissionArbiter,
+        )
         if (BuildConfig.DEBUG) {
-            transportProbeCoordinator = CompilationTransportProbeCoordinator()
+            transportProbeCoordinator =
+                CompilationTransportProbeCoordinator(admissionArbiter)
         }
     }
 
-    override fun onBind(intent: Intent?): IBinder = binder
+    override fun onBind(intent: Intent?): IBinder? {
+        if (quarantinedBySupervisorFence) {
+            /*
+             * onCreate normally owns the watcher. Retrying here covers a transient
+             * Thread.start() failure and every additional BIND_AUTO_CREATE attempt. Recovery
+             * scheduling stays on that watcher: marker reconciliation may wait for the
+             * cross-process marker lock, and a quarantined service must return its null binding
+             * without blocking the main thread on that lock.
+             */
+            startQuarantineReleaseWatcher()
+            return null
+        }
+        return binder
+    }
 
     override fun onDestroy() {
+        if (quarantinedBySupervisorFence) {
+            quarantineReleaseWatcherActive.set(false)
+            super.onDestroy()
+            return
+        }
         if (BuildConfig.DEBUG) {
             onDestroyEnteredForTesting = true
         }
-        try {
-            val coordinator = transportProbeCoordinator
-            transportProbeCoordinator = null
-            coordinator?.close()
-            if (::compilerHost.isInitialized) {
-                compilerHost.close()
+        val r2Coordinator = r2CompilationCoordinator
+        val r1Coordinator = transportProbeCoordinator
+
+        var teardownFailure: Throwable? = null
+        fun attemptTeardown(block: () -> Unit) {
+            try {
+                block()
+            } catch (failure: Throwable) {
+                teardownFailure?.addSuppressed(failure)
+                    ?: run { teardownFailure = failure }
             }
-        } finally {
-            super.onDestroy()
+        }
+        attemptTeardown {
+            if (::admissionArbiter.isInitialized) admissionArbiter.close()
+        }
+        attemptTeardown { r2Coordinator?.beginServiceShutdown() }
+        attemptTeardown { r1Coordinator?.close() }
+        attemptTeardown {
+            if (::compilerHost.isInitialized) {
+                val closeReport = compilerHost.close()
+                if (!closeReport.cleanupProven) {
+                    throw R2ServiceShutdownCleanupUnprovenException(
+                        "Compiler host teardown did not prove complete resource release.",
+                    )
+                }
+            }
+        }
+        attemptTeardown { r2Coordinator?.finishServiceShutdown() }
+        attemptTeardown {
+            if (
+                ::admissionArbiter.isInitialized &&
+                admissionArbiter.requiresExternalSupervision()
+            ) {
+                throw R2ServiceShutdownCleanupUnprovenException(
+                    "Compiler process requires external supervision after service teardown.",
+                )
+            }
+        }
+        r2CompilationCoordinator = null
+        transportProbeCoordinator = null
+        attemptTeardown { super.onDestroy() }
+        teardownFailure?.let { failure ->
+            if (::admissionArbiter.isInitialized) {
+                admissionArbiter.failClosed()
+            }
+            throw failure
+        }
+    }
+
+    /**
+     * A null binding cannot be upgraded in place. Once the external supervisor clears the durable
+     * fence, recycle this inert successor exactly once so AMS can satisfy every still-active
+     * BIND_AUTO_CREATE connection from a normally initialized process epoch.
+     */
+    private fun startQuarantineReleaseWatcher() {
+        if (!quarantineReleaseWatcherActive.compareAndSet(false, true)) return
+        val started = runCatching {
+            Thread(
+                {
+                    var nextScheduleAttempt = 0L
+                    while (quarantineReleaseWatcherActive.get()) {
+                        if (!R2CompilerProcessQuarantine.hasMarker(this)) {
+                            if (
+                                quarantineReleaseWatcherActive.compareAndSet(
+                                    true,
+                                    false,
+                                )
+                            ) {
+                                Process.killProcess(Process.myPid())
+                            }
+                            return@Thread
+                        }
+                        val now = SystemClock.elapsedRealtime()
+                        if (
+                            !supervisorRecoveryScheduled &&
+                            now >= nextScheduleAttempt
+                        ) {
+                            scheduleSupervisorRecoveryIfNeeded()
+                            nextScheduleAttempt =
+                                now + SUPERVISOR_JOB_SCHEDULE_RETRY_MILLIS
+                        }
+                        SystemClock.sleep(QUARANTINE_RELEASE_POLL_MILLIS)
+                    }
+                },
+                "typescript-r2-quarantine-release",
+            ).apply {
+                isDaemon = true
+                start()
+            }
+        }.isSuccess
+        if (!started) {
+            quarantineReleaseWatcherActive.set(false)
+        }
+    }
+
+    @Synchronized
+    private fun scheduleSupervisorRecoveryIfNeeded() {
+        if (supervisorRecoveryScheduled) return
+        if (
+            R2CompilerProcessSupervisorJobScheduler
+                .scheduleIfQuarantined(this)
+        ) {
+            supervisorRecoveryScheduled = true
         }
     }
 
@@ -307,6 +764,7 @@ class TypeScriptCompilerPluginService : Service() {
     private fun compilerInfoWithLifecycleTelemetry(): Bundle =
         TypeScriptPluginMetadata.compilerInfo(compilerHost.snapshot()).apply {
             val coordinator = transportProbeCoordinator
+            val r2Coordinator = r2CompilationCoordinator
             if (BuildConfig.DEBUG && lifecycleTelemetryEnabledForTesting) {
                 putLifecycleTelemetryForTesting(
                     compilerHost.lifecycleTelemetryForTesting(),
@@ -315,14 +773,236 @@ class TypeScriptCompilerPluginService : Service() {
             if (
                 BuildConfig.DEBUG &&
                 transportProbeTelemetryEnabledForTesting &&
-                coordinator != null
+                coordinator != null &&
+                Binder.getCallingUid() == applicationInfo.uid
             ) {
                 putInt(
                     CompilerTransportProbeProtocol.KEY_ACTIVE_JOB_COUNT,
-                    coordinator.activeJobCount(),
+                    admissionArbiter.activeAcceptedJobCount(),
                 )
+                putBoolean(
+                    CompilerTransportProbeProtocol.KEY_TERMINAL_INTENT_CLAIMED,
+                    coordinator.hasClaimedTerminalForTesting(),
+                )
+                putBoolean(
+                    R2CompilationProbeProtocol.KEY_STOP_CAUSE_SELECTED,
+                    r2Coordinator?.hasSelectedStopForTesting() == true,
+                )
+                R2CompilerProcessEpoch.identity().putInto(this)
+                val supervisorTelemetry =
+                    R2CompilerProcessSupervisorClient.telemetryForTesting()
+                putBoolean(
+                    R2CompilerProcessSupervisorProtocol.KEY_REQUIRES_EXTERNAL_SUPERVISION,
+                    admissionArbiter.requiresExternalSupervision(),
+                )
+                putBoolean(
+                    R2CompilerProcessSupervisorControlProtocol
+                        .KEY_REGISTRY_CONNECTED,
+                    supervisorTelemetry.registryConnected,
+                )
+                putBoolean(
+                    R2CompilerProcessSupervisorControlProtocol.KEY_REGISTRATION_READY,
+                    supervisorTelemetry.registrationReady,
+                )
+                putBoolean(
+                    R2CompilerProcessSupervisorControlProtocol
+                        .KEY_AUTOMATIC_TERMINATION_ENABLED,
+                    supervisorTelemetry.automaticTerminationEnabled,
+                )
+                putBoolean(
+                    R2CompilerProcessSupervisorControlProtocol
+                        .KEY_RECONNECT_PAUSED,
+                    supervisorTelemetry.reconnectPaused,
+                )
+                supervisorTelemetry.registeredSupervisorPid?.let { pid ->
+                    putInt(
+                        R2CompilerProcessSupervisorControlProtocol
+                            .KEY_REGISTERED_SUPERVISOR_PID,
+                        pid,
+                    )
+                }
+                supervisorTelemetry.registeredSupervisorStartTimeTicks
+                    ?.let { startTimeTicks ->
+                        putLong(
+                            R2CompilerProcessSupervisorControlProtocol
+                                .KEY_REGISTERED_SUPERVISOR_START_TIME_TICKS,
+                            startTimeTicks,
+                        )
+                    }
+                supervisorTelemetry.connectionGeneration?.let { generation ->
+                    putLong(
+                        R2CompilerProcessSupervisorControlProtocol
+                            .KEY_CONNECTION_GENERATION,
+                        generation,
+                    )
+                }
+                putBoolean(
+                    R2CompilerProcessSupervisorControlProtocol
+                        .KEY_RETIRED_CALLBACK_REPLAY_ARMED,
+                    supervisorTelemetry.retiredCallbackReplayArmed,
+                )
+                supervisorTelemetry.retiredCallbacksReplayed?.let { replayed ->
+                    putBoolean(
+                        R2CompilerProcessSupervisorControlProtocol
+                            .KEY_RETIRED_CALLBACKS_REPLAYED,
+                        replayed,
+                    )
+                }
+                supervisorTelemetry.retiredCallbackStatePreserved
+                    ?.let { statePreserved ->
+                        putBoolean(
+                            R2CompilerProcessSupervisorControlProtocol
+                                .KEY_RETIRED_CALLBACK_STATE_PRESERVED,
+                            statePreserved,
+                        )
+                    }
+                supervisorTelemetry.retiredConnectionGeneration
+                    ?.let { generation ->
+                        putLong(
+                            R2CompilerProcessSupervisorControlProtocol
+                                .KEY_RETIRED_CONNECTION_GENERATION,
+                            generation,
+                        )
+                    }
+                supervisorTelemetry.replayTargetConnectionGeneration
+                    ?.let { generation ->
+                        putLong(
+                            R2CompilerProcessSupervisorControlProtocol
+                                .KEY_REPLAY_TARGET_CONNECTION_GENERATION,
+                            generation,
+                        )
+                    }
+                supervisorTelemetry.retiredCallbackDeliveryCount
+                    ?.let { deliveryCount ->
+                        putInt(
+                            R2CompilerProcessSupervisorControlProtocol
+                                .KEY_RETIRED_CALLBACK_DELIVERY_COUNT,
+                            deliveryCount,
+                        )
+                    }
+            }
+            if (BuildConfig.R2_EXTERNAL_CAPACITY_EVIDENCE) {
+                val attestation = r2ExternalEvidenceAttestationOrNull(
+                    callingUid = Binder.getCallingUid(),
+                    inputArchive = null,
+                )
+                if (
+                    attestation != null &&
+                    R2ExternalCapacityEvidenceProtocol
+                        .isExactEvidenceCaller(attestation)
+                ) {
+                    r2Coordinator
+                        ?.externalPlusOneCleanupEvidenceState()
+                        ?.putInto(this)
+                    r2Coordinator
+                        ?.externalNaturalPhaseTimeoutEvidenceState()
+                        ?.putInto(this)
+                }
             }
         }
+
+    private fun Bundle?.requestsProductionSupervisorOwnerForTesting(
+        callingUid: Int,
+    ): Boolean {
+        if (
+            !BuildConfig.DEBUG ||
+            callingUid != applicationInfo.uid ||
+            this == null
+        ) {
+            return false
+        }
+        return runCatching {
+            getBoolean(
+                R2CompilerProcessSupervisorControlProtocol
+                    .KEY_ENABLE_AUTOMATIC_TERMINATION_FOR_TESTING,
+                false,
+            )
+        }.getOrDefault(false)
+    }
+
+    private fun Bundle?.supervisorReconnectPauseForTesting(
+        callingUid: Int,
+    ): Boolean? {
+        if (
+            !BuildConfig.DEBUG ||
+            callingUid != applicationInfo.uid ||
+            this == null ||
+            !containsKey(
+                R2CompilerProcessSupervisorControlProtocol
+                    .KEY_SET_RECONNECT_PAUSED_FOR_TESTING,
+            )
+        ) {
+            return null
+        }
+        return runCatching {
+            getBoolean(
+                R2CompilerProcessSupervisorControlProtocol
+                    .KEY_SET_RECONNECT_PAUSED_FOR_TESTING,
+            )
+        }.getOrNull()
+    }
+
+    private fun Bundle?.supervisorRetiredCallbackCommandForTesting(
+        callingUid: Int,
+    ): String? {
+        if (
+            !BuildConfig.DEBUG ||
+            callingUid != applicationInfo.uid ||
+            this == null
+        ) {
+            return null
+        }
+        return runCatching {
+            getString(
+                R2CompilerProcessSupervisorControlProtocol
+                    .KEY_RETIRED_CALLBACK_COMMAND_FOR_TESTING,
+            )?.takeIf { command ->
+                command ==
+                    R2CompilerProcessSupervisorControlProtocol
+                        .COMMAND_ARM_RETIRED_CALLBACKS ||
+                    command ==
+                    R2CompilerProcessSupervisorControlProtocol
+                        .COMMAND_REPLAY_RETIRED_CALLBACKS ||
+                    command ==
+                    R2CompilerProcessSupervisorControlProtocol
+                        .COMMAND_RESET_RETIRED_CALLBACKS
+            }
+        }.getOrNull()
+    }
+
+    private fun Bundle?.requestsProcessSupervisorTelemetryForTesting(
+        callingUid: Int,
+    ): Boolean {
+        if (
+            !BuildConfig.DEBUG ||
+            callingUid != applicationInfo.uid ||
+            this == null
+        ) {
+            return false
+        }
+        return runCatching {
+            getBoolean(
+                R2CompilerProcessSupervisorProtocol.KEY_TELEMETRY_ENABLED,
+                false,
+            )
+        }.getOrDefault(false)
+    }
+
+    private fun Bundle?.requestsProcessSupervisorTerminationForTesting(
+        callingUid: Int,
+    ): Boolean {
+        if (
+            !BuildConfig.DEBUG ||
+            callingUid != applicationInfo.uid ||
+            this == null
+        ) {
+            return false
+        }
+        return runCatching {
+            getString(R2CompilerProcessSupervisorProtocol.KEY_COMMAND) ==
+                R2CompilerProcessSupervisorProtocol.COMMAND_TERMINATE_POISONED_EPOCH
+        }.getOrDefault(false)
+    }
 
     private fun Bundle?.requestsHeldLifecycleProbeForTesting(
         callingUid: Int,
@@ -384,9 +1064,25 @@ class TypeScriptCompilerPluginService : Service() {
             ) {
                 return null
             }
+            val terminalCleanupDelayMs = getLong(
+                CompilerTransportProbeProtocol.KEY_TERMINAL_CLEANUP_DELAY_MS,
+                0L,
+            )
+            if (
+                terminalCleanupDelayMs !in
+                0L..CompilerTransportProbeProtocol.MAX_TERMINAL_CLEANUP_DELAY_MS
+            ) {
+                return null
+            }
+            val forceCleanupUnproven = getBoolean(
+                CompilerTransportProbeProtocol.KEY_FORCE_CLEANUP_UNPROVEN,
+                false,
+            )
             CompilerTransportProbeControls(
                 mode = mode,
                 completionDelayMs = completionDelayMs,
+                terminalCleanupDelayMs = terminalCleanupDelayMs,
+                forceCleanupUnproven = forceCleanupUnproven,
             )
         }.getOrNull()
     }
@@ -407,6 +1103,441 @@ class TypeScriptCompilerPluginService : Service() {
                 false,
             )
         }.getOrDefault(false)
+    }
+
+    private fun Bundle?.r2DebugCompilationControlsOrNull(
+        callingUid: Int,
+    ): R2CompilationControls? {
+        if (
+            !BuildConfig.DEBUG ||
+            callingUid != applicationInfo.uid ||
+            this == null
+        ) {
+            return null
+        }
+        return runCatching {
+            R2CompilationProbeProtocol.requireEnabled(
+                present = containsKey(R2CompilationProbeProtocol.KEY_ENABLED),
+                value = rawDebugR2ValueOrNull(R2CompilationProbeProtocol.KEY_ENABLED),
+            )
+            val inputArchiveSchemaRevision = requireDebugR2Value<Int>(
+                TypeScriptR2Contract.KEY_INPUT_ARCHIVE_SCHEMA_REVISION,
+            )
+            if (
+                inputArchiveSchemaRevision !=
+                TypeScriptR2Contract.INPUT_ARCHIVE_SCHEMA_REVISION
+            ) {
+                return null
+            }
+            if (
+                requireDebugR2Value<Int>(
+                    TypeScriptCompilerContract.KEY_PROFILE_SCHEMA_REVISION,
+                ) !=
+                TypeScriptCompilerContract.PROFILE_SCHEMA_REVISION ||
+                requireDebugR2Value<Int>(
+                    TypeScriptCompilerContract.KEY_RUNTIME_CAPABILITY_SCHEMA_REVISION,
+                ) != TypeScriptCompilerContract.RUNTIME_CAPABILITY_SCHEMA_REVISION
+            ) {
+                return null
+            }
+            val inputArchiveSha256 = requireDebugR2Value<String>(
+                R2CompilationProbeProtocol.KEY_INPUT_ARCHIVE_SHA256,
+            )
+            val requestManifestSha256 = requireDebugR2Value<String>(
+                R2CompilationProbeProtocol.KEY_REQUEST_MANIFEST_SHA256,
+            )
+            val compilerDistributionFingerprint = requireDebugR2Value<String>(
+                TypeScriptCompilerContract.KEY_COMPILER_DISTRIBUTION_FINGERPRINT,
+            )
+            val declarationsFingerprint = requireDebugR2Value<String>(
+                TypeScriptCompilerContract.KEY_DECLARATIONS_FINGERPRINT,
+            )
+            val declarationProfileFingerprint = requireDebugR2Value<String>(
+                TypeScriptR2Contract.KEY_DECLARATION_PROFILE_FINGERPRINT,
+            )
+            val runtimeCapabilitiesFingerprint = requireDebugR2Value<String>(
+                TypeScriptCompilerContract.KEY_RUNTIME_CAPABILITIES_FINGERPRINT,
+            )
+            val targetProfile =
+                requireDebugR2Value<String>(TypeScriptCompilerContract.KEY_TARGET_PROFILE)
+            val compatibilityProfileRevision =
+                R2CompilationProfileRegistry.requireContractValue(targetProfile).profileRevision
+            val profileAuthority = R2CompilationProfileRegistry.requireExactRuntimeAuthority(
+                contractValue = targetProfile,
+                profileSchemaRevision = requireDebugR2Value<Int>(
+                    TypeScriptCompilerContract.KEY_PROFILE_SCHEMA_REVISION,
+                ),
+                profileRevision = R2CompilationProbeProtocol.requireProfileRevision(
+                    present = containsKey(R2CompilationProbeProtocol.KEY_PROFILE_REVISION),
+                    value = rawDebugR2ValueOrNull(
+                        R2CompilationProbeProtocol.KEY_PROFILE_REVISION,
+                    ),
+                    compatibilityRevision = compatibilityProfileRevision,
+                ),
+                runtimeCapabilitiesFingerprint = runtimeCapabilitiesFingerprint,
+            )
+            R2CompilationProfileRegistry.requireEndToEndAdmitted(profileAuthority)
+            val supportedDeclarationProfileFingerprint =
+                declarationProfileFingerprintOrNull(profileAuthority.profile)
+            val workerSpinMilliseconds = optionalDebugR2Value(
+                R2CompilationProbeProtocol.KEY_WORKER_SPIN_MILLISECONDS,
+                0,
+            )
+            if (
+                workerSpinMilliseconds !in
+                0..R2CompilationProbeProtocol.MAX_WORKER_SPIN_MILLISECONDS
+            ) {
+                return null
+            }
+            val workerSpinPhase = when (workerSpinMilliseconds) {
+                0 -> {
+                    val phase = optionalDebugR2Value(
+                        R2CompilationProbeProtocol.KEY_WORKER_SPIN_PHASE,
+                        "",
+                    )
+                    if (phase !in setOf("", "none")) {
+                        return null
+                    }
+                    null
+                }
+                else -> R2ProjectExecutionPhase.fromProtocolValue(
+                    requireDebugR2Value<String>(
+                        R2CompilationProbeProtocol.KEY_WORKER_SPIN_PHASE,
+                    ),
+                )
+            }
+            val expandedWorkerCapacity = optionalDebugR2Value(
+                R2CompilationProbeProtocol.KEY_EXPANDED_WORKER_CAPACITY,
+                false,
+            )
+            val terminalCleanupDelayMilliseconds = optionalDebugR2Value(
+                R2CompilationProbeProtocol.KEY_TERMINAL_CLEANUP_DELAY_MILLISECONDS,
+                0,
+            )
+            if (
+                terminalCleanupDelayMilliseconds !in
+                0..R2CompilationProbeProtocol.MAX_TERMINAL_CLEANUP_DELAY_MILLISECONDS
+            ) {
+                return null
+            }
+            R2Digests.requireLowerSha256(
+                inputArchiveSha256,
+                "R2 input archive SHA-256",
+            )
+            R2Digests.requireLowerSha256(
+                requestManifestSha256,
+                "R2 request manifest SHA-256",
+            )
+            R2Digests.requireLowerSha256(
+                compilerDistributionFingerprint,
+                "R2 compiler distribution fingerprint",
+            )
+            R2Digests.requireLowerSha256(
+                declarationsFingerprint,
+                "R2 declarations fingerprint",
+            )
+            R2Digests.requireLowerSha256(
+                declarationProfileFingerprint,
+                "R2 declaration profile fingerprint",
+            )
+            R2Digests.requireLowerSha256(
+                runtimeCapabilitiesFingerprint,
+                "R2 runtime capabilities fingerprint",
+            )
+            if (
+                !R2Digests.equal(
+                    runtimeCapabilitiesFingerprint,
+                    profileAuthority.runtimeCapabilitiesFingerprint,
+                ) ||
+                supportedDeclarationProfileFingerprint == null ||
+                !R2Digests.equal(
+                    declarationProfileFingerprint,
+                    supportedDeclarationProfileFingerprint,
+                )
+            ) {
+                return null
+            }
+            R2CompilationControls(
+                inputArchiveSchemaRevision = inputArchiveSchemaRevision,
+                inputArchiveSha256 = inputArchiveSha256,
+                requestManifestSha256 = requestManifestSha256,
+                compilerDistributionFingerprint = compilerDistributionFingerprint,
+                declarationsFingerprint = declarationsFingerprint,
+                declarationProfileFingerprint = declarationProfileFingerprint,
+                runtimeCapabilitiesFingerprint = runtimeCapabilitiesFingerprint,
+                origin = R2CompilationControlOrigin.DEBUG_PROBE,
+                profileAuthority = profileAuthority,
+                workerSpinMilliseconds = workerSpinMilliseconds,
+                workerSpinPhase = workerSpinPhase,
+                expandedWorkerCapacity = expandedWorkerCapacity,
+                terminalCleanupDelayMilliseconds =
+                    terminalCleanupDelayMilliseconds,
+            )
+        }.getOrNull()
+    }
+
+    private fun Bundle?.r2DebugCompilationRequested(): Boolean {
+        this ?: return false
+        return runCatching {
+            R2CompilationProbeProtocol.requestsControlPlane(keySet())
+        }.getOrDefault(false)
+    }
+
+    private fun Bundle?.r2DebugFormalInputAuthorityError(
+        callingUid: Int,
+    ): String? {
+        if (
+            !BuildConfig.DEBUG ||
+            callingUid != applicationInfo.uid ||
+            this == null
+        ) {
+            return TypeScriptCompilerContract.ERROR_INVALID_REQUEST
+        }
+        return runCatching {
+            val inputArchiveSchemaRevision = requireDebugR2Value<Int>(
+                TypeScriptR2Contract.KEY_INPUT_ARCHIVE_SCHEMA_REVISION,
+            )
+            val declarationProfileFingerprint = requireDebugR2Value<String>(
+                TypeScriptR2Contract.KEY_DECLARATION_PROFILE_FINGERPRINT,
+            )
+            R2Digests.requireLowerSha256(
+                declarationProfileFingerprint,
+                "R2 declaration profile fingerprint",
+            )
+            val targetProfile = requireDebugR2Value<String>(
+                TypeScriptCompilerContract.KEY_TARGET_PROFILE,
+            )
+            val compatibilityProfileRevision =
+                R2CompilationProfileRegistry.requireContractValue(targetProfile).profileRevision
+            val profileAuthority = R2CompilationProfileRegistry.requireExactRuntimeAuthority(
+                contractValue = targetProfile,
+                profileSchemaRevision = requireDebugR2Value(
+                    TypeScriptCompilerContract.KEY_PROFILE_SCHEMA_REVISION,
+                ),
+                profileRevision = R2CompilationProbeProtocol.requireProfileRevision(
+                    present = containsKey(R2CompilationProbeProtocol.KEY_PROFILE_REVISION),
+                    value = rawDebugR2ValueOrNull(
+                        R2CompilationProbeProtocol.KEY_PROFILE_REVISION,
+                    ),
+                    compatibilityRevision = compatibilityProfileRevision,
+                ),
+                runtimeCapabilitiesFingerprint = requireDebugR2Value(
+                    TypeScriptCompilerContract.KEY_RUNTIME_CAPABILITIES_FINGERPRINT,
+                ),
+            )
+            val supportedDeclarationProfileFingerprint =
+                declarationProfileFingerprintOrNull(profileAuthority.profile)
+            R2CompilationProbeProtocol.formalInputAuthorityError(
+                inputArchiveSchemaRevision = inputArchiveSchemaRevision,
+                declarationProfileFingerprint = declarationProfileFingerprint,
+                expectedDeclarationProfileFingerprint =
+                    supportedDeclarationProfileFingerprint,
+            )
+        }.getOrElse {
+            TypeScriptCompilerContract.ERROR_INVALID_REQUEST
+        }
+    }
+
+    private fun declarationProfileFingerprintOrNull(
+        profile: R2ProjectProfile,
+    ): String? = declarationProfileFingerprintCache[profile] ?:
+        compilerHost.snapshot().declarationProfileFingerprint
+            ?.takeIf { profile == R2ProjectProfile.PROVISIONAL_RHINO }
+            ?.also { fingerprint ->
+                declarationProfileFingerprintCache.putIfAbsent(profile, fingerprint)
+            } ?: runCatching {
+                R2TrustedDeclarations.loadForProfile(
+                    this@TypeScriptCompilerPluginService,
+                    profile,
+                ).profileFingerprint.also { fingerprint ->
+                    declarationProfileFingerprintCache.putIfAbsent(profile, fingerprint)
+                }
+            }.getOrNull()
+
+    @Suppress("DEPRECATION")
+    private fun Bundle.rawDebugR2ValueOrNull(key: String): Any? =
+        if (containsKey(key)) get(key) else null
+
+    private inline fun <reified T> Bundle.requireDebugR2Value(key: String): T =
+        rawDebugR2ValueOrNull(key) as? T
+            ?: throw IllegalArgumentException(
+                "Private R2 debug metadata '$key' is missing or has an invalid type.",
+            )
+
+    private inline fun <reified T> Bundle.optionalDebugR2Value(
+        key: String,
+        defaultValue: T,
+    ): T = if (containsKey(key)) requireDebugR2Value(key) else defaultValue
+
+    private fun Bundle?.r2CompilationControlPlaneRoute(
+        debugControlPlaneRequested: Boolean,
+        debugControlPlaneAccepted: Boolean,
+    ): R2CompilationControlPlaneRoute {
+        this ?: return R2CompilationControlPlaneRoute.NONE
+        return runCatching {
+            R2PublicCompilationProtocol.controlPlaneRoute(
+                debugControlPlaneRequested = debugControlPlaneRequested,
+                debugControlPlaneAccepted = debugControlPlaneAccepted,
+                presentKeys = keySet(),
+            )
+        }.getOrDefault(R2CompilationControlPlaneRoute.NONE)
+    }
+
+    private fun Bundle?.requestsR2ExternalCapacityEvidence(): Boolean =
+        runCatching {
+            this != null &&
+                containsKey(
+                    BuildConfig.R2_EXTERNAL_CAPACITY_EVIDENCE_SCOPE_KEY,
+                )
+        }.getOrDefault(false)
+
+    @Suppress("DEPRECATION")
+    private fun Bundle?.r2ExternalCapacityEvidenceControlsOrNull(
+        baseControls: R2CompilationControls,
+        attestation: R2ExternalCapacityEvidenceAttestation?,
+    ): R2CompilationControls? {
+        this ?: return null
+        return runCatching {
+            R2ExternalCapacityEvidenceProtocol.controlsOrNull(
+                baseControls = baseControls,
+                scope = getString(
+                    BuildConfig.R2_EXTERNAL_CAPACITY_EVIDENCE_SCOPE_KEY,
+                ),
+                storedContainerScope =
+                    BuildConfig.R2_EXTERNAL_CAPACITY_EVIDENCE_STORED_SCOPE,
+                deflatedExpandedScope =
+                    BuildConfig.R2_EXTERNAL_CAPACITY_EVIDENCE_DEFLATED_SCOPE,
+                projectId = getString(TypeScriptCompilerContract.KEY_PROJECT_ID),
+                entrySourceUri = getString(
+                    TypeScriptCompilerContract.KEY_ENTRY_SOURCE_URI,
+                ),
+                attestation = attestation ?: return null,
+            )
+        }.getOrNull()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun r2ExternalEvidenceAttestationOrNull(
+        callingUid: Int,
+        inputArchive: ParcelFileDescriptor?,
+    ): R2ExternalCapacityEvidenceAttestation? {
+        if (!BuildConfig.R2_EXTERNAL_CAPACITY_EVIDENCE) return null
+        return runCatching {
+            val fixtureApplication = packageManager.getApplicationInfo(
+                R2ExternalCapacityEvidenceProtocol.FIXTURE_PACKAGE,
+                0,
+            )
+            val packages = packageManager.getPackagesForUid(callingUid)
+                ?.toSet()
+                .orEmpty()
+            val inputArchiveBytes = inputArchive
+                ?.fileDescriptor
+                ?.takeIf { descriptor -> descriptor.valid() }
+                ?.let { descriptor -> Os.fstat(descriptor).st_size }
+            R2ExternalCapacityEvidenceAttestation(
+                evidenceBuildEnabled =
+                    BuildConfig.R2_EXTERNAL_CAPACITY_EVIDENCE,
+                applicationUid = applicationInfo.uid,
+                callingUid = callingUid,
+                fixtureUid = fixtureApplication.uid,
+                callingPackages = packages,
+                applicationTestOnly =
+                    applicationInfo.flags and
+                        android.content.pm.ApplicationInfo.FLAG_TEST_ONLY != 0,
+                fixtureTestOnly =
+                    fixtureApplication.flags and
+                        android.content.pm.ApplicationInfo.FLAG_TEST_ONLY != 0,
+                signaturesMatch =
+                    packageManager.checkSignatures(
+                        applicationInfo.uid,
+                        callingUid,
+                    ) == PackageManager.SIGNATURE_MATCH,
+                inputArchiveBytes = inputArchiveBytes,
+            )
+        }.getOrNull()
+    }
+
+    private fun Bundle?.r2PublicCompilationClassification(
+        supportedDeclarationProfileFingerprint: String?,
+    ):
+        R2PublicCompilationClassification {
+        this ?: return R2PublicCompilationProtocol.classify(
+            metadata = null,
+            expectedDeclarationProfileFingerprint =
+                supportedDeclarationProfileFingerprint,
+        )
+        return runCatching {
+            R2PublicCompilationProtocol.classify(
+                R2PublicCompilationMetadata(
+                    inputArchiveSchemaRevision = optionalPublicR2Value<Int>(
+                        TypeScriptR2Contract.KEY_INPUT_ARCHIVE_SCHEMA_REVISION,
+                    ),
+                    profileSchemaRevision = optionalPublicR2Value<Int>(
+                        TypeScriptCompilerContract.KEY_PROFILE_SCHEMA_REVISION,
+                    ),
+                    profileRevision = optionalPublicR2Value<Int>(
+                        TypeScriptR2Contract.KEY_PROFILE_REVISION,
+                    ),
+                    configSchemaRevision = optionalPublicR2Value<Int>(
+                        TypeScriptR2Contract.KEY_CONFIG_SCHEMA_REVISION,
+                    ),
+                    configKind = optionalPublicR2Value<String>(
+                        TypeScriptR2Contract.KEY_CONFIG_KIND,
+                    ),
+                    runtimeCapabilitySchemaRevision = optionalPublicR2Value<Int>(
+                        TypeScriptCompilerContract
+                            .KEY_RUNTIME_CAPABILITY_SCHEMA_REVISION,
+                    ),
+                    inputArchiveSha256 = optionalPublicR2Value<String>(
+                        TypeScriptR2Contract.KEY_INPUT_ARCHIVE_SHA256,
+                    ),
+                    requestManifestSha256 = optionalPublicR2Value<String>(
+                        TypeScriptR2Contract.KEY_REQUEST_MANIFEST_SHA256,
+                    ),
+                    compilerDistributionFingerprint = optionalPublicR2Value<String>(
+                        TypeScriptCompilerContract
+                            .KEY_COMPILER_DISTRIBUTION_FINGERPRINT,
+                    ),
+                    declarationsFingerprint = optionalPublicR2Value<String>(
+                        TypeScriptCompilerContract.KEY_DECLARATIONS_FINGERPRINT,
+                    ),
+                    declarationProfileFingerprint = optionalPublicR2Value<String>(
+                        TypeScriptR2Contract.KEY_DECLARATION_PROFILE_FINGERPRINT,
+                    ),
+                    runtimeCapabilitiesFingerprint = optionalPublicR2Value<String>(
+                        TypeScriptCompilerContract
+                            .KEY_RUNTIME_CAPABILITIES_FINGERPRINT,
+                    ),
+                    configByteLength = optionalPublicR2Value<Long>(
+                        TypeScriptR2Contract.KEY_CONFIG_BYTE_LENGTH,
+                    ),
+                    configSha256 = optionalPublicR2Value<String>(
+                        TypeScriptR2Contract.KEY_CONFIG_SHA256,
+                    ),
+                    configPolicyRevision = optionalPublicR2Value<Int>(
+                        TypeScriptR2Contract.KEY_CONFIG_POLICY_REVISION,
+                    ),
+                    configPolicyFingerprint = optionalPublicR2Value<String>(
+                        TypeScriptR2Contract.KEY_CONFIG_POLICY_FINGERPRINT,
+                    ),
+                ),
+                expectedDeclarationProfileFingerprint =
+                    supportedDeclarationProfileFingerprint,
+            )
+        }.getOrElse {
+            R2PublicCompilationProtocol.classify(
+                metadata = null,
+                expectedDeclarationProfileFingerprint =
+                    supportedDeclarationProfileFingerprint,
+            )
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private inline fun <reified T> Bundle.optionalPublicR2Value(key: String): T? {
+        if (!containsKey(key)) return null
+        return get(key) as? T
+            ?: throw IllegalArgumentException("Public R2 metadata has an invalid field type.")
     }
 
     private fun Bundle.putCorrelationReportForTesting(
@@ -540,6 +1671,18 @@ class TypeScriptCompilerPluginService : Service() {
             CompilerServiceLifecycleTestProtocol.KEY_CLOSE_TIMEOUT_RECOVERY_RESET,
             report.timeoutRecoveryReset,
         )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_PROTOCOL_EXECUTOR_TERMINATED,
+            report.protocolExecutorTerminated,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_RESULT_EXECUTOR_TERMINATED,
+            report.resultExecutorTerminated,
+        )
+        putBoolean(
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_RESULT_FINALIZERS_RELEASED,
+            report.resultFinalizersReleased,
+        )
     }
 
     private fun Parcel.firstTypedBundleContainsFileDescriptors(): Boolean {
@@ -599,7 +1742,7 @@ class TypeScriptCompilerPluginService : Service() {
             compilationMode = getString(TypeScriptCompilerContract.KEY_COMPILATION_MODE).orEmpty(),
             compilerOptionsJson = getString(
                 TypeScriptCompilerContract.KEY_COMPILER_OPTIONS_JSON,
-                "{}",
+                R2CompilerEscapePolicy.INLINE_COMPILER_OPTIONS_JSON,
             ),
             inputArchiveTransportVersion = getInt(
                 TypeScriptCompilerContract.KEY_INPUT_ARCHIVE_TRANSPORT_VERSION,
@@ -648,6 +1791,27 @@ class TypeScriptCompilerPluginService : Service() {
         }
     }
 
+    private fun R2CompilationAdmissionDecision.toBundle() = Bundle().apply {
+        putInt(TypeScriptCompilerContract.KEY_CONTRACT_VERSION, TypeScriptCompilerContract.VERSION)
+        putString(TypeScriptCompilerContract.KEY_CONTRACT_HASH, TypeScriptCompilerContract.HASH)
+        putString(TypeScriptCompilerContract.KEY_REQUEST_ID, requestId)
+        putBoolean(TypeScriptCompilerContract.KEY_ACCEPTED, accepted)
+        if (accepted) {
+            putString(TypeScriptCompilerContract.KEY_JOB_TOKEN, requireNotNull(jobToken))
+            putBoolean(
+                TypeScriptR2Contract.KEY_ACKNOWLEDGEMENT_REQUIRED,
+                true,
+            )
+            putLong(
+                TypeScriptR2Contract.KEY_ACKNOWLEDGEMENT_TIMEOUT_MS,
+                requireNotNull(acknowledgementTimeoutMs),
+            )
+        } else {
+            putString(TypeScriptCompilerContract.KEY_ERROR_CODE, errorCode)
+            putString(TypeScriptCompilerContract.KEY_ERROR_MESSAGE, errorMessage)
+        }
+    }
+
     private fun Bundle?.discardIfInvalid(validation: BinderMetadataValidation) {
         if (
             validation.primitiveMetadataOnly &&
@@ -666,6 +1830,8 @@ class TypeScriptCompilerPluginService : Service() {
         const val TRANSACTION_PREWARM = IBinder.FIRST_CALL_TRANSACTION + 3
         const val TRANSACTION_START_COMPILATION = IBinder.FIRST_CALL_TRANSACTION + 4
         const val TRANSACTION_CANCEL_COMPILATION = IBinder.FIRST_CALL_TRANSACTION + 5
+        const val QUARANTINE_RELEASE_POLL_MILLIS = 25L
+        const val SUPERVISOR_JOB_SCHEDULE_RETRY_MILLIS = 1_000L
     }
 }
 

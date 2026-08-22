@@ -8,6 +8,7 @@ import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
 import org.autojs.plugin.typescript.api.TypeScriptPluginActions
 import org.autojs.plugin.typescript.api.TypeScriptPluginCapabilityKeys
 import org.autojs.plugin.typescript.api.TypeScriptPluginIds
+import org.autojs.plugin.typescript.api.TypeScriptR2Contract
 
 object TypeScriptPluginMetadata {
 
@@ -32,6 +33,22 @@ object TypeScriptPluginMetadata {
         putInt(TypeScriptCompilerContract.KEY_CONTRACT_VERSION, TypeScriptCompilerContract.VERSION)
         putString(TypeScriptCompilerContract.KEY_CONTRACT_HASH, TypeScriptCompilerContract.HASH)
         putString(TypeScriptCompilerContract.KEY_BACKEND, snapshot.backend)
+        putInt(
+            TypeScriptR2Contract.KEY_PROFILE_REVISION,
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO.profileRevision,
+        )
+        putInt(
+            TypeScriptR2Contract.KEY_CONFIG_SCHEMA_REVISION,
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO.configSchemaRevision,
+        )
+        putString(
+            TypeScriptR2Contract.KEY_CONFIG_KIND,
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO.configKind,
+        )
+        putString(
+            TypeScriptCompilerContract.KEY_RUNTIME_CAPABILITIES_FINGERPRINT,
+            R2RuntimeCapabilityMetadata.fingerprint,
+        )
         snapshot.distributionFingerprint?.let { fingerprint ->
             putString(
                 TypeScriptCompilerContract.KEY_COMPILER_DISTRIBUTION_FINGERPRINT,
@@ -44,12 +61,41 @@ object TypeScriptPluginMetadata {
     }
 
     private fun capabilityBundle(snapshot: CompilerHostSnapshot) = Bundle().apply {
+        val compatibilityRevision =
+            TypeScriptR2Contract.CAPABILITY_PROMOTION_COMPATIBILITY_REVISION
+        val compilerAvailable = false
+        val projectCompilation = false
+        val semanticDiagnostics = false
+        val sourceMapV3 = false
+        val nodeRuntimeRequired = false
+        check(
+            TypeScriptR2Contract.isCapabilityPromotionStructurallyCompatible(
+                compatibilityRevision = compatibilityRevision,
+                compilerAvailable = compilerAvailable,
+                projectCompilation = projectCompilation,
+                semanticDiagnostics = semanticDiagnostics,
+                sourceMapV3 = sourceMapV3,
+                nodeRuntimeRequired = nodeRuntimeRequired,
+            ),
+        ) {
+            "Current TypeScript compiler capability advertisement is structurally incompatible."
+        }
+
+        putInt(
+            TypeScriptR2Contract.KEY_CAPABILITY_PROMOTION_COMPATIBILITY_REVISION,
+            compatibilityRevision,
+        )
+        putBoolean(TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE, compilerAvailable)
+        putBoolean(TypeScriptPluginCapabilityKeys.PROJECT_COMPILATION, projectCompilation)
+        putBoolean(TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS, semanticDiagnostics)
+        putBoolean(TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3, sourceMapV3)
+        putBoolean(TypeScriptPluginCapabilityKeys.NODE_RUNTIME_REQUIRED, nodeRuntimeRequired)
+
         putInt(PluginCapabilityKeys.REQUIRES_HOST_VERSION, BuildConfig.REQUIRED_HOST_VERSION)
         putString(
             TypeScriptPluginCapabilityKeys.COMPILER_BACKEND,
             snapshot.backend,
         )
-        putBoolean(TypeScriptPluginCapabilityKeys.COMPILER_AVAILABLE, false)
         putInt(
             TypeScriptPluginCapabilityKeys.COMPILER_CONTRACT_VERSION,
             TypeScriptCompilerContract.VERSION,
@@ -78,30 +124,60 @@ object TypeScriptPluginMetadata {
                 fingerprint,
             )
         }
+        snapshot.declarationProfileFingerprint?.let { fingerprint ->
+            putString(
+                TypeScriptR2Contract.KEY_DECLARATION_PROFILE_FINGERPRINT,
+                fingerprint,
+            )
+        }
         putInt(
             TypeScriptPluginCapabilityKeys.INPUT_ARCHIVE_TRANSPORT_VERSION,
             TypeScriptCompilerContract.INPUT_ARCHIVE_TRANSPORT_VERSION,
         )
-        putBoolean(TypeScriptPluginCapabilityKeys.NODE_RUNTIME_REQUIRED, false)
+        putInt(
+            TypeScriptR2Contract.KEY_INPUT_ARCHIVE_SCHEMA_REVISION,
+            TypeScriptR2Contract.INPUT_ARCHIVE_SCHEMA_REVISION,
+        )
         putInt(
             TypeScriptPluginCapabilityKeys.OUTPUT_ARCHIVE_TRANSPORT_VERSION,
             TypeScriptCompilerContract.OUTPUT_ARCHIVE_TRANSPORT_VERSION,
         )
-        putBoolean(TypeScriptPluginCapabilityKeys.PROJECT_COMPILATION, false)
+        putInt(
+            TypeScriptR2Contract.KEY_OUTPUT_ARCHIVE_SCHEMA_REVISION,
+            TypeScriptR2Contract.OUTPUT_ARCHIVE_SCHEMA_REVISION,
+        )
+        putInt(
+            TypeScriptR2Contract.KEY_DIAGNOSTICS_SCHEMA_REVISION,
+            TypeScriptR2Contract.DIAGNOSTICS_SCHEMA_REVISION,
+        )
         putInt(
             TypeScriptPluginCapabilityKeys.PROFILE_SCHEMA_REVISION,
             TypeScriptCompilerContract.PROFILE_SCHEMA_REVISION,
         )
         putInt(
+            TypeScriptR2Contract.KEY_PROFILE_REVISION,
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO.profileRevision,
+        )
+        putInt(
+            TypeScriptR2Contract.KEY_CONFIG_SCHEMA_REVISION,
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO.configSchemaRevision,
+        )
+        putString(
+            TypeScriptR2Contract.KEY_CONFIG_KIND,
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO.configKind,
+        )
+        putInt(
             TypeScriptPluginCapabilityKeys.RUNTIME_CAPABILITY_SCHEMA_REVISION,
             TypeScriptCompilerContract.RUNTIME_CAPABILITY_SCHEMA_REVISION,
         )
-        putBoolean(TypeScriptPluginCapabilityKeys.SEMANTIC_DIAGNOSTICS, false)
+        putString(
+            TypeScriptCompilerContract.KEY_RUNTIME_CAPABILITIES_FINGERPRINT,
+            R2RuntimeCapabilityMetadata.fingerprint,
+        )
         putString(
             TypeScriptPluginCapabilityKeys.SERVICE_STATUS,
             snapshot.status,
         )
-        putBoolean(TypeScriptPluginCapabilityKeys.SOURCE_MAP_V3, false)
         putStringArray(
             TypeScriptPluginCapabilityKeys.NODE_SUPPORTED_EXTENSIONS,
             TypeScriptCompilerContract.NODE_SUPPORTED_EXTENSIONS,
@@ -125,12 +201,19 @@ object TypeScriptPluginMetadata {
             CompilerDistributionMetadata.load(context)
         }.fold(
             onSuccess = { metadata ->
+                val declarationProfileFingerprint = runCatching {
+                    R2TrustedDeclarations.loadForProfile(
+                        context,
+                        R2CompilationProfileRegistry.PROVISIONAL_RHINO.profile,
+                    ).profileFingerprint
+                }.getOrNull()
                 CompilerHostSnapshot(
                     backend = TypeScriptCompilerContract.BACKEND_WEBVIEW_WORKER,
                     status = TypeScriptCompilerContract.STATUS_BOOTSTRAP,
                     compilerVersion = null,
                     distributionFingerprint = metadata.distributionFingerprint,
                     declarationsFingerprint = metadata.declarationsFingerprint,
+                    declarationProfileFingerprint = declarationProfileFingerprint,
                     generatorFingerprint = metadata.generatorFingerprint,
                     lastError = null,
                 )

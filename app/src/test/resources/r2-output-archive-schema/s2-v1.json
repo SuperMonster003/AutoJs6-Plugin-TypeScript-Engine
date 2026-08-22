@@ -1,0 +1,245 @@
+{
+  "schema": "autojs6.typescript.r2-m3-s2.output-archive-schema",
+  "revision": 1,
+  "decision": "single-formal-output-revision-one-with-input-provenance-and-dual-inventory-authority",
+  "publicContract": {
+    "schemaRevisionKey": "outputArchiveSchemaRevision",
+    "schemaRevision": 1,
+    "schemaName": "autojs6.typescript.output-archive",
+    "manifestPath": "compilation-manifest.json",
+    "diagnosticsPath": "diagnostics.json",
+    "acceptedSchemaRevisions": [
+      1
+    ],
+    "rejectedLegacyManifestRevisions": [
+      2,
+      3
+    ],
+    "legacySchemaName": "autojs6.typescript.compilation.provisional",
+    "legacyRevisionPolicy": "reject-not-formal-v1-alias",
+    "unknownRevisionPolicy": "fail-closed",
+    "transportVersionAuthority": "independent-zip-pfd-version-one"
+  },
+  "manifestShape": {
+    "baseTopLevelKeys": [
+      "schema",
+      "revision",
+      "outputQuotaRevision",
+      "contractVersion",
+      "contractHash",
+      "outputArchiveTransportVersion",
+      "requestId",
+      "projectId",
+      "entrySourceUri",
+      "entryModulePath",
+      "targetProfile",
+      "profileSchemaRevision",
+      "profileRevision",
+      "configSchemaRevision",
+      "configKind",
+      "runtimeCapabilitySchemaRevision",
+      "compilationMode",
+      "compilerApi",
+      "compilerPackage",
+      "compilerVersion",
+      "compilerDistributionFingerprint",
+      "declarationsFingerprint",
+      "runtimeCapabilitiesFingerprint",
+      "inputArchiveSha256",
+      "requestManifestSha256",
+      "inputArchiveSchemaRevision",
+      "inputQuotaRevision",
+      "callerInventoryFingerprint",
+      "retainedInventoryFingerprint",
+      "declarationProfileFingerprint",
+      "declarationInventoryFingerprint",
+      "declarationFileCount",
+      "declarationByteLength",
+      "retainedFileCount",
+      "retainedByteLength",
+      "largestRetainedFileBytes",
+      "outcome",
+      "emitSkipped",
+      "diagnosticCount",
+      "emittedModuleCount",
+      "diagnosticsPath",
+      "effectiveOptions",
+      "effectiveOptionsFingerprint",
+      "moduleInventoryFingerprint",
+      "artifactInventoryFingerprint",
+      "files"
+    ],
+    "nodeRevisionTwoConditionalKeys": [
+      "nodeModuleOutputPolicySchemaRevision",
+      "nodeModuleOutputPolicyRevision",
+      "nodeModuleOutputPolicyFingerprint",
+      "generatedMappingSchema",
+      "generatedMappingSchemaRevision",
+      "generatedMappingPolicyRevision",
+      "resolverPolicyRevision",
+      "snapshotTargetInventoryFingerprint",
+      "packageMetadataInventoryFingerprint",
+      "packageFormatCatalogFingerprint",
+      "packageTargetInventoryFingerprint",
+      "targetUniverseFingerprint",
+      "resultSnapshotEntryPath",
+      "resultSnapshotRootNames",
+      "generatedModuleMappings"
+    ],
+    "artifactDescriptorKeys": [
+      "path",
+      "kind",
+      "size",
+      "sha256",
+      "sourcePaths"
+    ],
+    "unknownFieldPolicy": "fail-closed-for-formal-consumers",
+    "missingFieldPolicy": "fail-closed",
+    "absentNodeAuthorityEncoding": "keys-absent"
+  },
+  "outcomes": [
+    {
+      "outcome": "emitted",
+      "emitSkipped": false,
+      "minimumModules": 1,
+      "moduleMapCardinality": "one-to-one",
+      "artifactKinds": [
+        "diagnostics",
+        "javascript",
+        "source_map"
+      ],
+      "entryModulePath": "required",
+      "executable": true
+    },
+    {
+      "outcome": "diagnostics",
+      "emitSkipped": true,
+      "minimumDiagnostics": 1,
+      "moduleCount": 0,
+      "artifactKinds": [
+        "diagnostics"
+      ],
+      "entryModulePath": "null",
+      "executable": false
+    }
+  ],
+  "emptyOutputOutcomes": [
+    "cancelled",
+    "timed_out",
+    "failed"
+  ],
+  "provenance": {
+    "compilerFields": [
+      "compilerApi",
+      "compilerPackage",
+      "compilerVersion",
+      "compilerDistributionFingerprint"
+    ],
+    "profileFields": [
+      "targetProfile",
+      "profileSchemaRevision",
+      "profileRevision",
+      "configSchemaRevision",
+      "configKind",
+      "runtimeCapabilitySchemaRevision",
+      "runtimeCapabilitiesFingerprint",
+      "declarationsFingerprint"
+    ],
+    "acceptedInputFields": [
+      "inputArchiveSchemaRevision",
+      "inputQuotaRevision",
+      "inputArchiveSha256",
+      "requestManifestSha256",
+      "callerInventoryFingerprint",
+      "retainedInventoryFingerprint",
+      "declarationProfileFingerprint",
+      "declarationInventoryFingerprint",
+      "declarationFileCount",
+      "declarationByteLength",
+      "retainedFileCount",
+      "retainedByteLength",
+      "largestRetainedFileBytes"
+    ],
+    "exactSnapshotBindingRequiredBeforePackaging": true,
+    "manifestDigestBoundByCompletionBundle": true
+  },
+  "effectiveOptionsAuthority": {
+    "objectKey": "effectiveOptions",
+    "fingerprintKey": "effectiveOptionsFingerprint",
+    "source": "exact-profile-or-controlled-config-result-authority",
+    "fingerprintAlgorithm": "sha256-over-canonical-json-bytes",
+    "callerSupplied": false,
+    "s5EncodingDetailsStillPending": true
+  },
+  "moduleInventory": {
+    "fingerprintKey": "moduleInventoryFingerprint",
+    "canonicalPrefix": "autojs6.typescript.output-module-inventory.v1\n",
+    "selection": "javascript-artifacts-only",
+    "canonicalRecord": "kind NUL path NUL decimal-size NUL lowercase-sha256 NUL source-count (NUL source-path)* LF",
+    "ordering": "canonical-archive-path-ascending",
+    "diagnosticsOnlyFingerprintUsesEmptyRecordSet": true,
+    "explicit-uri-module-kind-and-pairingFieldsDeferredToS4": true
+  },
+  "artifactAuthority": {
+    "fingerprintKey": "artifactInventoryFingerprint",
+    "canonicalPrefix": "autojs6.typescript.output-artifact-inventory.v1\n",
+    "includedKinds": [
+      "diagnostics",
+      "javascript",
+      "source_map"
+    ],
+    "excludedKinds": [
+      "manifest",
+      "zip-metadata",
+      "container-bytes"
+    ],
+    "canonicalRecord": "kind NUL path NUL decimal-size NUL lowercase-sha256 NUL source-count (NUL source-path)* LF",
+    "ordering": "canonical-archive-path-ascending",
+    "manifestSelfReferenceAvoided": true,
+    "exactPhysicalCoverage": "manifest-plus-every-declared-artifact-exactly-once"
+  },
+  "ordinaryQuota": {
+    "outputQuotaRevision": 1,
+    "maximumArtifacts": 512,
+    "maximumSingleJavaScriptBytes": 524288,
+    "maximumSingleSourceMapBytes": 524288,
+    "maximumArtifactBytes": 1048576,
+    "comparison": "inclusive",
+    "measurementPoint": "after-canonical-sourceMappingURL-rewrite",
+    "manifestDiagnosticsAndZipBytesExcluded": true
+  },
+  "archiveContainer": {
+    "format": "zip-v1-stored",
+    "entryOrder": "manifest-then-canonical-artifact-path-order",
+    "timestamps": "zero",
+    "compression": "stored-only",
+    "manifestExcludedFromArtifactInventory": true,
+    "containerSha256IsPrivateCommitEvidence": true,
+    "streamingWriterDeferredToO1": true
+  },
+  "diagnosticsDependency": {
+    "schema": "autojs6.typescript.diagnostics.provisional",
+    "revision": 2,
+    "pathFrozenByS2": true,
+    "documentShapeFrozenByS2": false,
+    "formalDiagnosticsOwner": "R2-M3-S3"
+  },
+  "failurePolicy": {
+    "unknownOutputSchema": "fail-closed",
+    "legacyOutputRevision": "fail-closed",
+    "artifactDigestOrSizeMismatch": "ERR_AUTOJS6_TYPESCRIPT_OUTPUT_TRANSPORT",
+    "inventoryMismatch": "ERR_AUTOJS6_TYPESCRIPT_OUTPUT_TRANSPORT",
+    "outcomeInventoryMismatch": "ERR_AUTOJS6_TYPESCRIPT_OUTPUT_TRANSPORT",
+    "commitFailure": "empty-output-and-terminal-failure",
+    "automaticRetryAllowed": false
+  },
+  "promotionState": {
+    "compilerAvailable": false,
+    "projectCompilation": false,
+    "semanticDiagnostics": false,
+    "sourceMapV3": false,
+    "nodeRuntimeRequired": false,
+    "nodeRevisionTwoEndToEndChanged": false,
+    "deviceEvidenceRefreshed": false
+  }
+}

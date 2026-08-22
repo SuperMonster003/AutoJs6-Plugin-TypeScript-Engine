@@ -67,6 +67,12 @@ internal object CompilerServiceLifecycleTestProtocol {
         "__autojs6_r1_debug_close_session_state_reset"
     const val KEY_CLOSE_TIMEOUT_RECOVERY_RESET =
         "__autojs6_r1_debug_close_timeout_recovery_reset"
+    const val KEY_CLOSE_PROTOCOL_EXECUTOR_TERMINATED =
+        "__autojs6_r1_debug_close_protocol_executor_terminated"
+    const val KEY_CLOSE_RESULT_EXECUTOR_TERMINATED =
+        "__autojs6_r1_debug_close_result_executor_terminated"
+    const val KEY_CLOSE_RESULT_FINALIZERS_RELEASED =
+        "__autojs6_r1_debug_close_result_finalizers_released"
 }
 
 internal data class CompilerHostLifecycleTelemetry(
@@ -101,4 +107,24 @@ internal data class CompilerHostCloseReport(
     val workerStateReset: Boolean,
     val sessionStateReset: Boolean,
     val timeoutRecoveryReset: Boolean,
-)
+    val protocolExecutorTerminated: Boolean,
+    val resultExecutorTerminated: Boolean,
+    val resultFinalizersReleased: Boolean,
+) {
+    val cleanupProven: Boolean
+        get() =
+            nativePortClosed &&
+                webViewDestroyed &&
+                serviceWorkerClientCleared &&
+                handlerCallbacksCleared &&
+                closed &&
+                pendingProbeReleased &&
+                webViewReleased &&
+                nativePortReleased &&
+                workerStateReset &&
+                sessionStateReset &&
+                timeoutRecoveryReset &&
+                protocolExecutorTerminated &&
+                resultExecutorTerminated &&
+                resultFinalizersReleased
+}

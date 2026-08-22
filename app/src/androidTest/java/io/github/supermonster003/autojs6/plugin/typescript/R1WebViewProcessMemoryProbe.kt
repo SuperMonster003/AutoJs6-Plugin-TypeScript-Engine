@@ -44,6 +44,18 @@ internal data class R1ProcessPssBatch(
         samples.maxOf(R1ProcessPssSnapshot::combinedPssKiB)
 }
 
+internal data class R1SingleProcessPssBatch(
+    val process: R1LiveProcess,
+    val samplesPssKiB: List<Int>,
+) {
+    init {
+        require(samplesPssKiB.isNotEmpty() && samplesPssKiB.size % 2 == 1)
+    }
+
+    val medianPssKiB: Int = samplesPssKiB.median()
+    val maximumPssKiB: Int = samplesPssKiB.max()
+}
+
 /**
  * Shell-backed process and PSS probe for the R1 API 31/33 instrumentation gate.
  *
@@ -87,6 +99,119 @@ internal class R1WebViewProcessMemoryProbe(
         )
     }
 
+    fun awaitRendererForClient(
+        clientPid: Int,
+    ): R1LiveProcess {
+        require(clientPid > 0)
+        var lastDump = ""
+        repeat(PROCESS_LOOKUP_ATTEMPTS) {
+            lastDump = shellOutput(
+                "dumpsys activity services ${context.packageName}",
+            )
+            resolveRendererForClient(
+                dump = lastDump,
+                clientPid = clientPid,
+            )?.let { renderer ->
+                requireIdentity(renderer)
+                return renderer
+            }
+            Thread.sleep(PROCESS_LOOKUP_INTERVAL_MILLIS)
+        }
+        throw AssertionError(
+            "Could not uniquely associate a WebView sandbox renderer with client PID " +
+                "$clientPid. Last dumpsys output:\n" +
+                lastDump.take(MAX_FAILURE_DUMP_CHARS),
+        )
+    }
+
+    fun awaitProcessExit(
+        expected: R1LiveProcess,
+    ) {
+        var consecutiveMissingObservations = 0
+        var lastObservation = "not sampled"
+        repeat(PROCESS_LOOKUP_ATTEMPTS) {
+            val processTable = runCatching {
+                shellOutput("ps -A")
+            }
+            when (processTablePidState(processTable.getOrNull(), expected.pid)) {
+                ProcessTablePidState.MISSING -> {
+                    consecutiveMissingObservations += 1
+                    lastObservation =
+                        "missing ($consecutiveMissingObservations consecutive observations)"
+                    if (
+                        consecutiveMissingObservations >=
+                        REQUIRED_MISSING_PROCESS_OBSERVATIONS
+                    ) {
+                        return
+                    }
+                }
+                ProcessTablePidState.PRESENT -> {
+                    consecutiveMissingObservations = 0
+                    val startTime = runCatching {
+                        readStartTimeTicks(expected.pid)
+                    }
+                    val actualStartTime = startTime.getOrNull()
+                    lastObservation =
+                        if (actualStartTime == null) {
+                            "unreadable: ${startTime.exceptionOrNull()?.message}"
+                        } else {
+                            "startTimeTicks=$actualStartTime"
+                        }
+                    if (
+                        actualStartTime != null &&
+                        actualStartTime != expected.startTimeTicks
+                    ) {
+                        return
+                    }
+                }
+                ProcessTablePidState.UNREADABLE -> {
+                    consecutiveMissingObservations = 0
+                    lastObservation =
+                        "unreadable process table: " +
+                            processTable.exceptionOrNull()?.message
+                }
+            }
+            Thread.sleep(PROCESS_LOOKUP_INTERVAL_MILLIS)
+        }
+        throw AssertionError(
+            "Process identity exit was not proven for $expected. " +
+                "Last observation: $lastObservation.",
+        )
+    }
+
+    private fun processTablePidState(
+        processTable: String?,
+        pid: Int,
+    ): ProcessTablePidState {
+        val rows = processTable
+            ?.lineSequence()
+            ?.map(String::trim)
+            ?.filter(String::isNotEmpty)
+            ?.toList()
+            .orEmpty()
+        val header = rows.firstOrNull()
+            ?.split(WHITESPACE)
+            .orEmpty()
+        val pidColumn = header.indexOf("PID")
+        if (pidColumn < 0) return ProcessTablePidState.UNREADABLE
+        val present = rows.drop(1).any { row ->
+            row.split(WHITESPACE)
+                .getOrNull(pidColumn)
+                ?.toIntOrNull() == pid
+        }
+        return if (present) {
+            ProcessTablePidState.PRESENT
+        } else {
+            ProcessTablePidState.MISSING
+        }
+    }
+
+    private enum class ProcessTablePidState {
+        PRESENT,
+        MISSING,
+        UNREADABLE,
+    }
+
     fun requireUnchanged(
         expected: R1CompilerWebViewProcesses,
         expectedCompilerProcessName: String,
@@ -112,11 +237,17 @@ internal class R1WebViewProcessMemoryProbe(
         repeat(sampleCount) { index ->
             requireIdentity(processes.compilerService)
             requireIdentity(processes.sandboxRenderer)
+            val compilerServicePssKiB =
+                readTotalPssKiB(processes.compilerService)
+            requireIdentity(processes.compilerService)
+            requireIdentity(processes.sandboxRenderer)
+            val sandboxRendererPssKiB =
+                readTotalPssKiB(processes.sandboxRenderer)
+            requireIdentity(processes.compilerService)
+            requireIdentity(processes.sandboxRenderer)
             samples += R1ProcessPssSnapshot(
-                compilerServicePssKiB =
-                    readTotalPssKiB(processes.compilerService),
-                sandboxRendererPssKiB =
-                    readTotalPssKiB(processes.sandboxRenderer),
+                compilerServicePssKiB = compilerServicePssKiB,
+                sandboxRendererPssKiB = sandboxRendererPssKiB,
             )
             if (index + 1 < sampleCount) {
                 Thread.sleep(sampleIntervalMillis)
@@ -125,6 +256,28 @@ internal class R1WebViewProcessMemoryProbe(
         requireIdentity(processes.compilerService)
         requireIdentity(processes.sandboxRenderer)
         return R1ProcessPssBatch(samples)
+    }
+
+    fun samplePss(
+        process: R1LiveProcess,
+        sampleCount: Int,
+        sampleIntervalMillis: Long,
+    ): R1SingleProcessPssBatch {
+        require(sampleCount > 0 && sampleCount % 2 == 1)
+        require(sampleIntervalMillis >= 0)
+        val samples = ArrayList<Int>(sampleCount)
+        repeat(sampleCount) { index ->
+            requireIdentity(process)
+            samples += readTotalPssKiB(process)
+            requireIdentity(process)
+            if (index + 1 < sampleCount) {
+                Thread.sleep(sampleIntervalMillis)
+            }
+        }
+        return R1SingleProcessPssBatch(
+            process = process,
+            samplesPssKiB = samples.toList(),
+        )
     }
 
     private fun resolveCompilerAndRenderer(
@@ -161,6 +314,28 @@ internal class R1WebViewProcessMemoryProbe(
             compilerService = compiler.withStartTime(),
             sandboxRenderer = renderer.withStartTime(),
         )
+    }
+
+    private fun resolveRendererForClient(
+        dump: String,
+        clientPid: Int,
+    ): R1LiveProcess? {
+        val client = Regex(
+            """ProcessRecord\{[^\s}]+\s+$clientPid:[^/\s}]+/[^}\s]+\}""",
+        )
+        val renderers = parseServiceRecords(dump)
+            .filter { record ->
+                record.packageName == context.packageName &&
+                    SANDBOX_SERVICE_CLASS_NAME in record.header &&
+                    record.processName?.contains(SANDBOX_PROCESS_MARKER) == true &&
+                    record.app?.processName == record.processName &&
+                    client.containsMatchIn(record.raw)
+            }
+            .mapNotNull(ServiceRecord::app)
+            .filter { renderer -> renderer.pid != clientPid }
+            .distinctBy(ParsedProcess::pid)
+        if (renderers.size != 1) return null
+        return renderers.single().withStartTime()
     }
 
     private fun parseServiceRecords(dump: String): List<ServiceRecord> {
@@ -220,6 +395,13 @@ internal class R1WebViewProcessMemoryProbe(
 
     private fun readStartTimeTicks(pid: Int): Long {
         val stat = shellOutput("cat /proc/$pid/stat")
+        return parseStartTimeTicks(pid, stat)
+    }
+
+    private fun parseStartTimeTicks(
+        pid: Int,
+        stat: String,
+    ): Long {
         val processNameEnd = stat.lastIndexOf(')')
         if (processNameEnd < 0 || processNameEnd >= stat.lastIndex) {
             throw AssertionError("Malformed /proc/$pid/stat output: $stat")
@@ -235,15 +417,37 @@ internal class R1WebViewProcessMemoryProbe(
 
     private fun readTotalPssKiB(process: R1LiveProcess): Int {
         val output = shellOutput("dumpsys meminfo ${process.pid}")
-        return TOTAL_PSS.find(output)
-            ?.groupValues
-            ?.get(1)
-            ?.replace(",", "")
-            ?.toIntOrNull()
+        return parseTotalPssKiB(output)
             ?: throw AssertionError(
                 "Could not read TOTAL PSS for $process. dumpsys output:\n" +
                     output.take(MAX_FAILURE_DUMP_CHARS),
             )
+    }
+
+    private fun parseTotalPssKiB(output: String): Int? {
+        val candidates = LinkedHashSet<Int>()
+        output.lineSequence().forEach { line ->
+            val rawValue = TOTAL_PSS_SUMMARY.matchEntire(line)
+                ?.groupValues
+                ?.get(1)
+                ?: TOTAL_PSS_TABLE_ROW.matchEntire(line)
+                    ?.groupValues
+                    ?.get(1)
+                ?: return@forEach
+            val value = parsePssKiB(rawValue) ?: return null
+            candidates += value
+        }
+        return candidates.singleOrNull()
+    }
+
+    private fun parsePssKiB(rawValue: String): Int? {
+        if (
+            ',' in rawValue &&
+            !GROUPED_DECIMAL_INTEGER.matches(rawValue)
+        ) {
+            return null
+        }
+        return rawValue.replace(",", "").toIntOrNull()
     }
 
     private fun shellOutput(command: String): String =
@@ -277,7 +481,12 @@ internal class R1WebViewProcessMemoryProbe(
             """(?m)^\s*app=ProcessRecord\{[^\s}]+\s+""" +
                 """(\d+):([^/\s}]+)/[^}\s]+\}\s*$""",
         )
-        val TOTAL_PSS = Regex("""(?m)^\s*TOTAL PSS:\s*([\d,]+)\b""")
+        val TOTAL_PSS_SUMMARY =
+            Regex("""^\s*TOTAL(?: PSS)?:\s*([0-9][0-9,]*)(?:\s|$).*$""")
+        val TOTAL_PSS_TABLE_ROW =
+            Regex("""^\s*TOTAL\s+([0-9][0-9,]*)(?:\s+[0-9][0-9,]*){3,}\s*$""")
+        val GROUPED_DECIMAL_INTEGER =
+            Regex("""[0-9]{1,3}(?:,[0-9]{3})+""")
         val WHITESPACE = Regex("""\s+""")
 
         const val COMPILER_SERVICE_CLASS_NAME = "TypeScriptCompilerPluginService"
@@ -287,6 +496,7 @@ internal class R1WebViewProcessMemoryProbe(
         const val PROCESS_START_TIME_INDEX_FROM_STATE = 19
         const val PROCESS_LOOKUP_ATTEMPTS = 50
         const val PROCESS_LOOKUP_INTERVAL_MILLIS = 100L
+        const val REQUIRED_MISSING_PROCESS_OBSERVATIONS = 2
         const val MAX_FAILURE_DUMP_CHARS = 8_192
     }
 }

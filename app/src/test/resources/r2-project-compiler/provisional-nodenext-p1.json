@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "authority": {
+    "targetProfile": "node",
+    "profileSchemaRevision": 1,
+    "profileRevision": 1,
+    "configSchemaRevision": 1,
+    "configKind": "none",
+    "sourceExtensions": [
+      ".ts"
+    ],
+    "outputExtension": ".js",
+    "canonicalEffectiveOptionsJson": "{\"allowJs\":false,\"checkJs\":false,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":199,\"moduleResolution\":99,\"newLine\":1,\"noEmitOnError\":true,\"noLib\":false,\"outDir\":\"/outputs\",\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true,\"strict\":true,\"target\":5,\"types\":[]}",
+    "effectiveOptionsFingerprint": "2ef130a868f27eb30869ed24fc1f8999135aeeefe92bcd30bebf94b38224419f",
+    "runtimeCapabilitiesCanonicalInput": "autojs6.typescript.runtime-capabilities.provisional|runtimeCapabilitySchemaRevision=1|profileSchemaRevision=1|profileRevision=1|configSchemaRevision=1|configKind=none|profile=node|extensions=.ts|compilerApi=createIncrementalProgram|allowJs=false|checkJs=false|ignoreDeprecations=6.0|incremental=false|inlineSourceMap=false|inlineSources=false|module=NodeNext|moduleResolution=NodeNext|newLine=LF|noEmitOnError=true|noLib=false|outDir=/outputs|rootDir=/sources|skipLibCheck=false|sourceMap=true|strict=true|target=ES2018|types=[]",
+    "runtimeCapabilitiesFingerprint": "60be50e59ea45429a85463cffbd0010360f8fc01fd741dcdfd02f5e8e4b6cc4a"
+  },
+  "golden": {
+    "sourcePath": "/sources/main.ts",
+    "sourceText": "import profile = require(\"autojs6:profile\");\nimport toastModule = require(\"toast\");\n\nconst message: string = `${profile.name}:ready`;\nvoid toastModule.toast(message);\n",
+    "outputPaths": [
+      "/outputs/main.js",
+      "/outputs/main.js.map"
+    ],
+    "javaScriptMarkers": [
+      "const profile = require(\"autojs6:profile\");",
+      "const toastModule = require(\"toast\");",
+      "const message = `${profile.name}:ready`;",
+      "void toastModule.toast(message);",
+      "//# sourceMappingURL=main.js.map"
+    ]
+  },
+  "failure": {
+    "sourceText": "toast(\"rhino-layer-must-not-leak\");\nsleep(1);\n",
+    "diagnosticCodes": [
+      2304,
+      2304
+    ]
+  }
+}

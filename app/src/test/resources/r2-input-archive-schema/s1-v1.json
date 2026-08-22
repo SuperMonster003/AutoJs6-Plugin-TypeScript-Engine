@@ -1,0 +1,366 @@
+{
+  "schema": "autojs6.typescript.r2-m3-s1.input-archive-schema",
+  "revision": 1,
+  "decision": "single-formal-revision-one-with-domain-separated-authority",
+  "publicContract": {
+    "schemaRevisionKey": "inputArchiveSchemaRevision",
+    "schemaRevision": 1,
+    "schemaName": "autojs6.typescript.input-archive",
+    "manifestPath": "request-manifest.json",
+    "declarationProfileFingerprintKey": "declarationProfileFingerprint",
+    "acceptedSchemaRevisions": [
+      1
+    ],
+    "rejectedLegacyManifestRevisions": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "legacyRevisionPolicy": "reject-not-formal-v1-alias",
+    "unknownRevisionPolicy": "fail-closed"
+  },
+  "manifestShape": {
+    "baseTopLevelKeys": [
+      "schema",
+      "revision",
+      "inputQuotaRevision",
+      "contractVersion",
+      "contractHash",
+      "inputArchiveTransportVersion",
+      "requestId",
+      "projectId",
+      "entrySourceUri",
+      "entryPath",
+      "targetProfile",
+      "compilationMode",
+      "profileSchemaRevision",
+      "profileRevision",
+      "runtimeCapabilitySchemaRevision",
+      "configSchemaRevision",
+      "runtimeCapabilitiesFingerprint",
+      "compilerPackage",
+      "compilerVersion",
+      "compilerDistributionFingerprint",
+      "declarationsFingerprint",
+      "declarationProfileFingerprint",
+      "configKind",
+      "callerInventoryFingerprint",
+      "rootPaths",
+      "files"
+    ],
+    "sourceFileDescriptorKeys": [
+      "path",
+      "sha256",
+      "size"
+    ],
+    "configKeys": [
+      "path",
+      "size",
+      "sha256",
+      "policyRevision",
+      "policyFingerprint"
+    ],
+    "packageMetadataKeys": [
+      "schemaRevision",
+      "policyRevision",
+      "policyFingerprint",
+      "inventoryFingerprint",
+      "dependencyRoots",
+      "files"
+    ],
+    "packageTargetKeys": [
+      "schemaRevision",
+      "policyRevision",
+      "policyFingerprint",
+      "packageMetadataInventoryFingerprint",
+      "inventoryFingerprint",
+      "files"
+    ],
+    "conditionalKeys": [
+      "config",
+      "packageMetadata",
+      "packageTargets"
+    ],
+    "absentConditionalEncoding": "key-absent",
+    "unknownFieldPolicy": "fail-closed",
+    "missingFieldPolicy": "fail-closed"
+  },
+  "conditionalMatrix": [
+    {
+      "id": "rhino-r1-none",
+      "profile": "rhino",
+      "profileRevision": 1,
+      "configKind": "none",
+      "config": false,
+      "packageMetadata": false,
+      "packageTargets": "none",
+      "exactConditionalKeys": []
+    },
+    {
+      "id": "rhino-r1-tsconfig",
+      "profile": "rhino",
+      "profileRevision": 1,
+      "configKind": "tsconfig",
+      "config": true,
+      "packageMetadata": false,
+      "packageTargets": "none",
+      "exactConditionalKeys": [
+        "config"
+      ]
+    },
+    {
+      "id": "rhino-r1-tsconfig-metadata",
+      "profile": "rhino",
+      "profileRevision": 1,
+      "configKind": "tsconfig",
+      "config": true,
+      "packageMetadata": true,
+      "packageTargets": "none",
+      "exactConditionalKeys": [
+        "config",
+        "packageMetadata"
+      ]
+    },
+    {
+      "id": "rhino-r1-tsconfig-metadata-target-v1",
+      "profile": "rhino",
+      "profileRevision": 1,
+      "configKind": "tsconfig",
+      "config": true,
+      "packageMetadata": true,
+      "packageTargets": "v1",
+      "exactConditionalKeys": [
+        "config",
+        "packageMetadata",
+        "packageTargets"
+      ]
+    },
+    {
+      "id": "node-r1-none",
+      "profile": "node",
+      "profileRevision": 1,
+      "configKind": "none",
+      "config": false,
+      "packageMetadata": false,
+      "packageTargets": "none",
+      "exactConditionalKeys": []
+    },
+    {
+      "id": "node-r2-none",
+      "profile": "node",
+      "profileRevision": 2,
+      "configKind": "none",
+      "config": false,
+      "packageMetadata": false,
+      "packageTargets": "none",
+      "exactConditionalKeys": []
+    },
+    {
+      "id": "node-r2-metadata",
+      "profile": "node",
+      "profileRevision": 2,
+      "configKind": "none",
+      "config": false,
+      "packageMetadata": true,
+      "packageTargets": "none",
+      "exactConditionalKeys": [
+        "packageMetadata"
+      ]
+    },
+    {
+      "id": "node-r2-metadata-target-v2",
+      "profile": "node",
+      "profileRevision": 2,
+      "configKind": "none",
+      "config": false,
+      "packageMetadata": true,
+      "packageTargets": "v2",
+      "exactConditionalKeys": [
+        "packageMetadata",
+        "packageTargets"
+      ]
+    }
+  ],
+  "rejectedConditionalCombinations": [
+    "rhino-r1-none-with-package-metadata",
+    "rhino-r1-none-with-package-target-v1",
+    "rhino-r1-with-package-target-v2",
+    "node-r1-with-package-metadata",
+    "node-r1-with-package-target",
+    "node-r2-with-tsconfig",
+    "node-r2-target-without-package-metadata",
+    "node-r2-with-package-target-v1",
+    "mixed-package-target-v1-v2"
+  ],
+  "callerArchiveDomains": {
+    "manifestPath": "request-manifest.json",
+    "payloadDomains": [
+      "source",
+      "config",
+      "package-metadata",
+      "package-target-v1",
+      "package-target-v2"
+    ],
+    "sourceRoot": "sources/",
+    "configPath": "tsconfig.json",
+    "projectPackageMetadataPath": "package.json",
+    "dependencyPackageRoot": "packages/",
+    "callerDeclarationPathsAllowed": false,
+    "manifestIncludedInPayloadInventory": false,
+    "exactPhysicalCoverage": "manifest-plus-every-declared-caller-payload-exactly-once"
+  },
+  "trustedDeclarationDomain": {
+    "domain": "declaration",
+    "ownership": "signed-plugin-local-distribution",
+    "physicallyPresentInCallerArchive": false,
+    "injectedAfterCallerArchiveValidation": true,
+    "profileFingerprintKey": "declarationProfileFingerprint",
+    "exactLocalFileInventoryRequired": true,
+    "callerWireIdentityIncludes": [
+      "declarationsFingerprint",
+      "declarationProfileFingerprint"
+    ],
+    "locallyDerivedAcceptedAuthorityIncludes": [
+      "declarationInventoryFingerprint",
+      "declarationFileCount",
+      "declarationByteLength"
+    ]
+  },
+  "logicalInventory": {
+    "canonicalPrefix": "autojs6.typescript.input-inventory.v1\n",
+    "canonicalDomainOrder": [
+      "source",
+      "declaration",
+      "config",
+      "package-metadata",
+      "package-target-v1",
+      "package-target-v2"
+    ],
+    "callerInventoryIncludes": [
+      "source",
+      "config",
+      "package-metadata",
+      "package-target-v1",
+      "package-target-v2"
+    ],
+    "callerInventoryExcludes": [
+      "request-manifest-json",
+      "declaration",
+      "zip-container-bytes"
+    ],
+    "declarationInventoryIncludes": [
+      "declaration"
+    ],
+    "retainedInventoryIncludes": [
+      "source",
+      "declaration",
+      "config",
+      "package-metadata",
+      "package-target-v1",
+      "package-target-v2"
+    ],
+    "canonicalRecord": "domain-nul-path-nul-size-nul-lower-sha256-newline",
+    "ordering": "canonical-domain-order-then-canonical-path",
+    "asciiCaseFoldCollisionPolicy": "fail-closed"
+  },
+  "hashAuthority": [
+    {
+      "name": "archiveSha256",
+      "coverage": "entire-caller-zip-container",
+      "boundBy": "control-plane-bundle",
+      "recomputed": true
+    },
+    {
+      "name": "requestManifestSha256",
+      "coverage": "exact-request-manifest-bytes",
+      "boundBy": "control-plane-bundle",
+      "recomputed": true
+    },
+    {
+      "name": "callerInventoryFingerprint",
+      "coverage": "all-non-manifest-caller-payload-descriptors",
+      "boundBy": "manifest-and-accepted-authority",
+      "recomputed": true
+    },
+    {
+      "name": "declarationProfileFingerprint",
+      "coverage": "signed-local-selected-declaration-profile",
+      "boundBy": "control-plane-and-manifest",
+      "recomputed": true
+    },
+    {
+      "name": "declarationInventoryFingerprint",
+      "coverage": "exact-injected-declaration-file-inventory",
+      "boundBy": "accepted-authority-and-worker-start",
+      "recomputed": true
+    },
+    {
+      "name": "retainedInventoryFingerprint",
+      "coverage": "caller-payload-plus-injected-declarations",
+      "boundBy": "accepted-authority-and-worker-start",
+      "recomputed": true
+    }
+  ],
+  "ordinaryQuota": {
+    "inputQuotaRevision": 1,
+    "maximumFiles": 512,
+    "maximumSingleFileBytes": 8388608,
+    "maximumTotalBytes": 8388608,
+    "comparison": "inclusive",
+    "countedDomains": [
+      "source",
+      "declaration",
+      "config",
+      "package-metadata",
+      "package-target-v1",
+      "package-target-v2"
+    ],
+    "excludedDomains": [
+      "request-manifest-json",
+      "zip-container-bytes",
+      "framing-overhead"
+    ],
+    "callerQuotaError": "ERR_AUTOJS6_TYPESCRIPT_ARCHIVE_QUOTA",
+    "trustedDeclarationQuotaError": "ERR_AUTOJS6_TYPESCRIPT_COMPILER_UNAVAILABLE",
+    "admissionPoint": "before-worker-handle-claim-and-framing"
+  },
+  "transportCeiling": {
+    "authority": "legacy-zip-validation-and-private-staging-only",
+    "maximumArchiveFiles": 4096,
+    "maximumArchiveContainerBytes": 67108864,
+    "maximumArchiveExpandedBytes": 67108864,
+    "maximumSingleFileBytes": 8388608,
+    "privateFileBackedMaximumFiles": 4607,
+    "privateFileBackedMaximumTotalBytes": 75497472,
+    "testOnlyWorkerQuotaRevision": 2147483647,
+    "testOnlySelectionAuthority": "trusted-debug-or-evidence-host-only",
+    "promotesFormalSchema": false,
+    "promotesOrdinaryQuota": false
+  },
+  "failurePolicy": {
+    "outerMissingOrWrongType": "ERR_AUTOJS6_TYPESCRIPT_INVALID_REQUEST",
+    "outerUnknownSchemaOrProfile": "ERR_AUTOJS6_TYPESCRIPT_CONTRACT_MISMATCH",
+    "schemaRevisionMismatch": "ERR_AUTOJS6_TYPESCRIPT_CONTRACT_MISMATCH",
+    "archiveOrManifestHashMismatch": "ERR_AUTOJS6_TYPESCRIPT_ARCHIVE_INTEGRITY",
+    "payloadInventoryMismatch": "ERR_AUTOJS6_TYPESCRIPT_ARCHIVE_INTEGRITY",
+    "callerDeclarationPath": "ERR_AUTOJS6_TYPESCRIPT_ARCHIVE_PATH",
+    "unknownOrMissingField": "fail-closed",
+    "fdOwnershipTransferred": false,
+    "archiveStagingStarted": false,
+    "workerDispatchStarted": false,
+    "callerOutputBytes": 0,
+    "automaticRetryAllowed": false
+  },
+  "promotionState": {
+    "compilerAvailable": false,
+    "projectCompilation": false,
+    "semanticDiagnostics": false,
+    "sourceMapV3": false,
+    "nodeRuntimeRequired": false,
+    "nodeRevisionTwoEndToEndChanged": false,
+    "deviceEvidenceRefreshed": false
+  }
+}

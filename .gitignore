@@ -24,6 +24,7 @@
 /plugin-api/**/build/
 /release-smoke/build/
 /r1-compat-v1/build/
+/r2-public-preview/build/
 
 /local.properties
 /sign.properties

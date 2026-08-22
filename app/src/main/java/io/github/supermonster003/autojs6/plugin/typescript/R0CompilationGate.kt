@@ -132,6 +132,13 @@ object R0CompilationGate {
                 message = "compilerOptionsJson exceeds the Binder metadata budget.",
             )
         }
+        if (request.compilerOptionsJson != R2CompilerEscapePolicy.INLINE_COMPILER_OPTIONS_JSON) {
+            return rejected(
+                requestId = request.requestId,
+                code = TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+                message = "compilerOptionsJson cannot establish executable compiler authority.",
+            )
+        }
         if (!isSupportedEntry(request.entrySourceUri, request.targetProfile)) {
             return rejected(
                 requestId = request.requestId,

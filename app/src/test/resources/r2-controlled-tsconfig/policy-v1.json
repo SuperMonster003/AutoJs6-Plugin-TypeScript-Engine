@@ -1,0 +1,132 @@
+{
+  "schema": "autojs6.typescript.controlled-tsconfig-policy",
+  "revision": 1,
+  "configKind": "tsconfig",
+  "configPath": "tsconfig.json",
+  "fingerprint": "849f882618d294d61683cc5930ecd4855f53435d7a673ceda08ad127504fa24d",
+  "grammar": {
+    "name": "typescript-jsonc-6.0.3",
+    "allowUtf8Bom": true,
+    "allowComments": true,
+    "allowTrailingComma": true,
+    "rejectDuplicateKeys": true
+  },
+  "budgets": {
+    "maximumBytes": 49152,
+    "maximumSelectors": 512,
+    "maximumSelectorUtf8Bytes": 4096,
+    "maximumJsonDepth": 16,
+    "maximumJsonNodes": 4096
+  },
+  "budgetSemantics": {
+    "jsonDepthCounting": "root-value-one-each-child-value-plus-one-inclusive",
+    "jsonNodeCounting": "every-json-value-root-included-property-names-excluded-inclusive",
+    "selectorCounting": "all-array-elements-before-validation-normalization-dedup-inclusive",
+    "selectorUtf8Measurement": "max-of-decoded-json-string-and-nfc-normalized-string"
+  },
+  "rootSelection": {
+    "logicalPathDomain": "nfc-logical-project-path",
+    "defaultInclude": "**/*",
+    "defaultExclude": [],
+    "filesAndInclude": "union",
+    "excludeAffects": "include-only"
+  },
+  "allowedTopLevel": [
+    "$schema",
+    "compilerOptions",
+    "exclude",
+    "files",
+    "include"
+  ],
+  "unsupportedTopLevel": [
+    "compileOnSave",
+    "extends",
+    "references",
+    "typeAcquisition",
+    "watchOptions"
+  ],
+  "allowedBooleanCompilerOptions": {
+    "exactOptionalPropertyTypes": "false",
+    "noFallthroughCasesInSwitch": "false",
+    "noImplicitAny": "inherit-strict",
+    "noImplicitOverride": "false",
+    "noImplicitReturns": "false",
+    "noImplicitThis": "inherit-strict",
+    "noPropertyAccessFromIndexSignature": "false",
+    "noUncheckedIndexedAccess": "false",
+    "noUnusedLocals": "false",
+    "noUnusedParameters": "false",
+    "skipLibCheck": "false",
+    "strict": "true",
+    "strictBindCallApply": "inherit-strict",
+    "strictBuiltinIteratorReturn": "inherit-strict",
+    "strictFunctionTypes": "inherit-strict",
+    "strictNullChecks": "inherit-strict",
+    "strictPropertyInitialization": "inherit-strict",
+    "useUnknownInCatchVariables": "inherit-strict"
+  },
+  "profileManagedCompilerOptions": [
+    "allowJs",
+    "allowSyntheticDefaultImports",
+    "alwaysStrict",
+    "checkJs",
+    "esModuleInterop",
+    "forceConsistentCasingInFileNames",
+    "ignoreDeprecations",
+    "module",
+    "moduleDetection",
+    "moduleResolution",
+    "newLine",
+    "noEmitOnError",
+    "outDir",
+    "resolveJsonModule",
+    "rootDir",
+    "sourceMap",
+    "target",
+    "useDefineForClassFields"
+  ],
+  "escapeForbiddenCompilerOptions": [
+    "baseUrl",
+    "customConditions",
+    "lib",
+    "moduleSuffixes",
+    "paths",
+    "plugins",
+    "rootDirs",
+    "traceResolution",
+    "typeRoots",
+    "types"
+  ],
+  "outputForbiddenCompilerOptions": [
+    "declaration",
+    "declarationDir",
+    "declarationMap",
+    "emitBOM",
+    "emitDeclarationOnly",
+    "importHelpers",
+    "incremental",
+    "inlineSourceMap",
+    "inlineSources",
+    "mapRoot",
+    "noEmit",
+    "noEmitHelpers",
+    "outFile",
+    "removeComments",
+    "sourceRoot",
+    "tsBuildInfoFile"
+  ],
+  "knownOptionFallback": "unsupported-feature",
+  "policyCodes": [
+    "CONFIG_ENCODING_INVALID",
+    "CONFIG_SYNTAX_INVALID",
+    "CONFIG_DUPLICATE_KEY",
+    "CONFIG_UNKNOWN_PROPERTY",
+    "CONFIG_INVALID_VALUE",
+    "CONFIG_UNSUPPORTED_FEATURE",
+    "CONFIG_PROFILE_CONFLICT",
+    "CONFIG_PATH_INVALID",
+    "CONFIG_COMPLEXITY_EXCEEDED",
+    "CONFIG_NO_INPUTS",
+    "CONFIG_ENTRY_NOT_SELECTED"
+  ]
+}

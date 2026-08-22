@@ -1,0 +1,131 @@
+{
+  "schema": "autojs6.typescript.r2-m3-d3.capability-promotion-compatibility-decision",
+  "revision": 1,
+  "decision": "dependency-ordered-independent-promotion",
+  "metadataRevision": {
+    "key": "capabilityPromotionCompatibilityRevision",
+    "value": 1,
+    "storedType": "Int",
+    "unknownOrWrongTypedPolicy": "fail-closed"
+  },
+  "capabilities": [
+    {
+      "id": "C",
+      "key": "typescriptCompilerAvailable",
+      "bit": 1,
+      "requires": []
+    },
+    {
+      "id": "P",
+      "key": "typescriptProjectCompilation",
+      "bit": 2,
+      "requires": [
+        "C"
+      ]
+    },
+    {
+      "id": "D",
+      "key": "typescriptSemanticDiagnostics",
+      "bit": 4,
+      "requires": [
+        "C",
+        "P"
+      ]
+    },
+    {
+      "id": "M",
+      "key": "typescriptSourceMapV3",
+      "bit": 8,
+      "requires": [
+        "C",
+        "P"
+      ]
+    }
+  ],
+  "combinationMatrix": [
+    { "mask": 0, "C": false, "P": false, "D": false, "M": false, "compatible": true },
+    { "mask": 1, "C": true, "P": false, "D": false, "M": false, "compatible": true },
+    { "mask": 2, "C": false, "P": true, "D": false, "M": false, "compatible": false },
+    { "mask": 3, "C": true, "P": true, "D": false, "M": false, "compatible": true },
+    { "mask": 4, "C": false, "P": false, "D": true, "M": false, "compatible": false },
+    { "mask": 5, "C": true, "P": false, "D": true, "M": false, "compatible": false },
+    { "mask": 6, "C": false, "P": true, "D": true, "M": false, "compatible": false },
+    { "mask": 7, "C": true, "P": true, "D": true, "M": false, "compatible": true },
+    { "mask": 8, "C": false, "P": false, "D": false, "M": true, "compatible": false },
+    { "mask": 9, "C": true, "P": false, "D": false, "M": true, "compatible": false },
+    { "mask": 10, "C": false, "P": true, "D": false, "M": true, "compatible": false },
+    { "mask": 11, "C": true, "P": true, "D": false, "M": true, "compatible": true },
+    { "mask": 12, "C": false, "P": false, "D": true, "M": true, "compatible": false },
+    { "mask": 13, "C": true, "P": false, "D": true, "M": true, "compatible": false },
+    { "mask": 14, "C": false, "P": true, "D": true, "M": true, "compatible": false },
+    { "mask": 15, "C": true, "P": true, "D": true, "M": true, "compatible": true }
+  ],
+  "hostRoutes": [
+    {
+      "id": "identity-display-discovery",
+      "requiredCapabilities": [],
+      "compatibleRevisionOneMasks": [0, 1, 3, 7, 11, 15]
+    },
+    {
+      "id": "compiler-bind-prewarm",
+      "requiredCapabilities": ["C"],
+      "compatibleRevisionOneMasks": [1, 3, 7, 11, 15]
+    },
+    {
+      "id": "ordinary-project-compilation",
+      "requiredCapabilities": ["C", "P"],
+      "compatibleRevisionOneMasks": [3, 7, 11, 15]
+    },
+    {
+      "id": "project-semantic-diagnostics",
+      "requiredCapabilities": ["C", "P", "D"],
+      "compatibleRevisionOneMasks": [7, 15]
+    },
+    {
+      "id": "project-source-map-v3",
+      "requiredCapabilities": ["C", "P", "M"],
+      "compatibleRevisionOneMasks": [11, 15]
+    },
+    {
+      "id": "project-diagnostics-and-source-map-v3",
+      "requiredCapabilities": ["C", "P", "D", "M"],
+      "compatibleRevisionOneMasks": [15]
+    }
+  ],
+  "metadataTypeRules": {
+    "revisionOneKnownBooleanKeys": [
+      "typescriptCompilerAvailable",
+      "typescriptProjectCompilation",
+      "typescriptSemanticDiagnostics",
+      "typescriptSourceMapV3",
+      "typescriptNodeRuntimeRequired"
+    ],
+    "revisionOneKnownBooleanStoredType": "Boolean",
+    "missingKnownBooleanPolicy": "fail-closed",
+    "wrongTypedKnownBooleanPolicy": "fail-closed",
+    "boundedUnknownPrimitiveKeyPolicy": "ignore-without-authority",
+    "legacyRevisionAbsentException": "four-compiler-capabilities-explicit-false-node-absent-or-explicit-false",
+    "legacyOperationalRouteAllowed": false
+  },
+  "nodeRuntimeDependency": {
+    "key": "typescriptNodeRuntimeRequired",
+    "partOfCompilerMask": false,
+    "revisionOneRequiredValue": false,
+    "legacyAbsentValue": false,
+    "truePolicy": "fail-closed-new-compatibility-revision-required",
+    "canPromoteCompilerCapability": false
+  },
+  "currentPromotionState": {
+    "metadataRevision": 1,
+    "typescriptCompilerAvailable": false,
+    "typescriptProjectCompilation": false,
+    "typescriptSemanticDiagnostics": false,
+    "typescriptSourceMapV3": false,
+    "typescriptNodeRuntimeRequired": false,
+    "mask": 0,
+    "publicCapabilityChanged": false,
+    "runtimeCapabilityChanged": false,
+    "nodeRevisionTwoEndToEndChanged": false,
+    "deviceEvidenceRefreshed": false
+  }
+}

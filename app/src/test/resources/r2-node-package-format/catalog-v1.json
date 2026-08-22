@@ -1,0 +1,145 @@
+{
+  "schema": "autojs6.typescript.node-package-format-catalog-parity",
+  "revision": 1,
+  "catalogAuthority": {
+    "schema": "autojs6.typescript.node-package-format-catalog",
+    "schemaRevision": 1,
+    "catalogRevision": 1,
+    "canonicalDomain": "autojs6.typescript.node-package-format.catalog.v1",
+    "profileSchemaRevision": 1,
+    "profileRevision": 2,
+    "nodeModuleOutputPolicySchemaRevision": 1,
+    "nodeModuleOutputPolicyRevision": 1,
+    "nodeModuleOutputPolicyFingerprint": "5c2294f0ee9d6d25bd2132b4ea24866d0a5f9caaa521a63bf81ffe1d897f6ce7",
+    "packageMetadataSchemaRevision": 1,
+    "packageMetadataPolicyRevision": 1,
+    "packageMetadataPolicyFingerprint": "fab8fec29ed0f0a1de65594620e233c9a9bef2fa514dac16c3079d5570325e97"
+  },
+  "noBoundary": {
+    "typeState": "no-boundary",
+    "packageMetadataInventoryFingerprint": null,
+    "boundaryPath": null
+  },
+  "validCases": [
+    {
+      "id": "root-missing",
+      "dependencyRoots": [],
+      "files": [
+        {
+          "path": "package.json",
+          "json": "{}",
+          "size": 2,
+          "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "boundaryPath": "/",
+          "typeState": "missing"
+        }
+      ],
+      "inventoryCanonicalInput": "autojs6.typescript.package-metadata.inventory.v1|file=package.json,2,44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "packageMetadataInventoryFingerprint": "5226a24ffd4ccf70a6ae0aa18b5c0f30630612a2e2edd348bf007c87e62a941d",
+      "catalogCanonicalInput": "autojs6.typescript.node-package-format.catalog.v1|schemaRevision=1|catalogRevision=1|profileSchemaRevision=1|profileRevision=2|nodeModuleOutputPolicySchemaRevision=1|nodeModuleOutputPolicyRevision=1|nodeModuleOutputPolicyFingerprint=5c2294f0ee9d6d25bd2132b4ea24866d0a5f9caaa521a63bf81ffe1d897f6ce7|packageMetadataSchemaRevision=1|packageMetadataPolicyRevision=1|packageMetadataPolicyFingerprint=fab8fec29ed0f0a1de65594620e233c9a9bef2fa514dac16c3079d5570325e97|packageMetadataInventoryFingerprint=5226a24ffd4ccf70a6ae0aa18b5c0f30630612a2e2edd348bf007c87e62a941d|record=package.json,/,2,44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a,missing",
+      "catalogFingerprint": "f43c015c4af360291ca5d753da0651b84f5c652039b13d84a062c197f36bf3de",
+      "lookups": [
+        { "path": "/sources/main.ts", "boundaryPath": "/", "typeState": "missing" }
+      ]
+    },
+    {
+      "id": "root-commonjs",
+      "dependencyRoots": [],
+      "files": [
+        {
+          "path": "package.json",
+          "json": "{\"type\":\"commonjs\"}",
+          "size": 19,
+          "sha256": "fa6944a20ca5e6fbaf98fd202eb8c7004d5b4ab786e36b9ed02ee31dbe196c9f",
+          "boundaryPath": "/",
+          "typeState": "commonjs"
+        }
+      ],
+      "inventoryCanonicalInput": "autojs6.typescript.package-metadata.inventory.v1|file=package.json,19,fa6944a20ca5e6fbaf98fd202eb8c7004d5b4ab786e36b9ed02ee31dbe196c9f",
+      "packageMetadataInventoryFingerprint": "99e6a0e05b5117b05ab9b070273be4f4d48a8fa1709b83fb1ae16d67c649abe6",
+      "catalogCanonicalInput": "autojs6.typescript.node-package-format.catalog.v1|schemaRevision=1|catalogRevision=1|profileSchemaRevision=1|profileRevision=2|nodeModuleOutputPolicySchemaRevision=1|nodeModuleOutputPolicyRevision=1|nodeModuleOutputPolicyFingerprint=5c2294f0ee9d6d25bd2132b4ea24866d0a5f9caaa521a63bf81ffe1d897f6ce7|packageMetadataSchemaRevision=1|packageMetadataPolicyRevision=1|packageMetadataPolicyFingerprint=fab8fec29ed0f0a1de65594620e233c9a9bef2fa514dac16c3079d5570325e97|packageMetadataInventoryFingerprint=99e6a0e05b5117b05ab9b070273be4f4d48a8fa1709b83fb1ae16d67c649abe6|record=package.json,/,19,fa6944a20ca5e6fbaf98fd202eb8c7004d5b4ab786e36b9ed02ee31dbe196c9f,commonjs",
+      "catalogFingerprint": "e7c8c3792db0c25d006fd877eced7866343fb4029af04cf2d18f3f5a57be7524",
+      "lookups": [
+        { "path": "/sources/main.ts", "boundaryPath": "/", "typeState": "commonjs" }
+      ]
+    },
+    {
+      "id": "root-module",
+      "dependencyRoots": [],
+      "files": [
+        {
+          "path": "package.json",
+          "json": "{\"type\":\"module\"}",
+          "size": 17,
+          "sha256": "6dc1b06d6b093e9cccb20bee06a93836eee0420ae26803ca2ce4065d82f070d1",
+          "boundaryPath": "/",
+          "typeState": "module"
+        }
+      ],
+      "inventoryCanonicalInput": "autojs6.typescript.package-metadata.inventory.v1|file=package.json,17,6dc1b06d6b093e9cccb20bee06a93836eee0420ae26803ca2ce4065d82f070d1",
+      "packageMetadataInventoryFingerprint": "9fb6850fa0fa8c0a79d1730eb9ac8eef1312470165b4e8ed4c04ee11294adec5",
+      "catalogCanonicalInput": "autojs6.typescript.node-package-format.catalog.v1|schemaRevision=1|catalogRevision=1|profileSchemaRevision=1|profileRevision=2|nodeModuleOutputPolicySchemaRevision=1|nodeModuleOutputPolicyRevision=1|nodeModuleOutputPolicyFingerprint=5c2294f0ee9d6d25bd2132b4ea24866d0a5f9caaa521a63bf81ffe1d897f6ce7|packageMetadataSchemaRevision=1|packageMetadataPolicyRevision=1|packageMetadataPolicyFingerprint=fab8fec29ed0f0a1de65594620e233c9a9bef2fa514dac16c3079d5570325e97|packageMetadataInventoryFingerprint=9fb6850fa0fa8c0a79d1730eb9ac8eef1312470165b4e8ed4c04ee11294adec5|record=package.json,/,17,6dc1b06d6b093e9cccb20bee06a93836eee0420ae26803ca2ce4065d82f070d1,module",
+      "catalogFingerprint": "2be545925cd00456a2bc802f65777f5c9273b976d116d6c0e9f152adc40cda41",
+      "lookups": [
+        { "path": "/sources/main.ts", "boundaryPath": "/", "typeState": "module" }
+      ]
+    },
+    {
+      "id": "nested-longest-boundary",
+      "dependencyRoots": ["packages/alpha"],
+      "files": [
+        {
+          "path": "package.json",
+          "json": "{\"type\":\"commonjs\"}",
+          "size": 19,
+          "sha256": "fa6944a20ca5e6fbaf98fd202eb8c7004d5b4ab786e36b9ed02ee31dbe196c9f",
+          "boundaryPath": "/",
+          "typeState": "commonjs"
+        },
+        {
+          "path": "packages/alpha/nested/package.json",
+          "json": "{\"type\":\"module\"}",
+          "size": 17,
+          "sha256": "6dc1b06d6b093e9cccb20bee06a93836eee0420ae26803ca2ce4065d82f070d1",
+          "boundaryPath": "/packages/alpha/nested",
+          "typeState": "module"
+        },
+        {
+          "path": "packages/alpha/package.json",
+          "json": "{}",
+          "size": 2,
+          "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "boundaryPath": "/packages/alpha",
+          "typeState": "missing"
+        }
+      ],
+      "inventoryCanonicalInput": "autojs6.typescript.package-metadata.inventory.v1|root=packages/alpha|file=package.json,19,fa6944a20ca5e6fbaf98fd202eb8c7004d5b4ab786e36b9ed02ee31dbe196c9f|file=packages/alpha/nested/package.json,17,6dc1b06d6b093e9cccb20bee06a93836eee0420ae26803ca2ce4065d82f070d1|file=packages/alpha/package.json,2,44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "packageMetadataInventoryFingerprint": "52ff1a3fa3cbac86a89383dc1ed12548d296bece212a73df5d60d9eb2e3e8fdc",
+      "catalogCanonicalInput": "autojs6.typescript.node-package-format.catalog.v1|schemaRevision=1|catalogRevision=1|profileSchemaRevision=1|profileRevision=2|nodeModuleOutputPolicySchemaRevision=1|nodeModuleOutputPolicyRevision=1|nodeModuleOutputPolicyFingerprint=5c2294f0ee9d6d25bd2132b4ea24866d0a5f9caaa521a63bf81ffe1d897f6ce7|packageMetadataSchemaRevision=1|packageMetadataPolicyRevision=1|packageMetadataPolicyFingerprint=fab8fec29ed0f0a1de65594620e233c9a9bef2fa514dac16c3079d5570325e97|packageMetadataInventoryFingerprint=52ff1a3fa3cbac86a89383dc1ed12548d296bece212a73df5d60d9eb2e3e8fdc|record=package.json,/,19,fa6944a20ca5e6fbaf98fd202eb8c7004d5b4ab786e36b9ed02ee31dbe196c9f,commonjs|record=packages/alpha/nested/package.json,/packages/alpha/nested,17,6dc1b06d6b093e9cccb20bee06a93836eee0420ae26803ca2ce4065d82f070d1,module|record=packages/alpha/package.json,/packages/alpha,2,44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a,missing",
+      "catalogFingerprint": "de8edf2b0dd71382d03913c6d5e127d9f089b667be2869542365bbe766feefe2",
+      "lookups": [
+        { "path": "/sources/main.ts", "boundaryPath": "/", "typeState": "commonjs" },
+        { "path": "/packages/alpha/main.ts", "boundaryPath": "/packages/alpha", "typeState": "missing" },
+        { "path": "/packages/alpha/nested/main.ts", "boundaryPath": "/packages/alpha/nested", "typeState": "module" },
+        { "path": "/packages/alpha/nestedness/main.ts", "boundaryPath": "/packages/alpha", "typeState": "missing" }
+      ]
+    }
+  ],
+  "invalidTypeCases": [
+    { "id": "empty-string", "json": "{\"type\":\"\"}" },
+    { "id": "case-drift", "json": "{\"type\":\"Module\"}" },
+    { "id": "unknown-string", "json": "{\"type\":\"node\"}" },
+    { "id": "null", "json": "{\"type\":null}" },
+    { "id": "boolean", "json": "{\"type\":true}" },
+    { "id": "number", "json": "{\"type\":1}" },
+    { "id": "array", "json": "{\"type\":[]}" },
+    { "id": "object", "json": "{\"type\":{}}" }
+  ],
+  "invalidLookupCases": [
+    { "id": "missing-leading-slash", "path": "sources/main.ts" },
+    { "id": "root-is-not-a-containing-file", "path": "/" },
+    { "id": "parent-traversal", "path": "/sources/../main.ts" },
+    { "id": "backslash", "path": "/sources\\main.ts" },
+    { "id": "empty-segment", "path": "/sources//main.ts" }
+  ]
+}

@@ -1,0 +1,497 @@
+{
+  "schema": "autojs6.typescript.nodenext-program-integration",
+  "revision": 1,
+  "typescriptVersion": "6.0.3",
+  "scope": "R2-M2-P2-6 production Worker Program only; native result/private output remain closed",
+  "authority": {
+    "configKind": "none",
+    "configSchemaRevision": 1,
+    "profileSchemaRevision": 1,
+    "profileRevision": 2,
+    "targetProfile": "node",
+    "runtimeCapabilitiesFingerprint": "a19e8da1a4ab5961aada8d49e1f70eef847b84a0a8f348b6f784f43dc26e2d3a",
+    "nodeModuleOutputPolicySchemaRevision": 1,
+    "nodeModuleOutputPolicyRevision": 1,
+    "nodeModuleOutputPolicyFingerprint": "5c2294f0ee9d6d25bd2132b4ea24866d0a5f9caaa521a63bf81ffe1d897f6ce7",
+    "resolverPolicyRevision": 2,
+    "nodePackageTargetSchemaRevision": 1,
+    "nodePackageTargetPolicyRevision": 2,
+    "nodePackageTargetPolicyFingerprint": "175cc694dae3e925d66eac3f77f308c95dc0db7b939238a33022d27812578224"
+  },
+  "exactProgramStartKeys": {
+    "noMetadata": [
+      "callerInventoryFingerprint",
+      "configKind",
+      "configSchemaRevision",
+      "declarationByteLength",
+      "declarationFileCount",
+      "declarationInventoryFingerprint",
+      "declarationProfileFingerprint",
+      "entryPath",
+      "fileCount",
+      "inputArchiveSchemaRevision",
+      "inputQuotaRevision",
+      "kind",
+      "largestFileBytes",
+      "nodeModuleOutputPolicyFingerprint",
+      "nodeModuleOutputPolicyRevision",
+      "nodeModuleOutputPolicySchemaRevision",
+      "profileRevision",
+      "profileSchemaRevision",
+      "requestId",
+      "retainedFileCount",
+      "retainedInventoryFingerprint",
+      "resolverPolicyRevision",
+      "runtimeCapabilitiesFingerprint",
+      "sequence",
+      "snapshotTargetInventoryFingerprint",
+      "targetProfile",
+      "targetUniverseFingerprint",
+      "totalBytes",
+      "workerSpinMilliseconds",
+      "workerSpinPhase"
+    ],
+    "metadata": [
+      "callerInventoryFingerprint",
+      "configKind",
+      "configSchemaRevision",
+      "declarationByteLength",
+      "declarationFileCount",
+      "declarationInventoryFingerprint",
+      "declarationProfileFingerprint",
+      "entryPath",
+      "fileCount",
+      "inputArchiveSchemaRevision",
+      "inputQuotaRevision",
+      "kind",
+      "largestFileBytes",
+      "nodeModuleOutputPolicyFingerprint",
+      "nodeModuleOutputPolicyRevision",
+      "nodeModuleOutputPolicySchemaRevision",
+      "nodePackageFormatCatalogFingerprint",
+      "nodePackageFormatCatalogRevision",
+      "nodePackageFormatSchemaRevision",
+      "packageMetadataByteLength",
+      "packageMetadataCanonical",
+      "packageMetadataFileCount",
+      "packageMetadataInventoryFingerprint",
+      "packageMetadataPolicyFingerprint",
+      "packageMetadataPolicyRevision",
+      "packageMetadataSchemaRevision",
+      "profileRevision",
+      "profileSchemaRevision",
+      "requestId",
+      "retainedFileCount",
+      "retainedInventoryFingerprint",
+      "resolverPolicyRevision",
+      "runtimeCapabilitiesFingerprint",
+      "sequence",
+      "snapshotTargetInventoryFingerprint",
+      "targetProfile",
+      "targetUniverseFingerprint",
+      "totalBytes",
+      "workerSpinMilliseconds",
+      "workerSpinPhase"
+    ],
+    "metadataAndTargets": [
+      "callerInventoryFingerprint",
+      "configKind",
+      "configSchemaRevision",
+      "declarationByteLength",
+      "declarationFileCount",
+      "declarationInventoryFingerprint",
+      "declarationProfileFingerprint",
+      "entryPath",
+      "fileCount",
+      "inputArchiveSchemaRevision",
+      "inputQuotaRevision",
+      "kind",
+      "largestFileBytes",
+      "nodeModuleOutputPolicyFingerprint",
+      "nodeModuleOutputPolicyRevision",
+      "nodeModuleOutputPolicySchemaRevision",
+      "nodePackageFormatCatalogFingerprint",
+      "nodePackageFormatCatalogRevision",
+      "nodePackageFormatSchemaRevision",
+      "nodePackageTargetByteLength",
+      "nodePackageTargetCanonical",
+      "nodePackageTargetFileCount",
+      "nodePackageTargetFingerprint",
+      "nodePackageTargetPolicyFingerprint",
+      "nodePackageTargetPolicyRevision",
+      "nodePackageTargetSchemaRevision",
+      "packageMetadataByteLength",
+      "packageMetadataCanonical",
+      "packageMetadataFileCount",
+      "packageMetadataInventoryFingerprint",
+      "packageMetadataPolicyFingerprint",
+      "packageMetadataPolicyRevision",
+      "packageMetadataSchemaRevision",
+      "profileRevision",
+      "profileSchemaRevision",
+      "requestId",
+      "retainedFileCount",
+      "retainedInventoryFingerprint",
+      "resolverPolicyRevision",
+      "runtimeCapabilitiesFingerprint",
+      "sequence",
+      "snapshotTargetInventoryFingerprint",
+      "targetProfile",
+      "targetUniverseFingerprint",
+      "totalBytes",
+      "workerSpinMilliseconds",
+      "workerSpinPhase"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "metadata-only-root-imports",
+      "classification": "success",
+      "transportMode": "metadata",
+      "entryPath": "/sources/main.ts",
+      "dependencyRoots": [],
+      "metadataFiles": [
+        {
+          "path": "package.json",
+          "text": "{\"type\":\"module\",\"imports\":{\"#util\":\"./sources/util.mjs\"}}"
+        }
+      ],
+      "targetFiles": null,
+      "sourceFiles": [
+        {
+          "path": "/sources/main.ts",
+          "text": "import { util } from \"#util\";\nexport const answer = util;\n"
+        },
+        {
+          "path": "/sources/util.mts",
+          "text": "export const util = 42 as const;\n"
+        }
+      ],
+      "expected": {
+        "rootNames": ["/sources/main.ts", "/sources/util.mts"],
+        "outputPaths": [
+          "/outputs/main.js",
+          "/outputs/main.js.map",
+          "/outputs/util.mjs",
+          "/outputs/util.mjs.map"
+        ],
+        "impliedNodeFormats": {
+          "/sources/main.ts": "esm",
+          "/sources/util.mts": "esm"
+        },
+        "moduleResolutions": [
+          {
+            "containingFile": "/sources/main.ts",
+            "specifier": "#util",
+            "resolvedFileName": "/sources/util.mts",
+            "extension": ".mts"
+          }
+        ],
+        "typeReferenceResolutions": [],
+        "loadedPackageTargets": []
+      }
+    },
+    {
+      "id": "target-bearing-relative-exports-types",
+      "classification": "success",
+      "transportMode": "metadataAndTargets",
+      "entryPath": "/sources/main.mts",
+      "dependencyRoots": ["packages/dual", "packages/types-cjs", "packages/types-esm"],
+      "metadataFiles": [
+        {
+          "path": "package.json",
+          "text": "{\"type\":\"module\"}"
+        },
+        {
+          "path": "packages/dual/package.json",
+          "text": "{\"exports\":{\".\":{\"import\":\"./runtime.mjs\",\"require\":\"./runtime.cjs\"}}}"
+        },
+        {
+          "path": "packages/types-cjs/package.json",
+          "text": "{\"exports\":{\".\":{\"require\":\"./runtime.cjs\",\"types\":\"./index.d.cts\"}}}"
+        },
+        {
+          "path": "packages/types-esm/package.json",
+          "text": "{\"exports\":{\".\":{\"import\":\"./runtime.mjs\",\"types\":\"./index.d.mts\"}}}"
+        }
+      ],
+      "targetFiles": [
+        {
+          "path": "packages/dual/runtime.cts",
+          "text": "const value = { mode: \"cjs\" as const };\nexport = value;\n"
+        },
+        {
+          "path": "packages/dual/runtime.mts",
+          "text": "export const esmValue = \"esm\" as const;\n"
+        },
+        {
+          "path": "packages/types-cjs/index.d.cts",
+          "text": "declare const cjsType: { readonly mode: \"cjs-type\" };\nexport = cjsType;\n"
+        },
+        {
+          "path": "packages/types-cjs/runtime.cts",
+          "text": "const runtime = { mode: \"cjs-runtime\" as const };\nexport = runtime;\n"
+        },
+        {
+          "path": "packages/types-esm/index.d.mts",
+          "text": "export interface EsmType { readonly mode: \"esm-type\"; }\n"
+        },
+        {
+          "path": "packages/types-esm/runtime.mts",
+          "text": "export const runtime = \"esm-runtime\" as const;\n"
+        }
+      ],
+      "sourceFiles": [
+        {
+          "path": "/sources/main.cts",
+          "text": "/// <reference types=\"types-cjs\" />\nimport dual = require(\"dual\");\nimport relative = require(\"./relative.cjs\");\nexport = { dual, relative };\n"
+        },
+        {
+          "path": "/sources/main.mts",
+          "text": "/// <reference types=\"types-esm\" />\nimport { esmValue } from \"dual\";\nimport { relativeEsm } from \"./relative.mjs\";\nexport const combined = `${esmValue}:${relativeEsm}`;\n"
+        },
+        {
+          "path": "/sources/relative.cts",
+          "text": "const relative = \"relative-cjs\" as const;\nexport = relative;\n"
+        },
+        {
+          "path": "/sources/relative.mts",
+          "text": "export const relativeEsm = \"relative-esm\" as const;\n"
+        }
+      ],
+      "expected": {
+        "rootNames": [
+          "/sources/main.cts",
+          "/sources/main.mts",
+          "/sources/relative.cts",
+          "/sources/relative.mts"
+        ],
+        "outputPaths": [
+          "/outputs/main.cjs",
+          "/outputs/main.cjs.map",
+          "/outputs/main.mjs",
+          "/outputs/main.mjs.map",
+          "/outputs/relative.cjs",
+          "/outputs/relative.cjs.map",
+          "/outputs/relative.mjs",
+          "/outputs/relative.mjs.map"
+        ],
+        "impliedNodeFormats": {
+          "/packages/dual/runtime.cts": "commonjs",
+          "/packages/dual/runtime.mts": "esm",
+          "/packages/types-cjs/index.d.cts": "commonjs",
+          "/packages/types-esm/index.d.mts": "esm",
+          "/sources/main.cts": "commonjs",
+          "/sources/main.mts": "esm",
+          "/sources/relative.cts": "commonjs",
+          "/sources/relative.mts": "esm"
+        },
+        "moduleResolutions": [
+          {
+            "containingFile": "/sources/main.cts",
+            "specifier": "./relative.cjs",
+            "resolvedFileName": "/sources/relative.cts",
+            "extension": ".cts"
+          },
+          {
+            "containingFile": "/sources/main.cts",
+            "specifier": "dual",
+            "resolvedFileName": "/packages/dual/runtime.cts",
+            "extension": ".cts"
+          },
+          {
+            "containingFile": "/sources/main.mts",
+            "specifier": "./relative.mjs",
+            "resolvedFileName": "/sources/relative.mts",
+            "extension": ".mts"
+          },
+          {
+            "containingFile": "/sources/main.mts",
+            "specifier": "dual",
+            "resolvedFileName": "/packages/dual/runtime.mts",
+            "extension": ".mts"
+          }
+        ],
+        "typeReferenceResolutions": [
+          {
+            "containingFile": "/sources/main.cts",
+            "specifier": "types-cjs",
+            "resolvedFileName": "/packages/types-cjs/index.d.cts",
+            "extension": ".d.cts"
+          },
+          {
+            "containingFile": "/sources/main.mts",
+            "specifier": "types-esm",
+            "resolvedFileName": "/packages/types-esm/index.d.mts",
+            "extension": ".d.mts"
+          }
+        ],
+        "loadedPackageTargets": [
+          "/packages/dual/runtime.cts",
+          "/packages/dual/runtime.mts",
+          "/packages/types-cjs/index.d.cts",
+          "/packages/types-esm/index.d.mts"
+        ]
+      }
+    },
+    {
+      "id": "exports-no-match",
+      "classification": "failure",
+      "transportMode": "metadataAndTargets",
+      "entryPath": "/sources/main.mts",
+      "dependencyRoots": ["packages/dual"],
+      "metadataFiles": [
+        {
+          "path": "package.json",
+          "text": "{\"type\":\"module\"}"
+        },
+        {
+          "path": "packages/dual/package.json",
+          "text": "{\"exports\":{\".\":\"./runtime.mjs\"}}"
+        }
+      ],
+      "targetFiles": [
+        {
+          "path": "packages/dual/runtime.mts",
+          "text": "export interface Available { readonly available: true; }\n"
+        }
+      ],
+      "sourceFiles": [
+        {
+          "path": "/sources/main.mts",
+          "text": "import type { Missing } from \"dual/missing\";\nexport type Value = Missing;\n"
+        }
+      ],
+      "expected": {
+        "policyCode": "NODE_RESOLUTION_EXPORTS_NO_MATCH",
+        "diagnosticCode": 900011,
+        "sourcePath": "/sources/main.mts",
+        "specifier": "dual/missing"
+      }
+    },
+    {
+      "id": "target-not-in-snapshot",
+      "classification": "failure",
+      "transportMode": "metadataAndTargets",
+      "entryPath": "/sources/main.mts",
+      "dependencyRoots": ["packages/dual"],
+      "metadataFiles": [
+        {
+          "path": "package.json",
+          "text": "{\"type\":\"module\"}"
+        },
+        {
+          "path": "packages/dual/package.json",
+          "text": "{\"exports\":\"./runtime.mjs\"}"
+        }
+      ],
+      "targetFiles": [
+        {
+          "path": "packages/dual/unused.d.mts",
+          "text": "export interface Unused { readonly unused: true; }\n"
+        }
+      ],
+      "sourceFiles": [
+        {
+          "path": "/sources/main.mts",
+          "text": "import type { Missing } from \"dual\";\nexport type Value = Missing;\n"
+        }
+      ],
+      "expected": {
+        "policyCode": "NODE_RESOLUTION_TARGET_NOT_IN_SNAPSHOT",
+        "diagnosticCode": 900016,
+        "sourcePath": "/sources/main.mts",
+        "specifier": "dual"
+      }
+    },
+    {
+      "id": "no-metadata-clean-successor",
+      "classification": "clean-successor",
+      "transportMode": "noMetadata",
+      "entryPath": "/sources/main.ts",
+      "dependencyRoots": null,
+      "metadataFiles": null,
+      "targetFiles": null,
+      "sourceFiles": [
+        {
+          "path": "/sources/cjs.cts",
+          "text": "const cjs = \"cjs\" as const;\nexport = cjs;\n"
+        },
+        {
+          "path": "/sources/esm.mts",
+          "text": "export const esm = \"esm\" as const;\n"
+        },
+        {
+          "path": "/sources/main.cts",
+          "text": "import cjs = require(\"./cjs.cjs\");\nexport = cjs;\n"
+        },
+        {
+          "path": "/sources/main.mts",
+          "text": "import { esm } from \"./esm.mjs\";\nexport const value = esm;\n"
+        },
+        {
+          "path": "/sources/main.ts",
+          "text": "import plain = require(\"./plain.js\");\nexport = plain;\n"
+        },
+        {
+          "path": "/sources/plain.ts",
+          "text": "const plain = \"plain\" as const;\nexport = plain;\n"
+        }
+      ],
+      "expected": {
+        "rootNames": [
+          "/sources/cjs.cts",
+          "/sources/esm.mts",
+          "/sources/main.cts",
+          "/sources/main.mts",
+          "/sources/main.ts",
+          "/sources/plain.ts"
+        ],
+        "outputPaths": [
+          "/outputs/cjs.cjs",
+          "/outputs/cjs.cjs.map",
+          "/outputs/esm.mjs",
+          "/outputs/esm.mjs.map",
+          "/outputs/main.cjs",
+          "/outputs/main.cjs.map",
+          "/outputs/main.js",
+          "/outputs/main.js.map",
+          "/outputs/main.mjs",
+          "/outputs/main.mjs.map",
+          "/outputs/plain.js",
+          "/outputs/plain.js.map"
+        ],
+        "impliedNodeFormats": {
+          "/sources/cjs.cts": "commonjs",
+          "/sources/esm.mts": "esm",
+          "/sources/main.cts": "commonjs",
+          "/sources/main.mts": "esm",
+          "/sources/main.ts": "commonjs",
+          "/sources/plain.ts": "commonjs"
+        },
+        "moduleResolutions": [
+          {
+            "containingFile": "/sources/main.cts",
+            "specifier": "./cjs.cjs",
+            "resolvedFileName": "/sources/cjs.cts",
+            "extension": ".cts"
+          },
+          {
+            "containingFile": "/sources/main.mts",
+            "specifier": "./esm.mjs",
+            "resolvedFileName": "/sources/esm.mts",
+            "extension": ".mts"
+          },
+          {
+            "containingFile": "/sources/main.ts",
+            "specifier": "./plain.js",
+            "resolvedFileName": "/sources/plain.ts",
+            "extension": ".ts"
+          }
+        ],
+        "typeReferenceResolutions": [],
+        "loadedPackageTargets": []
+      }
+    }
+  ]
+}

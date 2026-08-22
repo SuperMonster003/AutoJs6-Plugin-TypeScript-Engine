@@ -61,7 +61,7 @@ class R1ServiceDestructionInstrumentationTest {
                 busy.getString(TypeScriptCompilerContract.KEY_ERROR_CODE),
             )
             assertEquals(
-                "Compiler host already has an active probe.",
+                "Compiler already has an active operation.",
                 busy.getString(TypeScriptCompilerContract.KEY_ERROR_MESSAGE),
             )
 
@@ -385,6 +385,9 @@ class R1ServiceDestructionInstrumentationTest {
             CompilerServiceLifecycleTestProtocol.KEY_CLOSE_WORKER_STATE_RESET,
             CompilerServiceLifecycleTestProtocol.KEY_CLOSE_SESSION_STATE_RESET,
             CompilerServiceLifecycleTestProtocol.KEY_CLOSE_TIMEOUT_RECOVERY_RESET,
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_PROTOCOL_EXECUTOR_TERMINATED,
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_RESULT_EXECUTOR_TERMINATED,
+            CompilerServiceLifecycleTestProtocol.KEY_CLOSE_RESULT_FINALIZERS_RELEASED,
         )
     }
 }

@@ -1,0 +1,38 @@
+{
+  "schema": "autojs6.typescript.package-metadata-policy",
+  "schemaRevision": 1,
+  "policyRevision": 1,
+  "fingerprint": "fab8fec29ed0f0a1de65594620e233c9a9bef2fa514dac16c3079d5570325e97",
+  "projectPackagePath": "package.json",
+  "dependencyRootPrefix": "packages/",
+  "inventoryCanonicalDomain": "autojs6.typescript.package-metadata.inventory.v1",
+  "safeRelativePathGrammar": "^[A-Za-z0-9@._/+~-]+$",
+  "budgets": {
+    "maximumDependencyRoots": 128,
+    "maximumFiles": 256,
+    "maximumFileBytes": 65536,
+    "maximumTotalBytes": 1048576,
+    "maximumJsonDepth": 16,
+    "maximumJsonNodes": 4096
+  },
+  "forbiddenTopLevelKeys": [
+    "scripts"
+  ],
+  "jsonMode": "strict-utf8-duplicate-safe-raw",
+  "resolverMode": "raw-not-resolver-authority",
+  "policyCodes": [
+    "PACKAGE_PATH_INVALID",
+    "PACKAGE_ROOT_NOT_ALLOWED",
+    "PACKAGE_INVENTORY_INVALID",
+    "PACKAGE_QUOTA_EXCEEDED",
+    "PACKAGE_ENCODING_INVALID",
+    "PACKAGE_JSON_INVALID",
+    "PACKAGE_DUPLICATE_KEY",
+    "PACKAGE_COMPLEXITY_EXCEEDED",
+    "PACKAGE_LIFECYCLE_FORBIDDEN"
+  ],
+  "emptyDependencyRootsExample": {
+    "canonicalInput": "autojs6.typescript.package-metadata.inventory.v1|file=package.json,2,44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "fingerprint": "5226a24ffd4ccf70a6ae0aa18b5c0f30630612a2e2edd348bf007c87e62a941d"
+  }
+}

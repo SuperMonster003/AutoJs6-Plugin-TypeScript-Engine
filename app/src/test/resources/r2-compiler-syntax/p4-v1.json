@@ -1,0 +1,1451 @@
+{
+  "schema": "autojs6.typescript.r2-m2-p4.compiler-syntax",
+  "revision": 1,
+  "typescriptVersion": "6.0.3",
+  "scope": "desktop-compiler-only/no-production-admission",
+  "execution": {
+    "inputOrders": [
+      "declared",
+      "reversed"
+    ],
+    "repetitionsPerOrder": 2,
+    "expectedHostFsCalls": 0,
+    "expectedTsSysCalls": 0,
+    "expectedNetworkCalls": 0,
+    "expectedEmittedJavaScriptExecutions": 0,
+    "sourceCollectionCanonical": "sorted files; UTF-8(path + NUL + decimal byteLength + NUL + lowercase sha256 + LF)",
+    "outputCollectionCanonical": "sorted outputs; UTF-8(path + NUL + decimal byteLength + NUL + lowercase sha256 + LF)"
+  },
+  "authorities": {
+    "rhino": {
+      "kind": "frozen-profile",
+      "compilerApi": "createIncrementalProgram",
+      "targetProfile": "rhino",
+      "profileRevision": 1,
+      "declarationLayer": "rhino",
+      "productionAdmission": "unchanged",
+      "decoratorSemantics": "standard-stage-3/experimentalDecorators-absent",
+      "canonicalOptionsJson": "{\"allowJs\":false,\"checkJs\":false,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":1,\"moduleResolution\":2,\"newLine\":1,\"noEmitOnError\":true,\"noLib\":false,\"outDir\":\"/outputs\",\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true,\"strict\":true,\"target\":5,\"types\":[]}",
+      "optionsSha256": "76a173383972b1bd8d4ffa3fffe5d51f5adecf7b84e7b16f58554c14f3c08e0b"
+    },
+    "node": {
+      "kind": "frozen-profile",
+      "compilerApi": "createIncrementalProgram",
+      "targetProfile": "node",
+      "profileRevision": 1,
+      "declarationLayer": "node",
+      "productionAdmission": "unchanged",
+      "decoratorSemantics": "standard-stage-3/experimentalDecorators-absent",
+      "canonicalOptionsJson": "{\"allowJs\":false,\"checkJs\":false,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":199,\"moduleResolution\":99,\"newLine\":1,\"noEmitOnError\":true,\"noLib\":false,\"outDir\":\"/outputs\",\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true,\"strict\":true,\"target\":5,\"types\":[]}",
+      "optionsSha256": "2ef130a868f27eb30869ed24fc1f8999135aeeefe92bcd30bebf94b38224419f"
+    }
+  },
+  "syntaxMatrix": [
+    {
+      "syntax": "enum",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "semanticContract": "numeric-enum-runtime-object"
+    },
+    {
+      "syntax": "namespace",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "semanticContract": "namespace-runtime-object"
+    },
+    {
+      "syntax": "class-fields",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "semanticContract": "es2018-constructor-field-initialization"
+    },
+    {
+      "syntax": "generics",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "semanticContract": "type-parameter-erasure"
+    },
+    {
+      "syntax": "optional-chaining",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "semanticContract": "es2018-nullish-short-circuit-lowering"
+    },
+    {
+      "syntax": "async",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "semanticContract": "es2018-native-async-await"
+    },
+    {
+      "syntax": "decorators",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "semanticContract": "standard-stage-3-transform/no-legacy-experimental-decorators"
+    }
+  ],
+  "cases": [
+    {
+      "id": "rhino-enum",
+      "syntax": "enum",
+      "authority": "rhino",
+      "sourceCollectionSha256": "834ef9ecb9406c5dd5531baa42e0bd727cc7af505ffa0129e98eae4e08b50fb6",
+      "rootNames": [
+        "/sources/enum-context.ts",
+        "/sources/enum.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/enum-context.ts",
+          "text": "export const fixtureContext: string = \"enum\";\n"
+        },
+        {
+          "path": "/sources/enum.ts",
+          "text": "export enum Direction { Up, Down = 3 }\nexport const selected: Direction = Direction.Down;\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/enum.js",
+        "requiredJavaScriptSubstrings": [
+          "Direction[Direction[\"Up\"] = 0] = \"Up\";",
+          "Direction[Direction[\"Down\"] = 3] = \"Down\";"
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          "enum Direction"
+        ],
+        "sourceMapPath": "/outputs/enum.js.map",
+        "sourceMapSources": [
+          "../sources/enum.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "cd7d7d4de87050fac38ce4d29f9140f8f576c0e264d30bfdc583206ea6b7d333",
+        "outputs": [
+          {
+            "path": "/outputs/enum-context.js",
+            "byteLength": 183,
+            "sha256": "faf2609c5ff72a53f7a476894573c924d1235c88d80e7544a1c0e6471befcac2",
+            "sourcePaths": [
+              "/sources/enum-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/enum-context.js.map",
+            "byteLength": 152,
+            "sha256": "23e5939ee054758b45cab3d8e980fc13a79175e6cedd0f775f4e9d72283d8fe7",
+            "sourcePaths": [
+              "/sources/enum-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "enum-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/enum-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "1c6a352aa109c5c63f2181cd85565d57f1e7983904613165904eaeddea0c60b4"
+            }
+          },
+          {
+            "path": "/outputs/enum.js",
+            "byteLength": 375,
+            "sha256": "5938bbe8dfe492576dbeaf56b7b50955c9b754fd0ea67a90e9cf185bc817fde5",
+            "sourcePaths": [
+              "/sources/enum.ts"
+            ]
+          },
+          {
+            "path": "/outputs/enum.js.map",
+            "byteLength": 249,
+            "sha256": "bef410c597f7e95447ed9222ecb964eeed7fbd847ceb15c354df1c736999cb30",
+            "sourcePaths": [
+              "/sources/enum.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "enum.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/enum.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 145,
+              "mappingsSha256": "55cbadc0a9dc243f99771aa56a5d2f62ed994e608a1a34c58e35a23584a6d006"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-enum",
+      "syntax": "enum",
+      "authority": "node",
+      "sourceCollectionSha256": "834ef9ecb9406c5dd5531baa42e0bd727cc7af505ffa0129e98eae4e08b50fb6",
+      "rootNames": [
+        "/sources/enum-context.ts",
+        "/sources/enum.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/enum-context.ts",
+          "text": "export const fixtureContext: string = \"enum\";\n"
+        },
+        {
+          "path": "/sources/enum.ts",
+          "text": "export enum Direction { Up, Down = 3 }\nexport const selected: Direction = Direction.Down;\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/enum.js",
+        "requiredJavaScriptSubstrings": [
+          "Direction[Direction[\"Up\"] = 0] = \"Up\";",
+          "Direction[Direction[\"Down\"] = 3] = \"Down\";"
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          "enum Direction"
+        ],
+        "sourceMapPath": "/outputs/enum.js.map",
+        "sourceMapSources": [
+          "../sources/enum.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "cd7d7d4de87050fac38ce4d29f9140f8f576c0e264d30bfdc583206ea6b7d333",
+        "outputs": [
+          {
+            "path": "/outputs/enum-context.js",
+            "byteLength": 183,
+            "sha256": "faf2609c5ff72a53f7a476894573c924d1235c88d80e7544a1c0e6471befcac2",
+            "sourcePaths": [
+              "/sources/enum-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/enum-context.js.map",
+            "byteLength": 152,
+            "sha256": "23e5939ee054758b45cab3d8e980fc13a79175e6cedd0f775f4e9d72283d8fe7",
+            "sourcePaths": [
+              "/sources/enum-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "enum-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/enum-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "1c6a352aa109c5c63f2181cd85565d57f1e7983904613165904eaeddea0c60b4"
+            }
+          },
+          {
+            "path": "/outputs/enum.js",
+            "byteLength": 375,
+            "sha256": "5938bbe8dfe492576dbeaf56b7b50955c9b754fd0ea67a90e9cf185bc817fde5",
+            "sourcePaths": [
+              "/sources/enum.ts"
+            ]
+          },
+          {
+            "path": "/outputs/enum.js.map",
+            "byteLength": 249,
+            "sha256": "bef410c597f7e95447ed9222ecb964eeed7fbd847ceb15c354df1c736999cb30",
+            "sourcePaths": [
+              "/sources/enum.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "enum.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/enum.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 145,
+              "mappingsSha256": "55cbadc0a9dc243f99771aa56a5d2f62ed994e608a1a34c58e35a23584a6d006"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rhino-namespace",
+      "syntax": "namespace",
+      "authority": "rhino",
+      "sourceCollectionSha256": "f14e0e65a73cb1ef335491cc36e820c0ef9a098778a2c75b81a4f0ebb213d4db",
+      "rootNames": [
+        "/sources/namespace-context.ts",
+        "/sources/namespace.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/namespace-context.ts",
+          "text": "export const fixtureContext: string = \"namespace\";\n"
+        },
+        {
+          "path": "/sources/namespace.ts",
+          "text": "export namespace MathBox {\n  export const base: number = 40;\n  export function add(value: number): number { return base + value; }\n}\nexport const total: number = MathBox.add(2);\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/namespace.js",
+        "requiredJavaScriptSubstrings": [
+          "MathBox.base = 40;",
+          "MathBox.add = add;"
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          "namespace MathBox"
+        ],
+        "sourceMapPath": "/outputs/namespace.js.map",
+        "sourceMapSources": [
+          "../sources/namespace.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "7d07f3d56ee422c267e877ac56023b5f8c08b73a067ced32a4704ea4ef23d272",
+        "outputs": [
+          {
+            "path": "/outputs/namespace-context.js",
+            "byteLength": 193,
+            "sha256": "97d61727a81669c50c6b5de68d4c6f93405380a58bcdbc8b3c6a007a509a6309",
+            "sourcePaths": [
+              "/sources/namespace-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/namespace-context.js.map",
+            "byteLength": 162,
+            "sha256": "f47f27dce5671268c4fe3fda996e20cec934558c8c96c6432782d19e60a963fc",
+            "sourcePaths": [
+              "/sources/namespace-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "namespace-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/namespace-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "2a3ae276e1e9e1dc4aadee3fe07d3f635bbd00f883e0d1e1e5a45fe49a840ea1"
+            }
+          },
+          {
+            "path": "/outputs/namespace.js",
+            "byteLength": 375,
+            "sha256": "5f43d9b0111c55f4ca84d5c1d4801ad3e2702a08893c7251ae19636e407ef05b",
+            "sourcePaths": [
+              "/sources/namespace.ts"
+            ]
+          },
+          {
+            "path": "/outputs/namespace.js.map",
+            "byteLength": 367,
+            "sha256": "c6dcc1524c8dcd033d6de71072bdb1d4e8adf21ade5cf4c78d01fefaca61141a",
+            "sourcePaths": [
+              "/sources/namespace.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "namespace.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/namespace.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 253,
+              "mappingsSha256": "fe9c63eea0af84dc30cb700d5ee9c1e319036092f6d02e2f91cbfddaa5183dc2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-namespace",
+      "syntax": "namespace",
+      "authority": "node",
+      "sourceCollectionSha256": "f14e0e65a73cb1ef335491cc36e820c0ef9a098778a2c75b81a4f0ebb213d4db",
+      "rootNames": [
+        "/sources/namespace-context.ts",
+        "/sources/namespace.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/namespace-context.ts",
+          "text": "export const fixtureContext: string = \"namespace\";\n"
+        },
+        {
+          "path": "/sources/namespace.ts",
+          "text": "export namespace MathBox {\n  export const base: number = 40;\n  export function add(value: number): number { return base + value; }\n}\nexport const total: number = MathBox.add(2);\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/namespace.js",
+        "requiredJavaScriptSubstrings": [
+          "MathBox.base = 40;",
+          "MathBox.add = add;"
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          "namespace MathBox"
+        ],
+        "sourceMapPath": "/outputs/namespace.js.map",
+        "sourceMapSources": [
+          "../sources/namespace.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "7d07f3d56ee422c267e877ac56023b5f8c08b73a067ced32a4704ea4ef23d272",
+        "outputs": [
+          {
+            "path": "/outputs/namespace-context.js",
+            "byteLength": 193,
+            "sha256": "97d61727a81669c50c6b5de68d4c6f93405380a58bcdbc8b3c6a007a509a6309",
+            "sourcePaths": [
+              "/sources/namespace-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/namespace-context.js.map",
+            "byteLength": 162,
+            "sha256": "f47f27dce5671268c4fe3fda996e20cec934558c8c96c6432782d19e60a963fc",
+            "sourcePaths": [
+              "/sources/namespace-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "namespace-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/namespace-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "2a3ae276e1e9e1dc4aadee3fe07d3f635bbd00f883e0d1e1e5a45fe49a840ea1"
+            }
+          },
+          {
+            "path": "/outputs/namespace.js",
+            "byteLength": 375,
+            "sha256": "5f43d9b0111c55f4ca84d5c1d4801ad3e2702a08893c7251ae19636e407ef05b",
+            "sourcePaths": [
+              "/sources/namespace.ts"
+            ]
+          },
+          {
+            "path": "/outputs/namespace.js.map",
+            "byteLength": 367,
+            "sha256": "c6dcc1524c8dcd033d6de71072bdb1d4e8adf21ade5cf4c78d01fefaca61141a",
+            "sourcePaths": [
+              "/sources/namespace.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "namespace.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/namespace.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 253,
+              "mappingsSha256": "fe9c63eea0af84dc30cb700d5ee9c1e319036092f6d02e2f91cbfddaa5183dc2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rhino-class-fields",
+      "syntax": "class-fields",
+      "authority": "rhino",
+      "sourceCollectionSha256": "97cd4af076cce59eff917f56ee39c49b452a8646cb08b9544ae208754fbf0d7c",
+      "rootNames": [
+        "/sources/class-fields-context.ts",
+        "/sources/class-fields.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/class-fields-context.ts",
+          "text": "export const fixtureContext: string = \"class-fields\";\n"
+        },
+        {
+          "path": "/sources/class-fields.ts",
+          "text": "export class Counter {\n  count: number = 1;\n  readonly label: string = \"counter\";\n  increment(): number { return ++this.count; }\n}\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/class-fields.js",
+        "requiredJavaScriptSubstrings": [
+          "this.count = 1;",
+          "this.label = \"counter\";"
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          "count: number",
+          "readonly label",
+          "Object.defineProperty(this"
+        ],
+        "sourceMapPath": "/outputs/class-fields.js.map",
+        "sourceMapSources": [
+          "../sources/class-fields.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "22189fad0dfd2774407d1f0a9b41cd171536f92572a49a8488cd236473ac19ee",
+        "outputs": [
+          {
+            "path": "/outputs/class-fields-context.js",
+            "byteLength": 199,
+            "sha256": "05ebde0f1df1d5098befd24e647b120313eddcdbe588ba12d24679c8a8ec1019",
+            "sourcePaths": [
+              "/sources/class-fields-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/class-fields-context.js.map",
+            "byteLength": 168,
+            "sha256": "3df399733ad017238a6a37c426b5fb5b885eaae75dfdce50df188743df9dcded",
+            "sourcePaths": [
+              "/sources/class-fields-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "class-fields-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/class-fields-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "6e1630d03e1936de29d73c8d43291436e2a8fa95a01f33fccdaaeff88f8221ed"
+            }
+          },
+          {
+            "path": "/outputs/class-fields.js",
+            "byteLength": 311,
+            "sha256": "e7a348069dc2741ec4041e3d76bdd4a527fb82954ca83c18d70e534c69758e61",
+            "sourcePaths": [
+              "/sources/class-fields.ts"
+            ]
+          },
+          {
+            "path": "/outputs/class-fields.js.map",
+            "byteLength": 276,
+            "sha256": "216a53a86de16ddc843cdb7309b3f6ab13bc6b5a18aab0214c83b7877fa43d95",
+            "sourcePaths": [
+              "/sources/class-fields.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "class-fields.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/class-fields.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 156,
+              "mappingsSha256": "6e6f274167097efe61c7e4b1410674084397dfb374a507e392df082b04b24df8"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-class-fields",
+      "syntax": "class-fields",
+      "authority": "node",
+      "sourceCollectionSha256": "97cd4af076cce59eff917f56ee39c49b452a8646cb08b9544ae208754fbf0d7c",
+      "rootNames": [
+        "/sources/class-fields-context.ts",
+        "/sources/class-fields.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/class-fields-context.ts",
+          "text": "export const fixtureContext: string = \"class-fields\";\n"
+        },
+        {
+          "path": "/sources/class-fields.ts",
+          "text": "export class Counter {\n  count: number = 1;\n  readonly label: string = \"counter\";\n  increment(): number { return ++this.count; }\n}\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/class-fields.js",
+        "requiredJavaScriptSubstrings": [
+          "this.count = 1;",
+          "this.label = \"counter\";"
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          "count: number",
+          "readonly label",
+          "Object.defineProperty(this"
+        ],
+        "sourceMapPath": "/outputs/class-fields.js.map",
+        "sourceMapSources": [
+          "../sources/class-fields.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "22189fad0dfd2774407d1f0a9b41cd171536f92572a49a8488cd236473ac19ee",
+        "outputs": [
+          {
+            "path": "/outputs/class-fields-context.js",
+            "byteLength": 199,
+            "sha256": "05ebde0f1df1d5098befd24e647b120313eddcdbe588ba12d24679c8a8ec1019",
+            "sourcePaths": [
+              "/sources/class-fields-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/class-fields-context.js.map",
+            "byteLength": 168,
+            "sha256": "3df399733ad017238a6a37c426b5fb5b885eaae75dfdce50df188743df9dcded",
+            "sourcePaths": [
+              "/sources/class-fields-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "class-fields-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/class-fields-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "6e1630d03e1936de29d73c8d43291436e2a8fa95a01f33fccdaaeff88f8221ed"
+            }
+          },
+          {
+            "path": "/outputs/class-fields.js",
+            "byteLength": 311,
+            "sha256": "e7a348069dc2741ec4041e3d76bdd4a527fb82954ca83c18d70e534c69758e61",
+            "sourcePaths": [
+              "/sources/class-fields.ts"
+            ]
+          },
+          {
+            "path": "/outputs/class-fields.js.map",
+            "byteLength": 276,
+            "sha256": "216a53a86de16ddc843cdb7309b3f6ab13bc6b5a18aab0214c83b7877fa43d95",
+            "sourcePaths": [
+              "/sources/class-fields.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "class-fields.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/class-fields.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 156,
+              "mappingsSha256": "6e6f274167097efe61c7e4b1410674084397dfb374a507e392df082b04b24df8"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rhino-generics",
+      "syntax": "generics",
+      "authority": "rhino",
+      "sourceCollectionSha256": "773e9e058751574f76d451199f2db1651870cec61d68ca4305f9c0f27b4789c6",
+      "rootNames": [
+        "/sources/generics-context.ts",
+        "/sources/generics.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/generics-context.ts",
+          "text": "export const fixtureContext: string = \"generics\";\n"
+        },
+        {
+          "path": "/sources/generics.ts",
+          "text": "export function identity<T>(value: T): T { return value; }\nexport const result: number = identity<number>(42);\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/generics.js",
+        "requiredJavaScriptSubstrings": [
+          "function identity(value) { return value; }",
+          "exports.result = identity(42);"
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          "identity<T>",
+          "identity<number>"
+        ],
+        "sourceMapPath": "/outputs/generics.js.map",
+        "sourceMapSources": [
+          "../sources/generics.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "7e9bd699193f58888a3d8f6349d429daf3564d16f976d1fe90bf0fed914c4dbd",
+        "outputs": [
+          {
+            "path": "/outputs/generics-context.js",
+            "byteLength": 191,
+            "sha256": "20f564d80fa8afa33f6dd89b9443b22ded5b81662fa1e4151c8b81dfae90779c",
+            "sourcePaths": [
+              "/sources/generics-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/generics-context.js.map",
+            "byteLength": 160,
+            "sha256": "131106e204e4136762dece31a2e928edfcec4546ff64cadb24403072b9285ef4",
+            "sourcePaths": [
+              "/sources/generics-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "generics-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/generics-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "7d35720be6958b3fc2e635463c2c74924e4c8e626b900e4f82014d2e2d198470"
+            }
+          },
+          {
+            "path": "/outputs/generics.js",
+            "byteLength": 241,
+            "sha256": "a9c310efe7bff3c15f133717dd1dfe2d0c95301af6ce4964e4da37841e47c1bf",
+            "sourcePaths": [
+              "/sources/generics.ts"
+            ]
+          },
+          {
+            "path": "/outputs/generics.js.map",
+            "byteLength": 229,
+            "sha256": "d8559b9097caa773b40c6e712d56f4f796f8ab1139e3cf170d68ffb40da4ec7e",
+            "sourcePaths": [
+              "/sources/generics.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "generics.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/generics.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 117,
+              "mappingsSha256": "09a733092d9377fdbd9942c30a10f4130a1d2f6027c3a9d67fef211c2bff25d6"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-generics",
+      "syntax": "generics",
+      "authority": "node",
+      "sourceCollectionSha256": "773e9e058751574f76d451199f2db1651870cec61d68ca4305f9c0f27b4789c6",
+      "rootNames": [
+        "/sources/generics-context.ts",
+        "/sources/generics.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/generics-context.ts",
+          "text": "export const fixtureContext: string = \"generics\";\n"
+        },
+        {
+          "path": "/sources/generics.ts",
+          "text": "export function identity<T>(value: T): T { return value; }\nexport const result: number = identity<number>(42);\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/generics.js",
+        "requiredJavaScriptSubstrings": [
+          "function identity(value) { return value; }",
+          "exports.result = identity(42);"
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          "identity<T>",
+          "identity<number>"
+        ],
+        "sourceMapPath": "/outputs/generics.js.map",
+        "sourceMapSources": [
+          "../sources/generics.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "7e9bd699193f58888a3d8f6349d429daf3564d16f976d1fe90bf0fed914c4dbd",
+        "outputs": [
+          {
+            "path": "/outputs/generics-context.js",
+            "byteLength": 191,
+            "sha256": "20f564d80fa8afa33f6dd89b9443b22ded5b81662fa1e4151c8b81dfae90779c",
+            "sourcePaths": [
+              "/sources/generics-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/generics-context.js.map",
+            "byteLength": 160,
+            "sha256": "131106e204e4136762dece31a2e928edfcec4546ff64cadb24403072b9285ef4",
+            "sourcePaths": [
+              "/sources/generics-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "generics-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/generics-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "7d35720be6958b3fc2e635463c2c74924e4c8e626b900e4f82014d2e2d198470"
+            }
+          },
+          {
+            "path": "/outputs/generics.js",
+            "byteLength": 241,
+            "sha256": "a9c310efe7bff3c15f133717dd1dfe2d0c95301af6ce4964e4da37841e47c1bf",
+            "sourcePaths": [
+              "/sources/generics.ts"
+            ]
+          },
+          {
+            "path": "/outputs/generics.js.map",
+            "byteLength": 229,
+            "sha256": "d8559b9097caa773b40c6e712d56f4f796f8ab1139e3cf170d68ffb40da4ec7e",
+            "sourcePaths": [
+              "/sources/generics.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "generics.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/generics.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 117,
+              "mappingsSha256": "09a733092d9377fdbd9942c30a10f4130a1d2f6027c3a9d67fef211c2bff25d6"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rhino-optional-chaining",
+      "syntax": "optional-chaining",
+      "authority": "rhino",
+      "sourceCollectionSha256": "37f65f03acb3070449d5370941ef448332e9bdce62d85cdfe478b8030dd03aee",
+      "rootNames": [
+        "/sources/optional-chaining-context.ts",
+        "/sources/optional-chaining.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/optional-chaining-context.ts",
+          "text": "export const fixtureContext: string = \"optional-chaining\";\n"
+        },
+        {
+          "path": "/sources/optional-chaining.ts",
+          "text": "interface Profile { user?: { name?: string }; }\nexport function displayName(profile: Profile): string { return profile.user?.name ?? \"anonymous\"; }\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/optional-chaining.js",
+        "requiredJavaScriptSubstrings": [
+          "profile.user",
+          "\"anonymous\""
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          "?.",
+          "??"
+        ],
+        "sourceMapPath": "/outputs/optional-chaining.js.map",
+        "sourceMapSources": [
+          "../sources/optional-chaining.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "6e0cb9c70f408fe6d6423f48df11039aa18caebe0ffca9072406566118da413b",
+        "outputs": [
+          {
+            "path": "/outputs/optional-chaining-context.js",
+            "byteLength": 209,
+            "sha256": "dc4df3c4777820af20d5e72a2021b24360538c955f9a9b3c7dc154fb51ea02ec",
+            "sourcePaths": [
+              "/sources/optional-chaining-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/optional-chaining-context.js.map",
+            "byteLength": 180,
+            "sha256": "78c45e6f3853f05a3cddfd673465c6bca07eba6f67dbfcb3f9aca06c1ad1ee5e",
+            "sourcePaths": [
+              "/sources/optional-chaining-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "optional-chaining-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/optional-chaining-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 34,
+              "mappingsSha256": "9d10a70936e7a1938cdf60a622af456461e3baac0e348172caa9e87a05e1fc4c"
+            }
+          },
+          {
+            "path": "/outputs/optional-chaining.js",
+            "byteLength": 328,
+            "sha256": "39fc870d4c80469504b9d62130bbef7338229e83ff9cd4dba5abb9f429552433",
+            "sourcePaths": [
+              "/sources/optional-chaining.ts"
+            ]
+          },
+          {
+            "path": "/outputs/optional-chaining.js.map",
+            "byteLength": 244,
+            "sha256": "176d6db3deb141df0b9581e86017d0c2d7c3ae77583f8881da48f3fbd7892ae2",
+            "sourcePaths": [
+              "/sources/optional-chaining.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "optional-chaining.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/optional-chaining.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 114,
+              "mappingsSha256": "c03003892a9159473bbcfa2e0dd5d74a8505903276839ab82324cecd624e5e7a"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-optional-chaining",
+      "syntax": "optional-chaining",
+      "authority": "node",
+      "sourceCollectionSha256": "37f65f03acb3070449d5370941ef448332e9bdce62d85cdfe478b8030dd03aee",
+      "rootNames": [
+        "/sources/optional-chaining-context.ts",
+        "/sources/optional-chaining.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/optional-chaining-context.ts",
+          "text": "export const fixtureContext: string = \"optional-chaining\";\n"
+        },
+        {
+          "path": "/sources/optional-chaining.ts",
+          "text": "interface Profile { user?: { name?: string }; }\nexport function displayName(profile: Profile): string { return profile.user?.name ?? \"anonymous\"; }\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/optional-chaining.js",
+        "requiredJavaScriptSubstrings": [
+          "profile.user",
+          "\"anonymous\""
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          "?.",
+          "??"
+        ],
+        "sourceMapPath": "/outputs/optional-chaining.js.map",
+        "sourceMapSources": [
+          "../sources/optional-chaining.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "6e0cb9c70f408fe6d6423f48df11039aa18caebe0ffca9072406566118da413b",
+        "outputs": [
+          {
+            "path": "/outputs/optional-chaining-context.js",
+            "byteLength": 209,
+            "sha256": "dc4df3c4777820af20d5e72a2021b24360538c955f9a9b3c7dc154fb51ea02ec",
+            "sourcePaths": [
+              "/sources/optional-chaining-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/optional-chaining-context.js.map",
+            "byteLength": 180,
+            "sha256": "78c45e6f3853f05a3cddfd673465c6bca07eba6f67dbfcb3f9aca06c1ad1ee5e",
+            "sourcePaths": [
+              "/sources/optional-chaining-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "optional-chaining-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/optional-chaining-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 34,
+              "mappingsSha256": "9d10a70936e7a1938cdf60a622af456461e3baac0e348172caa9e87a05e1fc4c"
+            }
+          },
+          {
+            "path": "/outputs/optional-chaining.js",
+            "byteLength": 328,
+            "sha256": "39fc870d4c80469504b9d62130bbef7338229e83ff9cd4dba5abb9f429552433",
+            "sourcePaths": [
+              "/sources/optional-chaining.ts"
+            ]
+          },
+          {
+            "path": "/outputs/optional-chaining.js.map",
+            "byteLength": 244,
+            "sha256": "176d6db3deb141df0b9581e86017d0c2d7c3ae77583f8881da48f3fbd7892ae2",
+            "sourcePaths": [
+              "/sources/optional-chaining.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "optional-chaining.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/optional-chaining.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 114,
+              "mappingsSha256": "c03003892a9159473bbcfa2e0dd5d74a8505903276839ab82324cecd624e5e7a"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rhino-async",
+      "syntax": "async",
+      "authority": "rhino",
+      "sourceCollectionSha256": "4f3ce56531f4beae7c381ef5ad3cb7941ca3bc331e6f13f353d9c4f9b48aba0a",
+      "rootNames": [
+        "/sources/async-context.ts",
+        "/sources/async.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/async-context.ts",
+          "text": "export const fixtureContext: string = \"async\";\n"
+        },
+        {
+          "path": "/sources/async.ts",
+          "text": "export async function resolveAnswer(value: number): Promise<number> { return await Promise.resolve(value * 2); }\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/async.js",
+        "requiredJavaScriptSubstrings": [
+          "async function resolveAnswer(value)",
+          "await Promise.resolve(value * 2)"
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          ": Promise<number>",
+          "__awaiter"
+        ],
+        "sourceMapPath": "/outputs/async.js.map",
+        "sourceMapSources": [
+          "../sources/async.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "9ebb228a66b627de15f33ea370eeaaf9062bdfbf5f76a213bcd5f6cace70eae2",
+        "outputs": [
+          {
+            "path": "/outputs/async-context.js",
+            "byteLength": 185,
+            "sha256": "d03c9913bacfe1a08dd53c9833c0c83eedb7449bb201a5edbff24bf2104b87f4",
+            "sourcePaths": [
+              "/sources/async-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/async-context.js.map",
+            "byteLength": 154,
+            "sha256": "2a01e40e04e982a7e9753b2fb195dfe470a2914f65f30b3b6db631a3b9e04a73",
+            "sourcePaths": [
+              "/sources/async-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "async-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/async-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "399296292e02112e540adb0c534e45ad83cd790c5d374732349ceb4afd73587c"
+            }
+          },
+          {
+            "path": "/outputs/async.js",
+            "byteLength": 230,
+            "sha256": "d87619705d97a72ba964a2f5ead3a38a88ae910a764e79cdde690f63ba5ca0b5",
+            "sourcePaths": [
+              "/sources/async.ts"
+            ]
+          },
+          {
+            "path": "/outputs/async.js.map",
+            "byteLength": 221,
+            "sha256": "191f1bc3fdb5e9e2b9ac84184ea279ee612828b3b4bfcd2ff08be39622e4b7d4",
+            "sourcePaths": [
+              "/sources/async.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "async.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/async.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 115,
+              "mappingsSha256": "9b50a43158ec4f3b46fc1d3ea04af81da61a9d8665638a0e377ec63db63a06f8"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-async",
+      "syntax": "async",
+      "authority": "node",
+      "sourceCollectionSha256": "4f3ce56531f4beae7c381ef5ad3cb7941ca3bc331e6f13f353d9c4f9b48aba0a",
+      "rootNames": [
+        "/sources/async-context.ts",
+        "/sources/async.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/async-context.ts",
+          "text": "export const fixtureContext: string = \"async\";\n"
+        },
+        {
+          "path": "/sources/async.ts",
+          "text": "export async function resolveAnswer(value: number): Promise<number> { return await Promise.resolve(value * 2); }\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/async.js",
+        "requiredJavaScriptSubstrings": [
+          "async function resolveAnswer(value)",
+          "await Promise.resolve(value * 2)"
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          ": Promise<number>",
+          "__awaiter"
+        ],
+        "sourceMapPath": "/outputs/async.js.map",
+        "sourceMapSources": [
+          "../sources/async.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "9ebb228a66b627de15f33ea370eeaaf9062bdfbf5f76a213bcd5f6cace70eae2",
+        "outputs": [
+          {
+            "path": "/outputs/async-context.js",
+            "byteLength": 185,
+            "sha256": "d03c9913bacfe1a08dd53c9833c0c83eedb7449bb201a5edbff24bf2104b87f4",
+            "sourcePaths": [
+              "/sources/async-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/async-context.js.map",
+            "byteLength": 154,
+            "sha256": "2a01e40e04e982a7e9753b2fb195dfe470a2914f65f30b3b6db631a3b9e04a73",
+            "sourcePaths": [
+              "/sources/async-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "async-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/async-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "399296292e02112e540adb0c534e45ad83cd790c5d374732349ceb4afd73587c"
+            }
+          },
+          {
+            "path": "/outputs/async.js",
+            "byteLength": 230,
+            "sha256": "d87619705d97a72ba964a2f5ead3a38a88ae910a764e79cdde690f63ba5ca0b5",
+            "sourcePaths": [
+              "/sources/async.ts"
+            ]
+          },
+          {
+            "path": "/outputs/async.js.map",
+            "byteLength": 221,
+            "sha256": "191f1bc3fdb5e9e2b9ac84184ea279ee612828b3b4bfcd2ff08be39622e4b7d4",
+            "sourcePaths": [
+              "/sources/async.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "async.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/async.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 115,
+              "mappingsSha256": "9b50a43158ec4f3b46fc1d3ea04af81da61a9d8665638a0e377ec63db63a06f8"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rhino-decorators",
+      "syntax": "decorators",
+      "authority": "rhino",
+      "sourceCollectionSha256": "5c5000bc2c031a1f1100e219cad2ec9770a1ca88672bf5b2bf9b3103c9a28c60",
+      "rootNames": [
+        "/sources/decorators-context.ts",
+        "/sources/decorators.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/decorators-context.ts",
+          "text": "export const fixtureContext: string = \"decorators\";\n"
+        },
+        {
+          "path": "/sources/decorators.ts",
+          "text": "type Constructor = new (...args: any[]) => object;\nfunction mark<T extends Constructor>(value: T, context: ClassDecoratorContext): T {\n  if (context.kind !== \"class\") throw new Error(\"kind\");\n  return value;\n}\n@mark\nexport class Decorated { label: string = \"ready\"; }\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/decorators.js",
+        "requiredJavaScriptSubstrings": [
+          "var __esDecorate",
+          "var __runInitializers",
+          "kind: \"class\""
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          "var __decorate",
+          "experimentalDecorators",
+          "__metadata",
+          "Reflect.decorate"
+        ],
+        "sourceMapPath": "/outputs/decorators.js.map",
+        "sourceMapSources": [
+          "../sources/decorators.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "95970045b84d488a19a5e6421bd43d43600168e29e0e793a485989a113d63711",
+        "outputs": [
+          {
+            "path": "/outputs/decorators-context.js",
+            "byteLength": 195,
+            "sha256": "55fc95ad23a2dc0e37bdad5781b8df172ebf14671d2a1a7f56fd91165843e5e0",
+            "sourcePaths": [
+              "/sources/decorators-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/decorators-context.js.map",
+            "byteLength": 164,
+            "sha256": "9d8bbcba5e76365a9dd83e6d7be8f2f1af061429ef6de61b7c40ca231a0cb4e3",
+            "sourcePaths": [
+              "/sources/decorators-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "decorators-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/decorators-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "12209d5427e6b3185e0513433666c75e91fdf29ac583d0a19bf7326873557fa8"
+            }
+          },
+          {
+            "path": "/outputs/decorators.js",
+            "byteLength": 3659,
+            "sha256": "aa1776aaba0d369d2d3762a156468624a4b4ad5cdf1382bb0b768ba76feec5b4",
+            "sourcePaths": [
+              "/sources/decorators.ts"
+            ]
+          },
+          {
+            "path": "/outputs/decorators.js.map",
+            "byteLength": 408,
+            "sha256": "ecec08306b79cc8f6fbad3ff0c4aa608e5c3741052f654603b62ed25f0fe3e27",
+            "sourcePaths": [
+              "/sources/decorators.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "decorators.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/decorators.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 292,
+              "mappingsSha256": "c0e6e1d0fedab990012bcdc78b023f3d037f9d46d45ee42a6bf9f9f592e45dc0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-decorators",
+      "syntax": "decorators",
+      "authority": "node",
+      "sourceCollectionSha256": "5c5000bc2c031a1f1100e219cad2ec9770a1ca88672bf5b2bf9b3103c9a28c60",
+      "rootNames": [
+        "/sources/decorators-context.ts",
+        "/sources/decorators.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/decorators-context.ts",
+          "text": "export const fixtureContext: string = \"decorators\";\n"
+        },
+        {
+          "path": "/sources/decorators.ts",
+          "text": "type Constructor = new (...args: any[]) => object;\nfunction mark<T extends Constructor>(value: T, context: ClassDecoratorContext): T {\n  if (context.kind !== \"class\") throw new Error(\"kind\");\n  return value;\n}\n@mark\nexport class Decorated { label: string = \"ready\"; }\n"
+        }
+      ],
+      "semanticMarkers": {
+        "outputPath": "/outputs/decorators.js",
+        "requiredJavaScriptSubstrings": [
+          "var __esDecorate",
+          "var __runInitializers",
+          "kind: \"class\""
+        ],
+        "forbiddenJavaScriptSubstrings": [
+          "var __decorate",
+          "experimentalDecorators",
+          "__metadata",
+          "Reflect.decorate"
+        ],
+        "sourceMapPath": "/outputs/decorators.js.map",
+        "sourceMapSources": [
+          "../sources/decorators.ts"
+        ]
+      },
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "95970045b84d488a19a5e6421bd43d43600168e29e0e793a485989a113d63711",
+        "outputs": [
+          {
+            "path": "/outputs/decorators-context.js",
+            "byteLength": 195,
+            "sha256": "55fc95ad23a2dc0e37bdad5781b8df172ebf14671d2a1a7f56fd91165843e5e0",
+            "sourcePaths": [
+              "/sources/decorators-context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/decorators-context.js.map",
+            "byteLength": 164,
+            "sha256": "9d8bbcba5e76365a9dd83e6d7be8f2f1af061429ef6de61b7c40ca231a0cb4e3",
+            "sourcePaths": [
+              "/sources/decorators-context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "decorators-context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/decorators-context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "12209d5427e6b3185e0513433666c75e91fdf29ac583d0a19bf7326873557fa8"
+            }
+          },
+          {
+            "path": "/outputs/decorators.js",
+            "byteLength": 3659,
+            "sha256": "aa1776aaba0d369d2d3762a156468624a4b4ad5cdf1382bb0b768ba76feec5b4",
+            "sourcePaths": [
+              "/sources/decorators.ts"
+            ]
+          },
+          {
+            "path": "/outputs/decorators.js.map",
+            "byteLength": 408,
+            "sha256": "ecec08306b79cc8f6fbad3ff0c4aa608e5c3741052f654603b62ed25f0fe3e27",
+            "sourcePaths": [
+              "/sources/decorators.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "decorators.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/decorators.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 292,
+              "mappingsSha256": "c0e6e1d0fedab990012bcdc78b023f3d037f9d46d45ee42a6bf9f9f592e45dc0"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

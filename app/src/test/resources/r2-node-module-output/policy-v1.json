@@ -1,0 +1,56 @@
+{
+  "schema": "autojs6.typescript.node-module-output-policy",
+  "schemaRevision": 1,
+  "policyRevision": 1,
+  "fingerprint": "5c2294f0ee9d6d25bd2132b4ea24866d0a5f9caaa521a63bf81ffe1d897f6ce7",
+  "rhinoProfileRevision": 1,
+  "nodeLegacyProfileRevision": 1,
+  "nodeProfileRevision": 2,
+  "sourceRoot": "/sources",
+  "outputRoot": "/outputs",
+  "sourceUriScheme": "autojs",
+  "sourceUriAuthority": "source",
+  "generatedUriAuthority": "generated",
+  "projectNamespacePrefix": "p-",
+  "projectNamespaceMode": "p-lowercase-sha256-strict-utf8-project-id",
+  "pathEncodingMode": "rfc3986-segment-utf8-unreserved-uppercase-percent",
+  "maximumRelativePathChars": 1024,
+  "maximumPathDepth": 64,
+  "maximumUriAsciiBytes": 4096,
+  "collisionMode": "exact+ascii-case-fold",
+  "packageScope": "project-root+explicit-c5-dependency-roots",
+  "packageBoundaryMode": "longest-explicit-c5-prefix",
+  "packageMetadataPolicyFingerprint": "fab8fec29ed0f0a1de65594620e233c9a9bef2fa514dac16c3079d5570325e97",
+  "packageTypeKey": "type",
+  "packageTypePolicy": "no-boundary:commonjs;missing:commonjs;module:esm;commonjs:commonjs;other:reject",
+  "sourceExtensions": [
+    ".ts",
+    ".mts",
+    ".cts"
+  ],
+  "moduleFormats": [
+    "commonjs",
+    "esm"
+  ],
+  "packageTypeStates": [
+    "no-boundary",
+    "missing",
+    "commonjs",
+    "module"
+  ],
+  "outputMatrix": "rhino:.ts:commonjs:.js;node:.ts:package:.js;node:.mts:esm:.mjs;node:.cts:commonjs:.cjs",
+  "resolverPolicyRevision": 2,
+  "resolverSubstitutions": [
+    ".js->.ts",
+    ".mjs->.mts",
+    ".cjs->.cts",
+    ".d.ts->.d.ts",
+    ".d.mts->.d.mts",
+    ".d.cts->.d.cts"
+  ],
+  "resolverConditionSource": "implied-module-format",
+  "resolverV1Compatibility": "unchanged-reject-new-kinds",
+  "policyCodes": [
+    "NODE_PACKAGE_TYPE_INVALID"
+  ]
+}

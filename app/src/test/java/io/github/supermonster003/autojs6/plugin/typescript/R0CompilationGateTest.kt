@@ -83,6 +83,28 @@ class R0CompilationGateTest {
     }
 
     @Test
+    fun inlineCompilerAuthorityMustBeTheExactEmptyObject() {
+        listOf(
+            " { } ",
+            """{"plugins":[{"name":"caller-plugin"}]}""",
+            """{"customTransformers":["caller-transformer.js"]}""",
+        ).forEach { compilerOptionsJson ->
+            val decision = R0CompilationGate.reject(
+                validAdmission()
+                    .withRequest { copy(compilerOptionsJson = compilerOptionsJson) }
+                    .copy(inputArchiveValid = false, outputArchiveValid = false),
+            )
+
+            assertFalse(decision.accepted)
+            assertEquals(TypeScriptCompilerContract.ERROR_INVALID_REQUEST, decision.errorCode)
+            assertEquals(
+                "compilerOptionsJson cannot establish executable compiler authority.",
+                decision.errorMessage,
+            )
+        }
+    }
+
+    @Test
     fun declarationEntryIsNeverExecutable() {
         val decision = R0CompilationGate.reject(
             validAdmission().withRequest {
@@ -123,7 +145,7 @@ class R0CompilationGateTest {
             entrySourceUri = "autojs://source/project/main.ts",
             targetProfile = TypeScriptCompilerContract.PROFILE_RHINO,
             compilationMode = TypeScriptCompilerContract.MODE_DEVELOPMENT,
-            compilerOptionsJson = "{}",
+            compilerOptionsJson = R2CompilerEscapePolicy.INLINE_COMPILER_OPTIONS_JSON,
             inputArchiveTransportVersion =
                 TypeScriptCompilerContract.INPUT_ARCHIVE_TRANSPORT_VERSION,
             outputArchiveTransportVersion =

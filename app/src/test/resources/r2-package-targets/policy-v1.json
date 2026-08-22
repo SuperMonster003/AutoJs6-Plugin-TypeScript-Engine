@@ -1,0 +1,36 @@
+{
+  "schema": "autojs6.typescript.package-target-policy",
+  "schemaRevision": 1,
+  "policyRevision": 1,
+  "fingerprint": "e34f4825d8f75ba1b674849ff79c2be8f9c1b88fe940add86e6e466a139bbbaf",
+  "dependencyRootPrefix": "packages/",
+  "inventoryCanonicalDomain": "autojs6.typescript.package-target.inventory.v1",
+  "metadataBindingMode": "exact-c5-inventory-fingerprint",
+  "sharedAggregateBudgetMode": "required-non-additive",
+  "safeRelativePathGrammar": "^[A-Za-z0-9@._/+~-]+$",
+  "allowedSourceSuffixes": [
+    ".d.ts",
+    ".ts"
+  ],
+  "budgets": {
+    "maximumFiles": 256,
+    "maximumPathChars": 1024,
+    "maximumAggregatePathChars": 32768,
+    "maximumFileBytes": 8388608,
+    "maximumTotalBytes": 8388608
+  },
+  "policyCodes": [
+    "PACKAGE_TARGET_PATH_INVALID",
+    "PACKAGE_TARGET_ROOT_NOT_ALLOWED",
+    "PACKAGE_TARGET_SOURCE_KIND_UNSUPPORTED",
+    "PACKAGE_TARGET_INVENTORY_INVALID",
+    "PACKAGE_TARGET_CASE_COLLISION",
+    "PACKAGE_TARGET_QUOTA_EXCEEDED",
+    "PACKAGE_TARGET_METADATA_IDENTITY_INVALID"
+  ],
+  "example": {
+    "packageMetadataInventoryFingerprint": "15b6208eccedc31e14cb18fe085762066e1668d3652e44319e4813e0a57ef447",
+    "canonicalInput": "autojs6.typescript.package-target.inventory.v1|packageMetadataInventoryFingerprint=15b6208eccedc31e14cb18fe085762066e1668d3652e44319e4813e0a57ef447|file=packages/pkg/index.ts,0,e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fingerprint": "e8085791bdaf6118cc80093da3aa6920cd6df4b90cde32113e05c1fa6fc14eb5"
+  }
+}

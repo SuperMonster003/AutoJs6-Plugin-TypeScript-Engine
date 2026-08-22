@@ -1,0 +1,92 @@
+{
+  "schema": "autojs6.typescript.generated-module-mapping-parity",
+  "revision": 1,
+  "moduleOutputPolicyFingerprint": "5c2294f0ee9d6d25bd2132b4ea24866d0a5f9caaa521a63bf81ffe1d897f6ce7",
+  "packageMetadataInventoryFingerprints": {
+    "typeAbsent": "5226a24ffd4ccf70a6ae0aa18b5c0f30630612a2e2edd348bf007c87e62a941d",
+    "commonjs": "99e6a0e05b5117b05ab9b070273be4f4d48a8fa1709b83fb1ae16d67c649abe6",
+    "module": "9fb6850fa0fa8c0a79d1730eb9ac8eef1312470165b4e8ed4c04ee11294adec5"
+  },
+  "validCases": [
+    {
+      "id": "rhino-ts-commonjs",
+      "request": { "projectId": "demo", "profile": "rhino", "profileRevision": 1, "sourcePath": "/sources/main.ts", "impliedModuleFormat": "commonjs", "packageFormatAuthority": null },
+      "expected": { "projectNamespace": "p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea", "originalSourceUri": "autojs://source/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/sources/main.ts", "outputExtension": ".js", "generatedPath": "/outputs/main.js", "sourceMapPath": "/outputs/main.js.map", "generatedUri": "autojs://generated/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/outputs/main.js", "fingerprint": "28be6edbf344c1dfb1385ff064142dda7758369dcc1248e2112bf3dd740989e6" }
+    },
+    {
+      "id": "node-mts-esm",
+      "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/modules/entry.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": null },
+      "expected": { "projectNamespace": "p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea", "originalSourceUri": "autojs://source/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/sources/modules/entry.mts", "outputExtension": ".mjs", "generatedPath": "/outputs/modules/entry.mjs", "sourceMapPath": "/outputs/modules/entry.mjs.map", "generatedUri": "autojs://generated/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/outputs/modules/entry.mjs", "fingerprint": "bfd383c6ecf973ab8a1e52ef7b64c7c2d376ebd7b2cb71dd2c59435d668b74f3" }
+    },
+    {
+      "id": "node-cts-commonjs",
+      "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/modules/entry.cts", "impliedModuleFormat": "commonjs", "packageFormatAuthority": null },
+      "expected": { "projectNamespace": "p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea", "originalSourceUri": "autojs://source/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/sources/modules/entry.cts", "outputExtension": ".cjs", "generatedPath": "/outputs/modules/entry.cjs", "sourceMapPath": "/outputs/modules/entry.cjs.map", "generatedUri": "autojs://generated/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/outputs/modules/entry.cjs", "fingerprint": "58ce938343ebdc829ef3e5961de1ce8c187ddd511fd353f5e0544d7eab548255" }
+    },
+    {
+      "id": "node-ts-package-module",
+      "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/pkg/module.ts", "impliedModuleFormat": "esm", "packageFormatAuthority": { "typeState": "module", "packageMetadataInventoryFingerprint": "9fb6850fa0fa8c0a79d1730eb9ac8eef1312470165b4e8ed4c04ee11294adec5", "boundaryPath": "/" } },
+      "expected": { "projectNamespace": "p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea", "originalSourceUri": "autojs://source/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/sources/pkg/module.ts", "outputExtension": ".js", "generatedPath": "/outputs/pkg/module.js", "sourceMapPath": "/outputs/pkg/module.js.map", "generatedUri": "autojs://generated/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/outputs/pkg/module.js", "fingerprint": "9dda6b2d66c428ca41908f1a0351d10ddf4aab0da667c20ccbb86b940397ba29" }
+    },
+    {
+      "id": "node-ts-package-commonjs",
+      "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/pkg/common.ts", "impliedModuleFormat": "commonjs", "packageFormatAuthority": { "typeState": "commonjs", "packageMetadataInventoryFingerprint": "99e6a0e05b5117b05ab9b070273be4f4d48a8fa1709b83fb1ae16d67c649abe6", "boundaryPath": "/" } },
+      "expected": { "projectNamespace": "p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea", "originalSourceUri": "autojs://source/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/sources/pkg/common.ts", "outputExtension": ".js", "generatedPath": "/outputs/pkg/common.js", "sourceMapPath": "/outputs/pkg/common.js.map", "generatedUri": "autojs://generated/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/outputs/pkg/common.js", "fingerprint": "38b98bba260d4daf61f4bf13e19365da213efd1c7ed850df8edca3dfe805d995" }
+    },
+    {
+      "id": "node-ts-package-type-absent",
+      "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/pkg/missing.ts", "impliedModuleFormat": "commonjs", "packageFormatAuthority": { "typeState": "missing", "packageMetadataInventoryFingerprint": "5226a24ffd4ccf70a6ae0aa18b5c0f30630612a2e2edd348bf007c87e62a941d", "boundaryPath": "/" } },
+      "expected": { "projectNamespace": "p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea", "originalSourceUri": "autojs://source/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/sources/pkg/missing.ts", "outputExtension": ".js", "generatedPath": "/outputs/pkg/missing.js", "sourceMapPath": "/outputs/pkg/missing.js.map", "generatedUri": "autojs://generated/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/outputs/pkg/missing.js", "fingerprint": "793eb8456993a4dcaeb6a71ca9cab794af342d32452be357b61b8b99b68fc9ec" }
+    },
+    {
+      "id": "node-ts-no-boundary",
+      "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/root.ts", "impliedModuleFormat": "commonjs", "packageFormatAuthority": { "typeState": "no-boundary", "packageMetadataInventoryFingerprint": null, "boundaryPath": null } },
+      "expected": { "projectNamespace": "p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea", "originalSourceUri": "autojs://source/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/sources/root.ts", "outputExtension": ".js", "generatedPath": "/outputs/root.js", "sourceMapPath": "/outputs/root.js.map", "generatedUri": "autojs://generated/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/outputs/root.js", "fingerprint": "fcd863d05c62b8fadf4058f026e0c87499ced55064e7998bcc28171f21a193b1" }
+    },
+    {
+      "id": "percent-encoding-and-unicode-project-id",
+      "request": { "projectId": "项目 /#%", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/nested/hash# percent%.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": null },
+      "expected": { "projectNamespace": "p-692887dca2f5c7fc9ce4e51581c1fb1cf37c4567d623df73b6066ca789d66e95", "originalSourceUri": "autojs://source/p-692887dca2f5c7fc9ce4e51581c1fb1cf37c4567d623df73b6066ca789d66e95/sources/nested/hash%23%20percent%25.mts", "outputExtension": ".mjs", "generatedPath": "/outputs/nested/hash# percent%.mjs", "sourceMapPath": "/outputs/nested/hash# percent%.mjs.map", "generatedUri": "autojs://generated/p-692887dca2f5c7fc9ce4e51581c1fb1cf37c4567d623df73b6066ca789d66e95/outputs/nested/hash%23%20percent%25.mjs", "fingerprint": "e482e628de6643b6e5f82a0f6269efbdbd5e3aad8cd2c2a234affcd3953cb698" }
+    },
+    {
+      "id": "literal-percent-is-not-decoded-as-traversal",
+      "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/%2e%2e/file.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": null },
+      "expected": { "projectNamespace": "p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea", "originalSourceUri": "autojs://source/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/sources/%252e%252e/file.mts", "outputExtension": ".mjs", "generatedPath": "/outputs/%2e%2e/file.mjs", "sourceMapPath": "/outputs/%2e%2e/file.mjs.map", "generatedUri": "autojs://generated/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/outputs/%252e%252e/file.mjs", "fingerprint": "8ae6c9a98c74fe848886469678e567541e3237a3a97ba8bcbf48155dd436539a" }
+    },
+    {
+      "id": "raw-evidence-delimiter-is-single-token-encoded",
+      "request": { "projectId": "pipe|project", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/raw|pipe.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": null },
+      "expected": { "projectNamespace": "p-56f740ecb94bfb7f486b66a51ca4897f2d6d550aa85485178a0791cf54e8421d", "originalSourceUri": "autojs://source/p-56f740ecb94bfb7f486b66a51ca4897f2d6d550aa85485178a0791cf54e8421d/sources/raw%7Cpipe.mts", "outputExtension": ".mjs", "generatedPath": "/outputs/raw|pipe.mjs", "sourceMapPath": "/outputs/raw|pipe.mjs.map", "generatedUri": "autojs://generated/p-56f740ecb94bfb7f486b66a51ca4897f2d6d550aa85485178a0791cf54e8421d/outputs/raw%7Cpipe.mjs", "fingerprint": "0324cd394dafdcc990021cbd960610809eae32ec2d5d9cb53da29cbf4b61c107" }
+    }
+  ],
+  "invalidCases": [
+    { "id": "node-revision-1-remains-closed", "operation": "map", "request": { "projectId": "demo", "profile": "node", "profileRevision": 1, "sourcePath": "/sources/main.ts", "impliedModuleFormat": "commonjs", "packageFormatAuthority": { "typeState": "no-boundary", "packageMetadataInventoryFingerprint": null, "boundaryPath": null } }, "expectedCode": "GENERATED_MAPPING_INVALID_PROFILE_AUTHORITY" },
+    { "id": "traversal", "operation": "map", "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/../escape.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": null }, "expectedCode": "GENERATED_MAPPING_INVALID_SOURCE_PATH" },
+    { "id": "backslash", "operation": "map", "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/a\\b.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": null }, "expectedCode": "GENERATED_MAPPING_INVALID_SOURCE_PATH" },
+    { "id": "declaration-kind", "operation": "map", "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/types.d.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": null }, "expectedCode": "GENERATED_MAPPING_UNSUPPORTED_SOURCE_KIND" },
+    { "id": "uppercase-extension", "operation": "map", "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/main.MTS", "impliedModuleFormat": "esm", "packageFormatAuthority": null }, "expectedCode": "GENERATED_MAPPING_UNSUPPORTED_SOURCE_KIND" },
+    { "id": "rhino-esm", "operation": "map", "request": { "projectId": "demo", "profile": "rhino", "profileRevision": 1, "sourcePath": "/sources/main.ts", "impliedModuleFormat": "esm", "packageFormatAuthority": null }, "expectedCode": "GENERATED_MAPPING_MODULE_FORMAT_MISMATCH" },
+    { "id": "mts-commonjs", "operation": "map", "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/main.mts", "impliedModuleFormat": "commonjs", "packageFormatAuthority": null }, "expectedCode": "GENERATED_MAPPING_MODULE_FORMAT_MISMATCH" },
+    { "id": "cts-esm", "operation": "map", "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/main.cts", "impliedModuleFormat": "esm", "packageFormatAuthority": null }, "expectedCode": "GENERATED_MAPPING_MODULE_FORMAT_MISMATCH" },
+    { "id": "node-ts-missing-package-authority", "operation": "map", "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/main.ts", "impliedModuleFormat": "commonjs", "packageFormatAuthority": null }, "expectedCode": "GENERATED_MAPPING_PACKAGE_AUTHORITY_MISMATCH" },
+    { "id": "node-ts-package-format-drift", "operation": "map", "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/main.ts", "impliedModuleFormat": "commonjs", "packageFormatAuthority": { "typeState": "module", "packageMetadataInventoryFingerprint": "9fb6850fa0fa8c0a79d1730eb9ac8eef1312470165b4e8ed4c04ee11294adec5", "boundaryPath": "/" } }, "expectedCode": "GENERATED_MAPPING_MODULE_FORMAT_MISMATCH" },
+    { "id": "mts-package-authority-forbidden", "operation": "map", "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/main.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": { "typeState": "module", "packageMetadataInventoryFingerprint": "9fb6850fa0fa8c0a79d1730eb9ac8eef1312470165b4e8ed4c04ee11294adec5", "boundaryPath": "/" } }, "expectedCode": "GENERATED_MAPPING_PACKAGE_AUTHORITY_MISMATCH" },
+    { "id": "case-fold-source-collision", "operation": "inventory", "requests": [
+      { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/Foo.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": null },
+      { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/foo.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": null }
+    ], "expectedCode": "GENERATED_MAPPING_SOURCE_COLLISION" },
+    { "id": "exact-source-collision", "operation": "inventory", "requests": [
+      { "projectId": "one", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/main.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": null },
+      { "projectId": "one", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/main.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": null }
+    ], "expectedCode": "GENERATED_MAPPING_SOURCE_COLLISION" },
+    { "id": "mixed-project-inventory", "operation": "inventory", "requests": [
+      { "projectId": "one", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/one.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": null },
+      { "projectId": "two", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/two.mts", "impliedModuleFormat": "esm", "packageFormatAuthority": null }
+    ], "expectedCode": "GENERATED_MAPPING_MIXED_PROJECT_INVENTORY" },
+    { "id": "generated-extension-claim-drift", "operation": "claim", "validCaseId": "node-mts-esm", "field": "generatedPath", "replacement": "/outputs/modules/entry.js", "expectedCode": "GENERATED_MAPPING_CLAIM_MISMATCH" },
+    { "id": "source-map-claim-drift", "operation": "claim", "validCaseId": "node-cts-commonjs", "field": "sourceMapPath", "replacement": "/outputs/modules/entry.js.map", "expectedCode": "GENERATED_MAPPING_CLAIM_MISMATCH" },
+    { "id": "generated-uri-claim-drift", "operation": "claim", "validCaseId": "percent-encoding-and-unicode-project-id", "field": "generatedUri", "replacement": "autojs://generated/wrong/outputs/nested/hash# percent%.mjs", "expectedCode": "GENERATED_MAPPING_CLAIM_MISMATCH" }
+    ,{ "id": "original-uri-claim-drift", "operation": "claim", "validCaseId": "raw-evidence-delimiter-is-single-token-encoded", "field": "originalSourceUri", "replacement": "autojs://source/wrong/sources/raw|pipe.mts", "expectedCode": "GENERATED_MAPPING_CLAIM_MISMATCH" }
+    ,{ "id": "package-boundary-drift", "operation": "map", "request": { "projectId": "demo", "profile": "node", "profileRevision": 2, "sourcePath": "/sources/main.ts", "impliedModuleFormat": "esm", "packageFormatAuthority": { "typeState": "module", "packageMetadataInventoryFingerprint": "9fb6850fa0fa8c0a79d1730eb9ac8eef1312470165b4e8ed4c04ee11294adec5", "boundaryPath": "/sources/pkg" } }, "expectedCode": "GENERATED_MAPPING_PACKAGE_AUTHORITY_MISMATCH" }
+  ]
+}

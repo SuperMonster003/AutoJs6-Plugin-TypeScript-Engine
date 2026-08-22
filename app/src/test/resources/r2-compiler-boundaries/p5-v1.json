@@ -1,0 +1,1265 @@
+{
+  "schema": "autojs6.typescript.r2-m2-p5.compiler-boundaries",
+  "revision": 1,
+  "typescriptVersion": "6.0.3",
+  "scope": "desktop-compiler-only/no-production-admission",
+  "execution": {
+    "inputOrders": [
+      "declared",
+      "reversed"
+    ],
+    "repetitionsPerOrder": 2,
+    "expectedHostFsCalls": 0,
+    "expectedTsSysCalls": 0,
+    "expectedNetworkCalls": 0,
+    "expectedEmittedJavaScriptExecutions": 0,
+    "expectedCompiles": 48,
+    "expectedCollisionRejections": 8,
+    "expectedTokenOverflowRejections": 8,
+    "sourceCollectionCanonical": "sorted files; UTF-8(path + NUL + decimal byteLength + NUL + lowercase sha256 + LF)",
+    "outputCollectionCanonical": "sorted outputs; UTF-8(path + NUL + decimal byteLength + NUL + lowercase sha256 + LF)"
+  },
+  "authorities": {
+    "rhino": {
+      "kind": "frozen-profile",
+      "compilerApi": "createIncrementalProgram",
+      "targetProfile": "rhino",
+      "profileRevision": 1,
+      "declarationLayer": "rhino",
+      "productionAdmission": "unchanged",
+      "decoratorSemantics": "standard-stage-3/experimentalDecorators-absent",
+      "canonicalOptionsJson": "{\"allowJs\":false,\"checkJs\":false,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":1,\"moduleResolution\":2,\"newLine\":1,\"noEmitOnError\":true,\"noLib\":false,\"outDir\":\"/outputs\",\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true,\"strict\":true,\"target\":5,\"types\":[]}",
+      "optionsSha256": "76a173383972b1bd8d4ffa3fffe5d51f5adecf7b84e7b16f58554c14f3c08e0b"
+    },
+    "node": {
+      "kind": "frozen-profile",
+      "compilerApi": "createIncrementalProgram",
+      "targetProfile": "node",
+      "profileRevision": 1,
+      "declarationLayer": "node",
+      "productionAdmission": "unchanged",
+      "decoratorSemantics": "standard-stage-3/experimentalDecorators-absent",
+      "canonicalOptionsJson": "{\"allowJs\":false,\"checkJs\":false,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":199,\"moduleResolution\":99,\"newLine\":1,\"noEmitOnError\":true,\"noLib\":false,\"outDir\":\"/outputs\",\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true,\"strict\":true,\"target\":5,\"types\":[]}",
+      "optionsSha256": "2ef130a868f27eb30869ed24fc1f8999135aeeefe92bcd30bebf94b38224419f"
+    }
+  },
+  "generatorAuthority": {
+    "kind": "repeated-interface-v1",
+    "line": "interface Boundary{}\r\n",
+    "repetitions": 16384,
+    "renderedUtf8ByteLength": 360448,
+    "renderedSha256": "f55b81564428621c455a2860f5ab99a30827ace8089e5a3118b1af35ecbae26b",
+    "tokensPerRepetition": 4,
+    "acceptedTokenCount": 65536,
+    "overflowSuffix": ";\r\n",
+    "overflowTokenCount": 65537,
+    "maximumProjectTokens": 262144,
+    "profileAggregateTokenCounts": {
+      "rhino": 152036,
+      "node": 191040
+    },
+    "overflowExpected": {
+      "outcome": "rejected",
+      "stage": "pre-program",
+      "code": "ORACLE_FILE_TOKEN_LIMIT_EXCEEDED",
+      "programCreated": false,
+      "diagnostics": [],
+      "outputs": [],
+      "compilerApiCalls": 0,
+      "outputWrites": 0
+    }
+  },
+  "boundaryMatrix": [
+    {
+      "boundary": "chinese-path",
+      "caseSuffix": "chinese-path",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "oracleContract": "direct-compiler-positive/production-printable-ascii-negative"
+    },
+    {
+      "boundary": "space-path",
+      "caseSuffix": "space-path",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "oracleContract": "direct-compiler-positive/production-ordinary-source-compatible"
+    },
+    {
+      "boundary": "crlf",
+      "caseSuffix": "crlf",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "oracleContract": "raw-crlf-identity/emitted-lf"
+    },
+    {
+      "boundary": "leading-bom",
+      "caseSuffix": "bom",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "oracleContract": "raw-leading-bom-identity/emitted-no-bom"
+    },
+    {
+      "boundary": "unicode-content",
+      "caseSuffix": "unicode",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "oracleContract": "valid-scalars-opaque/no-normalization"
+    },
+    {
+      "boundary": "high-token",
+      "caseSuffix": "high-token",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "oracleContract": "65536-inclusive/65537-pre-program-negative"
+    },
+    {
+      "boundary": "ascii-case-fold-collision",
+      "caseSuffix": "canonical-collision",
+      "profiles": [
+        "rhino",
+        "node"
+      ],
+      "oracleContract": "ascii-a-z-fold/pre-program-negative"
+    }
+  ],
+  "cases": [
+    {
+      "id": "rhino-chinese-path",
+      "boundary": "chinese-path",
+      "authority": "rhino",
+      "productionRelationship": "direct-compiler-only/production-printable-ascii-negative",
+      "sourceCollectionSha256": "65a117549f2b2fce5de62c2569001cd03d58191d7cc2938b6cb7079f2bd2f264",
+      "rootNames": [
+        "/sources/中文目录/上下文.ts",
+        "/sources/中文目录/入口.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/中文目录/上下文.ts",
+          "text": "export const 中文上下文: string = \"中文路径\";\n"
+        },
+        {
+          "path": "/sources/中文目录/入口.ts",
+          "text": "export const 中文入口: string = \"🚀\";\n"
+        }
+      ],
+      "assertions": {
+        "directCompilerUnicodePath": true,
+        "productionPrintableAsciiAdmission": false
+      },
+      "expected": {
+        "outcome": "compiled",
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "5cba449b921d9fd461b21796700e94f2d541d6ddd788c62509db60a78484c5d4",
+        "outputs": [
+          {
+            "path": "/outputs/中文目录/上下文.js",
+            "byteLength": 208,
+            "sha256": "b43a8d499f5a2077dc6358c6b546d7c519aab9bb10fd2db3b5819164262a7bad",
+            "sourcePaths": [
+              "/sources/中文目录/上下文.ts"
+            ]
+          },
+          {
+            "path": "/outputs/中文目录/上下文.js.map",
+            "byteLength": 162,
+            "sha256": "1b566e1614cf9f4b79dcb7ecf6d9f8d9ce6328020b7915bfeea3bcabb386fc1d",
+            "sourcePaths": [
+              "/sources/中文目录/上下文.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "上下文.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/中文目录/上下文.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "c60928b2a3df7c346d170c808e72ef06c45fb6a487b759e4f165328afef7831e"
+            }
+          },
+          {
+            "path": "/outputs/中文目录/入口.js",
+            "byteLength": 185,
+            "sha256": "0b70464afccd2f11b27372cf1e851de429fc1c373f64e09ca7bab5bd0391dfdb",
+            "sourcePaths": [
+              "/sources/中文目录/入口.ts"
+            ]
+          },
+          {
+            "path": "/outputs/中文目录/入口.js.map",
+            "byteLength": 156,
+            "sha256": "5680bcdd4d4f55bd5a69b6e1005693b1b9bf13104deb3a87e9180964e53049f9",
+            "sourcePaths": [
+              "/sources/中文目录/入口.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "入口.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/中文目录/入口.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "3a085c95413c50ff83cd55a24165b31b33112e36f84ad6a2affe60640f6e5594"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-chinese-path",
+      "boundary": "chinese-path",
+      "authority": "node",
+      "productionRelationship": "direct-compiler-only/production-printable-ascii-negative",
+      "sourceCollectionSha256": "65a117549f2b2fce5de62c2569001cd03d58191d7cc2938b6cb7079f2bd2f264",
+      "rootNames": [
+        "/sources/中文目录/上下文.ts",
+        "/sources/中文目录/入口.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/中文目录/上下文.ts",
+          "text": "export const 中文上下文: string = \"中文路径\";\n"
+        },
+        {
+          "path": "/sources/中文目录/入口.ts",
+          "text": "export const 中文入口: string = \"🚀\";\n"
+        }
+      ],
+      "assertions": {
+        "directCompilerUnicodePath": true,
+        "productionPrintableAsciiAdmission": false
+      },
+      "expected": {
+        "outcome": "compiled",
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "5cba449b921d9fd461b21796700e94f2d541d6ddd788c62509db60a78484c5d4",
+        "outputs": [
+          {
+            "path": "/outputs/中文目录/上下文.js",
+            "byteLength": 208,
+            "sha256": "b43a8d499f5a2077dc6358c6b546d7c519aab9bb10fd2db3b5819164262a7bad",
+            "sourcePaths": [
+              "/sources/中文目录/上下文.ts"
+            ]
+          },
+          {
+            "path": "/outputs/中文目录/上下文.js.map",
+            "byteLength": 162,
+            "sha256": "1b566e1614cf9f4b79dcb7ecf6d9f8d9ce6328020b7915bfeea3bcabb386fc1d",
+            "sourcePaths": [
+              "/sources/中文目录/上下文.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "上下文.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/中文目录/上下文.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "c60928b2a3df7c346d170c808e72ef06c45fb6a487b759e4f165328afef7831e"
+            }
+          },
+          {
+            "path": "/outputs/中文目录/入口.js",
+            "byteLength": 185,
+            "sha256": "0b70464afccd2f11b27372cf1e851de429fc1c373f64e09ca7bab5bd0391dfdb",
+            "sourcePaths": [
+              "/sources/中文目录/入口.ts"
+            ]
+          },
+          {
+            "path": "/outputs/中文目录/入口.js.map",
+            "byteLength": 156,
+            "sha256": "5680bcdd4d4f55bd5a69b6e1005693b1b9bf13104deb3a87e9180964e53049f9",
+            "sourcePaths": [
+              "/sources/中文目录/入口.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "入口.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/中文目录/入口.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "3a085c95413c50ff83cd55a24165b31b33112e36f84ad6a2affe60640f6e5594"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rhino-space-path",
+      "boundary": "space-path",
+      "authority": "rhino",
+      "productionRelationship": "production-compatible-ordinary-source",
+      "sourceCollectionSha256": "d94a3907a35fb6743f512e76394439fe986c13c4a062ad5b5517e923d56cc1b7",
+      "rootNames": [
+        "/sources/space directory/context file.ts",
+        "/sources/space directory/main file.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/space directory/context file.ts",
+          "text": "export const spaceContext: string = \"context\";\n"
+        },
+        {
+          "path": "/sources/space directory/main file.ts",
+          "text": "export const spaceMain: string = \"main\";\n"
+        }
+      ],
+      "assertions": {
+        "productionOrdinarySourceCompatible": true
+      },
+      "expected": {
+        "outcome": "compiled",
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "7be73c7fcf4cb2eb200892046ee67264ac21f9b04824384bd3bb97211d666d85",
+        "outputs": [
+          {
+            "path": "/outputs/space directory/context file.js",
+            "byteLength": 184,
+            "sha256": "e2769ffd2ada232e2ba7e3e485335ab9c4cb5c7075819456d6eebeb92fd357b4",
+            "sourcePaths": [
+              "/sources/space directory/context file.ts"
+            ]
+          },
+          {
+            "path": "/outputs/space directory/context file.js.map",
+            "byteLength": 171,
+            "sha256": "0abfe250e8436c61440b6cc8aa291c3e2cf88eaf4f543508c4589166ff900f01",
+            "sourcePaths": [
+              "/sources/space directory/context file.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "context file.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/space directory/context file.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "f688d36ca911f59c653e7e4f965f0c423364b61a6295a19d509b1f81f321e7cf"
+            }
+          },
+          {
+            "path": "/outputs/space directory/main file.js",
+            "byteLength": 172,
+            "sha256": "2e5f542cd2b46d0b9eda40071439c9126fbf482b36e5ff7b5088d5019c1b2fdc",
+            "sourcePaths": [
+              "/sources/space directory/main file.ts"
+            ]
+          },
+          {
+            "path": "/outputs/space directory/main file.js.map",
+            "byteLength": 165,
+            "sha256": "47315a1e46b07127da7db3b8ec38326826dd1726b78fbca02ad0e2c746404097",
+            "sourcePaths": [
+              "/sources/space directory/main file.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "main file.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/space directory/main file.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "7a3e0b013235151e8ca940b75fb544f249c696fbddc5aed90d11fe1c42477720"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-space-path",
+      "boundary": "space-path",
+      "authority": "node",
+      "productionRelationship": "production-compatible-ordinary-source",
+      "sourceCollectionSha256": "d94a3907a35fb6743f512e76394439fe986c13c4a062ad5b5517e923d56cc1b7",
+      "rootNames": [
+        "/sources/space directory/context file.ts",
+        "/sources/space directory/main file.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/space directory/context file.ts",
+          "text": "export const spaceContext: string = \"context\";\n"
+        },
+        {
+          "path": "/sources/space directory/main file.ts",
+          "text": "export const spaceMain: string = \"main\";\n"
+        }
+      ],
+      "assertions": {
+        "productionOrdinarySourceCompatible": true
+      },
+      "expected": {
+        "outcome": "compiled",
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "7be73c7fcf4cb2eb200892046ee67264ac21f9b04824384bd3bb97211d666d85",
+        "outputs": [
+          {
+            "path": "/outputs/space directory/context file.js",
+            "byteLength": 184,
+            "sha256": "e2769ffd2ada232e2ba7e3e485335ab9c4cb5c7075819456d6eebeb92fd357b4",
+            "sourcePaths": [
+              "/sources/space directory/context file.ts"
+            ]
+          },
+          {
+            "path": "/outputs/space directory/context file.js.map",
+            "byteLength": 171,
+            "sha256": "0abfe250e8436c61440b6cc8aa291c3e2cf88eaf4f543508c4589166ff900f01",
+            "sourcePaths": [
+              "/sources/space directory/context file.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "context file.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/space directory/context file.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "f688d36ca911f59c653e7e4f965f0c423364b61a6295a19d509b1f81f321e7cf"
+            }
+          },
+          {
+            "path": "/outputs/space directory/main file.js",
+            "byteLength": 172,
+            "sha256": "2e5f542cd2b46d0b9eda40071439c9126fbf482b36e5ff7b5088d5019c1b2fdc",
+            "sourcePaths": [
+              "/sources/space directory/main file.ts"
+            ]
+          },
+          {
+            "path": "/outputs/space directory/main file.js.map",
+            "byteLength": 165,
+            "sha256": "47315a1e46b07127da7db3b8ec38326826dd1726b78fbca02ad0e2c746404097",
+            "sourcePaths": [
+              "/sources/space directory/main file.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "main file.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/space directory/main file.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "7a3e0b013235151e8ca940b75fb544f249c696fbddc5aed90d11fe1c42477720"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rhino-crlf",
+      "boundary": "crlf",
+      "authority": "rhino",
+      "productionRelationship": "production-compatible-opaque-source-bytes",
+      "sourceCollectionSha256": "f3488915bef1d9caad80d56e62e6c2bf882d4a3d9d3c27744ab6d38f5bcea026",
+      "rootNames": [
+        "/sources/crlf/context.ts",
+        "/sources/crlf/main.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/crlf/context.ts",
+          "text": "export const crlfContext: string = \"context\";\r\n"
+        },
+        {
+          "path": "/sources/crlf/main.ts",
+          "text": "export const crlfMain: string = \"main\";\r\n"
+        }
+      ],
+      "assertions": {
+        "rawInputLineEnding": "CRLF",
+        "emittedLineEnding": "LF"
+      },
+      "expected": {
+        "outcome": "compiled",
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "2bdb28ff8b3655d808ce534a49a99120b3f7b2e871dadbebe148575a1db316be",
+        "outputs": [
+          {
+            "path": "/outputs/crlf/context.js",
+            "byteLength": 175,
+            "sha256": "f449344fe2f52575f83f9291ef489b5197a988f6ef0efb29cb481a74d17d2003",
+            "sourcePaths": [
+              "/sources/crlf/context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/crlf/context.js.map",
+            "byteLength": 150,
+            "sha256": "444d0af3df10b89b0f9c3e8032b02ae169ee6b73c8739066525978cc7a98e77d",
+            "sourcePaths": [
+              "/sources/crlf/context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/crlf/context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "bae1b5df405a97295e59ab9e3360c091b4ea44843111a9d5458edc8551c46c87"
+            }
+          },
+          {
+            "path": "/outputs/crlf/main.js",
+            "byteLength": 163,
+            "sha256": "41649dd1eb7bf71fc3a57773f793b21e5314714fa2ef09641c35160025d8df46",
+            "sourcePaths": [
+              "/sources/crlf/main.ts"
+            ]
+          },
+          {
+            "path": "/outputs/crlf/main.js.map",
+            "byteLength": 144,
+            "sha256": "9996a9e33ca790b6fd6134c5bdb1e916c801b7cf0c1d3069c39da43f42482120",
+            "sourcePaths": [
+              "/sources/crlf/main.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "main.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/crlf/main.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "68e2982ec38cdb721c1cf83be46387918100df5429d0438f635dc0b5f1571792"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-crlf",
+      "boundary": "crlf",
+      "authority": "node",
+      "productionRelationship": "production-compatible-opaque-source-bytes",
+      "sourceCollectionSha256": "f3488915bef1d9caad80d56e62e6c2bf882d4a3d9d3c27744ab6d38f5bcea026",
+      "rootNames": [
+        "/sources/crlf/context.ts",
+        "/sources/crlf/main.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/crlf/context.ts",
+          "text": "export const crlfContext: string = \"context\";\r\n"
+        },
+        {
+          "path": "/sources/crlf/main.ts",
+          "text": "export const crlfMain: string = \"main\";\r\n"
+        }
+      ],
+      "assertions": {
+        "rawInputLineEnding": "CRLF",
+        "emittedLineEnding": "LF"
+      },
+      "expected": {
+        "outcome": "compiled",
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "2bdb28ff8b3655d808ce534a49a99120b3f7b2e871dadbebe148575a1db316be",
+        "outputs": [
+          {
+            "path": "/outputs/crlf/context.js",
+            "byteLength": 175,
+            "sha256": "f449344fe2f52575f83f9291ef489b5197a988f6ef0efb29cb481a74d17d2003",
+            "sourcePaths": [
+              "/sources/crlf/context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/crlf/context.js.map",
+            "byteLength": 150,
+            "sha256": "444d0af3df10b89b0f9c3e8032b02ae169ee6b73c8739066525978cc7a98e77d",
+            "sourcePaths": [
+              "/sources/crlf/context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/crlf/context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "bae1b5df405a97295e59ab9e3360c091b4ea44843111a9d5458edc8551c46c87"
+            }
+          },
+          {
+            "path": "/outputs/crlf/main.js",
+            "byteLength": 163,
+            "sha256": "41649dd1eb7bf71fc3a57773f793b21e5314714fa2ef09641c35160025d8df46",
+            "sourcePaths": [
+              "/sources/crlf/main.ts"
+            ]
+          },
+          {
+            "path": "/outputs/crlf/main.js.map",
+            "byteLength": 144,
+            "sha256": "9996a9e33ca790b6fd6134c5bdb1e916c801b7cf0c1d3069c39da43f42482120",
+            "sourcePaths": [
+              "/sources/crlf/main.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "main.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/crlf/main.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "68e2982ec38cdb721c1cf83be46387918100df5429d0438f635dc0b5f1571792"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rhino-bom",
+      "boundary": "leading-bom",
+      "authority": "rhino",
+      "productionRelationship": "production-compatible-opaque-source-bytes",
+      "sourceCollectionSha256": "8befc549550472efc6cb80aa438f39bc7588f5acd5b19f2ea781c13c8e4cf83f",
+      "rootNames": [
+        "/sources/bom/context.ts",
+        "/sources/bom/main.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/bom/context.ts",
+          "text": "﻿export const bomContext: string = \"context\";\n"
+        },
+        {
+          "path": "/sources/bom/main.ts",
+          "text": "﻿export const bomMain: string = \"main\";\n"
+        }
+      ],
+      "assertions": {
+        "leadingBomCodePoint": 65279,
+        "emittedBom": false
+      },
+      "expected": {
+        "outcome": "compiled",
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "c7aef340adbfd56eedd44b4481f74015169668088c181c65e2e91ce3450b0eec",
+        "outputs": [
+          {
+            "path": "/outputs/bom/context.js",
+            "byteLength": 173,
+            "sha256": "f3831f8fb0902e3eabfdc16455c46fceb68501e2f88105b1a97ba98a59aa7fce",
+            "sourcePaths": [
+              "/sources/bom/context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/bom/context.js.map",
+            "byteLength": 149,
+            "sha256": "98e2517efe48e19842347479ffb16c1abd65cff496080baacaa6ce39325e7ef3",
+            "sourcePaths": [
+              "/sources/bom/context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/bom/context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "d5b0dd43afc71acefb89b50a2280c4784520f2eb3effecb8e0cbf3f588fd1405"
+            }
+          },
+          {
+            "path": "/outputs/bom/main.js",
+            "byteLength": 161,
+            "sha256": "f28397ea61e8f5c41bf8a8120b8805853c217028c3e16139116ead288074af6a",
+            "sourcePaths": [
+              "/sources/bom/main.ts"
+            ]
+          },
+          {
+            "path": "/outputs/bom/main.js.map",
+            "byteLength": 143,
+            "sha256": "746778ec99e3e8b736980d0da7c9a662d356e1cbc7d78f27a68b7588aec41337",
+            "sourcePaths": [
+              "/sources/bom/main.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "main.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/bom/main.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "a9c66d03a9c1fe69e04f50313c28217932ae10ffdbc50a42ee68cdce6dca0d5c"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-bom",
+      "boundary": "leading-bom",
+      "authority": "node",
+      "productionRelationship": "production-compatible-opaque-source-bytes",
+      "sourceCollectionSha256": "8befc549550472efc6cb80aa438f39bc7588f5acd5b19f2ea781c13c8e4cf83f",
+      "rootNames": [
+        "/sources/bom/context.ts",
+        "/sources/bom/main.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/bom/context.ts",
+          "text": "﻿export const bomContext: string = \"context\";\n"
+        },
+        {
+          "path": "/sources/bom/main.ts",
+          "text": "﻿export const bomMain: string = \"main\";\n"
+        }
+      ],
+      "assertions": {
+        "leadingBomCodePoint": 65279,
+        "emittedBom": false
+      },
+      "expected": {
+        "outcome": "compiled",
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "c7aef340adbfd56eedd44b4481f74015169668088c181c65e2e91ce3450b0eec",
+        "outputs": [
+          {
+            "path": "/outputs/bom/context.js",
+            "byteLength": 173,
+            "sha256": "f3831f8fb0902e3eabfdc16455c46fceb68501e2f88105b1a97ba98a59aa7fce",
+            "sourcePaths": [
+              "/sources/bom/context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/bom/context.js.map",
+            "byteLength": 149,
+            "sha256": "98e2517efe48e19842347479ffb16c1abd65cff496080baacaa6ce39325e7ef3",
+            "sourcePaths": [
+              "/sources/bom/context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/bom/context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "d5b0dd43afc71acefb89b50a2280c4784520f2eb3effecb8e0cbf3f588fd1405"
+            }
+          },
+          {
+            "path": "/outputs/bom/main.js",
+            "byteLength": 161,
+            "sha256": "f28397ea61e8f5c41bf8a8120b8805853c217028c3e16139116ead288074af6a",
+            "sourcePaths": [
+              "/sources/bom/main.ts"
+            ]
+          },
+          {
+            "path": "/outputs/bom/main.js.map",
+            "byteLength": 143,
+            "sha256": "746778ec99e3e8b736980d0da7c9a662d356e1cbc7d78f27a68b7588aec41337",
+            "sourcePaths": [
+              "/sources/bom/main.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "main.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/bom/main.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "a9c66d03a9c1fe69e04f50313c28217932ae10ffdbc50a42ee68cdce6dca0d5c"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rhino-unicode",
+      "boundary": "unicode-content",
+      "authority": "rhino",
+      "productionRelationship": "production-compatible-valid-unicode-content",
+      "sourceCollectionSha256": "afc1aa7adf0492950d48881753870342701cb12d86107c6168c0dfd97a020899",
+      "rootNames": [
+        "/sources/unicode/context.ts",
+        "/sources/unicode/main.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/unicode/context.ts",
+          "text": "export const 中文上下文: string = \"é|é|🌏\";\n"
+        },
+        {
+          "path": "/sources/unicode/main.ts",
+          "text": "export const 火箭: string = \"🚀\";\n"
+        }
+      ],
+      "assertions": {
+        "contentNormalization": "opaque",
+        "requiredSourceSubstrings": [
+          "中文",
+          "é",
+          "é",
+          "🚀"
+        ]
+      },
+      "expected": {
+        "outcome": "compiled",
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "0a0848cbc71e8d8f50fdfe24935df888b48e8799e7ead03cfb3b77fcb62ed9da",
+        "outputs": [
+          {
+            "path": "/outputs/unicode/context.js",
+            "byteLength": 187,
+            "sha256": "dadc755aa90751e47bbaafc968b2f63bc8e3f43f5587abc84c0a38f98b284cb5",
+            "sourcePaths": [
+              "/sources/unicode/context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/unicode/context.js.map",
+            "byteLength": 153,
+            "sha256": "ac4f0061df2d5582eeb9072bd567e6c95e49458ed2ae70111c86d570057e3687",
+            "sourcePaths": [
+              "/sources/unicode/context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/unicode/context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "ae4f2d9c51caf63826c888709646944fa86d3dc7daa4384374c13faacaefdbd4"
+            }
+          },
+          {
+            "path": "/outputs/unicode/main.js",
+            "byteLength": 159,
+            "sha256": "b88045b45d11c934a19f3c1e3e83b9aaecedac6233bd8c0625e2fe974d39e20a",
+            "sourcePaths": [
+              "/sources/unicode/main.ts"
+            ]
+          },
+          {
+            "path": "/outputs/unicode/main.js.map",
+            "byteLength": 147,
+            "sha256": "13a32d61fec9ada6095c033ed3f0c5ac55334694d09cfb67c651f3c9d81bb870",
+            "sourcePaths": [
+              "/sources/unicode/main.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "main.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/unicode/main.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "dcfac7e3054c57baad80a8b56f05cc3a51b37e8872dfa51004ed6e122a38496b"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-unicode",
+      "boundary": "unicode-content",
+      "authority": "node",
+      "productionRelationship": "production-compatible-valid-unicode-content",
+      "sourceCollectionSha256": "afc1aa7adf0492950d48881753870342701cb12d86107c6168c0dfd97a020899",
+      "rootNames": [
+        "/sources/unicode/context.ts",
+        "/sources/unicode/main.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/unicode/context.ts",
+          "text": "export const 中文上下文: string = \"é|é|🌏\";\n"
+        },
+        {
+          "path": "/sources/unicode/main.ts",
+          "text": "export const 火箭: string = \"🚀\";\n"
+        }
+      ],
+      "assertions": {
+        "contentNormalization": "opaque",
+        "requiredSourceSubstrings": [
+          "中文",
+          "é",
+          "é",
+          "🚀"
+        ]
+      },
+      "expected": {
+        "outcome": "compiled",
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "0a0848cbc71e8d8f50fdfe24935df888b48e8799e7ead03cfb3b77fcb62ed9da",
+        "outputs": [
+          {
+            "path": "/outputs/unicode/context.js",
+            "byteLength": 187,
+            "sha256": "dadc755aa90751e47bbaafc968b2f63bc8e3f43f5587abc84c0a38f98b284cb5",
+            "sourcePaths": [
+              "/sources/unicode/context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/unicode/context.js.map",
+            "byteLength": 153,
+            "sha256": "ac4f0061df2d5582eeb9072bd567e6c95e49458ed2ae70111c86d570057e3687",
+            "sourcePaths": [
+              "/sources/unicode/context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/unicode/context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "ae4f2d9c51caf63826c888709646944fa86d3dc7daa4384374c13faacaefdbd4"
+            }
+          },
+          {
+            "path": "/outputs/unicode/main.js",
+            "byteLength": 159,
+            "sha256": "b88045b45d11c934a19f3c1e3e83b9aaecedac6233bd8c0625e2fe974d39e20a",
+            "sourcePaths": [
+              "/sources/unicode/main.ts"
+            ]
+          },
+          {
+            "path": "/outputs/unicode/main.js.map",
+            "byteLength": 147,
+            "sha256": "13a32d61fec9ada6095c033ed3f0c5ac55334694d09cfb67c651f3c9d81bb870",
+            "sourcePaths": [
+              "/sources/unicode/main.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "main.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/unicode/main.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "dcfac7e3054c57baad80a8b56f05cc3a51b37e8872dfa51004ed6e122a38496b"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rhino-high-token",
+      "boundary": "high-token",
+      "authority": "rhino",
+      "productionRelationship": "production-compatible-inclusive-limit",
+      "sourceCollectionSha256": "4b151c08b296d35061b9d6a1929aabe34d226e6b3c72a3db255cf2718a9b3a06",
+      "rootNames": [
+        "/sources/high-token/context.ts",
+        "/sources/high-token/boundary.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/high-token/context.ts",
+          "text": "export const tokenContext: number = 65536;\r\n"
+        },
+        {
+          "path": "/sources/high-token/boundary.ts",
+          "generator": {
+            "kind": "repeated-interface-v1"
+          }
+        }
+      ],
+      "assertions": {
+        "acceptedTokenCount": 65536,
+        "overflowTokenCount": 65537
+      },
+      "expected": {
+        "outcome": "compiled",
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "bf7ea695871700ca5fbee7f54af5052c64e94483f0ab34a7f428ccee1a0758d8",
+        "outputs": [
+          {
+            "path": "/outputs/high-token/boundary.js",
+            "byteLength": 50,
+            "sha256": "16b7c9e214fb3ce2e4078196950e4c3dec6de390175d9210a80f53f30086210b",
+            "sourcePaths": [
+              "/sources/high-token/boundary.ts"
+            ]
+          },
+          {
+            "path": "/outputs/high-token/boundary.js.map",
+            "byteLength": 126,
+            "sha256": "eaf51e521a06991fc97b849c5a33fcc74acf1a1f3ec2cb9c0f66df9ea566a3b9",
+            "sourcePaths": [
+              "/sources/high-token/boundary.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "boundary.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/high-token/boundary.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 0,
+              "mappingsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "path": "/outputs/high-token/context.js",
+            "byteLength": 173,
+            "sha256": "43df82eabb5bce99472170348cebf313b504383bfeece4a7a2aa53271efe5ee3",
+            "sourcePaths": [
+              "/sources/high-token/context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/high-token/context.js.map",
+            "byteLength": 156,
+            "sha256": "2d724a8b732bb3ce111cb5570a97d0759235f57ef63098559bb2c189692b1970",
+            "sourcePaths": [
+              "/sources/high-token/context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/high-token/context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "30f772b3ae8c71a09391997cb8ce0ecb9489bce3efff26c5978c6c737da0452d"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-high-token",
+      "boundary": "high-token",
+      "authority": "node",
+      "productionRelationship": "production-compatible-inclusive-limit",
+      "sourceCollectionSha256": "4b151c08b296d35061b9d6a1929aabe34d226e6b3c72a3db255cf2718a9b3a06",
+      "rootNames": [
+        "/sources/high-token/context.ts",
+        "/sources/high-token/boundary.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/high-token/context.ts",
+          "text": "export const tokenContext: number = 65536;\r\n"
+        },
+        {
+          "path": "/sources/high-token/boundary.ts",
+          "generator": {
+            "kind": "repeated-interface-v1"
+          }
+        }
+      ],
+      "assertions": {
+        "acceptedTokenCount": 65536,
+        "overflowTokenCount": 65537
+      },
+      "expected": {
+        "outcome": "compiled",
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "f2422646a3def4972a6c540e11ed915c062e4d665210d79b7d24ae7bd8f152a3",
+        "outputs": [
+          {
+            "path": "/outputs/high-token/boundary.js",
+            "byteLength": 113,
+            "sha256": "60760ccaef3cf4869e67d374f77270c9b41186dd5a312b4529b9b815925f6c4d",
+            "sourcePaths": [
+              "/sources/high-token/boundary.ts"
+            ]
+          },
+          {
+            "path": "/outputs/high-token/boundary.js.map",
+            "byteLength": 126,
+            "sha256": "eaf51e521a06991fc97b849c5a33fcc74acf1a1f3ec2cb9c0f66df9ea566a3b9",
+            "sourcePaths": [
+              "/sources/high-token/boundary.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "boundary.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/high-token/boundary.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 0,
+              "mappingsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "path": "/outputs/high-token/context.js",
+            "byteLength": 173,
+            "sha256": "43df82eabb5bce99472170348cebf313b504383bfeece4a7a2aa53271efe5ee3",
+            "sourcePaths": [
+              "/sources/high-token/context.ts"
+            ]
+          },
+          {
+            "path": "/outputs/high-token/context.js.map",
+            "byteLength": 156,
+            "sha256": "2d724a8b732bb3ce111cb5570a97d0759235f57ef63098559bb2c189692b1970",
+            "sourcePaths": [
+              "/sources/high-token/context.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "context.js",
+              "sourceRoot": "",
+              "sources": [
+                "../../sources/high-token/context.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "30f772b3ae8c71a09391997cb8ce0ecb9489bce3efff26c5978c6c737da0452d"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rhino-canonical-collision",
+      "boundary": "ascii-case-fold-collision",
+      "authority": "rhino",
+      "productionRelationship": "production-compatible-pre-program-negative",
+      "sourceCollectionSha256": "46fbf14d996ca8b63d48bf69b93bc782a25d763d4e025ef458a64844a746336b",
+      "rootNames": [
+        "/sources/Collision/main.ts",
+        "/sources/collision/main.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/Collision/main.ts",
+          "text": "export const upper = 1;\n"
+        },
+        {
+          "path": "/sources/collision/main.ts",
+          "text": "export const lower = 2;\n"
+        }
+      ],
+      "assertions": {
+        "collisionPolicy": "ascii-a-z-case-fold",
+        "compilerInvocationExpected": false
+      },
+      "expected": {
+        "outcome": "rejected",
+        "stage": "pre-program",
+        "code": "ORACLE_ASCII_CASE_FOLD_COLLISION",
+        "programCreated": false,
+        "diagnostics": [],
+        "outputs": [],
+        "compilerApiCalls": 0,
+        "outputWrites": 0
+      }
+    },
+    {
+      "id": "node-canonical-collision",
+      "boundary": "ascii-case-fold-collision",
+      "authority": "node",
+      "productionRelationship": "production-compatible-pre-program-negative",
+      "sourceCollectionSha256": "46fbf14d996ca8b63d48bf69b93bc782a25d763d4e025ef458a64844a746336b",
+      "rootNames": [
+        "/sources/Collision/main.ts",
+        "/sources/collision/main.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/Collision/main.ts",
+          "text": "export const upper = 1;\n"
+        },
+        {
+          "path": "/sources/collision/main.ts",
+          "text": "export const lower = 2;\n"
+        }
+      ],
+      "assertions": {
+        "collisionPolicy": "ascii-a-z-case-fold",
+        "compilerInvocationExpected": false
+      },
+      "expected": {
+        "outcome": "rejected",
+        "stage": "pre-program",
+        "code": "ORACLE_ASCII_CASE_FOLD_COLLISION",
+        "programCreated": false,
+        "diagnostics": [],
+        "outputs": [],
+        "compilerApiCalls": 0,
+        "outputWrites": 0
+      }
+    }
+  ]
+}

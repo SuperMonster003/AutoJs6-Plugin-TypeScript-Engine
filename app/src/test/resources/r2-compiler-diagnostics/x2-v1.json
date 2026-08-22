@@ -1,0 +1,176 @@
+{
+  "schema": "autojs6.typescript.r2-m2-x2.unified-no-emit-diagnostics",
+  "revision": 1,
+  "typescriptVersion": "6.0.3",
+  "scope": "desktop-worker-only/no-production-hook",
+  "diagnosticFields": [
+    "phase",
+    "category",
+    "code",
+    "message",
+    "sourcePath",
+    "start",
+    "length",
+    "line",
+    "column"
+  ],
+  "phasePrecedence": [
+    "options",
+    "syntactic",
+    "global",
+    "semantic"
+  ],
+  "execution": {
+    "compilerApi": "createIncrementalProgram",
+    "desktopInjection": "Proxy(createIncrementalProgram/getProgram); test-only; no Worker hook",
+    "errorCategory": 1,
+    "warningCategory": 0,
+    "expectedErrorBuilderEmitCalls": 0,
+    "expectedCleanBuilderEmitCalls": 1,
+    "expectedEmittedJavaScriptExecutions": 0
+  },
+  "errorCases": [
+    {
+      "id": "options-error",
+      "phase": "options",
+      "origin": "desktop-only-proxy-injection",
+      "mainSource": "import { answer } from \"./dependency\";\nexport const doubled: number = answer * 2;\n",
+      "diagnostic": {
+        "phase": "options",
+        "category": 1,
+        "code": 5069,
+        "message": "Option 'mapRoot' cannot be specified without specifying option 'sourceMap' or option 'declarationMap'.",
+        "sourcePath": null,
+        "start": null,
+        "length": null,
+        "line": null,
+        "column": null
+      },
+      "expected": {
+        "builderEmitCalls": 0,
+        "emitSkipped": true,
+        "outputs": []
+      },
+      "cleanSuccessorRequestId": "desktop-x2-options-clean-successor"
+    },
+    {
+      "id": "syntactic-error",
+      "phase": "syntactic",
+      "origin": "real-typescript-source",
+      "mainSource": "export interface Broken { value: ; }\n",
+      "diagnostic": {
+        "phase": "syntactic",
+        "category": 1,
+        "code": 1110,
+        "message": "Type expected.",
+        "sourcePath": "/sources/main.ts",
+        "start": 33,
+        "length": 1,
+        "line": 1,
+        "column": 34
+      },
+      "expected": {
+        "builderEmitCalls": 0,
+        "emitSkipped": true,
+        "outputs": []
+      },
+      "cleanSuccessorRequestId": "desktop-x2-syntactic-clean-successor"
+    },
+    {
+      "id": "global-error",
+      "phase": "global",
+      "origin": "desktop-only-proxy-injection",
+      "mainSource": "import { answer } from \"./dependency\";\nexport const doubled: number = answer * 2;\n",
+      "diagnostic": {
+        "phase": "global",
+        "category": 1,
+        "code": 2318,
+        "message": "Cannot find global type 'String'.",
+        "sourcePath": null,
+        "start": null,
+        "length": null,
+        "line": null,
+        "column": null
+      },
+      "expected": {
+        "builderEmitCalls": 0,
+        "emitSkipped": true,
+        "outputs": []
+      },
+      "cleanSuccessorRequestId": "desktop-x2-global-clean-successor"
+    },
+    {
+      "id": "semantic-error",
+      "phase": "semantic",
+      "origin": "real-typescript-source",
+      "mainSource": "import { answer } from \"./dependency\";\nexport const text: string = answer;\n",
+      "diagnostic": {
+        "phase": "semantic",
+        "category": 1,
+        "code": 2322,
+        "message": "Type 'number' is not assignable to type 'string'.",
+        "sourcePath": "/sources/main.ts",
+        "start": 52,
+        "length": 4,
+        "line": 2,
+        "column": 14
+      },
+      "expected": {
+        "builderEmitCalls": 0,
+        "emitSkipped": true,
+        "outputs": []
+      },
+      "cleanSuccessorRequestId": "desktop-x2-semantic-clean-successor"
+    }
+  ],
+  "duplicatePrecedenceCase": {
+    "id": "identical-diagnostic-phase-precedence",
+    "injectedPhases": [
+      "options",
+      "syntactic",
+      "global",
+      "semantic"
+    ],
+    "mainSource": "import { answer } from \"./dependency\";\nexport const doubled: number = answer * 2;\n",
+    "diagnostic": {
+      "phase": "options",
+      "category": 1,
+      "code": 5069,
+      "message": "Option 'mapRoot' cannot be specified without specifying option 'sourceMap' or option 'declarationMap'.",
+      "sourcePath": null,
+      "start": null,
+      "length": null,
+      "line": null,
+      "column": null
+    },
+    "expected": {
+      "builderEmitCalls": 0,
+      "emitSkipped": true,
+      "outputs": []
+    },
+    "cleanSuccessorRequestId": "desktop-x2-precedence-clean-successor"
+  },
+  "warningCase": {
+    "id": "warning-does-not-block-emit",
+    "phase": "options",
+    "origin": "desktop-only-typescript-category-probe",
+    "mainSource": "import { answer } from \"./dependency\";\nexport const doubled: number = answer * 2;\n",
+    "diagnostic": {
+      "phase": "options",
+      "category": 0,
+      "code": 5069,
+      "message": "Option 'mapRoot' cannot be specified without specifying option 'sourceMap' or option 'declarationMap'.",
+      "sourcePath": null,
+      "start": null,
+      "length": null,
+      "line": null,
+      "column": null
+    },
+    "expected": {
+      "builderEmitCalls": 1,
+      "emitSkipped": false,
+      "outputCount": 4
+    },
+    "cleanSuccessorRequestId": "desktop-x2-warning-clean-successor"
+  }
+}

@@ -6,6 +6,7 @@ import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
+import java.util.Collections
 import java.util.zip.CRC32
 import java.util.zip.DataFormatException
 import java.util.zip.Inflater
@@ -71,6 +72,16 @@ internal data class ZipArchiveV1Limits(
                 TypeScriptCompilerContract.MAX_SINGLE_FILE_BYTES,
         )
 
+        /**
+         * Legacy heap-adapter budget retained for focused compatibility tests. Production R2-P3a
+         * input uses [INPUT] with the transactional streaming sink instead.
+         */
+        val PROVISIONAL_MATERIALIZED_PROJECT = INPUT.copy(
+            maximumFiles = 257,
+            maximumTotalUncompressedBytes = 1L * 1024L * 1024L,
+            maximumSingleFileBytes = 512L * 1024L,
+        )
+
         val OUTPUT = ZipArchiveV1Limits(
             maximumContainerBytes =
                 TypeScriptCompilerContract.MAX_OUTPUT_ARCHIVE_BYTES,
@@ -98,6 +109,52 @@ internal data class ZipArchiveV1Validation(
     val uncompressedBytes: Long,
     val metadataBytes: Long,
 )
+
+internal class ZipArchiveV1Contents internal constructor(
+    val validation: ZipArchiveV1Validation,
+    entries: LinkedHashMap<String, ByteArray>,
+) {
+
+    /**
+     * Actual uncompressed entry bytes in central-directory order.
+     *
+     * The map shape is immutable. Each byte array is newly allocated for this validation pass and
+     * is owned by the caller so a provisional adapter can decode or hash it without retaining the
+     * staged container.
+     */
+    val entries: Map<String, ByteArray> = Collections.unmodifiableMap(entries)
+}
+
+/**
+ * Transactional streaming destination for validated ZIP entry payloads.
+ *
+ * Entries arrive in physical local-record order. [write] borrows a validator-owned buffer only for
+ * the duration of the callback, and each callback is bounded to 16 KiB. [end] proves that the
+ * current entry's actual size, CRC-32 and compression ratio were validated, but the destination
+ * must not publish any streamed data until the enclosing validation call returns successfully.
+ *
+ * [abort] is called once when validation or a sink callback fails. Implementations should discard
+ * all partial state there. An abort failure is suppressed onto the primary failure.
+ */
+internal interface ZipArchiveV1EntrySink {
+
+    fun begin(entry: ZipArchiveV1Entry)
+
+    fun write(
+        bytes: ByteArray,
+        offset: Int,
+        length: Int,
+    )
+
+    fun end(entry: ZipArchiveV1Entry)
+
+    fun abort(failure: Throwable)
+}
+
+internal class ZipArchiveV1EntrySinkException(
+    message: String,
+    cause: Throwable,
+) : IOException(message, cause)
 
 /**
  * Structural validator for the frozen ZIP archive container v1.
@@ -138,6 +195,132 @@ internal object ZipArchiveV1Validator {
             validateSource(source, limits)
         }
 
+    /**
+     * Validates an already-private immutable staging inode without copying either the complete
+     * container or its uncompressed entry payloads into heap-owned byte arrays.
+     *
+     * The caller retains ownership of [file]. This method neither closes it nor preserves its
+     * current cursor. The caller must guarantee that the opened inode cannot be modified for the
+     * duration of validation.
+     */
+    fun validateImmutable(
+        file: RandomAccessFile,
+        limits: ZipArchiveV1Limits = ZipArchiveV1Limits.INPUT,
+    ): ZipArchiveV1Validation {
+        try {
+            return validateSource(
+                source = RandomAccessFileSource(file),
+                limits = limits,
+            )
+        } catch (failure: ZipArchiveV1Exception) {
+            throw failure
+        } catch (failure: IOException) {
+            throw ZipArchiveV1Exception(
+                ZipArchiveV1FailureKind.INTEGRITY,
+                "Immutable ZIP staging container could not be read safely.",
+                failure,
+            )
+        }
+    }
+
+    /**
+     * Validates and reads an already-private immutable staging file without first copying the
+     * complete ZIP container into a ByteArray.
+     *
+     * Unlike [validate], this method does not detach itself from later writes to [file]. The caller
+     * must guarantee that the opened inode cannot be modified for the duration of this call.
+     */
+    fun validateImmutableAndRead(
+        file: File,
+        limits: ZipArchiveV1Limits = ZipArchiveV1Limits.INPUT,
+    ): ZipArchiveV1Contents {
+        try {
+            return RandomAccessFile(file, "r").use { source ->
+                validateImmutableAndRead(source, limits)
+            }
+        } catch (failure: ZipArchiveV1Exception) {
+            throw failure
+        } catch (failure: IOException) {
+            throw ZipArchiveV1Exception(
+                ZipArchiveV1FailureKind.INTEGRITY,
+                "Immutable ZIP staging container could not be opened safely.",
+                failure,
+            )
+        }
+    }
+
+    /**
+     * Random-access overload for a private immutable staging inode that is already open.
+     *
+     * The caller retains ownership of [file]; this method neither closes it nor captures a
+     * container-sized byte snapshot.
+     */
+    fun validateImmutableAndRead(
+        file: RandomAccessFile,
+        limits: ZipArchiveV1Limits = ZipArchiveV1Limits.INPUT,
+    ): ZipArchiveV1Contents {
+        try {
+            val entries = LinkedHashMap<String, ByteArray>()
+            val validation = validateSource(
+                source = RandomAccessFileSource(file),
+                limits = limits,
+                extractedEntries = entries,
+            )
+            check(entries.size == validation.entries.size) {
+                "Validated ZIP payload inventory is incomplete."
+            }
+            val centralOrder = LinkedHashMap<String, ByteArray>(entries.size)
+            validation.entries.forEach { entry ->
+                centralOrder[entry.path] = checkNotNull(entries[entry.path]) {
+                    "Validated ZIP payload is missing for ${entry.path}."
+                }
+            }
+            return ZipArchiveV1Contents(
+                validation = validation,
+                entries = centralOrder,
+            )
+        } catch (failure: ZipArchiveV1Exception) {
+            throw failure
+        } catch (failure: IOException) {
+            throw ZipArchiveV1Exception(
+                ZipArchiveV1FailureKind.INTEGRITY,
+                "Immutable ZIP staging container could not be read safely.",
+                failure,
+            )
+        }
+    }
+
+    /**
+     * Validates an already-private immutable staging inode while streaming each actual
+     * uncompressed payload to [sink].
+     *
+     * The caller retains ownership of [file] and [sink]. This method neither closes them nor
+     * captures container- or entry-sized byte arrays. The sink transaction may be committed only
+     * after this method returns successfully; every failure calls [ZipArchiveV1EntrySink.abort].
+     */
+    fun validateImmutableTo(
+        file: RandomAccessFile,
+        sink: ZipArchiveV1EntrySink,
+        limits: ZipArchiveV1Limits = ZipArchiveV1Limits.INPUT,
+    ): ZipArchiveV1Validation {
+        try {
+            return validateSource(
+                source = RandomAccessFileSource(file),
+                limits = limits,
+                entrySink = sink,
+            )
+        } catch (failure: Throwable) {
+            try {
+                sink.abort(failure)
+            } catch (abortFailure: Throwable) {
+                if (abortFailure !== failure) {
+                    failure.addSuppressed(abortFailure)
+                }
+            }
+            throw failure
+        }
+    }
+
     internal fun readImmutableFileSnapshot(
         file: File,
         maximumContainerBytes: Long,
@@ -167,7 +350,12 @@ internal object ZipArchiveV1Validator {
     private fun validateSource(
         source: RandomAccessSource,
         limits: ZipArchiveV1Limits,
+        extractedEntries: MutableMap<String, ByteArray>? = null,
+        entrySink: ZipArchiveV1EntrySink? = null,
     ): ZipArchiveV1Validation {
+        check(extractedEntries == null || entrySink == null) {
+            "ZIP validation cannot materialize and stream entry payloads simultaneously."
+        }
         try {
             if (source.size > limits.maximumContainerBytes) {
                 fail(
@@ -229,15 +417,24 @@ internal object ZipArchiveV1Validator {
 
             var actualTotalBytes = 0L
             physicalEntries.forEach { entry ->
-                val actual = validatePayload(
+                val payload = validatePayload(
                     source = source,
                     entry = entry,
                     limits = limits,
                     currentTotalBytes = actualTotalBytes,
+                    extractBytes = extractedEntries != null,
+                    entrySink = entrySink,
                 )
+                payload.bytes?.let { bytes ->
+                    checkNotNull(extractedEntries).also { entries ->
+                        check(entries.put(entry.path, bytes) == null) {
+                            "Validated ZIP payload was extracted more than once: ${entry.path}."
+                        }
+                    }
+                }
                 actualTotalBytes = checkedAdd(
                     actualTotalBytes,
-                    actual,
+                    payload.actualBytes,
                     ZipArchiveV1FailureKind.QUOTA,
                     "ZIP actual uncompressed size overflows its quota.",
                 )
@@ -271,6 +468,8 @@ internal object ZipArchiveV1Validator {
                 uncompressedBytes = actualTotalBytes,
                 metadataBytes = metadataBytes,
             )
+        } catch (failure: ZipArchiveV1EntrySinkException) {
+            throw failure
         } catch (failure: ZipArchiveV1Exception) {
             throw failure
         } catch (failure: EOFException) {
@@ -726,7 +925,9 @@ internal object ZipArchiveV1Validator {
         entry: CentralEntry,
         limits: ZipArchiveV1Limits,
         currentTotalBytes: Long,
-    ): Long {
+        extractBytes: Boolean,
+        entrySink: ZipArchiveV1EntrySink?,
+    ): ValidatedPayload {
         val maximumRemainingTotal =
             limits.maximumTotalUncompressedBytes - currentTotalBytes
         val maximumEntryBytes = minOf(
@@ -737,6 +938,34 @@ internal object ZipArchiveV1Validator {
                 maximumRatio = limits.maximumCompressionRatio,
             ),
         )
+        val collector = if (extractBytes) {
+            if (entry.uncompressedSize > Int.MAX_VALUE) {
+                fail(
+                    ZipArchiveV1FailureKind.QUOTA,
+                    "ZIP entry is too large to return as bytes: ${entry.path}.",
+                )
+            }
+            PayloadCollector(entry.uncompressedSize.toInt())
+        } else {
+            null
+        }
+        val streamedEntry = entrySink?.let { sink ->
+            ZipArchiveV1Entry(
+                path = entry.path,
+                compressionMethod = entry.compressionMethod,
+                compressedBytes = entry.compressedSize,
+                uncompressedBytes = entry.uncompressedSize,
+                crc32 = entry.crc32,
+            ).also { sinkEntry ->
+                invokeEntrySink(
+                    sink = sink,
+                    entry = sinkEntry,
+                    operation = "begin",
+                ) {
+                    it.begin(sinkEntry)
+                }
+            }
+        }
         val crc = CRC32()
         val actualBytes = when (entry.compressionMethod) {
             COMPRESSION_STORED -> validateStoredPayload(
@@ -744,6 +973,9 @@ internal object ZipArchiveV1Validator {
                 entry = entry,
                 crc = crc,
                 maximumBytes = maximumEntryBytes,
+                collector = collector,
+                sink = entrySink,
+                sinkEntry = streamedEntry,
             )
 
             COMPRESSION_DEFLATED -> validateDeflatedPayload(
@@ -751,6 +983,9 @@ internal object ZipArchiveV1Validator {
                 entry = entry,
                 crc = crc,
                 maximumBytes = maximumEntryBytes,
+                collector = collector,
+                sink = entrySink,
+                sinkEntry = streamedEntry,
             )
 
             else -> error("Compression method was validated before payload reading.")
@@ -773,7 +1008,19 @@ internal object ZipArchiveV1Validator {
             maximumRatio = limits.maximumCompressionRatio,
             label = "ZIP entry ${entry.path}",
         )
-        return actualBytes
+        streamedEntry?.let { sinkEntry ->
+            invokeEntrySink(
+                sink = checkNotNull(entrySink),
+                entry = sinkEntry,
+                operation = "end",
+            ) {
+                it.end(sinkEntry)
+            }
+        }
+        return ValidatedPayload(
+            actualBytes = actualBytes,
+            bytes = collector?.complete(),
+        )
     }
 
     private fun validateStoredPayload(
@@ -781,6 +1028,9 @@ internal object ZipArchiveV1Validator {
         entry: CentralEntry,
         crc: CRC32,
         maximumBytes: Long,
+        collector: PayloadCollector?,
+        sink: ZipArchiveV1EntrySink?,
+        sinkEntry: ZipArchiveV1Entry?,
     ): Long {
         if (entry.compressedSize != entry.uncompressedSize) {
             fail(
@@ -801,6 +1051,13 @@ internal object ZipArchiveV1Validator {
             val count = minOf(remaining, buffer.size.toLong()).toInt()
             source.readFully(position, buffer, 0, count)
             crc.update(buffer, 0, count)
+            collector?.append(buffer, count)
+            writeEntrySink(
+                sink = sink,
+                entry = sinkEntry,
+                bytes = buffer,
+                length = count,
+            )
             position += count
             remaining -= count
         }
@@ -812,6 +1069,9 @@ internal object ZipArchiveV1Validator {
         entry: CentralEntry,
         crc: CRC32,
         maximumBytes: Long,
+        collector: PayloadCollector?,
+        sink: ZipArchiveV1EntrySink?,
+        sinkEntry: ZipArchiveV1Entry?,
     ): Long {
         val inflater = Inflater(true)
         val compressedBuffer = ByteArray(STREAM_BUFFER_BYTES)
@@ -867,6 +1127,13 @@ internal object ZipArchiveV1Validator {
                         )
                     }
                     crc.update(outputBuffer, 0, count)
+                    collector?.append(outputBuffer, count)
+                    writeEntrySink(
+                        sink = sink,
+                        entry = sinkEntry,
+                        bytes = outputBuffer,
+                        length = count,
+                    )
                 } else if (
                     !inflater.finished() &&
                     !inflater.needsInput() &&
@@ -887,6 +1154,79 @@ internal object ZipArchiveV1Validator {
             return actualBytes
         } finally {
             inflater.end()
+        }
+    }
+
+    private fun writeEntrySink(
+        sink: ZipArchiveV1EntrySink?,
+        entry: ZipArchiveV1Entry?,
+        bytes: ByteArray,
+        length: Int,
+    ) {
+        if (sink == null) {
+            check(entry == null)
+            return
+        }
+        val sinkEntry = checkNotNull(entry)
+        check(length in 1..STREAM_BUFFER_BYTES)
+        invokeEntrySink(
+            sink = sink,
+            entry = sinkEntry,
+            operation = "write",
+        ) {
+            it.write(bytes, 0, length)
+        }
+    }
+
+    private inline fun invokeEntrySink(
+        sink: ZipArchiveV1EntrySink,
+        entry: ZipArchiveV1Entry,
+        operation: String,
+        callback: (ZipArchiveV1EntrySink) -> Unit,
+    ) {
+        try {
+            callback(sink)
+        } catch (failure: ZipArchiveV1EntrySinkException) {
+            throw failure
+        } catch (failure: Exception) {
+            throw ZipArchiveV1EntrySinkException(
+                "ZIP entry sink failed during $operation for ${entry.path}.",
+                failure,
+            )
+        }
+    }
+
+    private class PayloadCollector(
+        size: Int,
+    ) {
+        private val bytes = ByteArray(size)
+        private var position = 0
+        private var overflowed = false
+
+        fun append(
+            source: ByteArray,
+            count: Int,
+        ) {
+            val writable = minOf(count, bytes.size - position)
+            if (writable > 0) {
+                source.copyInto(
+                    destination = bytes,
+                    destinationOffset = position,
+                    startIndex = 0,
+                    endIndex = writable,
+                )
+                position += writable
+            }
+            if (writable != count) {
+                overflowed = true
+            }
+        }
+
+        fun complete(): ByteArray {
+            check(!overflowed && position == bytes.size) {
+                "Validated ZIP payload collection did not match its declared size."
+            }
+            return bytes
         }
     }
 
@@ -1189,6 +1529,11 @@ internal object ZipArchiveV1Validator {
         val metadataBytes: Long,
     )
 
+    private data class ValidatedPayload(
+        val actualBytes: Long,
+        val bytes: ByteArray?,
+    )
+
     private interface RandomAccessSource : Closeable {
         val size: Long
 
@@ -1234,6 +1579,33 @@ internal object ZipArchiveV1Validator {
                 startIndex = offset.toInt(),
                 endIndex = offset.toInt() + length,
             )
+        }
+
+        override fun close() = Unit
+    }
+
+    private class RandomAccessFileSource(
+        private val file: RandomAccessFile,
+    ) : RandomAccessSource {
+        override val size: Long = file.length()
+
+        override fun readFully(
+            offset: Long,
+            destination: ByteArray,
+            destinationOffset: Int,
+            length: Int,
+        ) {
+            if (
+                offset < 0L ||
+                length < 0 ||
+                destinationOffset < 0 ||
+                destinationOffset > destination.size - length ||
+                offset > size - length
+            ) {
+                throw EOFException("Read escapes ZIP container.")
+            }
+            file.seek(offset)
+            file.readFully(destination, destinationOffset, length)
         }
 
         override fun close() = Unit

@@ -58,6 +58,9 @@ internal class RemoteProcessResourceProbe(
         )
     }
 
+    fun processDirectoryExists(pid: Int): Boolean =
+        File("/proc/$pid").exists()
+
     fun awaitStableFileDescriptors(
         pid: Int,
         label: String,
@@ -65,7 +68,7 @@ internal class RemoteProcessResourceProbe(
         expectedIdentity: RemoteProcessIdentity? = null,
     ): RemoteFileDescriptorSnapshot {
         var lastSnapshot: RemoteFileDescriptorSnapshot? = null
-        var previousQualifiedCount: Int? = null
+        var previousQualifiedTargets: List<String>? = null
         var consecutiveQualifiedSamples = 0
         repeat(FD_STABILITY_LOOKUP_ATTEMPTS) {
             assertExpectedIdentity(pid, expectedIdentity, label)
@@ -79,17 +82,25 @@ internal class RemoteProcessResourceProbe(
                         "$label retained R1 staging archive descriptors: $stagingTargets",
                     )
                 }
+                val r2TransientTargets =
+                    snapshot.targets.filter(::isR2TransientTarget)
+                if (r2TransientTargets.isNotEmpty()) {
+                    throw AssertionError(
+                        "$label retained R2 transient descriptors: $r2TransientTargets",
+                    )
+                }
 
                 val countWithinLimit =
                     maximumCount == null || snapshot.count <= maximumCount
                 if (countWithinLimit) {
+                    val canonicalTargets = snapshot.targets.sorted()
                     consecutiveQualifiedSamples =
-                        if (previousQualifiedCount == snapshot.count) {
+                        if (previousQualifiedTargets == canonicalTargets) {
                             consecutiveQualifiedSamples + 1
                         } else {
                             1
                         }
-                    previousQualifiedCount = snapshot.count
+                    previousQualifiedTargets = canonicalTargets
                     if (
                         consecutiveQualifiedSamples >=
                         REQUIRED_CONSECUTIVE_STABLE_SAMPLES
@@ -97,11 +108,11 @@ internal class RemoteProcessResourceProbe(
                         return snapshot
                     }
                 } else {
-                    previousQualifiedCount = null
+                    previousQualifiedTargets = null
                     consecutiveQualifiedSamples = 0
                 }
             } else {
-                previousQualifiedCount = null
+                previousQualifiedTargets = null
                 consecutiveQualifiedSamples = 0
             }
             Thread.sleep(FD_STABILITY_LOOKUP_INTERVAL_MILLIS)
@@ -110,39 +121,107 @@ internal class RemoteProcessResourceProbe(
         val observed = lastSnapshot?.count?.toString() ?: "unavailable"
         val expected = maximumCount?.let { " at most $it" }.orEmpty()
         throw AssertionError(
-            "$label did not reach a stable FD count$expected; last observed count=$observed.",
+            "$label did not reach a stable FD target multiset$expected; " +
+                "last observed count=$observed, " +
+                "targets=${lastSnapshot?.targets.orEmpty().sorted()}.",
         )
     }
 
-    fun awaitStagingArchiveFileDescriptors(
+    fun awaitExactFileDescriptorTargetCount(
         pid: Int,
         label: String,
         expectedCount: Int,
         expectedIdentity: RemoteProcessIdentity? = null,
+        matchesTarget: (String) -> Boolean,
     ): RemoteFileDescriptorSnapshot {
+        require(expectedCount >= 0)
         var lastSnapshot: RemoteFileDescriptorSnapshot? = null
+        var lastMatchingTargets = emptyList<String>()
+        var previousQualifiedTargets: List<String>? = null
+        var consecutiveQualifiedSamples = 0
         repeat(FD_STABILITY_LOOKUP_ATTEMPTS) {
             assertExpectedIdentity(pid, expectedIdentity, label)
             val snapshot = fileDescriptorSnapshotOrNull(pid)
             if (snapshot != null) {
                 assertExpectedIdentity(pid, expectedIdentity, label)
                 lastSnapshot = snapshot
-                val stagingTargets = snapshot.targets.filter(::isR1StagingArchiveTarget)
-                if (stagingTargets.size == expectedCount) {
-                    return snapshot
+                val matchingTargets = snapshot.targets
+                    .filter(matchesTarget)
+                    .sorted()
+                lastMatchingTargets = matchingTargets
+                if (matchingTargets.size == expectedCount) {
+                    consecutiveQualifiedSamples =
+                        if (previousQualifiedTargets == matchingTargets) {
+                            consecutiveQualifiedSamples + 1
+                        } else {
+                            1
+                        }
+                    previousQualifiedTargets = matchingTargets
+                    if (
+                        consecutiveQualifiedSamples >=
+                        REQUIRED_CONSECUTIVE_STABLE_SAMPLES
+                    ) {
+                        return snapshot
+                    }
+                } else {
+                    previousQualifiedTargets = null
+                    consecutiveQualifiedSamples = 0
                 }
+            } else {
+                previousQualifiedTargets = null
+                consecutiveQualifiedSamples = 0
             }
             Thread.sleep(FD_STABILITY_LOOKUP_INTERVAL_MILLIS)
         }
-        val lastStagingTargets = lastSnapshot
-            ?.targets
-            .orEmpty()
-            .filter(::isR1StagingArchiveTarget)
         throw AssertionError(
-            "$label did not expose exactly $expectedCount R1 staging archive descriptors; " +
-                "last observed targets=$lastStagingTargets.",
+            "$label did not expose exactly $expectedCount matching FD targets for " +
+                "$REQUIRED_CONSECUTIVE_STABLE_SAMPLES consecutive readable samples; " +
+                "last matching targets=$lastMatchingTargets, " +
+                "last snapshot=${lastSnapshot?.targets.orEmpty().sorted()}.",
         )
     }
+
+    fun awaitR2TransientFileDescriptors(
+        pid: Int,
+        label: String,
+        expectedCount: Int,
+        expectedIdentity: RemoteProcessIdentity? = null,
+    ): RemoteFileDescriptorSnapshot =
+        awaitExactFileDescriptorTargetCount(
+            pid = pid,
+            label = label,
+            expectedCount = expectedCount,
+            expectedIdentity = expectedIdentity,
+            matchesTarget = ::isR2TransientTarget,
+        )
+
+    fun awaitR2ProjectSpoolFileDescriptors(
+        pid: Int,
+        label: String,
+        expectedCount: Int,
+        expectedIdentity: RemoteProcessIdentity? = null,
+    ): RemoteFileDescriptorSnapshot =
+        awaitExactFileDescriptorTargetCount(
+            pid = pid,
+            label = label,
+            expectedCount = expectedCount,
+            expectedIdentity = expectedIdentity,
+            matchesTarget = ::isR2ProjectSpoolTarget,
+        )
+
+    fun awaitStagingArchiveFileDescriptors(
+        pid: Int,
+        label: String,
+        expectedCount: Int,
+        expectedIdentity: RemoteProcessIdentity? = null,
+    ): RemoteFileDescriptorSnapshot =
+        awaitExactFileDescriptorTargetCount(
+            pid = pid,
+            label = label,
+            expectedCount = expectedCount,
+            expectedIdentity = expectedIdentity,
+            matchesTarget = ::isR1StagingArchiveTarget,
+        )
 
     private fun assertExpectedIdentity(
         pid: Int,
@@ -222,13 +301,60 @@ internal class RemoteProcessResourceProbe(
         return fileName.endsWith(R1_STAGING_FILE_SUFFIX)
     }
 
+    private fun isR2TransientTarget(target: String): Boolean {
+        val fileName = target
+            .removeSuffix(DELETED_FILE_SUFFIX)
+            .substringAfterLast('/')
+        return (
+            fileName.startsWith(R2_PRIVATE_INPUT_PREFIX) &&
+                fileName.endsWith(R2_PRIVATE_INPUT_SUFFIX)
+            ) || (
+            fileName.startsWith(R2_PROJECT_SPOOL_PREFIX) &&
+                fileName.endsWith(R2_PROJECT_SPOOL_SUFFIX)
+            ) || (
+            fileName.startsWith(R2_PRIVATE_OUTPUT_PREFIX) &&
+                fileName.endsWith(R2_PRIVATE_OUTPUT_SUFFIX)
+            ) || (
+            fileName.startsWith(R2_CALLER_INPUT_PREFIX) &&
+                fileName.endsWith(R2_CALLER_ARCHIVE_SUFFIX)
+            ) || (
+            fileName.startsWith(R2_CALLER_OUTPUT_PREFIX) &&
+                fileName.endsWith(R2_CALLER_ARCHIVE_SUFFIX)
+            ) || (
+            fileName.startsWith(R2_CAPACITY_OUTPUT_PREFIX) &&
+                fileName.endsWith(R2_CALLER_ARCHIVE_SUFFIX)
+            ) || (
+            fileName.startsWith(R2_CAPACITY_INPUT_PREFIX) &&
+                fileName.endsWith(R2_CALLER_ARCHIVE_SUFFIX)
+            )
+    }
+
+    private fun isR2ProjectSpoolTarget(target: String): Boolean {
+        val fileName = target
+            .removeSuffix(DELETED_FILE_SUFFIX)
+            .substringAfterLast('/')
+        return fileName.startsWith(R2_PROJECT_SPOOL_PREFIX) &&
+            fileName.endsWith(R2_PROJECT_SPOOL_SUFFIX)
+    }
+
     private companion object {
         val WHITESPACE = Regex("\\s+")
         const val PROCESS_START_TIME_INDEX_FROM_STATE = 19
-        const val FD_STABILITY_LOOKUP_ATTEMPTS = 40
-        const val FD_STABILITY_LOOKUP_INTERVAL_MILLIS = 50L
-        const val REQUIRED_CONSECUTIVE_STABLE_SAMPLES = 3
+        const val FD_STABILITY_LOOKUP_ATTEMPTS = 50
+        const val FD_STABILITY_LOOKUP_INTERVAL_MILLIS = 100L
+        const val REQUIRED_CONSECUTIVE_STABLE_SAMPLES = 5
         const val DELETED_FILE_SUFFIX = " (deleted)"
         const val R1_STAGING_FILE_SUFFIX = ".archive"
+        const val R2_PRIVATE_INPUT_PREFIX = "r2-private-input-"
+        const val R2_PRIVATE_INPUT_SUFFIX = ".staging"
+        const val R2_PROJECT_SPOOL_PREFIX = "r2-project-vfs-"
+        const val R2_PROJECT_SPOOL_SUFFIX = ".spool"
+        const val R2_PRIVATE_OUTPUT_PREFIX = "r2-private-output-"
+        const val R2_PRIVATE_OUTPUT_SUFFIX = ".zip.staging"
+        const val R2_CALLER_INPUT_PREFIX = "r2-binder-input-"
+        const val R2_CALLER_OUTPUT_PREFIX = "r2-binder-output-"
+        const val R2_CAPACITY_INPUT_PREFIX = "r2-capacity-"
+        const val R2_CAPACITY_OUTPUT_PREFIX = "r2-binder-capacity-output-"
+        const val R2_CALLER_ARCHIVE_SUFFIX = ".archive"
     }
 }

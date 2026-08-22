@@ -1,0 +1,341 @@
+{
+  "schema": "autojs6.typescript.node-resolution-parity",
+  "revision": 1,
+  "typescriptVersion": "6.0.3",
+  "scope": "R2-M2-C6-B closed-world resolver parity; not complete R2-M2-C6",
+  "cases": [
+    {
+      "id": "implicit-types-before-import",
+      "classification": "supported",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"exports\":{\".\":{\"types\":\"./index.d.ts\",\"import\":\"./import.ts\"}}}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/import.ts", "kind": "source"},
+        {"path": "/packages/pkg/index.d.ts", "kind": "declaration"}
+      ],
+      "expectedTypeScriptTarget": "/packages/pkg/index.d.ts",
+      "expectedR2": {"kind": "resolved", "target": "/packages/pkg/index.d.ts", "packageBoundary": "/packages/pkg", "packageMetadataPath": "packages/pkg/package.json", "matchedKey": ".", "matchedConditions": ["types"]}
+    },
+    {
+      "id": "import-before-types",
+      "classification": "supported",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"exports\":{\".\":{\"import\":\"./import.ts\",\"types\":\"./index.d.ts\"}}}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/import.ts", "kind": "source"},
+        {"path": "/packages/pkg/index.d.ts", "kind": "declaration"}
+      ],
+      "expectedTypeScriptTarget": "/packages/pkg/import.ts",
+      "expectedR2": {"kind": "resolved", "target": "/packages/pkg/import.ts", "packageBoundary": "/packages/pkg", "packageMetadataPath": "packages/pkg/package.json", "matchedKey": ".", "matchedConditions": ["import"]}
+    },
+    {
+      "id": "require-before-types",
+      "classification": "supported",
+      "mode": "require",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"exports\":{\".\":{\"require\":\"./require.ts\",\"types\":\"./index.d.ts\"}}}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/require.ts", "kind": "source"},
+        {"path": "/packages/pkg/index.d.ts", "kind": "declaration"}
+      ],
+      "expectedTypeScriptTarget": "/packages/pkg/require.ts",
+      "expectedR2": {"kind": "resolved", "target": "/packages/pkg/require.ts", "packageBoundary": "/packages/pkg", "packageMetadataPath": "packages/pkg/package.json", "matchedKey": ".", "matchedConditions": ["require"]}
+    },
+    {
+      "id": "implicit-node-condition",
+      "classification": "supported",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"exports\":{\".\":{\"node\":\"./node.ts\",\"default\":\"./default.ts\"}}}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/node.ts", "kind": "source"},
+        {"path": "/packages/pkg/default.ts", "kind": "source"}
+      ],
+      "expectedTypeScriptTarget": "/packages/pkg/node.ts",
+      "expectedR2": {"kind": "resolved", "target": "/packages/pkg/node.ts", "packageBoundary": "/packages/pkg", "packageMetadataPath": "packages/pkg/package.json", "matchedKey": ".", "matchedConditions": ["node"]}
+    },
+    {
+      "id": "trusted-custom-condition",
+      "classification": "supported",
+      "mode": "import",
+      "customConditions": ["autojs"],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"exports\":{\".\":{\"autojs\":\"./autojs.ts\",\"default\":\"./default.ts\"}}}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/autojs.ts", "kind": "source"},
+        {"path": "/packages/pkg/default.ts", "kind": "source"}
+      ],
+      "expectedTypeScriptTarget": "/packages/pkg/autojs.ts",
+      "expectedR2": {"kind": "resolved", "target": "/packages/pkg/autojs.ts", "packageBoundary": "/packages/pkg", "packageMetadataPath": "packages/pkg/package.json", "matchedKey": ".", "matchedConditions": ["autojs"]}
+    },
+    {
+      "id": "default-property-order",
+      "classification": "supported",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"exports\":{\".\":{\"default\":\"./default.ts\",\"import\":\"./import.ts\"}}}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/default.ts", "kind": "source"},
+        {"path": "/packages/pkg/import.ts", "kind": "source"}
+      ],
+      "expectedTypeScriptTarget": "/packages/pkg/default.ts",
+      "expectedR2": {"kind": "resolved", "target": "/packages/pkg/default.ts", "packageBoundary": "/packages/pkg", "packageMetadataPath": "packages/pkg/package.json", "matchedKey": ".", "matchedConditions": ["default"]}
+    },
+    {
+      "id": "exports-exact-before-pattern",
+      "classification": "supported",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg/feature/exact",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"exports\":{\"./feature/*\":\"./wild/*.d.ts\",\"./feature/exact\":\"./exact.d.ts\"}}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/exact.d.ts", "kind": "declaration"},
+        {"path": "/packages/pkg/wild/exact.d.ts", "kind": "declaration"}
+      ],
+      "expectedTypeScriptTarget": "/packages/pkg/exact.d.ts",
+      "expectedR2": {"kind": "resolved", "target": "/packages/pkg/exact.d.ts", "packageBoundary": "/packages/pkg", "packageMetadataPath": "packages/pkg/package.json", "matchedKey": "./feature/exact", "matchedConditions": []}
+    },
+    {
+      "id": "scoped-most-specific-pattern-and-js-to-dts",
+      "classification": "supported",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "@scope/pkg/feature/special/value",
+      "dependencyRoots": ["packages/@scope/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/@scope/pkg/package.json", "json": "{\"exports\":{\"./feature/*\":\"./types/*.js\",\"./feature/special/*\":\"./special/*.js\"}}"}
+      ],
+      "targets": [
+        {"path": "/packages/@scope/pkg/special/value.d.ts", "kind": "declaration"},
+        {"path": "/packages/@scope/pkg/types/special/value.d.ts", "kind": "declaration"}
+      ],
+      "expectedTypeScriptTarget": "/packages/@scope/pkg/special/value.d.ts",
+      "expectedR2": {"kind": "resolved", "target": "/packages/@scope/pkg/special/value.d.ts", "packageBoundary": "/packages/@scope/pkg", "packageMetadataPath": "packages/@scope/pkg/package.json", "matchedKey": "./feature/special/*", "matchedConditions": []}
+    },
+    {
+      "id": "project-imports-exact",
+      "classification": "supported",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "#util",
+      "dependencyRoots": [],
+      "metadata": [
+        {"path": "package.json", "json": "{\"imports\":{\"#util\":\"./sources/util.ts\"}}"}
+      ],
+      "targets": [
+        {"path": "/sources/util.ts", "kind": "source"}
+      ],
+      "expectedTypeScriptTarget": "/sources/util.ts",
+      "expectedR2": {"kind": "resolved", "target": "/sources/util.ts", "packageBoundary": "/", "packageMetadataPath": "package.json", "matchedKey": "#util", "matchedConditions": []}
+    },
+    {
+      "id": "nearest-nested-imports-pattern",
+      "classification": "supported",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/packages/pkg/nested/file.d.ts",
+      "specifier": "#self/value",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"imports\":{\"#self/*\":\"./root/*.d.ts\"}}"},
+        {"path": "packages/pkg/nested/package.json", "json": "{\"imports\":{\"#self/*\":\"./types/*.js\"}}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/nested/types/value.d.ts", "kind": "declaration"},
+        {"path": "/packages/pkg/root/value.d.ts", "kind": "declaration"}
+      ],
+      "expectedTypeScriptTarget": "/packages/pkg/nested/types/value.d.ts",
+      "expectedR2": {"kind": "resolved", "target": "/packages/pkg/nested/types/value.d.ts", "packageBoundary": "/packages/pkg/nested", "packageMetadataPath": "packages/pkg/nested/package.json", "matchedKey": "#self/*", "matchedConditions": []}
+    },
+    {
+      "id": "array-missing-fallback-js-to-ts",
+      "classification": "supported",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"exports\":[\"./missing.js\",\"./fallback.js\"]}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/fallback.ts", "kind": "source"}
+      ],
+      "expectedTypeScriptTarget": "/packages/pkg/fallback.ts",
+      "expectedR2": {"kind": "resolved", "target": "/packages/pkg/fallback.ts", "packageBoundary": "/packages/pkg", "packageMetadataPath": "packages/pkg/package.json", "matchedKey": ".", "matchedConditions": []}
+    },
+    {
+      "id": "array-null-stops-fallback",
+      "classification": "supported",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"exports\":[null,\"./fallback.js\"]}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/fallback.ts", "kind": "source"}
+      ],
+      "expectedTypeScriptTarget": null,
+      "expectedR2": {"kind": "failure", "code": "NODE_RESOLUTION_TARGET_BLOCKED"}
+    },
+    {
+      "id": "legacy-types-fallback-is-closed",
+      "classification": "fail-closed",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"types\":\"./index.d.ts\"}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/index.d.ts", "kind": "declaration"}
+      ],
+      "expectedTypeScriptTarget": "/packages/pkg/index.d.ts",
+      "expectedR2": {"kind": "failure", "code": "NODE_RESOLUTION_EXPORTS_NOT_DEFINED"}
+    },
+    {
+      "id": "directory-mapping-is-closed",
+      "classification": "fail-closed",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg/dir/value",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"exports\":{\"./dir/\":\"./dist/\"}}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/dist/value.ts", "kind": "source"}
+      ],
+      "expectedTypeScriptTarget": null,
+      "expectedR2": {"kind": "failure", "code": "NODE_RESOLUTION_PACKAGE_METADATA_INVALID"}
+    },
+    {
+      "id": "project-self-name-is-closed",
+      "classification": "fail-closed",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "app/feature",
+      "dependencyRoots": [],
+      "metadata": [
+        {"path": "package.json", "json": "{\"name\":\"app\",\"exports\":{\"./feature\":\"./sources/feature.ts\"}}"}
+      ],
+      "targets": [
+        {"path": "/sources/feature.ts", "kind": "source"}
+      ],
+      "expectedTypeScriptTarget": "/sources/feature.ts",
+      "expectedR2": {"kind": "failure", "code": "NODE_RESOLUTION_PACKAGE_NOT_ALLOWED"}
+    },
+    {
+      "id": "mts-target-is-deferred",
+      "classification": "fail-closed",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"exports\":\"./entry.mjs\"}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/entry.mts", "kind": "source"}
+      ],
+      "expectedTypeScriptTarget": "/packages/pkg/entry.mts",
+      "expectedR2": {"kind": "failure", "code": "NODE_RESOLUTION_UNSUPPORTED_SOURCE_KIND"}
+    },
+    {
+      "id": "cts-target-is-deferred",
+      "classification": "fail-closed",
+      "mode": "require",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"exports\":\"./entry.cjs\"}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/entry.cts", "kind": "source"}
+      ],
+      "expectedTypeScriptTarget": "/packages/pkg/entry.cts",
+      "expectedR2": {"kind": "failure", "code": "NODE_RESOLUTION_UNSUPPORTED_SOURCE_KIND"}
+    },
+    {
+      "id": "canonical-integer-condition-key-is-closed",
+      "classification": "fail-closed",
+      "mode": "import",
+      "customConditions": [],
+      "containingPath": "/sources/main.ts",
+      "specifier": "pkg",
+      "dependencyRoots": ["packages/pkg"],
+      "metadata": [
+        {"path": "package.json", "json": "{}"},
+        {"path": "packages/pkg/package.json", "json": "{\"exports\":{\".\":{\"0\":\"./zero.ts\",\"default\":\"./default.ts\"}}}"}
+      ],
+      "targets": [
+        {"path": "/packages/pkg/default.ts", "kind": "source"},
+        {"path": "/packages/pkg/zero.ts", "kind": "source"}
+      ],
+      "expectedTypeScriptTarget": "/packages/pkg/default.ts",
+      "expectedR2": {"kind": "failure", "code": "NODE_RESOLUTION_PACKAGE_METADATA_INVALID"}
+    }
+  ]
+}

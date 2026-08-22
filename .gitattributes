@@ -9,6 +9,9 @@
 *.properties text eol=lf
 *.sha256 text eol=lf
 *.xml text eol=lf
+r2-declaration-sources/**/*.d.ts text eol=lf
+r2-declaration-sources/**/*.json text eol=lf
+r2-declaration-sources/**/LICENSE text eol=lf
 gradlew text eol=lf
 *.jar binary
 *.aar binary

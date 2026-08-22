@@ -1,0 +1,458 @@
+{
+  "schema": "autojs6.typescript.r2-m2-p3.compiler-bundle",
+  "revision": 1,
+  "typescriptVersion": "6.0.3",
+  "scope": "desktop-compiler-only/no-production-admission",
+  "execution": {
+    "inputOrders": [
+      "declared",
+      "reversed"
+    ],
+    "repetitionsPerOrder": 2,
+    "expectedHostFsCalls": 0,
+    "expectedTsSysCalls": 0,
+    "expectedNetworkCalls": 0,
+    "expectedEmittedJavaScriptExecutions": 0,
+    "outputCollectionCanonical": "sorted outputs; UTF-8(path + NUL + decimal byteLength + NUL + lowercase sha256 + LF)"
+  },
+  "authorities": {
+    "rhino": {
+      "kind": "frozen-profile",
+      "compilerApi": "createIncrementalProgram",
+      "targetProfile": "rhino",
+      "profileRevision": 1,
+      "declarationLayer": "rhino",
+      "productionAdmission": "unchanged",
+      "canonicalOptionsJson": "{\"allowJs\":false,\"checkJs\":false,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":1,\"moduleResolution\":2,\"newLine\":1,\"noEmitOnError\":true,\"noLib\":false,\"outDir\":\"/outputs\",\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true,\"strict\":true,\"target\":5,\"types\":[]}",
+      "optionsSha256": "76a173383972b1bd8d4ffa3fffe5d51f5adecf7b84e7b16f58554c14f3c08e0b"
+    },
+    "node": {
+      "kind": "frozen-profile",
+      "compilerApi": "createIncrementalProgram",
+      "targetProfile": "node",
+      "profileRevision": 1,
+      "declarationLayer": "node",
+      "productionAdmission": "unchanged",
+      "canonicalOptionsJson": "{\"allowJs\":false,\"checkJs\":false,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":199,\"moduleResolution\":99,\"newLine\":1,\"noEmitOnError\":true,\"noLib\":false,\"outDir\":\"/outputs\",\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true,\"strict\":true,\"target\":5,\"types\":[]}",
+      "optionsSha256": "2ef130a868f27eb30869ed24fc1f8999135aeeefe92bcd30bebf94b38224419f"
+    },
+    "mixed": {
+      "kind": "oracle-local",
+      "compilerApi": "createIncrementalProgram",
+      "targetProfile": "compiler-only-mixed",
+      "profileRevision": null,
+      "declarationLayer": "rhino",
+      "productionAdmission": false,
+      "canonicalOptionsJson": "{\"allowJs\":true,\"allowSyntheticDefaultImports\":true,\"checkJs\":false,\"esModuleInterop\":true,\"ignoreDeprecations\":\"6.0\",\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false,\"module\":1,\"moduleResolution\":2,\"newLine\":1,\"noEmitOnError\":true,\"noLib\":false,\"outDir\":\"/outputs\",\"resolveJsonModule\":true,\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true,\"strict\":true,\"target\":5,\"types\":[]}",
+      "optionsSha256": "11e0e3f2f9f6c1557662350249d4cad927e6361ada2088ef60be155a082e0d6d"
+    }
+  },
+  "cases": [
+    {
+      "id": "rhino-two-file-import",
+      "authority": "rhino",
+      "rootNames": [
+        "/sources/dependency.ts",
+        "/sources/main.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/dependency.ts",
+          "text": "export const answer: number = 21;\n"
+        },
+        {
+          "path": "/sources/main.ts",
+          "text": "import { answer } from \"./dependency\";\nexport const doubled: number = answer * 2;\n"
+        }
+      ],
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "9e5550b97ee62b21a68ca7d696d5608fc78677630f8579b5342826fa7b20b5a5",
+        "outputs": [
+          {
+            "path": "/outputs/dependency.js",
+            "byteLength": 161,
+            "sha256": "8d2d8a9fc42748f15fcd20b847ac17b04d95c968d1be16e284fd64ff3418d9e7",
+            "sourcePaths": [
+              "/sources/dependency.ts"
+            ]
+          },
+          {
+            "path": "/outputs/dependency.js.map",
+            "byteLength": 148,
+            "sha256": "673783a8b1a6e1c2dd6352e2bb8bff71e82f8003011356e43870a59e22c57faa",
+            "sourcePaths": [
+              "/sources/dependency.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "dependency.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/dependency.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "73fdc09c56eeaa79675d8e05b58609266d0f4fd0baaa9a97f1ecc15a9fcef725"
+            }
+          },
+          {
+            "path": "/outputs/main.js",
+            "byteLength": 224,
+            "sha256": "1a6905122061abe3d40c53327a9c3ed85c227eb2a8328f50747050a4b515fcaa",
+            "sourcePaths": [
+              "/sources/main.ts"
+            ]
+          },
+          {
+            "path": "/outputs/main.js.map",
+            "byteLength": 160,
+            "sha256": "a857739c69c7204ece66c4fba468dc9417ecfd8827eecf29b0900cbc0409d256",
+            "sourcePaths": [
+              "/sources/main.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "main.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/main.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 56,
+              "mappingsSha256": "b959e835b34d87e9a2762fd8bd658ca7718dfcbbe4031fc54a5c060fd03e9a3c"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-two-file-import",
+      "authority": "node",
+      "rootNames": [
+        "/sources/dependency.ts",
+        "/sources/main.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/dependency.ts",
+          "text": "export const answer: number = 21;\n"
+        },
+        {
+          "path": "/sources/main.ts",
+          "text": "import { answer } from \"./dependency.js\";\nexport const doubled: number = answer * 2;\n"
+        }
+      ],
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "1024ec0d90f44796925e272c395e28c10352c6718327e185fff80c1d526e02d8",
+        "outputs": [
+          {
+            "path": "/outputs/dependency.js",
+            "byteLength": 161,
+            "sha256": "8d2d8a9fc42748f15fcd20b847ac17b04d95c968d1be16e284fd64ff3418d9e7",
+            "sourcePaths": [
+              "/sources/dependency.ts"
+            ]
+          },
+          {
+            "path": "/outputs/dependency.js.map",
+            "byteLength": 148,
+            "sha256": "673783a8b1a6e1c2dd6352e2bb8bff71e82f8003011356e43870a59e22c57faa",
+            "sourcePaths": [
+              "/sources/dependency.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "dependency.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/dependency.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "73fdc09c56eeaa79675d8e05b58609266d0f4fd0baaa9a97f1ecc15a9fcef725"
+            }
+          },
+          {
+            "path": "/outputs/main.js",
+            "byteLength": 233,
+            "sha256": "22e78d054bb18009e7d5256e111186436a4b2054d02bfb40c82f754f23b9faf2",
+            "sourcePaths": [
+              "/sources/main.ts"
+            ]
+          },
+          {
+            "path": "/outputs/main.js.map",
+            "byteLength": 160,
+            "sha256": "e3907d00f85ceef9ca7677576f851f9271f7329fbea1fb5725d4ac34806bdfcc",
+            "sourcePaths": [
+              "/sources/main.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "main.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/main.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 56,
+              "mappingsSha256": "82d94d8a015d2a2b311476c205e58220b4d59fcabca361eb2356bf549c31bf6a"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rhino-source-cycle",
+      "authority": "rhino",
+      "rootNames": [
+        "/sources/alpha.ts",
+        "/sources/beta.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/alpha.ts",
+          "text": "import { betaValue } from \"./beta\";\nexport const alphaValue: number = 1;\nexport function alphaTotal(): number { return alphaValue + betaValue; }\n"
+        },
+        {
+          "path": "/sources/beta.ts",
+          "text": "import { alphaValue } from \"./alpha\";\nexport const betaValue: number = alphaValue + 1;\n"
+        }
+      ],
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "6b0eb850db47c3dbeeb5e49053f8d3f74f8f6a86b354f40cd80662e0df8d115b",
+        "outputs": [
+          {
+            "path": "/outputs/alpha.js",
+            "byteLength": 302,
+            "sha256": "34295d5b4c5330d409f5439fac581727b5a33c0375bda1cd349fafc6c642bb13",
+            "sourcePaths": [
+              "/sources/alpha.ts"
+            ]
+          },
+          {
+            "path": "/outputs/alpha.js.map",
+            "byteLength": 223,
+            "sha256": "a53c8ecf7011fa91e0bdac1873789184629daffe6a7a5192617fcfc0978512a1",
+            "sourcePaths": [
+              "/sources/alpha.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "alpha.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/alpha.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 117,
+              "mappingsSha256": "c577ea305df10ea0dc676d717f2c6562ec3e74df65fcf2bf0ba4a750880226d2"
+            }
+          },
+          {
+            "path": "/outputs/beta.js",
+            "byteLength": 217,
+            "sha256": "d613faf15f1a1cfaffd451a58873c11cb773c30fbc0ac79ebc2d5dafa3d313a4",
+            "sourcePaths": [
+              "/sources/beta.ts"
+            ]
+          },
+          {
+            "path": "/outputs/beta.js.map",
+            "byteLength": 160,
+            "sha256": "82a36b3dbfcec0ec15215f82da69a4a0485d758b3fd5617db0798c359c79e10e",
+            "sourcePaths": [
+              "/sources/beta.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "beta.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/beta.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 56,
+              "mappingsSha256": "9cd8774ea02d61e13dfaa153563897c4070df799803b23a5411440e99380f2e5"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "node-source-cycle",
+      "authority": "node",
+      "rootNames": [
+        "/sources/alpha.ts",
+        "/sources/beta.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/alpha.ts",
+          "text": "import { betaValue } from \"./beta.js\";\nexport const alphaValue: number = 1;\nexport function alphaTotal(): number { return alphaValue + betaValue; }\n"
+        },
+        {
+          "path": "/sources/beta.ts",
+          "text": "import { alphaValue } from \"./alpha.js\";\nexport const betaValue: number = alphaValue + 1;\n"
+        }
+      ],
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "ef746a1714ac93df881983000f28c4221efc5fde4095602431ad9b06fafd35d8",
+        "outputs": [
+          {
+            "path": "/outputs/alpha.js",
+            "byteLength": 311,
+            "sha256": "bc36a889ee89179d928d266933b8555cf1027e0a258db06d3c8dce8d7d6044d7",
+            "sourcePaths": [
+              "/sources/alpha.ts"
+            ]
+          },
+          {
+            "path": "/outputs/alpha.js.map",
+            "byteLength": 223,
+            "sha256": "770c8d0d8cbafa19049072329c14e33db37484497e59152836c043940a32bfe9",
+            "sourcePaths": [
+              "/sources/alpha.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "alpha.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/alpha.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 117,
+              "mappingsSha256": "35fdec99f464ee8016a0c2260298f3c8384d4fe13ef43d55594939ffb1f85118"
+            }
+          },
+          {
+            "path": "/outputs/beta.js",
+            "byteLength": 226,
+            "sha256": "e5ca4b61280fcfc051cba08576cbf0592e5f81e0d8062cbfec3936bad7a0a1df",
+            "sourcePaths": [
+              "/sources/beta.ts"
+            ]
+          },
+          {
+            "path": "/outputs/beta.js.map",
+            "byteLength": 160,
+            "sha256": "ed531e270eddc05fa263f80e30c3972fe24c0a07b93645300a4696c521f81e83",
+            "sourcePaths": [
+              "/sources/beta.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "beta.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/beta.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 56,
+              "mappingsSha256": "d33ffad464675ddc2a1d92c982a578089b4065d47644a718e76873a3417c1c46"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mixed-ts-js-json",
+      "authority": "mixed",
+      "rootNames": [
+        "/sources/main.ts"
+      ],
+      "files": [
+        {
+          "path": "/sources/main.ts",
+          "text": "import { offset } from \"./helper.js\";\nimport settings from \"./settings.json\";\nexport const total: number = offset + settings.delta;\n"
+        },
+        {
+          "path": "/sources/helper.js",
+          "text": "export const offset = 40;\n"
+        },
+        {
+          "path": "/sources/settings.json",
+          "text": "{\"delta\":2}\n"
+        }
+      ],
+      "expected": {
+        "diagnostics": [],
+        "emitSkipped": false,
+        "outputCollectionSha256": "73a935b8df8e75cd25f8e78982a63feb9398a0335775297af61a07798155ab59",
+        "outputs": [
+          {
+            "path": "/outputs/helper.js",
+            "byteLength": 157,
+            "sha256": "35b24b2c73695ad6baac9dc66623deae4b206cede55b994acbdfc3d39157d056",
+            "sourcePaths": [
+              "/sources/helper.js"
+            ]
+          },
+          {
+            "path": "/outputs/helper.js.map",
+            "byteLength": 140,
+            "sha256": "cee633bd7f482f4e5b2473db40a36522a75ea6f803547329359a43d5e5a4892f",
+            "sourcePaths": [
+              "/sources/helper.js"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "helper.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/helper.js"
+              ],
+              "names": [],
+              "mappingsByteLength": 32,
+              "mappingsSha256": "07eefe53c545b8ba32de678e3646bb22c7d9278ab2bd78a49560be5a05c60ee4"
+            }
+          },
+          {
+            "path": "/outputs/main.js",
+            "byteLength": 453,
+            "sha256": "95772fdfc17bf4ed25532a656dbc47b7a16e270045f7dc9ce9039003ba50e3df",
+            "sourcePaths": [
+              "/sources/main.ts"
+            ]
+          },
+          {
+            "path": "/outputs/main.js.map",
+            "byteLength": 187,
+            "sha256": "6947f8784814cbb373fad9b6ed0a620c888442bc88f88dda6ba0f90629cce91b",
+            "sourcePaths": [
+              "/sources/main.ts"
+            ],
+            "sourceMap": {
+              "version": 3,
+              "file": "main.js",
+              "sourceRoot": "",
+              "sources": [
+                "../sources/main.ts"
+              ],
+              "names": [],
+              "mappingsByteLength": 83,
+              "mappingsSha256": "b31646ae303a39805e05347d91d28d8ed7daa1119160e76c959ec6d22de4d005"
+            }
+          },
+          {
+            "path": "/outputs/settings.json",
+            "byteLength": 15,
+            "sha256": "3133105e9dc719bc243952ff3400c4a5385f266530d4cb98362ad874e3253cd6",
+            "sourcePaths": [
+              "/sources/settings.json"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

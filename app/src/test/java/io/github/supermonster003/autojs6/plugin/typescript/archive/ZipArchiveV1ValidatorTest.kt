@@ -2,10 +2,14 @@ package io.github.supermonster003.autojs6.plugin.typescript.archive
 
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.RandomAccessFile
 import java.security.MessageDigest
 import java.util.zip.CRC32
+import java.util.zip.Deflater
 import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -162,6 +166,293 @@ class ZipArchiveV1ValidatorTest {
             )
         } finally {
             file.delete()
+        }
+    }
+
+    @Test
+    fun immutableHeldReaderMatchesTheByteArrayValidatorAcrossTheFrozenCorpus() {
+        goldenSections("valid-golden.hex").forEach { (name, archive) ->
+            val expected = ZipArchiveV1Validator.validate(archive, TEST_LIMITS)
+            withTemporaryArchive("archive-v1-held-valid-", archive) { file ->
+                RandomAccessFile(file, "r").use { heldReader ->
+                    assertEquals(
+                        name,
+                        expected,
+                        ZipArchiveV1Validator.validateImmutable(
+                            heldReader,
+                            TEST_LIMITS,
+                        ),
+                    )
+                    assertTrue(
+                        "$name: immutable validation must leave the caller's handle open.",
+                        heldReader.fd.valid(),
+                    )
+                    heldReader.seek(0L)
+                    assertEquals(
+                        "$name: the caller must remain able to read the held inode.",
+                        archive[0].toInt() and 0xff,
+                        heldReader.read(),
+                    )
+                }
+            }
+        }
+
+        goldenSections("invalid-golden.hex").forEach { (name, archive) ->
+            val expectedKind = rejectedKind {
+                ZipArchiveV1Validator.validate(archive, TEST_LIMITS)
+            }
+            withTemporaryArchive("archive-v1-held-invalid-", archive) { file ->
+                RandomAccessFile(file, "r").use { heldReader ->
+                    assertRejected(expectedKind, name) {
+                        ZipArchiveV1Validator.validateImmutable(
+                            heldReader,
+                            TEST_LIMITS,
+                        )
+                    }
+                    assertTrue(
+                        "$name: rejected immutable validation must leave the caller's handle open.",
+                        heldReader.fd.valid(),
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun immutableOutputValidationStreamsLargeUncompressedPayloadWithoutReturningEntryBytes() {
+        val uncompressedBytes = 4L * MEBIBYTE
+        val archive = moderatelyCompressedArchive(
+            path = "modules/large.js",
+            uncompressedByteCount = uncompressedBytes.toInt(),
+        )
+        assertTrue(
+            "The fixture must exercise inflation rather than a container-sized payload.",
+            archive.size.toLong() < uncompressedBytes,
+        )
+
+        withTemporaryArchive("archive-v1-held-output-", archive) { file ->
+            RandomAccessFile(file, "r").use { heldReader ->
+                val validation = ZipArchiveV1Validator.validateImmutable(
+                    heldReader,
+                    ZipArchiveV1Limits.OUTPUT,
+                )
+
+                assertEquals(archive.size.toLong(), validation.containerBytes)
+                assertEquals(uncompressedBytes, validation.uncompressedBytes)
+                assertEquals(1, validation.entries.size)
+                assertEquals("modules/large.js", validation.entries.single().path)
+                assertTrue(
+                    "Streaming validation must leave the private output inode open.",
+                    heldReader.fd.valid(),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun immutableStagingReaderReturnsActualStoredAndDeflatedBytesWithoutOwningOpenFile() {
+        val fixtures = goldenSections("valid-golden.hex")
+        val storedBytes = fixtures.getValue("stored-ascii-comments")
+        withTemporaryArchive("archive-v1-stored-", storedBytes) { file ->
+            val contents = ZipArchiveV1Validator.validateImmutableAndRead(file, TEST_LIMITS)
+
+            assertEquals(
+                ZipArchiveV1Validator.validate(storedBytes, TEST_LIMITS),
+                contents.validation,
+            )
+            assertEquals(listOf("src/main.ts"), contents.entries.keys.toList())
+            assertArrayEquals(
+                "let x = 1;\n".toByteArray(Charsets.UTF_8),
+                contents.entries.getValue("src/main.ts"),
+            )
+        }
+
+        val deflatedBytes = fixtures.getValue("deflated-ascii-utf8-signed-descriptor")
+        withTemporaryArchive("archive-v1-deflated-", deflatedBytes) { file ->
+            RandomAccessFile(file, "r").use { openedFile ->
+                val contents = ZipArchiveV1Validator.validateImmutableAndRead(
+                    openedFile,
+                    TEST_LIMITS,
+                )
+
+                assertEquals(
+                    ZipArchiveV1Validator.validate(deflatedBytes, TEST_LIMITS),
+                    contents.validation,
+                )
+                assertArrayEquals(
+                    "const 答案 = 42;\n".toByteArray(Charsets.UTF_8),
+                    contents.entries.getValue("src/main.ts"),
+                )
+                assertEquals(
+                    "The immutable staging reader must not close its RandomAccessFile.",
+                    deflatedBytes.size.toLong(),
+                    openedFile.length(),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun immutableStreamingSinkCoversStoredAndDeflatedPayloadsWithBoundedChunks() {
+        val cases = listOf(
+            StreamingFixture(
+                label = "stored",
+                path = "sources/stored.ts",
+                payload = patternedBytes(3 * STREAMING_CHUNK_BYTES + 73),
+                archive = storedArchive(
+                    RawEntry(
+                        rawName = "sources/stored.ts".toByteArray(Charsets.US_ASCII),
+                        data = patternedBytes(3 * STREAMING_CHUNK_BYTES + 73),
+                    ),
+                ),
+            ),
+            StreamingFixture(
+                label = "deflated",
+                path = "sources/deflated.ts",
+                payload = moderatelyCompressedPayload(5 * STREAMING_CHUNK_BYTES + 91),
+                archive = moderatelyCompressedArchive(
+                    path = "sources/deflated.ts",
+                    uncompressedByteCount = 5 * STREAMING_CHUNK_BYTES + 91,
+                ),
+            ),
+        )
+
+        cases.forEach { fixture ->
+            val sink = RecordingEntrySink()
+            withTemporaryArchive("archive-v1-stream-${fixture.label}-", fixture.archive) { file ->
+                RandomAccessFile(file, "r").use { heldReader ->
+                    val validation = ZipArchiveV1Validator.validateImmutableTo(
+                        file = heldReader,
+                        sink = sink,
+                        limits = TEST_LIMITS,
+                    )
+
+                    assertEquals(
+                        listOf(fixture.path),
+                        validation.entries.map(ZipArchiveV1Entry::path),
+                    )
+                    assertArrayEquals(fixture.payload, sink.completedEntries.getValue(fixture.path))
+                    assertEquals(
+                        listOf("begin:${fixture.path}", "end:${fixture.path}"),
+                        sink.events,
+                    )
+                    assertTrue(
+                        "${fixture.label}: expected more than one bounded payload callback.",
+                        sink.writeCalls > 1,
+                    )
+                    assertTrue(
+                        "${fixture.label}: sink callback exceeded $STREAMING_CHUNK_BYTES bytes.",
+                        sink.maximumWriteBytes in 1..STREAMING_CHUNK_BYTES,
+                    )
+                    assertEquals(0, sink.abortCalls)
+                    assertTrue(
+                        "${fixture.label}: streaming validation closed the caller's reader.",
+                        heldReader.fd.valid(),
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun immutableStreamingSinkFailureAbortsAndDiscardsPartialPayload() {
+        val payload = patternedBytes(3 * STREAMING_CHUNK_BYTES + 17)
+        val archive = storedArchive(
+            RawEntry(
+                rawName = "sources/failing.ts".toByteArray(Charsets.US_ASCII),
+                data = payload,
+            ),
+        )
+        val sink = RecordingEntrySink(failOnWriteCall = 2)
+
+        withTemporaryArchive("archive-v1-stream-sink-failure-", archive) { file ->
+            RandomAccessFile(file, "r").use { heldReader ->
+                try {
+                    ZipArchiveV1Validator.validateImmutableTo(
+                        file = heldReader,
+                        sink = sink,
+                        limits = TEST_LIMITS,
+                    )
+                    fail("A failed streaming sink unexpectedly completed validation.")
+                } catch (failure: ZipArchiveV1EntrySinkException) {
+                    assertSame(sink.syntheticWriteFailure, failure.cause)
+                    assertTrue(failure.message.orEmpty().contains("write"))
+                    assertTrue(failure.message.orEmpty().contains("sources/failing.ts"))
+                }
+                assertTrue(heldReader.fd.valid())
+            }
+        }
+
+        assertEquals(1, sink.abortCalls)
+        assertEquals(0, sink.endCalls)
+        assertTrue(sink.partialBytesObservedByAbort > 0)
+        assertEquals(0, sink.retainedByteCount)
+        assertTrue(sink.completedEntries.isEmpty())
+        assertTrue(sink.abortedFailure is ZipArchiveV1EntrySinkException)
+    }
+
+    @Test
+    fun immutableStreamingArchiveIntegrityFailureAbortsPreviouslyDeliveredBytes() {
+        val path = "sources/crc-failure.ts"
+        val payload = patternedBytes(2 * STREAMING_CHUNK_BYTES + 29)
+        val archive = storedArchive(
+            RawEntry(
+                rawName = path.toByteArray(Charsets.US_ASCII),
+                data = payload,
+            ),
+        ).also { bytes ->
+            val payloadOffset = 30 + path.toByteArray(Charsets.US_ASCII).size
+            bytes[payloadOffset + payload.size / 2] =
+                (bytes[payloadOffset + payload.size / 2].toInt() xor 0x5a).toByte()
+        }
+        val sink = RecordingEntrySink()
+
+        withTemporaryArchive("archive-v1-stream-integrity-failure-", archive) { file ->
+            RandomAccessFile(file, "r").use { heldReader ->
+                assertRejected(ZipArchiveV1FailureKind.INTEGRITY, "streamed CRC mismatch") {
+                    ZipArchiveV1Validator.validateImmutableTo(
+                        file = heldReader,
+                        sink = sink,
+                        limits = TEST_LIMITS,
+                    )
+                }
+                assertTrue(heldReader.fd.valid())
+            }
+        }
+
+        assertEquals(1, sink.abortCalls)
+        assertEquals(0, sink.endCalls)
+        assertEquals(payload.size, sink.partialBytesObservedByAbort)
+        assertEquals(0, sink.retainedByteCount)
+        assertTrue(sink.completedEntries.isEmpty())
+        assertTrue(sink.abortedFailure is ZipArchiveV1Exception)
+    }
+
+    @Test
+    fun immutableStagingReaderEnforcesActualStreamingQuotaAndCrc() {
+        val forgedSize = goldenSections("valid-golden.hex")
+            .getValue("deflated-repetition-at-exact-100-to-1-bound")
+            .copyOf()
+            .also { archive ->
+                val local = archive.indexOfSignature(LOCAL_FILE_HEADER_SIGNATURE)
+                val central = archive.indexOfSignature(CENTRAL_DIRECTORY_SIGNATURE)
+                archive.putU32(local + 22, 10L)
+                archive.putU32(central + 24, 10L)
+            }
+        withTemporaryArchive("archive-v1-stream-quota-", forgedSize) { file ->
+            assertRejected(ZipArchiveV1FailureKind.QUOTA, "immutable staging actual quota") {
+                ZipArchiveV1Validator.validateImmutableAndRead(
+                    file,
+                    TEST_LIMITS.copy(maximumCompressionRatio = 99),
+                )
+            }
+        }
+
+        val crcMismatch = goldenSections("invalid-golden.hex").getValue("crc-mismatch")
+        withTemporaryArchive("archive-v1-stream-crc-", crcMismatch) { file ->
+            assertRejected(ZipArchiveV1FailureKind.INTEGRITY, "immutable staging CRC") {
+                ZipArchiveV1Validator.validateImmutableAndRead(file, TEST_LIMITS)
+            }
         }
     }
 
@@ -390,6 +681,20 @@ class ZipArchiveV1ValidatorTest {
     }
 
     @Test
+    fun provisionalMaterializedProjectUsesASeparateHeapBudget() {
+        val provisional = ZipArchiveV1Limits.PROVISIONAL_MATERIALIZED_PROJECT
+
+        assertEquals(64L * MEBIBYTE, provisional.maximumContainerBytes)
+        assertEquals(257, provisional.maximumFiles)
+        assertEquals(1L * MEBIBYTE, provisional.maximumTotalUncompressedBytes)
+        assertEquals(512L * 1024L, provisional.maximumSingleFileBytes)
+        assertEquals(
+            64L * MEBIBYTE,
+            ZipArchiveV1Limits.INPUT.maximumTotalUncompressedBytes,
+        )
+    }
+
+    @Test
     fun everyBasicQuotaHasAnInclusiveBoundaryAndARejectingBoundary() {
         val bytes = goldenSections("valid-golden.hex").getValue("stored-ascii-comments")
         val baseline = ZipArchiveV1Validator.validate(bytes, TEST_LIMITS)
@@ -562,6 +867,20 @@ class ZipArchiveV1ValidatorTest {
             "Missing golden fixture $fileName."
         }.bufferedReader(Charsets.UTF_8).use { reader -> reader.readText() }
 
+    private fun <T> withTemporaryArchive(
+        prefix: String,
+        bytes: ByteArray,
+        block: (File) -> T,
+    ): T {
+        val file = File.createTempFile(prefix, ".zip")
+        return try {
+            file.writeBytes(bytes)
+            block(file)
+        } finally {
+            file.delete()
+        }
+    }
+
     private fun canonicalFixtureSha256(fileName: String): String {
         val canonicalBytes = fixtureText(fileName)
             .replace("\r\n", "\n")
@@ -582,6 +901,184 @@ class ZipArchiveV1ValidatorTest {
             fail("$label unexpectedly passed ZIP v1 validation.")
         } catch (failure: ZipArchiveV1Exception) {
             assertEquals(label, expectedKind, failure.kind)
+        }
+    }
+
+    private fun rejectedKind(block: () -> Unit): ZipArchiveV1FailureKind {
+        try {
+            block()
+            fail("Archive unexpectedly passed ZIP v1 validation.")
+        } catch (failure: ZipArchiveV1Exception) {
+            return failure.kind
+        }
+        error("unreachable")
+    }
+
+    private fun moderatelyCompressedArchive(
+        path: String,
+        uncompressedByteCount: Int,
+    ): ByteArray {
+        require(uncompressedByteCount > 0)
+        val data = moderatelyCompressedPayload(uncompressedByteCount)
+        val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, true)
+        val compressed = ByteArrayOutputStream()
+        val buffer = ByteArray(16 * 1024)
+        try {
+            deflater.setInput(data)
+            deflater.finish()
+            while (!deflater.finished()) {
+                val count = deflater.deflate(buffer)
+                check(count > 0) {
+                    "Test DEFLATE encoder made no progress."
+                }
+                compressed.write(buffer, 0, count)
+            }
+        } finally {
+            deflater.end()
+        }
+
+        val rawName = path.toByteArray(Charsets.US_ASCII)
+        val compressedBytes = compressed.toByteArray()
+        val crc32 = CRC32().apply { update(data) }.value
+        return ByteArrayOutputStream().apply {
+            putU32(LOCAL_FILE_HEADER_SIGNATURE)
+            putU16(VERSION_DEFLATED)
+            putU16(0)
+            putU16(COMPRESSION_DEFLATED)
+            putU16(0)
+            putU16(0)
+            putU32(crc32)
+            putU32(compressedBytes.size.toLong())
+            putU32(data.size.toLong())
+            putU16(rawName.size)
+            putU16(0)
+            write(rawName)
+            write(compressedBytes)
+
+            val centralOffset = size()
+            putU32(CENTRAL_DIRECTORY_SIGNATURE)
+            putU16(VERSION_DEFLATED)
+            putU16(VERSION_DEFLATED)
+            putU16(0)
+            putU16(COMPRESSION_DEFLATED)
+            putU16(0)
+            putU16(0)
+            putU32(crc32)
+            putU32(compressedBytes.size.toLong())
+            putU32(data.size.toLong())
+            putU16(rawName.size)
+            putU16(0)
+            putU16(0)
+            putU16(0)
+            putU16(0)
+            putU32(0L)
+            putU32(0L)
+            write(rawName)
+
+            val centralSize = size() - centralOffset
+            putU32(END_OF_CENTRAL_DIRECTORY_SIGNATURE)
+            putU16(0)
+            putU16(0)
+            putU16(1)
+            putU16(1)
+            putU32(centralSize.toLong())
+            putU32(centralOffset.toLong())
+            putU16(0)
+        }.toByteArray()
+    }
+
+    private fun moderatelyCompressedPayload(uncompressedByteCount: Int): ByteArray {
+        require(uncompressedByteCount > 0)
+        val data = ByteArray(uncompressedByteCount)
+        val blockBytes = 16 * 1024
+        var state = 0x6d2b79f5
+        var offset = 0
+        while (offset < data.size) {
+            val uniqueBytes = minOf(blockBytes, data.size - offset)
+            repeat(uniqueBytes) { index ->
+                state = state xor (state shl 13)
+                state = state xor (state ushr 17)
+                state = state xor (state shl 5)
+                data[offset + index] = state.toByte()
+            }
+            val repeatedOffset = offset + uniqueBytes
+            val repeatedBytes = minOf(uniqueBytes, data.size - repeatedOffset)
+            if (repeatedBytes > 0) {
+                data.copyInto(
+                    destination = data,
+                    destinationOffset = repeatedOffset,
+                    startIndex = offset,
+                    endIndex = offset + repeatedBytes,
+                )
+            }
+            offset = repeatedOffset + repeatedBytes
+        }
+        return data
+    }
+
+    private fun patternedBytes(size: Int): ByteArray =
+        ByteArray(size) { index ->
+            ((index * 31) xor (index ushr 5)).toByte()
+        }
+
+    private class RecordingEntrySink(
+        private val failOnWriteCall: Int? = null,
+    ) : ZipArchiveV1EntrySink {
+
+        val completedEntries = linkedMapOf<String, ByteArray>()
+        val events = mutableListOf<String>()
+        val syntheticWriteFailure = IllegalStateException("synthetic sink write failure")
+        var abortCalls = 0
+        var endCalls = 0
+        var maximumWriteBytes = 0
+        var partialBytesObservedByAbort = 0
+        var writeCalls = 0
+        var abortedFailure: Throwable? = null
+
+        private var currentEntry: ZipArchiveV1Entry? = null
+        private val currentBytes = ByteArrayOutputStream()
+
+        val retainedByteCount: Int
+            get() = currentBytes.size() + completedEntries.values.sumOf { bytes -> bytes.size }
+
+        override fun begin(entry: ZipArchiveV1Entry) {
+            check(currentEntry == null)
+            check(currentBytes.size() == 0)
+            currentEntry = entry
+            events += "begin:${entry.path}"
+        }
+
+        override fun write(
+            bytes: ByteArray,
+            offset: Int,
+            length: Int,
+        ) {
+            checkNotNull(currentEntry)
+            check(offset >= 0 && length > 0 && offset <= bytes.size - length)
+            writeCalls++
+            maximumWriteBytes = maxOf(maximumWriteBytes, length)
+            currentBytes.write(bytes, offset, length)
+            if (writeCalls == failOnWriteCall) {
+                throw syntheticWriteFailure
+            }
+        }
+
+        override fun end(entry: ZipArchiveV1Entry) {
+            check(entry == currentEntry)
+            endCalls++
+            events += "end:${entry.path}"
+            check(completedEntries.put(entry.path, currentBytes.toByteArray()) == null)
+            currentBytes.reset()
+            currentEntry = null
+        }
+
+        override fun abort(failure: Throwable) {
+            abortCalls++
+            abortedFailure = failure
+            partialBytesObservedByAbort = retainedByteCount
+            currentBytes.reset()
+            completedEntries.clear()
+            currentEntry = null
         }
     }
 
@@ -694,6 +1191,13 @@ class ZipArchiveV1ValidatorTest {
         val externalAttributes: Long = 0L,
     )
 
+    private data class StreamingFixture(
+        val label: String,
+        val path: String,
+        val payload: ByteArray,
+        val archive: ByteArray,
+    )
+
     private companion object {
         val TEST_LIMITS = ZipArchiveV1Limits(
             maximumContainerBytes = 1024L * 1024L,
@@ -711,6 +1215,7 @@ class ZipArchiveV1ValidatorTest {
         const val END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50L
         const val VERSION_STORED = 10
         const val VERSION_DEFLATED = 20
+        const val COMPRESSION_DEFLATED = 8
         const val FLAG_UTF8 = 1 shl 11
         const val CREATOR_UNIX = 3
         const val DOS_VOLUME_LABEL_ATTRIBUTE = 0x08L
@@ -718,6 +1223,7 @@ class ZipArchiveV1ValidatorTest {
         const val DOS_ALLOWED_REGULAR_ATTRIBUTES = 0x27L
         const val DOS_RESERVED_DEVICE_ATTRIBUTE = 0x40L
         const val DOS_RESERVED_HIGH_BIT = 0x80L
+        const val STREAMING_CHUNK_BYTES = 16 * 1024
         const val UNIX_REGULAR_0644 = 0x81a4_0000L
         const val UNIX_CHARACTER_DEVICE_0600 = 0x21_80_0000L
         const val MEBIBYTE = 1024L * 1024L

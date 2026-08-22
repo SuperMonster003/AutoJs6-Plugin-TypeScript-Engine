@@ -1,0 +1,128 @@
+{
+  "schema": "autojs6.typescript.r2-m2-x3.configuration-resolution-failures",
+  "revision": 1,
+  "typescriptVersion": "6.0.3",
+  "callerErrorCode": "ERR_AUTOJS6_TYPESCRIPT_COMPILATION_DIAGNOSTICS",
+  "scope": {
+    "configuration": "accepted-controlled-tsconfig-parser-policy-and-root-selection",
+    "resolution": "accepted-snapshot-resolver-decision",
+    "evidenceLevel": "worker-direct-oracle-only"
+  },
+  "excludedDomains": [
+    "archive-integrity-quota-and-output",
+    "config-and-project-transport-frame-validation",
+    "snapshot-and-package-ingress-validation",
+    "module-output-and-ordinary-typescript-diagnostics",
+    "internal-invariant-cancel-timeout-and-compiler-unavailable",
+    "public-and-runtime-promotion"
+  ],
+  "configurationFailures": [
+    {
+      "name": "encoding-invalid",
+      "policyCode": "CONFIG_ENCODING_INVALID",
+      "boundary": "config-end",
+      "sourceEncoding": "base64",
+      "source": "wyg="
+    },
+    {
+      "name": "syntax-invalid",
+      "policyCode": "CONFIG_SYNTAX_INVALID",
+      "boundary": "config-end",
+      "sourceEncoding": "utf8",
+      "source": ""
+    },
+    {
+      "name": "duplicate-key",
+      "policyCode": "CONFIG_DUPLICATE_KEY",
+      "boundary": "config-end",
+      "sourceEncoding": "utf8",
+      "source": "{\"compilerOptions\":{\"strict\":true,\"strict\":false}}"
+    },
+    {
+      "name": "unknown-property",
+      "policyCode": "CONFIG_UNKNOWN_PROPERTY",
+      "boundary": "config-end",
+      "sourceEncoding": "utf8",
+      "source": "{\"custom\":true}"
+    },
+    {
+      "name": "invalid-value",
+      "policyCode": "CONFIG_INVALID_VALUE",
+      "boundary": "config-end",
+      "sourceEncoding": "utf8",
+      "source": "[]"
+    },
+    {
+      "name": "unsupported-feature",
+      "policyCode": "CONFIG_UNSUPPORTED_FEATURE",
+      "boundary": "config-end",
+      "sourceEncoding": "utf8",
+      "source": "{\"extends\":\"./base.json\"}"
+    },
+    {
+      "name": "profile-conflict",
+      "policyCode": "CONFIG_PROFILE_CONFLICT",
+      "boundary": "config-end",
+      "sourceEncoding": "utf8",
+      "source": "{\"compilerOptions\":{\"target\":\"ES2018\"}}"
+    },
+    {
+      "name": "path-invalid",
+      "policyCode": "CONFIG_PATH_INVALID",
+      "boundary": "config-end",
+      "sourceEncoding": "utf8",
+      "source": "{\"files\":[\"/src/main.ts\"]}"
+    },
+    {
+      "name": "complexity-exceeded",
+      "policyCode": "CONFIG_COMPLEXITY_EXCEEDED",
+      "boundary": "config-end",
+      "sourceEncoding": "utf8",
+      "source": "[[[[[[[[[[[[[[[[0]]]]]]]]]]]]]]]]"
+    },
+    {
+      "name": "no-inputs",
+      "policyCode": "CONFIG_NO_INPUTS",
+      "boundary": "input-end",
+      "sourceEncoding": "utf8",
+      "source": "{\"files\":[]}"
+    },
+    {
+      "name": "entry-not-selected",
+      "policyCode": "CONFIG_ENTRY_NOT_SELECTED",
+      "boundary": "input-end",
+      "sourceEncoding": "utf8",
+      "source": "{\"files\":[\"other.ts\"]}"
+    }
+  ],
+  "resolutionFailures": [
+    { "name": "invalid-containing-path", "policyCode": "NODE_RESOLUTION_INVALID_CONTAINING_PATH", "diagnosticCode": 900001 },
+    { "name": "invalid-specifier", "policyCode": "NODE_RESOLUTION_INVALID_SPECIFIER", "diagnosticCode": 900002 },
+    { "name": "invalid-condition", "policyCode": "NODE_RESOLUTION_INVALID_CONDITION", "diagnosticCode": 900003 },
+    { "name": "ambiguous-case", "policyCode": "NODE_RESOLUTION_AMBIGUOUS_CASE", "diagnosticCode": 900004 },
+    { "name": "package-not-allowed", "policyCode": "NODE_RESOLUTION_PACKAGE_NOT_ALLOWED", "diagnosticCode": 900005 },
+    { "name": "package-metadata-missing", "policyCode": "NODE_RESOLUTION_PACKAGE_METADATA_MISSING", "diagnosticCode": 900006 },
+    { "name": "package-metadata-invalid", "policyCode": "NODE_RESOLUTION_PACKAGE_METADATA_INVALID", "diagnosticCode": 900007 },
+    { "name": "imports-not-defined", "policyCode": "NODE_RESOLUTION_IMPORTS_NOT_DEFINED", "diagnosticCode": 900008 },
+    { "name": "imports-no-match", "policyCode": "NODE_RESOLUTION_IMPORTS_NO_MATCH", "diagnosticCode": 900009 },
+    { "name": "exports-not-defined", "policyCode": "NODE_RESOLUTION_EXPORTS_NOT_DEFINED", "diagnosticCode": 900010 },
+    { "name": "exports-no-match", "policyCode": "NODE_RESOLUTION_EXPORTS_NO_MATCH", "diagnosticCode": 900011 },
+    { "name": "condition-no-match", "policyCode": "NODE_RESOLUTION_CONDITION_NO_MATCH", "diagnosticCode": 900012 },
+    { "name": "invalid-target", "policyCode": "NODE_RESOLUTION_INVALID_TARGET", "diagnosticCode": 900013 },
+    { "name": "target-blocked", "policyCode": "NODE_RESOLUTION_TARGET_BLOCKED", "diagnosticCode": 900014 },
+    { "name": "target-escape", "policyCode": "NODE_RESOLUTION_TARGET_ESCAPE", "diagnosticCode": 900015 },
+    { "name": "target-not-in-snapshot", "policyCode": "NODE_RESOLUTION_TARGET_NOT_IN_SNAPSHOT", "diagnosticCode": 900016 },
+    { "name": "unsupported-source-kind", "policyCode": "NODE_RESOLUTION_UNSUPPORTED_SOURCE_KIND", "diagnosticCode": 900017 },
+    { "name": "cycle", "policyCode": "NODE_RESOLUTION_CYCLE", "diagnosticCode": 900018 }
+  ],
+  "cleanSuccessors": [
+    {
+      "name": "controlled-program-after-configuration-failures",
+      "kind": "controlled-program"
+    },
+    {
+      "name": "relative-resolution-after-resolution-failures",
+      "kind": "snapshot-resolution"
+    }
+  ]
+}

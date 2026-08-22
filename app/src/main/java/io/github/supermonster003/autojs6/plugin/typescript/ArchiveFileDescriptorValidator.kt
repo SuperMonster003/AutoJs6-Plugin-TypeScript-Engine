@@ -34,15 +34,25 @@ object ArchiveFileDescriptorValidator {
 
         val stat = Os.fstat(fileDescriptor)
         check(OsConstants.S_ISREG(stat.st_mode))
+        val openFlags = R2FileDescriptorOpenFlags.read(requireNotNull(descriptor))
+        val accessMode = openFlags and OsConstants.O_ACCMODE
 
         val currentOffset = Os.lseek(fileDescriptor, 0L, OsConstants.SEEK_CUR)
         Os.lseek(fileDescriptor, currentOffset, OsConstants.SEEK_SET)
         when (requiredAccess) {
             Access.READABLE -> {
+                check(accessMode != OsConstants.O_WRONLY)
                 Os.pread(fileDescriptor, ByteArray(1), 0, 1, currentOffset)
             }
 
             Access.WRITABLE -> {
+                /*
+                 * Linux applies O_APPEND to pwrite as well, despite POSIX's fixed-offset
+                 * semantics. Output commit therefore rejects append-mode descriptors before
+                 * admission instead of risking bytes outside the validated artifact length.
+                 */
+                check(accessMode != OsConstants.O_RDONLY)
+                check(openFlags and OsConstants.O_APPEND == 0)
                 Os.ftruncate(fileDescriptor, stat.st_size)
             }
         }

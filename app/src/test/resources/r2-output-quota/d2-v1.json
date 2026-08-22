@@ -1,0 +1,142 @@
+{
+  "schema": "autojs6.typescript.r2-m3-d2.ordinary-output-quota-decision",
+  "revision": 1,
+  "decision": "retain-512-artifacts-512kib-per-artifact-1mib-packaged-payload",
+  "ordinaryCompilationOutputQuota": {
+    "schemaRevision": 1,
+    "maximumPackagedFiles": 512,
+    "maximumSinglePackagedJavaScriptBytes": 524288,
+    "maximumSinglePackagedSourceMapBytes": 524288,
+    "maximumPackagedPayloadBytes": 1048576,
+    "comparison": "inclusive-when-all-other-dimensions-remain-eligible"
+  },
+  "countingDomain": {
+    "unit": "final-packaged-artifact-utf8-bytes",
+    "includes": [
+      "javascript-after-source-mapping-url-rewrite",
+      "source-map-v3-bytes"
+    ],
+    "excludes": [
+      "diagnostics-json",
+      "typed-result-json-overhead",
+      "result-framing-and-base64-overhead",
+      "compilation-manifest-json",
+      "zip-metadata-and-container-bytes"
+    ],
+    "packagedArchiveQuotaOwner": "R2-M3-S2-output-archive-schema",
+    "packagedArchiveDiagnosticsShapeDependency": "R2-M3-S3-diagnostics-schema"
+  },
+  "boundaryCases": [
+    {
+      "dimension": "packaged-file-count",
+      "atLimit": 512,
+      "atLimitAccepted": true,
+      "plusOne": 513,
+      "plusOneAccepted": false
+    },
+    {
+      "dimension": "packaged-javascript-bytes",
+      "atLimit": 524288,
+      "atLimitAccepted": true,
+      "plusOne": 524289,
+      "plusOneAccepted": false
+    },
+    {
+      "dimension": "packaged-source-map-bytes",
+      "atLimit": 524288,
+      "atLimitAccepted": true,
+      "plusOne": 524289,
+      "plusOneAccepted": false
+    },
+    {
+      "dimension": "packaged-payload-bytes",
+      "atLimit": 1048576,
+      "atLimitAccepted": true,
+      "plusOne": 1048577,
+      "plusOneAccepted": false
+    }
+  ],
+  "separateDeferredGuardrails": {
+    "diagnostics": {
+      "maximumDiagnostics": 1000,
+      "maximumEncodedArrayBytes": 524288,
+      "unit": "worker-result-json-domain",
+      "publicD2Quota": false,
+      "freezeDeferredTo": "R2-M3-S3-diagnostics-schema"
+    },
+    "internalResultEnvelope": {
+      "maximumDecodedTypedResultBytes": 6291456,
+      "unit": "decoded-result-json-utf8-bytes",
+      "publicD2Quota": false,
+      "freezeDeferredTo": "R2-M3-O1-streaming-output"
+    }
+  },
+  "measuredWorkloads": [
+    {
+      "id": "b2k-historical-pre-c8-external-emit",
+      "evidenceClass": "historical-device-pre-c8-declaration-workload",
+      "rawWorkerFiles": 512,
+      "rawWorkerBytes": 976438,
+      "packagedFiles": 512,
+      "packagedPayloadBytes": 978486,
+      "packagerRewriteDeltaBytes": 2048,
+      "packagedPayloadHeadroomBytes": 70090,
+      "withinOrdinaryPackagedPayloadQuota": true,
+      "closesCurrentBinaryReleaseAcceptance": false
+    },
+    {
+      "id": "b2j-direct-natural-emit",
+      "evidenceClass": "historical-device-pre-current-egress-boundary",
+      "rawWorkerFiles": 16,
+      "rawWorkerBytes": 965714,
+      "packagedFiles": null,
+      "packagedPayloadBytes": null,
+      "packagerRewriteDeltaBytes": null,
+      "packagedPayloadHeadroomBytes": null,
+      "withinOrdinaryPackagedPayloadQuota": null,
+      "closesCurrentBinaryReleaseAcceptance": false
+    },
+    {
+      "id": "b2g-direct-natural-phase",
+      "evidenceClass": "historical-device-provisional-workload",
+      "rawWorkerFiles": 384,
+      "rawWorkerBytes": 562945,
+      "packagedFiles": null,
+      "packagedPayloadBytes": null,
+      "packagerRewriteDeltaBytes": null,
+      "packagedPayloadHeadroomBytes": null,
+      "withinOrdinaryPackagedPayloadQuota": null,
+      "closesCurrentBinaryReleaseAcceptance": false
+    }
+  ],
+  "legacyTransportAndArchiveCeiling": {
+    "authority": "v1-transport-zip-validation-and-schema-ceiling-only",
+    "maximumArchiveFiles": 8192,
+    "maximumArchiveContainerBytes": 134217728,
+    "maximumArchiveExpandedBytes": 268435456,
+    "maximumSingleJavaScriptBytes": 16777216,
+    "maximumSingleSourceMapBytes": 33554432,
+    "maximumDiagnostics": 10000,
+    "maximumDiagnosticsBytes": 8388608,
+    "maximumManifestBytes": 4194304,
+    "promotesOrdinaryCompilationOutputQuota": false,
+    "definesOrdinaryPackagedArchiveQuota": false
+  },
+  "failureOwnership": {
+    "workerOrHostQuotaFailureCode": "ERR_AUTOJS6_TYPESCRIPT_COMPILER_UNAVAILABLE",
+    "nativeFinalPackagedQuotaFailureCode": "ERR_AUTOJS6_TYPESCRIPT_OUTPUT_TRANSPORT",
+    "unifiedPublicQuotaFailureDeferredTo": [
+      "R2-M3-O1-streaming-output",
+      "R2-M3-S2-output-archive-schema"
+    ],
+    "diagnosticCount": 0,
+    "callerOutputBytes": 0,
+    "automaticRetryAllowed": false
+  },
+  "promotionState": {
+    "publicCapabilityChanged": false,
+    "runtimeCapabilityChanged": false,
+    "nodeRevisionTwoEndToEndChanged": false,
+    "deviceEvidenceRefreshed": false
+  }
+}

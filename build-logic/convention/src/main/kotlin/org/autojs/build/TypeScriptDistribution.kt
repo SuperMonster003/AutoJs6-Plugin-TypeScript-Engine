@@ -322,12 +322,11 @@ object TypeScriptDistribution {
         try {
             val compressedInput = ByteArrayInputStream(tarballBytes)
             val tarOutput = ByteArrayOutputStream()
-            var gzipMemberCount = 0
-            GzipCompressorInputStream.builder()
-                .setInputStream(compressedInput)
-                .setDecompressConcatenated(true)
-                .setOnMemberStart { gzipMemberCount += 1 }
-                .get()
+            // Gradle exposes commons-compress from its parent classloader. Keep this build
+            // logic compatible with that runtime (currently 1.26.x) instead of linking the
+            // newer 1.28-only builder API. Reading one member and requiring exact compressed
+            // consumption still rejects concatenated members and trailing data.
+            GzipCompressorInputStream(compressedInput, false)
                 .use { gzipInput ->
                     val buffer = ByteArray(BUFFER_SIZE)
                     var expandedBytes = 0L
@@ -343,12 +342,6 @@ object TypeScriptDistribution {
                         }
                         expandedBytes += read
                         tarOutput.write(buffer, 0, read)
-                    }
-                    if (gzipMemberCount != 1) {
-                        fail(
-                            "TypeScript npm tarball must contain exactly one gzip member; " +
-                                "found $gzipMemberCount",
-                        )
                     }
                     if (
                         gzipInput.compressedCount != tarballBytes.size.toLong() ||
