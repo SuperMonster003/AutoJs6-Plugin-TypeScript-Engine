@@ -49,9 +49,9 @@
 | 阶段 | 主题 | 用户可感知结果 | 状态 |
 |---|---|---|---|
 | S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 已完成 (6/6 必需；S1-7 可选) |
-| S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 进行中 (5/6；核心执行链已通) |
-| S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 进行中 (A1 已覆盖首批真实 API) |
-| S4 | Node profile 与项目级能力 | `.mts/.cts`、多文件项目、tsconfig 常用项 | 未开始 |
+| S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 已完成 (6/6) |
+| S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 进行中 (A1 已覆盖真实 API 与最小 UI) |
+| S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 未开始 |
 | S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 未开始 |
 
 依赖关系: S1 → S2 → S3 → S4 → S5 严格递进不是必须的 —— S1 与 S2 可
@@ -159,11 +159,13 @@ Rhino 执行并输出 toast。
 - [x] **S2-4 路由改造**: `.ts` 从 Node 文件判断中移除, 成为独立
       TypeScript source kind; 默认引擎 Rhino; `.d.ts` 不可执行;
       `.tsx` 明确报错。当前路由优先级为显式 Node project > 普通单文件
-      TypeScript > Rhino fallback；普通 `.ts` 中尚未支持的 Node/UI directive
-      明确失败，不静默改走其他引擎。
+      TypeScript > Rhino fallback；普通 `.ts` 中尚未支持的 Node directive
+      明确失败，不静默改走其他引擎；`"ui"` directive 则进入 Rhino
+      Activity，并支持字符串 XML 布局。原生 TSX DSL 仍明确拒绝。
       宿主提交 `6d6450315` 引入 `TypeScriptFileSource` 并覆盖普通文件、编辑器
       cache/semantic path 路由；`1f986545d` 对普通 TSX 与声明文件返回本地化
-      明确错误。显式 Node project 保留既有行为，Node profile 统一留到 S4。
+      明确错误；`c8088ae7b` 补齐 UI Activity 路由。显式 Node project 保留
+      既有行为，Node profile 与原生 TSX DSL 统一留到 S4。
 - [x] **S2-5 执行前编译挂接**: 在 RunnableScriptExecution 创建引擎前
       调用编译; 编译产物 (JS 字符串) 直接喂给 RhinoJavaScriptEngine;
       编译失败不创建引擎, 诊断以现有 console 错误格式展示 (文件/行/列
@@ -171,21 +173,30 @@ Rhino 执行并输出 toast。
       宿主提交 `6c1a893af` 将编译前移到脚本工作线程、引擎创建之前；成功
       产物封装为只读 compiled source，Source Map/diagnostics 随源进入 Rhino，
       loop 执行只编译一次。TS2322 负向测试确认 marker 未执行且
-      `execution.engine == null`。
-- [ ] **S2-6 冒烟脚本集**: 5–10 个真实脚本 (toast、ui 布局、
+      `execution.engine == null`。宿主提交 `c8088ae7b` 将同一原则扩展到
+      `ScriptExecuteActivity`：UI 线程外编译，成功后才创建引擎；创建引擎前
+      失败可安全报告诊断并清理 execution。
+- [x] **S2-6 冒烟脚本集**: 5–10 个真实脚本 (toast、ui 布局、
       click/swipe、http、images 截图) 的 `.ts` 版本在真机/模拟器跑通。
       **跑不通的直接修** (插件或宿主), 每修一个记 CHANGELOG。
-      当前已完成四组真实可执行脚本：`hello.ts` 调用 toast 并继续执行、
+      已完成真实可执行脚本：`hello.ts` 调用 toast 并继续执行、
       读取 `device` 属性并验证全局/`automator` 手势绑定、向本机回环服务发起
-      `http.get`、通过 `images.read/pixel/recycle` 读取并检查 PNG；另覆盖 UTF-8
-      emit、类型错误 fail-closed 与 TSX 明确拒绝。宿主提交 `f8624db4d` 的
-      8 项套件在 API 31/35/37 共 24/24 通过。API 37 上将 Node Runtime 插件
-      置为 `disabled-user` 后，完整 8 项仍 8/8 通过，测试结束后已恢复原始
-      `default` 状态。实际触发 click/swipe、需要 MediaProjection 授权的截图、
-      以及 UI layout/TSX 路径仍待补齐，故本项保持未勾选。
+      `http.get`、通过 `images.read/pixel/recycle` 读取并检查 PNG、在受控悬浮窗
+      上真实触发 click/swipe，以及 `"ui"` 模式下加载字符串 XML、查找视图、
+      处理点击、更新文本并显式 `ui.finish()`；另覆盖 UTF-8 emit、类型错误
+      fail-closed 与 TSX 明确拒绝。MediaProjection 在设备初始未授权状态下，
+      由无障碍分别自动完成拒绝与允许分支：拒绝时 `requestScreenCapture()`
+      确实返回 `false`；允许时选择整屏、捕获真实帧并检查尺寸、像素、回收与
+      前台服务退出。宿主提交 `4c80410b4` 的 12 项套件在 API 31/35/37
+      各 12/12、合计 36/36 通过。API 37 上将 Node Runtime 插件置为
+      `disabled-user` 后，完整套件仍 12/12 通过，测试结束后已恢复原始
+      `default` 状态。经确认，原生 TSX DSL 不作为 S2 验收条件，独立进入
+      S3/S4；当前 `.tsx` 继续显式拒绝。
 
 退出标准: Node Runtime 插件未安装或停用的设备上, 上述冒烟脚本全部可运行;
-TypeScript 插件未安装时给出明确安装提示而非崩溃。
+TypeScript 插件未安装时给出明确安装提示而非崩溃。**已达成**：API 37 的
+Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针返回明确
+安装/启用指引且未创建引擎。
 
 ## S3 体验补齐: 诊断、声明、栈映射
 
@@ -202,10 +213,16 @@ TypeScript 插件未安装时给出明确安装提示而非崩溃。
       提交 `0032e20` 已把首批可信投影从 825 扩至 2,881 字节，并将
       automator/device/http/images 四个上游声明文件纳入逐文件 hash 锁；
       `device`、click/swipe、`http.get` 与 images 读图脚本已在 strict 编译后
-      真机执行。当前仍保持单个 Rhino layer 文件，且尚未覆盖 UI 与完整 API
-      表面，因此本项保持未勾选。
+      真机执行。提交 `7579863` 又锁定上游 `aj6-int-ui.d.ts`，将投影扩至
+      3,185 字节，最小 UI 声明已支持字符串 XML、视图查找/点击/文本更新与
+      `ui.finish()`，并经 strict 编译和真机执行验证。当前仍保持单个 Rhino
+      layer 文件，且尚未覆盖完整 API 表面，因此本项保持未勾选。
 - [ ] **S3-A2** 声明包版本随插件版本发布, 不再要求与某个私有 host
       commit 逐文件锁 hash (保留 fingerprint 用于缓存 key 即可)。
+- [ ] **S3-A3 原生 TSX DSL 类型层**: 独立定义 JSX namespace、内置元素、
+      属性与事件类型，不复用字符串 XML 的宽泛签名。
+      验收: 一个包含布局、id 引用和点击处理器的真实 `.tsx` UI 脚本在
+      strict 下通过类型检查，错误属性能给出稳定诊断。
 
 **B. 编译诊断直达编辑器** (宿主仓库)
 
@@ -248,6 +265,12 @@ TypeScript 插件未安装时给出明确安装提示而非崩溃。
 - [ ] **S4-5 输入配额按需上调**: 若真实项目撞到 512 files / 8 MiB,
       直接上调至传输层上限 (4096 files / 64 MiB) 并实测一个大项目。
       不预先做容量证明, 撞到再调。
+- [ ] **S4-6 原生 TSX DSL 执行链** (插件 + 宿主): 在受控 profile 中定义
+      JSX lowering/runtime 契约，宿主放行 `.tsx` 并将产物送入 Rhino UI
+      Activity；该链路独立于 S2 的字符串 XML 实现，不以正则转换或静默
+      fallback 冒充支持。
+      验收: 一个原生 TSX 布局脚本能渲染、响应点击、更新文本并主动关闭，
+      同时保留 Source Map 与编译诊断。
 
 ## S5 周边整合: 缓存、打包、编辑器
 
@@ -278,7 +301,8 @@ TypeScript 插件未安装时给出明确安装提示而非崩溃。
 - AIDL v1 transaction prefix 冻结, 新能力走 additive Bundle key。
 - Source Map 强制产出; 不用生成 JS 冒充 TS 坐标。
 - 禁止项目自定义 transformer/compiler plugin/lifecycle script。
-- `.tsx`/JSX 不在本路线内, 需要时单独立项。
+- `.tsx`/JSX 不属于 S2 最小闭环；其类型层与执行链分别按 S3-A3、S4-6
+  独立推进，在完成前继续显式拒绝。
 - 不恢复正则 stripping 作为任何形式的 fallback。
 
 ## 已明确放弃 (相对旧路线)
