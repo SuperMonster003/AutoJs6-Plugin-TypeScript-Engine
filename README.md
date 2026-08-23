@@ -4,7 +4,7 @@ AutoJs6 的完整 TypeScript 编译前端插件. 插件负责把 TypeScript 项�
 JavaScript, Source Map 和结构化诊断, 最终 JavaScript 仍由 AutoJs6 选择的
 Rhino 或 Node.js 引擎执行.
 
-> 当前状态（2026-08-23）：新版 Roadmap 的 `S1-1`–`S1-4` 已完成。插件现在通过
+> 当前状态（2026-08-23）：新版 Roadmap 的 `S1-1`–`S1-5` 已完成。插件现在通过
 > `getCompilerInfo()` 广告 `typescriptCompilerAvailable`、项目编译、语义诊断与
 > Source Map v3 四项 capability（mask `15`）；输入/输出 ZIP、Worker VFS、模块映射与
 > diagnostics URI 已端到端支持安全 UTF-8 路径（仍拒绝控制字符、畸形 Unicode、绝对路径、
@@ -19,12 +19,24 @@ Rhino 或 Node.js 引擎执行.
 > [S1-4 Public Controlled tsconfig Activation](docs/architecture/CONTROLLED_TSCONFIG_ACTIVATION_S1_4.md)。
 > `strict=false` + warning-ignore 的 focused Public Binder 回归已通过 API 31/API 35 实机与
 > API 37 模拟器。
+> Public NodeNext revision 2 也已准入：宿主按 compiler info 中独立的
+> `nodeProfileRevision/nodeConfigSchemaRevision/nodeConfigKind/
+> nodeRuntimeCapabilitiesFingerprint/nodeDeclarationProfileFingerprint` 精确构造请求，
+> 即可把 `.ts/.mts/.cts` 编译为 `.js/.mjs/.cjs` 和配对 Source Map。Node revision 1
+> 仅保留为 private/debug compatibility default，Node public config 仍为 `none`；插件锁定的
+> Node declarations 使用独立 ambient-module 索引，caller 的任意裸包导入仍需既有 package
+> authority。`.mts + .cts` 的 focused Public Binder 回归已通过 API 31/API 35 实机与 API 37
+> 模拟器；详见
+> [S1-5 NodeNext Public Admission](docs/architecture/NODE_NEXT_PUBLIC_ADMISSION_S1_5.md)。
 > `nodeRuntimeRequired` 仍为 `false`。
 > 编译服务已经可由宿主集成，但 AutoJs6 主仓库的消费端尚未实现，因此终端用户还不能
 > 直接点击运行 `.ts`。当前工作清单以 [ROADMAP.md](ROADMAP.md) 为准。
 
 <details>
 <summary>查看旧 R2 路线截至 2026-08-22 的阶段性记录</summary>
+
+> 下述文字是按当时源码状态冻结的历史记录；其中 capability=false、Node revision 2
+> Worker-result-only 等结论已由 S1-1–S1-5 取代，不表示当前行为。
 
 > 当前状态（2026-08-22）：R0、R1 已完成；R2 已完成路线 Rebaseline 与 **M2 功能闭环
 > 18/18**，并在 **M3 Contract/Output Freeze** 完成 `R2-M3-D1/D2/D3/S1/S2/S3`，M3 当前为 **9/18**；

@@ -164,6 +164,26 @@ class TypeScriptR2ContractTest {
         )
         assertEquals("profileRevision", TypeScriptR2Contract.KEY_PROFILE_REVISION)
         assertEquals(
+            "nodeProfileRevision",
+            TypeScriptR2Contract.KEY_NODE_PROFILE_REVISION,
+        )
+        assertEquals(
+            "nodeConfigSchemaRevision",
+            TypeScriptR2Contract.KEY_NODE_CONFIG_SCHEMA_REVISION,
+        )
+        assertEquals(
+            "nodeConfigKind",
+            TypeScriptR2Contract.KEY_NODE_CONFIG_KIND,
+        )
+        assertEquals(
+            "nodeRuntimeCapabilitiesFingerprint",
+            TypeScriptR2Contract.KEY_NODE_RUNTIME_CAPABILITIES_FINGERPRINT,
+        )
+        assertEquals(
+            "nodeDeclarationProfileFingerprint",
+            TypeScriptR2Contract.KEY_NODE_DECLARATION_PROFILE_FINGERPRINT,
+        )
+        assertEquals(
             "configSchemaRevision",
             TypeScriptR2Contract.KEY_CONFIG_SCHEMA_REVISION,
         )

@@ -198,9 +198,10 @@ class R2CompilerBoundaryMatrixFixtureTest {
         assertNotEquals(nodeOne.runtimeCapabilitiesFingerprint, nodeTwo.runtimeCapabilitiesFingerprint)
         assertSame(rhino, R2CompilationProfileRegistry.requireEndToEndAdmitted(rhino))
         assertSame(nodeOne, R2CompilationProfileRegistry.requireEndToEndAdmitted(nodeOne))
-        assertThrows(IllegalArgumentException::class.java) {
-            R2CompilationProfileRegistry.requireEndToEndAdmitted(nodeTwo)
-        }
+        assertSame(
+            nodeTwo,
+            R2CompilationProfileRegistry.requireEndToEndAdmitted(nodeTwo),
+        )
         assertSame(
             nodeTwo,
             R2CompilationProfileRegistry.requireWorkerResultAdmittedExactContractValue(

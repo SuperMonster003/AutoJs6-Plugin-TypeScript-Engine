@@ -167,9 +167,10 @@ class R2CompilerSyntaxMatrixFixtureTest {
             revisionOne,
             R2CompilationProfileRegistry.requireEndToEndAdmitted(revisionOne),
         )
-        assertThrows(IllegalArgumentException::class.java) {
-            R2CompilationProfileRegistry.requireEndToEndAdmitted(revisionTwo)
-        }
+        assertSame(
+            revisionTwo,
+            R2CompilationProfileRegistry.requireEndToEndAdmitted(revisionTwo),
+        )
         assertSame(
             revisionTwo,
             R2CompilationProfileRegistry.requireWorkerResultAdmittedExactContractValue(

@@ -48,7 +48,7 @@
 
 | 阶段 | 主题 | 用户可感知结果 | 状态 |
 |---|---|---|---|
-| S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 进行中 (4/7) |
+| S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 进行中 (5/7) |
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 未开始 |
 | S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 未开始 |
 | S4 | Node profile 与项目级能力 | `.mts/.cts`、多文件项目、tsconfig 常用项 | 未开始 |
@@ -98,10 +98,18 @@ S4/S5 在 S2 跑通后即可按需插队。唯一硬前提: **S2 之前必须完
       focused Public Binder 验收已通过 API 31、API 35 实机与 API 37 模拟器。
       设计与接入字段见
       [S1-4 Public Controlled tsconfig Activation](docs/architecture/CONTROLLED_TSCONFIG_ACTIVATION_S1_4.md)。
-- [ ] **S1-5 NodeNext revision 2 准入**: `.ts/.mts/.cts` →
+- [x] **S1-5 NodeNext revision 2 准入**: `.ts/.mts/.cts` →
       `.js/.mjs/.cjs` 已在 Worker 实现, 将其加入 endToEnd admitted
       authorities, 走完输出归档。
       验收: 含 `.mts` 的项目以 node profile 编译, 产出 `.mjs` 与配对 map。
+      Public classifier 现在只接受 exact Node revision 2；revision 1 继续作为
+      private/debug compatibility default，不对外开放。`getCompilerInfo()` 通过
+      additive `node*` keys 发布 Node profile/config/runtime/declaration identity，Node
+      config 仍精确为 `configKind=none`。推进中发现并修复了可信 Node declarations 的
+      ambient bare-module 引用被误送入 caller package resolver 的真实缺口；caller 任意裸包
+      仍 fail closed。focused Public Binder 验收已在 API 31、API 35 实机与 API 37
+      模拟器同时产出 `.mjs/.cjs` 及配对 map。设计与接入字段见
+      [S1-5 NodeNext Public Admission](docs/architecture/NODE_NEXT_PUBLIC_ADMISSION_S1_5.md)。
 - [ ] **S1-6 验证层瘦身**: `check` 只保留 — 单元测试、
       `verifyCompilerDistributionLock` (供应链锁)、AIDL 冻结门禁、
       一个覆盖 Rhino/Node 各一次真实编译的 smoke 任务。其余 80+ 个

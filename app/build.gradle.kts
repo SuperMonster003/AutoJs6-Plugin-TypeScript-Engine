@@ -5834,8 +5834,8 @@ val verifyR2M2P2P5NodePackageTargetResolutionV2 =
                 RegexOption.DOT_MATCHES_ALL,
             ).find(profileSource)?.groupValues?.get(1)
                 ?: error("P2-5 could not locate the end-to-end profile authority set.")
-            check("PROVISIONAL_NODE_NEXT_REVISION_2" !in endToEndSet) {
-                "P2-5 must not admit Node revision 2 to end-to-end compilation."
+            check("PROVISIONAL_NODE_NEXT_REVISION_2" in endToEndSet) {
+                "P2-5 must tolerate the later S1-5 Node revision-2 end-to-end admission."
             }
 
             val metadataSource =
@@ -6094,9 +6094,9 @@ val verifyR2M2P2P6NodeNextProgramIntegration =
             ).find(profileSource)?.groupValues?.get(1)
                 ?: error("P2-6 could not locate the end-to-end authority set.")
             check(
-                "PROVISIONAL_NODE_NEXT_REVISION_2" !in endToEndSet,
+                "PROVISIONAL_NODE_NEXT_REVISION_2" in endToEndSet,
             ) {
-                "P2-6 must not promote Node revision 2 to end-to-end admission."
+                "P2-6 must tolerate the later S1-5 Node revision-2 end-to-end admission."
             }
             val metadataSource =
                 r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
@@ -6116,7 +6116,7 @@ val verifyR2M2P2P7NodeNextResultAndPrivateOutput =
         group = "verification"
         description =
             "Verifies exact Node revision-2 Worker framed results and native-only snapshot-bound " +
-                "generated-module/private-output authority while public admission stays closed."
+                "generated-module/private-output authority under the current public admission."
         dependsOn(verifyR2M2P2P6NodeNextProgramIntegration)
         dependsOn(verifyR2M2P2P7NodeNextResultDesktop)
         dependsOn("testDebugUnitTest")
@@ -6333,11 +6333,14 @@ val verifyR2M2P2P7NodeNextResultAndPrivateOutput =
             ).find(profileSource)?.groupValues?.get(1)
                 ?: error("P2-7 could not locate the end-to-end authority set.")
             check(
-                "PROVISIONAL_NODE_NEXT_REVISION_2" !in endToEndSet &&
-                    "endToEndAdmittedAuthorities + PROVISIONAL_NODE_NEXT_REVISION_2" in
-                    profileSource,
+                "PROVISIONAL_NODE_NEXT_REVISION_2" in endToEndSet &&
+                    Regex(
+                        """workerResultAdmittedAuthorities[^=]*=\s*""" +
+                            """endToEndAdmittedAuthorities""",
+                        RegexOption.DOT_MATCHES_ALL,
+                    ).containsMatchIn(profileSource),
             ) {
-                "P2-7 must admit Node revision 2 only at the Worker-result boundary."
+                "P2-7 must preserve result admission after the S1-5 end-to-end promotion."
             }
 
             val metadataSource =
@@ -6348,7 +6351,7 @@ val verifyR2M2P2P7NodeNextResultAndPrivateOutput =
                 "R2-M2-P2-7 result/private output verified: Worker result=11 keys, " +
                     "outputs=4 keys, P2 framed results=7, native exact-snapshot mapping/archive " +
                     "authority bound, P1/C6/schema-v1 24/37/exact 30/40/47 preserved, " +
-                    "public closed",
+                    "S1-5 public admission active",
             )
         }
     }
@@ -6359,7 +6362,7 @@ val verifyR2M2P2P8FinalAggregate =
         description =
             "Closes the R2-M2-P2 internal module-kind/output policy by aggregating P1, " +
                 "C6 v1, P2-0..P2-7, APK/API/source/public fences, and the final regression " +
-                "inventory without promoting public or end-to-end Node revision-2 admission."
+                "inventory while tolerating the later S1-5 Node revision-2 admission."
 
         // Keep every historical slice directly visible in the final graph. The dependencies are
         // intentionally explicit even where the P2 chain already reaches an earlier gate.
@@ -6577,7 +6580,7 @@ val verifyR2M2P2P8FinalAggregate =
                 "sharedTypeScript603RevisionTwoParityFixtureMatchesPureKernel",
                 "provisionalNodeNextAuthorityIsExactConfigNoneTsOnlyAndIndependentFromRhino",
                 "nodeRevisionTwoIsExactRegisteredOnlyAndCannotReplaceTheRevisionOneDefault",
-                "registeredNodeRevisionTwoCannotEnterTheEndToEndPipeline",
+                "publicNodeRevisionTwoCanEnterTheEndToEndPipeline",
                 "exactProfileMatrixOpensOnlyNodeRevisionTwoMtsAndCtsExecutables",
                 "nodeRevisionTwoNoBoundaryUsesExactThirtyFieldStartAndNoConfigFrames",
                 "nodeRevisionTwoMetadataUsesExactFortyFieldStartAndPrecedesOrdinaryFiles",
@@ -6643,20 +6646,20 @@ val verifyR2M2P2P8FinalAggregate =
                 .findAll(endToEndSet)
                 .map { match -> match.value }
                 .toSet()
-            val workerResultOnlyAdmission = Regex(
+            val workerResultAdmission = Regex(
                 """workerResultAdmittedAuthorities[^=]*=\s*""" +
-                    """endToEndAdmittedAuthorities\s*\+\s*""" +
-                    """PROVISIONAL_NODE_NEXT_REVISION_2""",
+                    """endToEndAdmittedAuthorities""",
                 RegexOption.DOT_MATCHES_ALL,
             )
             check(
                 admittedAuthorityNames == setOf(
                     "PROVISIONAL_RHINO",
                     "PROVISIONAL_NODE_NEXT_REVISION_1",
+                    "PROVISIONAL_NODE_NEXT_REVISION_2",
                 ) &&
-                    workerResultOnlyAdmission.containsMatchIn(profileSource),
+                    workerResultAdmission.containsMatchIn(profileSource),
             ) {
-                "P2-8 must keep Node revision 2 Worker-result-only and out of end-to-end admission."
+                "P2-8 must preserve exact S1-5 end-to-end and Worker-result admission."
             }
 
             val metadataSource =
@@ -6666,8 +6669,8 @@ val verifyR2M2P2P8FinalAggregate =
             logger.lifecycle(
                 "R2-M2-P2-8 final aggregate verified: P1 + C6 v1=12/6 + P2-0..P2-7, " +
                     "mapping=10/19, catalog=4/8/5, resolver v2=14/4, exact starts=30/40/47, " +
-                    "result=11 keys, outputs=4 keys, APK/API/source/public fences closed, " +
-                    "Node revision 2 Worker-result-only, compiler capability mask=15",
+                    "result=11 keys, outputs=4 keys, APK/API/source fences closed, " +
+                    "Node revision 2 public end-to-end, compiler capability mask=15",
             )
         }
     }
@@ -6952,15 +6955,15 @@ val verifyR2M2P3CompilerBundleGolden =
                 admittedAuthorityNames == setOf(
                     "PROVISIONAL_RHINO",
                     "PROVISIONAL_NODE_NEXT_REVISION_1",
+                    "PROVISIONAL_NODE_NEXT_REVISION_2",
                 ) &&
                     Regex(
                         """workerResultAdmittedAuthorities[^=]*=\s*""" +
-                            """endToEndAdmittedAuthorities\s*\+\s*""" +
-                            """PROVISIONAL_NODE_NEXT_REVISION_2""",
+                            """endToEndAdmittedAuthorities""",
                         RegexOption.DOT_MATCHES_ALL,
                     ).containsMatchIn(profileSource),
             ) {
-                "R2-M2-P3 changed Node revision-2 Worker-result-only admission."
+                "R2-M2-P3 must preserve the later S1-5 Node revision-2 admission."
             }
 
             val metadataSource =
@@ -6991,7 +6994,7 @@ val verifyR2M2P3CompilerBundleGolden =
             logger.lifecycle(
                 "R2-M2-P3 compiler-bundle golden verified: desktop TypeScript semantics + " +
                     "JVM fixture contract, production allowJs/resolveJsonModule/source-kind/" +
-                    "JSON-output admission unchanged, Node revision 2 Worker-result-only, " +
+                    "JSON-output admission unchanged, Node revision 2 public end-to-end, " +
                     "compiler capability mask=15, runtime engines=0",
             )
         }
@@ -7362,15 +7365,15 @@ val verifyR2M2P4CompilerSyntax =
                 admittedAuthorityNames == setOf(
                     "PROVISIONAL_RHINO",
                     "PROVISIONAL_NODE_NEXT_REVISION_1",
+                    "PROVISIONAL_NODE_NEXT_REVISION_2",
                 ) &&
                     Regex(
                         """workerResultAdmittedAuthorities[^=]*=\s*""" +
-                            """endToEndAdmittedAuthorities\s*\+\s*""" +
-                            """PROVISIONAL_NODE_NEXT_REVISION_2""",
+                            """endToEndAdmittedAuthorities""",
                         RegexOption.DOT_MATCHES_ALL,
                     ).containsMatchIn(profileSource),
             ) {
-                "R2-M2-P4 changed Node revision-2 Worker-result-only admission."
+                "R2-M2-P4 must preserve the later S1-5 Node revision-2 admission."
             }
 
             val metadataSource =
@@ -7400,7 +7403,7 @@ val verifyR2M2P4CompilerSyntax =
             logger.lifecycle(
                 "R2-M2-P4 compiler syntax verified: TypeScript 6.0.3, syntax=7, profiles=2, " +
                     "cases=14, compiles=56, two executable roots/four outputs per case, " +
-                    "standard decorators, Node revision 2 Worker-result-only, " +
+                    "standard decorators, Node revision 2 public end-to-end, " +
                     "compiler capability mask=15, runtime engines=0",
             )
         }
@@ -7984,9 +7987,9 @@ val verifyR2M2X1PublicShapedDeterministicBundle =
             check(
                 "PROVISIONAL_RHINO" in endToEndAuthorities &&
                     "PROVISIONAL_NODE_NEXT_REVISION_1" in endToEndAuthorities &&
-                    "PROVISIONAL_NODE_NEXT_REVISION_2" !in endToEndAuthorities
+                    "PROVISIONAL_NODE_NEXT_REVISION_2" in endToEndAuthorities
             ) {
-                "R2-M2-X1 must keep end-to-end admission exact to Rhino and Node revision 1."
+                "R2-M2-X1 must preserve exact S1-5 end-to-end profile admission."
             }
             val workerResultAuthorities = between(
                 profileSource,
@@ -7994,10 +7997,10 @@ val verifyR2M2X1PublicShapedDeterministicBundle =
                 "fun require(profile:",
             )
             check(
-                "endToEndAdmittedAuthorities + PROVISIONAL_NODE_NEXT_REVISION_2" in
+                "endToEndAdmittedAuthorities" in
                     workerResultAuthorities
             ) {
-                "R2-M2-X1 must keep Node revision 2 Worker-result-only."
+                "R2-M2-X1 must preserve the unified end-to-end/Worker-result admission."
             }
 
             val probeSource = r2CompilationProbeSource.asFile.readText(Charsets.UTF_8)
@@ -8007,9 +8010,10 @@ val verifyR2M2X1PublicShapedDeterministicBundle =
                 markers = listOf(
                     "R2CompilationControlOrigin.DEBUG_PROBE",
                     "R2CompilationProfileRegistry.requireEndToEndAdmitted(profileAuthority)",
-                    "profileAuthority.profile == R2ProjectProfile.PROVISIONAL_RHINO ||",
+                    "profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO ||",
+                    "R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2 ||",
                     "origin == R2CompilationControlOrigin.DEBUG_PROBE",
-                    "val profileAuthority = R2CompilationProfileRegistry.PROVISIONAL_RHINO",
+                    "Public compilation requires the exact Rhino or NodeNext revision-2 authority.",
                 ),
             )
             val serviceSource = r2PublicPreviewServiceSource.asFile.readText(Charsets.UTF_8)
@@ -8056,7 +8060,8 @@ val verifyR2M2X1PublicShapedDeterministicBundle =
                     "R2OutputArchiveSchemaV1.artifactInventoryFingerprint(normalizedOutputFiles)",
                     "R2OutputArchiveSchemaV1.moduleInventoryFingerprint(outputFiles)",
                     "assertStableServiceBundlesEqual(",
-                    "The external public preview remains Rhino-only until S1-5 NodeNext admission.",
+                    "publicNodeRevisionTwoEmitsMjsAndCjsWithPairedSourceMaps",
+                    "The external request must select an exact public profile authority.",
                     "remove(R2CompilationProbeProtocol.KEY_EXPANDED_WORKER_CAPACITY)",
                     "TypeScriptPluginCapabilityKeys.NODE_RUNTIME_REQUIRED",
                 ),
@@ -8079,8 +8084,8 @@ val verifyR2M2X1PublicShapedDeterministicBundle =
                 source = probeTestSource,
                 markers = listOf(
                     "debugNodeProfileBindsItsOwnExactRuntimeAuthority",
-                    "publicPreviewCannotActivateTheInternalNodeProfile",
-                    "registeredNodeRevisionTwoCannotEnterTheEndToEndPipeline",
+                    "publicPreviewRejectsLegacyNodeRevisionOne",
+                    "publicNodeRevisionTwoCanEnterTheEndToEndPipeline",
                 ),
             )
 
@@ -8109,7 +8114,7 @@ val verifyR2M2X1PublicShapedDeterministicBundle =
             logger.lifecycle(
                 "R2-M2-X1 pre-device source/JVM/APK evidence verified: private same-UID " +
                     "admission over frozen Binder/PFD/ACK/callback service surface, Rhino r1 + " +
-                    "NodeNext r1, two roots/two repeats, Node r2 Worker-result-only, " +
+                    "NodeNext r1, two roots/two repeats, Node r2 public end-to-end, " +
                     "compiler capability mask=15",
             )
         }
@@ -8342,9 +8347,9 @@ val verifyR2M2X2DiagnosticStopEmitModel =
             check(
                 "PROVISIONAL_RHINO" in endToEndAuthorities &&
                     "PROVISIONAL_NODE_NEXT_REVISION_1" in endToEndAuthorities &&
-                    "PROVISIONAL_NODE_NEXT_REVISION_2" !in endToEndAuthorities
+                    "PROVISIONAL_NODE_NEXT_REVISION_2" in endToEndAuthorities
             ) {
-                "R2-M2-X2 must keep end-to-end admission exact to Rhino and Node revision 1."
+                "R2-M2-X2 must preserve exact S1-5 end-to-end profile admission."
             }
             val workerResultAuthorities = between(
                 profileSource,
@@ -8352,10 +8357,10 @@ val verifyR2M2X2DiagnosticStopEmitModel =
                 "fun require(profile:",
             )
             check(
-                "endToEndAdmittedAuthorities + PROVISIONAL_NODE_NEXT_REVISION_2" in
+                "endToEndAdmittedAuthorities" in
                     workerResultAuthorities
             ) {
-                "R2-M2-X2 must keep Node revision 2 Worker-result-only."
+                "R2-M2-X2 must preserve the unified end-to-end/Worker-result admission."
             }
 
             val probeSource = r2CompilationProbeSource.asFile.readText(Charsets.UTF_8)
@@ -8366,11 +8371,12 @@ val verifyR2M2X2DiagnosticStopEmitModel =
             )
             check(
                 "R2CompilationProfileRegistry.PROVISIONAL_RHINO" in publicClassifier &&
+                    "PROVISIONAL_NODE_NEXT_REVISION_2" in publicClassifier &&
                     "PROVISIONAL_NODE_NEXT_REVISION_1" !in publicClassifier &&
                     "ACCEPTED_CONTROLLED_TSCONFIG" in publicClassifier &&
                     "rawConfigAuthority = R2RawProjectConfigAuthority(" in publicClassifier
             ) {
-                "R2-M2-X2 must keep public Node closed while admitting controlled tsconfig."
+                "R2-M2-X2 must admit only Node rev2 publicly and keep tsconfig Rhino-only."
             }
             val probeTestSource =
                 r2CompilationProbeProtocolTestSource.asFile.readText(Charsets.UTF_8)
@@ -8378,9 +8384,10 @@ val verifyR2M2X2DiagnosticStopEmitModel =
                 label = "public admission fences",
                 source = probeTestSource,
                 markers = listOf(
-                    "publicPreviewCannotActivateTheInternalNodeProfile",
+                    "publicPreviewRejectsLegacyNodeRevisionOne",
                     "completeControlledTsConfigMetadataCreatesExactPublicRawConfigControls",
-                    "registeredNodeRevisionTwoCannotEnterTheEndToEndPipeline",
+                    "publicNodeRevisionTwoCanEnterTheEndToEndPipeline",
+                    "completeNodeRevisionTwoMetadataCreatesPublicConfigNoneControls",
                 ),
             )
 
@@ -8408,7 +8415,7 @@ val verifyR2M2X2DiagnosticStopEmitModel =
             logger.lifecycle(
                 "R2-M2-X2 pre-device source/JVM/APK evidence verified: unified options/" +
                     "syntactic/global/semantic no-emit model; Android Rhino r1 + NodeNext r1 " +
-                    "source-reachable diagnostics-only matrix; Node r2 Worker-result-only; " +
+                    "source-reachable diagnostics-only matrix; Node r2 public end-to-end; " +
                     "compiler capability mask=15; controlled tsconfig revision 2 active",
             )
         }
@@ -8657,9 +8664,9 @@ val verifyR2M2X3StableConfigurationAndResolutionFailures =
             check(
                 "PROVISIONAL_RHINO" in endToEndAuthorities &&
                     "PROVISIONAL_NODE_NEXT_REVISION_1" in endToEndAuthorities &&
-                    "PROVISIONAL_NODE_NEXT_REVISION_2" !in endToEndAuthorities
+                    "PROVISIONAL_NODE_NEXT_REVISION_2" in endToEndAuthorities
             ) {
-                "R2-M2-X3 must keep Node revision 2 out of end-to-end admission."
+                "R2-M2-X3 must preserve exact S1-5 end-to-end profile admission."
             }
             val publicClassifier = between(
                 r2CompilationProbeSource.asFile.readText(Charsets.UTF_8),
@@ -8668,20 +8675,22 @@ val verifyR2M2X3StableConfigurationAndResolutionFailures =
             )
             check(
                 "R2CompilationProfileRegistry.PROVISIONAL_RHINO" in publicClassifier &&
+                    "PROVISIONAL_NODE_NEXT_REVISION_2" in publicClassifier &&
                     "PROVISIONAL_NODE_NEXT_REVISION_1" !in publicClassifier &&
                     "ACCEPTED_CONTROLLED_TSCONFIG" in publicClassifier &&
                     "rawConfigAuthority = R2RawProjectConfigAuthority(" in publicClassifier
             ) {
-                "R2-M2-X3 must keep public Node closed while admitting controlled tsconfig."
+                "R2-M2-X3 must admit only Node rev2 publicly and keep tsconfig Rhino-only."
             }
             val probeTests = r2CompilationProbeProtocolTestSource.asFile.readText(Charsets.UTF_8)
             requireMarkers(
                 label = "public promotion fences",
                 source = probeTests,
                 markers = listOf(
-                    "publicPreviewCannotActivateTheInternalNodeProfile",
+                    "publicPreviewRejectsLegacyNodeRevisionOne",
                     "completeControlledTsConfigMetadataCreatesExactPublicRawConfigControls",
-                    "registeredNodeRevisionTwoCannotEnterTheEndToEndPipeline",
+                    "publicNodeRevisionTwoCanEnterTheEndToEndPipeline",
+                    "completeNodeRevisionTwoMetadataCreatesPublicConfigNoneControls",
                 ),
             )
             val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
@@ -8708,7 +8717,7 @@ val verifyR2M2X3StableConfigurationAndResolutionFailures =
                 "R2-M2-X3 and M2 stable-failure closure verified: internal config=11/11, " +
                     "resolution=18/18 with 900001..900018, pre-Program/stop-emit isolation, " +
                     "outside-snapshot positive reads/default resolver/ts.sys/network=0, " +
-                    "formal input-archive schema v1, Node r2 Worker-result-only, " +
+                    "formal input-archive schema v1, Node r2 public end-to-end, " +
                     "compiler capability mask=15",
             )
         }

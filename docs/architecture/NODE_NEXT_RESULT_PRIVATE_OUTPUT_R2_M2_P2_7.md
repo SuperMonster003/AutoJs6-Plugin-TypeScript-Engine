@@ -1,5 +1,11 @@
 # R2-M2-P2-7 NodeNext Result and Private Output
 
+> **S1-5 current-state amendment（2026-08-23）。** P2-7 的 Worker-result-only 边界已被
+> S1-5 有意提升：exact Node revision 2 现在进入 public end-to-end config-none compilation；
+> revision 1 仍是 private/debug compatibility default。P2-7 的 result/mapping/output 设计继续
+> 被复用，当前接入见
+> [S1-5 NodeNext Public Admission](NODE_NEXT_PUBLIC_ADMISSION_S1_5.md)。
+
 > **R2-M3-S1 supersession（2026-08-14）。** 本页中的 14/27-field 与 20/30/37-field input starts
 > 是 pre-S1 receipt/provenance，不是当前 accepted frame。Formal input revision 1 的对应 Worker
 > exact counts 为 24/37 与 30/40/47，见

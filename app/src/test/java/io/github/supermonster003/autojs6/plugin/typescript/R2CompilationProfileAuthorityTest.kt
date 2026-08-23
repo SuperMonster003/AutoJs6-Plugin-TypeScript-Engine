@@ -222,9 +222,10 @@ class R2CompilationProfileAuthorityTest {
         )
         assertEquals(true, R2CompilationProfileRegistry.containsExact(revisionTwo))
 
-        assertThrows(IllegalArgumentException::class.java) {
-            R2CompilationProfileRegistry.requireEndToEndAdmitted(revisionTwo)
-        }
+        assertSame(
+            revisionTwo,
+            R2CompilationProfileRegistry.requireEndToEndAdmitted(revisionTwo),
+        )
         assertSame(
             revisionTwo,
             R2CompilationProfileRegistry.requireWorkerResultAdmittedExactContractValue(

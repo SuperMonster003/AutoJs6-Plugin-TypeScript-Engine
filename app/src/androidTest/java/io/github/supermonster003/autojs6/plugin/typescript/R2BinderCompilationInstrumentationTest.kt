@@ -123,6 +123,41 @@ class R2BinderCompilationInstrumentationTest {
                         TypeScriptR2Contract.KEY_DECLARATION_PROFILE_FINGERPRINT,
                     ),
                 )
+                val nodeAuthority =
+                    R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+                assertEquals(
+                    nodeAuthority.profileRevision,
+                    compilerInfo.getInt(
+                        TypeScriptR2Contract.KEY_NODE_PROFILE_REVISION,
+                        -1,
+                    ),
+                )
+                assertEquals(
+                    nodeAuthority.configSchemaRevision,
+                    compilerInfo.getInt(
+                        TypeScriptR2Contract.KEY_NODE_CONFIG_SCHEMA_REVISION,
+                        -1,
+                    ),
+                )
+                assertEquals(
+                    nodeAuthority.configKind,
+                    compilerInfo.getString(TypeScriptR2Contract.KEY_NODE_CONFIG_KIND),
+                )
+                assertEquals(
+                    nodeAuthority.runtimeCapabilitiesFingerprint,
+                    compilerInfo.getString(
+                        TypeScriptR2Contract.KEY_NODE_RUNTIME_CAPABILITIES_FINGERPRINT,
+                    ),
+                )
+                assertEquals(
+                    R2TrustedDeclarations.loadForProfile(
+                        context,
+                        nodeAuthority.profile,
+                    ).profileFingerprint,
+                    compilerInfo.getString(
+                        TypeScriptR2Contract.KEY_NODE_DECLARATION_PROFILE_FINGERPRINT,
+                    ),
+                )
 
                 val callback = RecordingCallback()
                 val ticket = startPublicCompilationWhenSupervisorReady(
@@ -160,6 +195,106 @@ class R2BinderCompilationInstrumentationTest {
                     terminal.getString(TypeScriptCompilerContract.KEY_OUTCOME),
                 )
                 assertEquals(1, callback.terminalCount.get())
+            } finally {
+                fixture.delete()
+            }
+        }
+    }
+
+    @Test
+    fun publicNodeRevisionTwoEmitsMjsAndCjsWithPairedSourceMaps() {
+        bindCompilerService().use { session ->
+            val nodeAuthority =
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+            val fixture = createFixture(
+                requestId = newRequestId("public-node-revision-two"),
+                sources = linkedMapOf(
+                    "sources/common.cts" to
+                        "import http = require(\"http\");\n" +
+                        "export const commonValue: number = http.METHODS.length;\n",
+                    "sources/module.mts" to
+                        "export const moduleValue: number = 1;\n",
+                ),
+                rootPaths = listOf("sources/common.cts", "sources/module.mts"),
+                entryPath = "sources/module.mts",
+                profileAuthority = nodeAuthority,
+            )
+            try {
+                val terminal = compileAndAcknowledge(
+                    compiler = session.compiler,
+                    fixture = fixture,
+                    request = fixture.publicRequest(),
+                    publicShapedAcknowledgement = true,
+                )
+                val outcome = terminal.getString(TypeScriptCompilerContract.KEY_OUTCOME)
+                val unexpectedDiagnostics = if (
+                    outcome != TypeScriptCompilerContract.OUTCOME_EMITTED &&
+                    fixture.output.length() > 0L
+                ) {
+                    runCatching {
+                        ZipFile(fixture.output).use { archive ->
+                            archive.getInputStream(
+                                archive.getEntry(R2PrivateOutputArchive.DIAGNOSTICS_PATH),
+                            ).use { input -> String(input.readBytes(), StandardCharsets.UTF_8) }
+                        }
+                    }.getOrElse { error -> "<unreadable diagnostics: ${error.message}>" }
+                } else {
+                    ""
+                }
+                assertEquals(
+                    unexpectedDiagnostics,
+                    TypeScriptCompilerContract.OUTCOME_EMITTED,
+                    outcome,
+                )
+                assertTrue(
+                    terminal.getBoolean(TypeScriptCompilerContract.KEY_SUCCEEDED, false),
+                )
+                assertEquals(
+                    0,
+                    terminal.getInt(TypeScriptCompilerContract.KEY_DIAGNOSTIC_COUNT, -1),
+                )
+                assertEquals(
+                    2,
+                    terminal.getInt(TypeScriptCompilerContract.KEY_EMITTED_MODULE_COUNT, -1),
+                )
+
+                ZipArchiveV1Validator.validate(fixture.output, ZipArchiveV1Limits.OUTPUT)
+                ZipFile(fixture.output).use { archive ->
+                    assertEquals(
+                        setOf(
+                            R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH,
+                            R2PrivateOutputArchive.DIAGNOSTICS_PATH,
+                            "modules/common.cjs",
+                            "maps/common.cjs.map",
+                            "modules/module.mjs",
+                            "maps/module.mjs.map",
+                        ),
+                        archive.entries().asSequence().map { entry -> entry.name }.toSet(),
+                    )
+                    val manifest = R2StrictJson.parseObject(
+                        archive.getInputStream(
+                            archive.getEntry(R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH),
+                        ).use { input -> input.readBytes() },
+                    )
+                    assertEquals(
+                        TypeScriptCompilerContract.PROFILE_NODE,
+                        manifest["targetProfile"],
+                    )
+                    assertEquals(
+                        nodeAuthority.profileRevision.toLong(),
+                        (manifest["profileRevision"] as R2StrictJson.NumberToken)
+                            .source.toLong(),
+                    )
+                    assertEquals("modules/module.mjs", manifest["entryModulePath"])
+                    assertEquals(
+                        R2NodeModuleOutputPolicy.fingerprint,
+                        manifest["nodeModuleOutputPolicyFingerprint"],
+                    )
+                    assertEquals(
+                        2,
+                        (manifest["generatedModuleMappings"] as List<*>).size,
+                    )
+                }
             } finally {
                 fixture.delete()
             }
@@ -1932,6 +2067,7 @@ class R2BinderCompilationInstrumentationTest {
         requestId: String,
         sources: LinkedHashMap<String, String>,
         rootPaths: List<String>,
+        entryPath: String = "sources/main.ts",
         profileAuthority: R2CompilationProfileAuthority =
             R2CompilationProfileRegistry.PROVISIONAL_RHINO,
         workerSpinMilliseconds: Int = 0,
@@ -1943,6 +2079,26 @@ class R2BinderCompilationInstrumentationTest {
         timeoutMs: Long = DEFAULT_TIMEOUT_MILLIS,
         terminalCleanupDelayMilliseconds: Int = 0,
     ): CompilationFixture {
+        require(entryPath in sources)
+        require(entryPath in rootPaths)
+        require(
+            tsconfigJson == null ||
+                profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+        ) {
+            "Controlled tsconfig is admitted only for the public Rhino profile."
+        }
+        val projectId = "binder-project"
+        val entrySourceUri = if (
+            profileAuthority ==
+            R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+        ) {
+            R2GeneratedModuleMappingPolicy.originalSourceUri(
+                projectId = projectId,
+                sourcePath = "/$entryPath",
+            )
+        } else {
+            "autojs://source/project/main.ts"
+        }
         val metadata = CompilerDistributionMetadata.load(context)
         val files = sources.map { (path, text) ->
             val bytes = text.toByteArray(StandardCharsets.UTF_8)
@@ -2002,9 +2158,9 @@ class R2BinderCompilationInstrumentationTest {
                 "\"contractHash\":\"${TypeScriptCompilerContract.HASH}\"," +
                 "\"inputArchiveTransportVersion\":" +
                 "${TypeScriptCompilerContract.INPUT_ARCHIVE_TRANSPORT_VERSION}," +
-                "\"requestId\":\"$requestId\",\"projectId\":\"binder-project\"," +
-                "\"entrySourceUri\":\"autojs://source/project/main.ts\"," +
-                "\"entryPath\":\"sources/main.ts\",\"targetProfile\":\"" +
+                "\"requestId\":\"$requestId\",\"projectId\":\"$projectId\"," +
+                "\"entrySourceUri\":\"$entrySourceUri\"," +
+                "\"entryPath\":\"$entryPath\",\"targetProfile\":\"" +
                 "${profileAuthority.profile.contractValue}\"," +
                 "\"compilationMode\":\"development\"," +
                 "\"profileSchemaRevision\":" +
@@ -2042,6 +2198,9 @@ class R2BinderCompilationInstrumentationTest {
             .apply { writeText(OUTPUT_SENTINEL) }
         return CompilationFixture(
             requestId = requestId,
+            projectId = projectId,
+            entrySourceUri = entrySourceUri,
+            entryPath = entryPath,
             input = input,
             output = output,
             inputArchiveSha256 = R2Digests.sha256(input.readBytes()),
@@ -2780,10 +2939,10 @@ class R2BinderCompilationInstrumentationTest {
             TypeScriptCompilerContract.OUTPUT_ARCHIVE_TRANSPORT_VERSION,
         )
         putString(TypeScriptCompilerContract.KEY_REQUEST_ID, requestId)
-        putString(TypeScriptCompilerContract.KEY_PROJECT_ID, "binder-project")
+        putString(TypeScriptCompilerContract.KEY_PROJECT_ID, projectId)
         putString(
             TypeScriptCompilerContract.KEY_ENTRY_SOURCE_URI,
-            "autojs://source/project/main.ts",
+            entrySourceUri,
         )
         putString(
             TypeScriptCompilerContract.KEY_TARGET_PROFILE,
@@ -2851,9 +3010,11 @@ class R2BinderCompilationInstrumentationTest {
     }
 
     private fun CompilationFixture.publicRequest() = request().apply {
-        check(profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO) {
-            "The external public preview remains Rhino-only until S1-5 NodeNext admission."
-        }
+        check(
+            profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
+                profileAuthority ==
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+        ) { "The external request must select an exact public profile authority." }
         remove(R2CompilationProbeProtocol.KEY_ENABLED)
         remove(R2CompilationProbeProtocol.KEY_INPUT_ARCHIVE_SHA256)
         remove(R2CompilationProbeProtocol.KEY_REQUEST_MANIFEST_SHA256)
@@ -2866,7 +3027,7 @@ class R2BinderCompilationInstrumentationTest {
         )
         putInt(
             TypeScriptR2Contract.KEY_PROFILE_REVISION,
-            R2CompilationProfileRegistry.PROVISIONAL_RHINO.profileRevision,
+            profileAuthority.profileRevision,
         )
         val config = rawConfigAuthority
         putInt(
@@ -3185,6 +3346,9 @@ class R2BinderCompilationInstrumentationTest {
 
     private data class CompilationFixture(
         val requestId: String,
+        val projectId: String,
+        val entrySourceUri: String,
+        val entryPath: String,
         val input: File,
         val output: File,
         val inputArchiveSha256: String,

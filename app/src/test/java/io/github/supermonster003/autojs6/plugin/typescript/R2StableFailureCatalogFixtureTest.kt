@@ -164,9 +164,10 @@ class R2StableFailureCatalogFixtureTest {
         listOf(rhino, nodeRevisionOne, nodeRevisionTwo).forEach { authority ->
             assertEquals(TypeScriptR2Contract.CONFIG_KIND_NONE, authority.configKind)
         }
-        assertThrows(IllegalArgumentException::class.java) {
-            R2CompilationProfileRegistry.requireEndToEndAdmitted(nodeRevisionTwo)
-        }
+        assertSame(
+            nodeRevisionTwo,
+            R2CompilationProfileRegistry.requireEndToEndAdmitted(nodeRevisionTwo),
+        )
         assertSame(
             nodeRevisionTwo,
             R2CompilationProfileRegistry.requireWorkerResultAdmittedExactContractValue(

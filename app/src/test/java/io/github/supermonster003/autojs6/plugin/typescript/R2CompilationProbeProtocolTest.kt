@@ -262,7 +262,7 @@ class R2CompilationProbeProtocolTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun publicPreviewCannotActivateTheInternalNodeProfile() {
+    fun publicPreviewRejectsLegacyNodeRevisionOne() {
         validControls().copy(
             runtimeCapabilitiesFingerprint =
                 R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT
@@ -274,15 +274,19 @@ class R2CompilationProbeProtocolTest {
         )
     }
 
-    @Test(expected = IllegalArgumentException::class)
-    fun registeredNodeRevisionTwoCannotEnterTheEndToEndPipeline() {
+    @Test
+    fun publicNodeRevisionTwoCanEnterTheEndToEndPipeline() {
         val revisionTwo = R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
-        validControls().copy(
+        val authority = validControls().copy(
             runtimeCapabilitiesFingerprint = revisionTwo.runtimeCapabilitiesFingerprint,
+            origin = R2CompilationControlOrigin.PUBLIC_PREVIEW,
             profileAuthority = revisionTwo,
         ).authority(
             validRequest().copy(targetProfile = TypeScriptCompilerContract.PROFILE_NODE),
         )
+
+        assertEquals(R2ProjectProfile.PROVISIONAL_NODE_NEXT, authority.profile)
+        assertEquals(revisionTwo, authority.profileAuthority)
     }
 
     @Test(expected = IllegalArgumentException::class)
@@ -347,6 +351,31 @@ class R2CompilationProbeProtocolTest {
         assertEquals(SHA_B, controls.requestManifestSha256)
         assertEquals(
             R2CompilationProfileRegistry.PROVISIONAL_RHINO.runtimeCapabilitiesFingerprint,
+            controls.runtimeCapabilitiesFingerprint,
+        )
+    }
+
+    @Test
+    fun completeNodeRevisionTwoMetadataCreatesPublicConfigNoneControls() {
+        val metadata = validNodePublicMetadata()
+        val classification = classifyPublic(metadata)
+        val controls = requireNotNull(publicControlsOrNull(metadata))
+
+        assertEquals(
+            R2PublicCompilationDisposition.ACCEPTED_CONFIG_NONE,
+            classification.disposition,
+        )
+        assertEquals(controls, classification.controls)
+        assertNull(classification.errorCode)
+        assertEquals(R2CompilationControlOrigin.PUBLIC_PREVIEW, controls.origin)
+        assertEquals(
+            R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+            controls.profileAuthority,
+        )
+        assertNull(controls.rawConfigAuthority)
+        assertEquals(
+            R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+                .runtimeCapabilitiesFingerprint,
             controls.runtimeCapabilitiesFingerprint,
         )
     }
@@ -478,6 +507,14 @@ class R2CompilationProbeProtocolTest {
         val unsupported = listOf(
             validControlledTsConfigMetadata().copy(configSchemaRevision = 3),
             validPublicMetadata().copy(configKind = "future-config"),
+            validNodePublicMetadata().copy(
+                configSchemaRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION,
+                configKind = TypeScriptR2Contract.CONFIG_KIND_TSCONFIG,
+                configByteLength = 48L,
+                configSha256 = SHA_A,
+                configPolicyRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
+                configPolicyFingerprint = R2ControlledTsConfigPolicy.fingerprint,
+            ),
             validControlledTsConfigMetadata().copy(
                 configPolicyRevision =
                     TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION + 1,
@@ -633,6 +670,7 @@ class R2CompilationProbeProtocolTest {
 
     private fun validPublicMetadata() = R2PublicCompilationMetadata(
         inputArchiveSchemaRevision = TypeScriptR2Contract.INPUT_ARCHIVE_SCHEMA_REVISION,
+        targetProfile = TypeScriptCompilerContract.PROFILE_RHINO,
         profileSchemaRevision = TypeScriptCompilerContract.PROFILE_SCHEMA_REVISION,
         profileRevision = R2CompilationProfileRegistry.PROVISIONAL_RHINO.profileRevision,
         configSchemaRevision = R2CompilationProfileRegistry.CONFIG_SCHEMA_REVISION,
@@ -646,6 +684,17 @@ class R2CompilationProbeProtocolTest {
         declarationProfileFingerprint = SHA_E,
         runtimeCapabilitiesFingerprint = R2RuntimeCapabilityMetadata.fingerprint,
     )
+
+    private fun validNodePublicMetadata(): R2PublicCompilationMetadata {
+        val authority = R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+        return validPublicMetadata().copy(
+            targetProfile = TypeScriptCompilerContract.PROFILE_NODE,
+            profileRevision = authority.profileRevision,
+            configSchemaRevision = authority.configSchemaRevision,
+            configKind = authority.configKind,
+            runtimeCapabilitiesFingerprint = authority.runtimeCapabilitiesFingerprint,
+        )
+    }
 
     private fun validControlledTsConfigMetadata() = validPublicMetadata().copy(
         configSchemaRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION,

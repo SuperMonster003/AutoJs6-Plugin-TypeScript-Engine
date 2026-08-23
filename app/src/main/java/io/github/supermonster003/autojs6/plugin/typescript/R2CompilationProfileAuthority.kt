@@ -204,8 +204,9 @@ internal object R2CompilationProfileRegistry {
     }
 
     /**
-     * P2 internal NodeNext authority. Exact ingress, Worker Program/result, and private-output
-     * handling are admitted for this identity; end-to-end and public admission remain closed.
+     * Exact NodeNext authority for `.ts/.mts/.cts` ingress, Worker Program/result, and formal
+     * private output. S1-5 admits this revision end to end; revision 1 remains the compatibility
+     * default for private callers that omit an explicit revision.
      */
     val PROVISIONAL_NODE_NEXT_REVISION_2: R2CompilationProfileAuthority = run {
         val effectiveOptionsFingerprint = R2Digests.sha256(
@@ -317,10 +318,11 @@ internal object R2CompilationProfileRegistry {
     private val endToEndAdmittedAuthorities: Set<R2CompilationProfileAuthority> = setOf(
         PROVISIONAL_RHINO,
         PROVISIONAL_NODE_NEXT_REVISION_1,
+        PROVISIONAL_NODE_NEXT_REVISION_2,
     )
 
     private val workerResultAdmittedAuthorities: Set<R2CompilationProfileAuthority> =
-        endToEndAdmittedAuthorities + PROVISIONAL_NODE_NEXT_REVISION_2
+        endToEndAdmittedAuthorities
 
     fun require(profile: R2ProjectProfile): R2CompilationProfileAuthority = when (profile) {
         R2ProjectProfile.PROVISIONAL_RHINO -> PROVISIONAL_RHINO

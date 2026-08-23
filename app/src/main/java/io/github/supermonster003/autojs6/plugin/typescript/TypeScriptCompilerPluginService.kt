@@ -270,8 +270,6 @@ class TypeScriptCompilerPluginService : Service() {
                 val transportControls = request.transportProbeControlsOrNull(callingUid)
                 val debugR2Requested =
                     request.r2DebugCompilationRequested()
-                val supportedDeclarationProfileFingerprint =
-                    compilerHost.snapshot().declarationProfileFingerprint
                 val debugR2FormalAuthorityError =
                     if (debugR2Requested) {
                         request.r2DebugFormalInputAuthorityError(
@@ -292,9 +290,7 @@ class TypeScriptCompilerPluginService : Service() {
                     r2ControlPlaneRoute == R2CompilationControlPlaneRoute.PUBLIC
                 val publicR2Classification =
                     if (publicR2Requested) {
-                        request.r2PublicCompilationClassification(
-                            supportedDeclarationProfileFingerprint,
-                        )
+                        request.r2PublicCompilationClassification()
                     } else {
                         null
                     }
@@ -763,6 +759,14 @@ class TypeScriptCompilerPluginService : Service() {
 
     private fun compilerInfoWithLifecycleTelemetry(): Bundle =
         TypeScriptPluginMetadata.compilerInfo(compilerHost.snapshot()).apply {
+            declarationProfileFingerprintOrNull(
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2.profile,
+            )?.let { fingerprint ->
+                putString(
+                    TypeScriptR2Contract.KEY_NODE_DECLARATION_PROFILE_FINGERPRINT,
+                    fingerprint,
+                )
+            }
             val coordinator = transportProbeCoordinator
             val r2Coordinator = r2CompilationCoordinator
             if (BuildConfig.DEBUG && lifecycleTelemetryEnabledForTesting) {
@@ -1457,21 +1461,30 @@ class TypeScriptCompilerPluginService : Service() {
         }.getOrNull()
     }
 
-    private fun Bundle?.r2PublicCompilationClassification(
-        supportedDeclarationProfileFingerprint: String?,
-    ):
+    private fun Bundle?.r2PublicCompilationClassification():
         R2PublicCompilationClassification {
         this ?: return R2PublicCompilationProtocol.classify(
             metadata = null,
-            expectedDeclarationProfileFingerprint =
-                supportedDeclarationProfileFingerprint,
+            expectedDeclarationProfileFingerprint = null,
         )
         return runCatching {
+            val targetProfile = optionalPublicR2Value<String>(
+                TypeScriptCompilerContract.KEY_TARGET_PROFILE,
+            )
+            val supportedDeclarationProfileFingerprint = targetProfile
+                ?.let { contractValue ->
+                    runCatching {
+                        R2CompilationProfileRegistry.requireContractValue(contractValue)
+                    }.getOrNull()
+                }
+                ?.profile
+                ?.let(::declarationProfileFingerprintOrNull)
             R2PublicCompilationProtocol.classify(
                 R2PublicCompilationMetadata(
                     inputArchiveSchemaRevision = optionalPublicR2Value<Int>(
                         TypeScriptR2Contract.KEY_INPUT_ARCHIVE_SCHEMA_REVISION,
                     ),
+                    targetProfile = targetProfile,
                     profileSchemaRevision = optionalPublicR2Value<Int>(
                         TypeScriptCompilerContract.KEY_PROFILE_SCHEMA_REVISION,
                     ),
@@ -1527,8 +1540,7 @@ class TypeScriptCompilerPluginService : Service() {
         }.getOrElse {
             R2PublicCompilationProtocol.classify(
                 metadata = null,
-                expectedDeclarationProfileFingerprint =
-                    supportedDeclarationProfileFingerprint,
+                expectedDeclarationProfileFingerprint = null,
             )
         }
     }

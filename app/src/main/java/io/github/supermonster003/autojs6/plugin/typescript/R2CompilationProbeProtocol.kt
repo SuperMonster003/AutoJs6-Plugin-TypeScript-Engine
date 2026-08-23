@@ -191,10 +191,12 @@ internal data class R2CompilationControls(
         }
         R2CompilationProfileRegistry.requireEndToEndAdmitted(profileAuthority)
         require(
-            profileAuthority.profile == R2ProjectProfile.PROVISIONAL_RHINO ||
+            profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
+                profileAuthority ==
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2 ||
                 origin == R2CompilationControlOrigin.DEBUG_PROBE,
         ) {
-            "The provisional NodeNext profile is available only to the internal debug pipeline."
+            "Public compilation requires the exact Rhino or NodeNext revision-2 authority."
         }
         require(
             R2Digests.equal(
@@ -227,6 +229,7 @@ internal data class R2CompilationControls(
 
 internal data class R2PublicCompilationMetadata(
     val inputArchiveSchemaRevision: Int?,
+    val targetProfile: String?,
     val profileSchemaRevision: Int?,
     val profileRevision: Int?,
     val configSchemaRevision: Int?,
@@ -269,8 +272,8 @@ internal enum class R2CompilationControlPlaneRoute {
  * Classifies the additive, production-facing R2 request fields without depending on Android
  * Bundle. [controlsOrNull] preserves the nullable API used by the config-none preview, while
  * [classify] gives the Binder service a stable error category for malformed metadata and
- * unsupported authority. Both config-none and the revision-2 controlled tsconfig identity can
- * produce exact controls for the public Rhino pipeline.
+ * unsupported authority. Config-none supports the exact public Rhino and Node revision-2
+ * authorities; the revision-2 controlled tsconfig identity remains Rhino-only.
  */
 internal object R2PublicCompilationProtocol {
 
@@ -342,6 +345,7 @@ internal object R2PublicCompilationProtocol {
 
         val inputArchiveSchemaRevision =
             metadata.inputArchiveSchemaRevision ?: return malformed()
+        val targetProfile = metadata.targetProfile ?: return malformed()
         val profileSchemaRevision = metadata.profileSchemaRevision ?: return malformed()
         val profileRevision = metadata.profileRevision ?: return malformed()
         val configSchemaRevision = metadata.configSchemaRevision ?: return malformed()
@@ -358,7 +362,7 @@ internal object R2PublicCompilationProtocol {
         val runtimeCapabilitiesFingerprint =
             metadata.runtimeCapabilitiesFingerprint ?: return malformed()
 
-        if (configKind.isEmpty()) return malformed()
+        if (targetProfile.isEmpty() || configKind.isEmpty()) return malformed()
         val configFieldPresence = listOf(
             metadata.configByteLength != null,
             metadata.configSha256 != null,
@@ -418,14 +422,23 @@ internal object R2PublicCompilationProtocol {
             if (!configIdentityValid) return malformed()
         }
 
-        val profileAuthority = R2CompilationProfileRegistry.PROVISIONAL_RHINO
+        val profileAuthority = runCatching {
+            R2CompilationProfileRegistry.requireExactContractValue(
+                contractValue = targetProfile,
+                profileSchemaRevision = profileSchemaRevision,
+                profileRevision = profileRevision,
+            )
+        }.getOrElse {
+            return unsupportedAuthority()
+        }
+        val publicProfileAdmitted =
+            profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
+                profileAuthority ==
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
         if (
             inputArchiveSchemaRevision !=
                 TypeScriptR2Contract.INPUT_ARCHIVE_SCHEMA_REVISION ||
-            profileSchemaRevision !=
-                profileAuthority.profileSchemaRevision ||
-            profileRevision !=
-                profileAuthority.profileRevision ||
+            !publicProfileAdmitted ||
             runtimeCapabilitySchemaRevision !=
                 TypeScriptCompilerContract.RUNTIME_CAPABILITY_SCHEMA_REVISION ||
             !R2Digests.equal(
@@ -469,6 +482,7 @@ internal object R2PublicCompilationProtocol {
             TypeScriptR2Contract.CONFIG_KIND_TSCONFIG -> {
                 if (!hasCompleteConfigIdentity) return malformed()
                 if (
+                    profileAuthority != R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
                     configSchemaRevision !=
                     TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION ||
                     metadata.configPolicyRevision !=

@@ -1,5 +1,11 @@
 # R2 Provisional Profile and Config Authority
 
+> **S1-5 current-state amendment（2026-08-23）。** 本页后续的 Node revision 2
+> Worker-result-only/Public closed 描述仅是历史 provenance。当前 exact Node revision 2 已加入
+> end-to-end 与 public config-none admission；revision 1 继续作为 private/debug compatibility
+> default。接入字段与当前边界见
+> [S1-5 NodeNext Public Admission](NODE_NEXT_PUBLIC_ADMISSION_S1_5.md)。
+
 > **R2-M3-S1 binding（2026-08-14）。** 本页中的 request-manifest revision `2/3` 只保留为
 > pre-S1 provenance，不是当前 formal alias/fallback。Formal input revision 1 现在绑定 exact
 > profile revision 与 C8 `declarationProfileFingerprint`，见

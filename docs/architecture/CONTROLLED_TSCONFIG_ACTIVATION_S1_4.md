@@ -32,10 +32,11 @@ configPolicyFingerprint = 64ef1cf36d6531f84088cec49127e6407b107ab86eeaf7f4512358
 `ERROR_CONTRACT_MISMATCH` 拒绝。完整且匹配的 identity 现在产生
 `ACCEPTED_CONTROLLED_TSCONFIG`，不再返回历史上的 not-activated disposition。
 
-`configKind=none` 仍是兼容路径。两条 public 路径目前都只接受 exact Rhino profile；NodeNext
-revision 2 的 end-to-end public admission 留给 Roadmap S1-5。`compilerOptionsJson` 仍必须缺省
-或精确为 `"{}"`：受控选项只从 archive 内经过 hash 绑定的 raw `tsconfig.json` 读取，避免形成
-第二套 inline authority。
+`configKind=none` 仍是兼容路径。S1-5 已在该路径加入 exact NodeNext revision 2 public
+authority；受控 `tsconfig` 路径仍只接受 exact Rhino profile。Node 的独立接入字段与边界见
+[S1-5 NodeNext Public Admission](NODE_NEXT_PUBLIC_ADMISSION_S1_5.md)。`compilerOptionsJson` 仍必须
+缺省或精确为 `"{}"`：受控选项只从 archive 内经过 hash 绑定的 raw `tsconfig.json` 读取，避免
+形成第二套 inline authority。
 
 ## revision 2 配置语义
 

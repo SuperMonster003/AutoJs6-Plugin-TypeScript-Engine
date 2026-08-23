@@ -220,6 +220,7 @@ for (const marker of [
     "parseNodeRevisionTwoPackageTargetCanonical",
     "deriveNodeRevisionTwoResolutionAuthority",
     "resolveNodeRevisionTwoSnapshot",
+    "createNodeRevisionTwoTrustedDeclarationModuleIndex",
     "createNodeRevisionTwoResolutionSession",
     "nodeRevisionTwoImpliedModuleFormat",
     "createNodeRevisionTwoSourceFile",

@@ -4099,6 +4099,67 @@ const nodeRevisionTwoTypeScriptExtension = (path) => {
     throw new Error("Node revision 2 resolved an unsupported source kind.");
 };
 
+// Trusted Node declarations are plugin-owned, fingerprinted inputs. Their ambient module names
+// form a closed local catalog and must not be routed through caller-owned package metadata.
+// Building the catalog from the TypeScript AST keeps aliases such as `node:http` and
+// `autojs6:compat` bound to the exact declaration file that defines them.
+const createNodeRevisionTwoTrustedDeclarationModuleIndex = (vfs, targets) => {
+    const modules = new Map();
+    for (const target of targets) {
+        if (
+            target.kind !== controlledNodeResolutionTargetKinds.declaration ||
+            !target.path.startsWith(declarationLayerAuthority.nodePathPrefix)
+        ) {
+            continue;
+        }
+        const record = vfs.readRecord(target.path);
+        if (record === undefined) {
+            throw new Error(
+                "Node revision 2 trusted declaration target is missing from the VFS.",
+            );
+        }
+        const sourceFile = ts.createSourceFile(
+            target.path,
+            record.text,
+            ts.ScriptTarget.Latest,
+            false,
+            ts.ScriptKind.TS,
+        );
+        for (const statement of sourceFile.statements) {
+            if (
+                !ts.isModuleDeclaration(statement) ||
+                !ts.isStringLiteral(statement.name)
+            ) {
+                continue;
+            }
+            const specifier = statement.name.text;
+            if (
+                specifier.length === 0 ||
+                specifier.length > controlledNodeResolutionMaximumSpecifierChars ||
+                Array.from(specifier).some((character) => {
+                    const code = character.charCodeAt(0);
+                    return code < 0x21 || code > 0x7e;
+                })
+            ) {
+                throw new Error(
+                    "Node revision 2 trusted declaration module name is malformed.",
+                );
+            }
+            const previous = modules.get(specifier);
+            if (previous !== undefined && previous.path !== target.path) {
+                throw new Error(
+                    "Node revision 2 trusted declaration module name is ambiguous.",
+                );
+            }
+            modules.set(specifier, target);
+        }
+    }
+    return Object.freeze({
+        release: () => modules.clear(),
+        resolve: (specifier) => modules.get(specifier) ?? null,
+    });
+};
+
 const createNodeRevisionTwoResolutionSession = (vfs, options) => {
     let packageMetadata = vfs.getPackageMetadataCatalog();
     let packageFormat = vfs.getNodePackageFormatCatalog();
@@ -4114,6 +4175,11 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
     const targetIndex = createNodeRevisionTwoTargetIndex(
         authority.resolutionTargets,
     );
+    const trustedDeclarationModules =
+        createNodeRevisionTwoTrustedDeclarationModuleIndex(
+            vfs,
+            authority.resolutionTargets,
+        );
     const authorizedPackageTargets = new Set();
     const memo = new Map();
     const resolutionDiagnostics = [];
@@ -4266,7 +4332,11 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
                 );
                 return unresolvedModule;
             }
-            const target = grantResolvedTarget(
+            const trustedDeclarationTarget =
+                typeof specifier === "string"
+                    ? trustedDeclarationModules.resolve(specifier)
+                    : null;
+            const target = trustedDeclarationTarget ?? grantResolvedTarget(
                 memoizedResolve(containingFile, specifier, modeFor(containingFile)),
                 containingFile,
                 specifier,
@@ -4361,6 +4431,7 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
         resolutionDiagnostics.length = 0;
         resolutionDiagnosticIdentities.clear();
         targetIndex.release();
+        trustedDeclarationModules.release();
         packageMetadata = null;
         packageFormat = null;
         authority = null;

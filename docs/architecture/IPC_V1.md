@@ -1,6 +1,6 @@
 # Compiler IPC v1
 
-> **S1-1–S1-4 current-state amendment（2026-08-23）。** frozen AIDL transaction 与 ZIP
+> **S1-1–S1-5 current-state amendment（2026-08-23）。** frozen AIDL transaction 与 ZIP
 > transport version 不变；四项 compiler capability 当前均已开放。formal input/output archive
 > schema revision 仍为 1，但 ordinary input/output quota revision 均为 2：caller input 是
 > `512 files / 8 MiB per file / 8 MiB total` 且不计 plugin declarations；output 是 512 artifacts、
@@ -10,6 +10,11 @@
 > options 生效，未知非结构性字段 warning-ignore，结构性 profile/output/resolution/transformer
 > 输入仍 fail closed。接入字段与精确语义见
 > [S1-4 Public Controlled tsconfig Activation](CONTROLLED_TSCONFIG_ACTIVATION_S1_4.md)。
+> Public NodeNext revision 2 也已通过 additive Bundle authority 准入，支持
+> `.ts/.mts/.cts → .js/.mjs/.cjs + map`；Node revision 1 只保留为 private/debug
+> compatibility default。Node 请求使用独立的 `node*` compiler-info identity，配置仍为
+> `configKind=none`。详见
+> [S1-5 NodeNext Public Admission](NODE_NEXT_PUBLIC_ADMISSION_S1_5.md)。
 
 > **R2-M3-S1 input supersession（2026-08-14）。** 本页继续定义 frozen AIDL/Bundle/ZIP
 > transport；`Input archive v1` 一节中的 manifest revisions `2..7`、caller-carried declarations
@@ -120,6 +125,10 @@ job token 256 chars, project ID 256 chars, URI/error message 4096 chars. 未知 
 | `contractHash` | String | 是 | 冻结 envelope descriptor 的 SHA-256 |
 | `backend` | String | 是 | `uninitialized`/实际 backend |
 | capability keys | primitives | 是 | availability, revisions, profiles, fingerprints |
+| `nodeProfileRevision` | Int | 是 | 当前 public Node exact profile revision |
+| `nodeConfigSchemaRevision` / `nodeConfigKind` | Int / String | 是 | 当前 Node 配置 authority；S1-5 为 `1/none` |
+| `nodeRuntimeCapabilitiesFingerprint` | String | 是 | Node revision-2 runtime authority SHA-256 |
+| `nodeDeclarationProfileFingerprint` | String | 是 | Node declaration layer SHA-256 |
 
 R0 不打包 distribution, 因此不得伪造 distribution/declarations fingerprint.
 R1 打包经过验证的 distribution 后, `compilerInfo` 可以报告其 canonical
@@ -162,7 +171,7 @@ R1 的内部 request ID/VFS 消息不是公共 Bundle schema. 调用方不得把
 | `compilerOptionsJson` | String | 否 | R0 同步只接受缺省或精确 `{}`；不建立 inline options authority |
 | `timeoutMs` | Long | 是 | frozen envelope 为 1..120000；R2 public preview 为 6000..120000，server clock 从 output ownership commit 开始 |
 | `profileSchemaRevision` / `profileRevision` | Int | R2 preview | 必须匹配本地 profile authority |
-| `configSchemaRevision` / `configKind` | Int / String | R2 preview | 当前必须精确匹配本地 revision 与 `none` |
+| `configSchemaRevision` / `configKind` | Int / String | R2 preview | 必须匹配所选 profile；Rhino 支持 controlled `2/tsconfig`，Node rev2 仅支持 `1/none` |
 | `runtimeCapabilitySchemaRevision` | Int | R2 preview | 必须匹配本地 runtime authority |
 | compiler/declarations/runtime fingerprints | String | R2 preview | lowercase SHA-256，必须与本地可信发行包匹配 |
 | `inputArchiveSha256` / `requestManifestSha256` | String | R2 preview | lowercase SHA-256，分别绑定完整容器与 manifest bytes |
@@ -196,7 +205,7 @@ debug probe 保留既有 late-unack 幂等返回值。
 
 这组 optional key 位于 additive `TypeScriptR2Contract`，不改变 frozen AIDL、contract
 version/hash 或 `TypeScriptCompilerContract`。四项 compiler capability 当前为 `true`；NodeNext
-端到端准入仍未完成。Worker retained-input guardrail 是 4607 files/72 MiB，ordinary production
+revision 2 也已完成 public 端到端编译准入。Worker retained-input guardrail 是 4607 files/72 MiB，ordinary production
 另对 caller domain 保留 512 files/8 MiB total admission，plugin declarations 不占 caller
 headroom。Worker 最终仍可能同时持有 String/AST，因此该 guardrail 不是 Public 72 MiB 编译承诺。
 当前 formal config-none request manifest、framed Worker result 与 output 必须绑定同一个本地

@@ -23,6 +23,10 @@ class TypeScriptPluginMetadataTest {
             TypeScriptR2Contract.CONFIG_KIND_TSCONFIG,
             TypeScriptPluginMetadata.ADVERTISED_CONFIG_KIND,
         )
+        assertEquals(
+            R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+            TypeScriptPluginMetadata.ADVERTISED_NODE_PROFILE_AUTHORITY,
+        )
 
         assertEquals(
             15,

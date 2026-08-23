@@ -20,6 +20,8 @@ object TypeScriptPluginMetadata {
     internal const val ADVERTISED_CONFIG_SCHEMA_REVISION =
         TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION
     internal const val ADVERTISED_CONFIG_KIND = TypeScriptR2Contract.CONFIG_KIND_TSCONFIG
+    internal val ADVERTISED_NODE_PROFILE_AUTHORITY: R2CompilationProfileAuthority
+        get() = R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
 
     fun pluginInfo(context: Context): PluginInfo = PluginInfo(
         name = context.getString(R.string.app_name),
@@ -34,7 +36,14 @@ object TypeScriptPluginMetadata {
         engine = TypeScriptPluginIds.ENGINE,
         variant = TypeScriptPluginIds.variant(BuildConfig.TYPESCRIPT_VERSION),
         supportedAbis = null,
-        capabilities = capabilityBundle(bootstrapSnapshot(context)),
+        capabilities = capabilityBundle(bootstrapSnapshot(context)).apply {
+            nodeDeclarationProfileFingerprint(context)?.let { fingerprint ->
+                putString(
+                    TypeScriptR2Contract.KEY_NODE_DECLARATION_PROFILE_FINGERPRINT,
+                    fingerprint,
+                )
+            }
+        },
     )
 
     fun compilerInfo(snapshot: CompilerHostSnapshot): Bundle =
@@ -219,7 +228,29 @@ object TypeScriptPluginMetadata {
             TypeScriptPluginCapabilityKeys.TARGET_PROFILES,
             TypeScriptCompilerContract.TARGET_PROFILES,
         )
+        putNodeProfileAuthority()
     }
+
+    private fun Bundle.putNodeProfileAuthority() {
+        val authority = ADVERTISED_NODE_PROFILE_AUTHORITY
+        putInt(TypeScriptR2Contract.KEY_NODE_PROFILE_REVISION, authority.profileRevision)
+        putInt(
+            TypeScriptR2Contract.KEY_NODE_CONFIG_SCHEMA_REVISION,
+            authority.configSchemaRevision,
+        )
+        putString(TypeScriptR2Contract.KEY_NODE_CONFIG_KIND, authority.configKind)
+        putString(
+            TypeScriptR2Contract.KEY_NODE_RUNTIME_CAPABILITIES_FINGERPRINT,
+            authority.runtimeCapabilitiesFingerprint,
+        )
+    }
+
+    private fun nodeDeclarationProfileFingerprint(context: Context): String? = runCatching {
+        R2TrustedDeclarations.loadForProfile(
+            context,
+            ADVERTISED_NODE_PROFILE_AUTHORITY.profile,
+        ).profileFingerprint
+    }.getOrNull()
 
     private fun bootstrapSnapshot(context: Context): CompilerHostSnapshot =
         runCatching {
