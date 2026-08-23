@@ -76,6 +76,7 @@ class R2DeclarationDistributionTest {
             "swipe",
             "toast",
             "toastLog",
+            "ui",
         ).forEach {
             assertTrue("projection must contain $it", it in projection)
         }
@@ -313,6 +314,8 @@ declare class ImageWrapper {
 declare let device: Internal.Device;
 declare let http: Internal.Http;
 declare let images: Internal.Images;
+declare let ui: Internal.UI;
+declare let ${'$'}ui: Internal.UI;
 declare let toast: Internal.Toast;
 declare let ${'$'}toast: Internal.Toast;
 """,
@@ -328,6 +331,17 @@ declare let ${'$'}toast: Internal.Toast;
 declare namespace Toast {
   type IsLong = 'long' | 'l' | 'short' | 's' | boolean;
   type IsForcible = 'forcible' | 'f' | boolean;
+}
+""",
+        ),
+        ArchiveSpec.file(
+            "package/declarations/autojs6/aj6-int-ui.d.ts",
+            """declare namespace Internal {
+  class UI extends org.autojs.autojs.runtime.api.UI {
+    layout(layout: Xml): void;
+    findView(stringId: string): android.view.View;
+    finish(): void;
+  }
 }
 """,
         ),
@@ -460,6 +474,7 @@ declare namespace Toast {
             "package/declarations/autojs6/aj6-int-images.d.ts",
             "package/declarations/autojs6/aj6-int-init.d.ts",
             "package/declarations/autojs6/aj6-int-toast.d.ts",
+            "package/declarations/autojs6/aj6-int-ui.d.ts",
         )
     }
 }

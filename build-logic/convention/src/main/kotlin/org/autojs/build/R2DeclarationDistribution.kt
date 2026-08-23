@@ -410,6 +410,8 @@ object R2DeclarationDistribution {
             .decodeUtf8("Rhino HTTP declarations")
         val images = inputs.getValue("package/declarations/autojs6/aj6-int-images.d.ts")
             .decodeUtf8("Rhino images declarations")
+        val ui = inputs.getValue("package/declarations/autojs6/aj6-int-ui.d.ts")
+            .decodeUtf8("Rhino UI declarations")
         val globals = inputs.getValue("package/declarations/autojs6/aj6-int-globals.d.ts")
             .decodeUtf8("Rhino global declarations")
         val init = inputs.getValue("package/declarations/autojs6/aj6-int-init.d.ts")
@@ -444,6 +446,12 @@ object R2DeclarationDistribution {
             "public height: number;",
         ).forEach { marker -> requireMarker(images, marker, "images") }
         listOf(
+            "class UI extends org.autojs.autojs.runtime.api.UI {",
+            "layout(layout: Xml): void;",
+            "findView(stringId: string): android.view.View;",
+            "finish(): void;",
+        ).forEach { marker -> requireMarker(ui, marker, "UI") }
+        listOf(
             "interface Toast {",
             "(text: string | any, isLong?: Toast.IsLong, isForcible?: Toast.IsForcible): void;",
             "dismissAll(): void;",
@@ -463,6 +471,8 @@ object R2DeclarationDistribution {
             "declare let device: Internal.Device;",
             "declare let http: Internal.Http;",
             "declare let images: Internal.Images;",
+            "declare let ui: Internal.UI;",
+            "declare let \$ui: Internal.UI;",
             "declare let toast: Internal.Toast;",
             "declare let \$toast: Internal.Toast;",
         ).forEach { marker -> requireMarker(init, marker, "init") }
@@ -1396,6 +1406,7 @@ object R2DeclarationDistribution {
             "package/declarations/autojs6/aj6-int-images.d.ts",
             "package/declarations/autojs6/aj6-int-init.d.ts",
             "package/declarations/autojs6/aj6-int-toast.d.ts",
+            "package/declarations/autojs6/aj6-int-ui.d.ts",
         )
         if (rhinoFiles.map(LockedFile::path) != expectedRhinoPaths) {
             fail("R2 Rhino lock must contain the exact conversion inputs")
@@ -1733,6 +1744,12 @@ object R2DeclarationDistribution {
         |    recycle(...images: ImageWrapper[]): boolean;
         |  }
         |
+        |  interface UI {
+        |    layout(layout: string): void;
+        |    findView(stringId: string): UI.View | null;
+        |    finish(): void;
+        |  }
+        |
         |  interface Toast {
         |    (text: string | any, isLong?: Toast.IsLong, isForcible?: Toast.IsForcible): void;
         |    dismissAll(): void;
@@ -1765,6 +1782,13 @@ object R2DeclarationDistribution {
         |  type IsForcible = 'forcible' | 'f' | boolean;
         |}
         |
+        |declare namespace UI {
+        |  interface View {
+        |    click(listener: () => void): void;
+        |    setText(text: string): void;
+        |  }
+        |}
+        |
         |declare class ImageWrapper {
         |  private constructor();
         |  readonly width: number;
@@ -1782,6 +1806,8 @@ object R2DeclarationDistribution {
         |declare let ${'$'}images: Internal.Images;
         |declare let images: Internal.Images;
         |declare let ${'$'}toast: Internal.Toast;
+        |declare let ${'$'}ui: Internal.UI;
+        |declare let ui: Internal.UI;
         |declare function captureScreen(): ImageWrapper;
         |declare function captureScreen(path: string): boolean;
         |declare function click(x: number, y: number): boolean;
