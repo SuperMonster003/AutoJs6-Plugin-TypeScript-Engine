@@ -66,6 +66,10 @@ const assert = (condition, message) => {
 };
 const compareCodeUnits = (left, right) =>
     left < right ? -1 : left > right ? 1 : 0;
+const asciiCaseFold = (value) =>
+    value.replace(/[A-Z]/g, (character) =>
+        String.fromCharCode(character.charCodeAt(0) + 0x20),
+    );
 const sorted = (values) => values.slice().sort(compareCodeUnits);
 const exactJson = (actual, expected) =>
     JSON.stringify(actual) === JSON.stringify(expected);
@@ -662,6 +666,34 @@ const snapshotResolutionKind = (filePath) => {
     }
     return "non-resolution";
 };
+const canonicalResolutionPath = (value) =>
+    Array.from(Buffer.from(value, "utf8"))
+        .map((byte) =>
+            byte >= 0x20 &&
+            byte <= 0x7e &&
+            byte !== "%".charCodeAt(0) &&
+            byte !== "|".charCodeAt(0) &&
+            byte !== ",".charCodeAt(0)
+                ? String.fromCharCode(byte)
+                : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`,
+        )
+        .join("");
+assert(
+    canonicalResolutionPath("/sources/节点.mts") ===
+        "/sources/%E8%8A%82%E7%82%B9.mts" &&
+        canonicalResolutionPath("/sources/节点.mts") !==
+            canonicalResolutionPath("/sources/%E8%8A%82%E7%82%B9.mts") &&
+        workerBinding(
+            'isNodeRevisionTwoCanonicalTargetPath("/sources/节点.mts")',
+        ) === true &&
+        workerBinding(
+            'isControlledNodeCanonicalTargetPath("/sources/节点.mts")',
+        ) === false &&
+        workerBinding(
+            'resolveControlledNodeRelativePath("/sources/目录", "./dep.mts", false, true)',
+        ) === "/sources/目录/dep.mts",
+    "Node revision-2 UTF-8 path identity or Worker resolver policy drifted.",
+);
 const buildSnapshotIdentity = (ordinary) => {
     const canonicalInput =
         "autojs6.typescript.node-resolution.snapshot-targets.v2" +
@@ -671,7 +703,8 @@ const buildSnapshotIdentity = (ordinary) => {
         ordinary
             .map(
                 (file) =>
-                    `|file=${file.path},${file.size},${file.utf16CodeUnits},` +
+                    `|file=${canonicalResolutionPath(file.path)},${file.size},` +
+                    `${file.utf16CodeUnits},` +
                     `${file.sha256},${snapshotResolutionKind(file.path)}`,
             )
             .join("");
@@ -697,7 +730,7 @@ const buildTargetUniverseIdentity = (snapshot, ordinary, targets) => {
         )
         .sort((left, right) => compareCodeUnits(left.path, right.path));
     assert(
-        new Set(mergedTargets.map((target) => target.path.toLowerCase())).size ===
+        new Set(mergedTargets.map((target) => asciiCaseFold(target.path))).size ===
             mergedTargets.length,
         "P2-6 target universe contains a path collision.",
     );
@@ -709,7 +742,10 @@ const buildTargetUniverseIdentity = (snapshot, ordinary, targets) => {
         `|snapshotTargetInventoryFingerprint=${snapshot.fingerprint}` +
         `|packageTargetInventoryFingerprint=${targets?.fingerprint ?? "none"}` +
         mergedTargets
-            .map((target) => `|target=${target.path},${target.kind}`)
+            .map(
+                (target) =>
+                    `|target=${canonicalResolutionPath(target.path)},${target.kind}`,
+            )
             .join("");
     return Object.freeze({
         canonicalInput,

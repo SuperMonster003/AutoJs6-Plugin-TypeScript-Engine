@@ -62,9 +62,6 @@ internal class R2NodeResolutionV2SnapshotTargetInventory private constructor(
             var previousPath: String? = null
             ownedFiles.forEach { file ->
                 R2ProjectSnapshot.validateProjectPath(file.path, profileAuthority)
-                require('|' !in file.path && ',' !in file.path) {
-                    "Resolver v2 snapshot target path is not canonical for fingerprinting."
-                }
                 require(file.utf8Bytes >= 0L && file.utf16CodeUnits >= 0) {
                     "Resolver v2 snapshot target has an invalid size: ${file.path}."
                 }
@@ -111,7 +108,7 @@ internal class R2NodeResolutionV2SnapshotTargetInventory private constructor(
                         candidate.path == file.path
                     }
                     append("|file=")
-                    append(file.path)
+                    append(file.path.nodeResolutionV2CanonicalPath())
                     append(',')
                     append(file.utf8Bytes)
                     append(',')
@@ -255,7 +252,7 @@ internal class R2NodeResolutionV2Authority(
             append(packageTargets?.fingerprint ?: "none")
             mergedTargets.forEach { target ->
                 append("|target=")
-                append(target.path)
+                append(target.path.nodeResolutionV2CanonicalPath())
                 append(',')
                 append(
                     when (target.kind) {
@@ -430,24 +427,22 @@ internal object R2NodeResolutionKernelV2 {
 
     private fun requireCanonicalContainingPath(path: String) {
         require(
-            path.startsWith('/') &&
-                path.length in
-                2..(R2NodeModuleOutputPolicy.MAXIMUM_RELATIVE_PATH_CHARS + 1) &&
-                '\\' !in path &&
-                path.all { character -> character.code in PRINTABLE_ASCII },
+            R2UnicodePathPolicy.isCanonicalAbsolutePath(
+                path = path,
+                maximumUtf16Chars = R2NodeModuleOutputPolicy.MAXIMUM_RELATIVE_PATH_CHARS + 1,
+            ),
         ) {
-            "Resolver v2 containing path is not canonical printable ASCII."
+            "Resolver v2 containing path is not canonical UTF-8 text."
         }
         val segments = path.drop(1).split('/')
         require(
             segments.size in 2..R2NodeModuleOutputPolicy.MAXIMUM_PATH_DEPTH &&
                 segments.first() in ALLOWED_ROOTS &&
                 segments.all { segment ->
-                    segment.isNotEmpty() &&
+                segment.isNotEmpty() &&
                         segment != "." &&
                         segment != ".." &&
-                        !segment.equals("node_modules", ignoreCase = true) &&
-                        TARGET_SEGMENT_PATTERN.matches(segment)
+                        !segment.equals("node_modules", ignoreCase = true)
                 },
         ) {
             "Resolver v2 containing path escapes its closed snapshot roots."
@@ -455,8 +450,27 @@ internal object R2NodeResolutionKernelV2 {
     }
 
     private val ALLOWED_ROOTS = setOf("sources", "packages", "declarations")
-    private val TARGET_SEGMENT_PATTERN = Regex("[A-Za-z0-9@._+~-]+")
-    private val PRINTABLE_ASCII = 0x20..0x7e
+}
+
+private fun String.nodeResolutionV2CanonicalPath(): String {
+    val bytes = R2Utf8.encode(this, "Resolver v2 canonical path")
+    return buildString(bytes.size) {
+        bytes.forEach { byte ->
+            val unsigned = byte.toInt() and 0xff
+            if (
+                unsigned in 0x20..0x7e &&
+                unsigned != '%'.code &&
+                unsigned != '|'.code &&
+                unsigned != ','.code
+            ) {
+                append(unsigned.toChar())
+            } else {
+                append('%')
+                append(NODE_RESOLUTION_V2_HEX[unsigned ushr 4])
+                append(NODE_RESOLUTION_V2_HEX[unsigned and 0x0f])
+            }
+        }
+    }
 }
 
 private fun String.nodeResolutionV2AsciiCaseFold(): String = buildString(length) {
@@ -472,3 +486,4 @@ private fun String.nodeResolutionV2AsciiCaseFold(): String = buildString(length)
 }
 
 private const val NODE_RESOLUTION_V2_ASCII_CASE_OFFSET = 'a'.code - 'A'.code
+private const val NODE_RESOLUTION_V2_HEX = "0123456789ABCDEF"

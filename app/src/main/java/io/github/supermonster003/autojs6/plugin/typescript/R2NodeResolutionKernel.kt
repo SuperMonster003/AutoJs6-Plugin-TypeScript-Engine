@@ -21,6 +21,7 @@ internal object R2NodeResolutionKernel {
         request = request,
         packageMetadata = packageMetadata,
         targetIndex = TargetIndex.create(targets),
+        versionTwo = false,
     )
 
     /** P2-5 pure entry point. Production Worker/Program wiring remains closed until P2-6. */
@@ -32,19 +33,22 @@ internal object R2NodeResolutionKernel {
         request = request,
         packageMetadata = packageMetadata,
         targetIndex = TargetIndex.createVersionTwo(targets),
+        versionTwo = true,
     )
 
     private fun resolveWithTargetIndex(
         request: R2NodeResolutionRequest,
         packageMetadata: R2NodePackageMetadataCatalog?,
         targetIndex: TargetIndex,
+        versionTwo: Boolean,
     ): R2NodeResolutionResult {
         val conditions = ArrayList(request.conditions)
-        requestFailure(request, conditions)?.let { return it }
+        requestFailure(request, conditions, versionTwo)?.let { return it }
         targetIndex.failure?.let { return it }
         return Session(
             packageMetadata = packageMetadata,
             targetIndex = targetIndex,
+            versionTwo = versionTwo,
             activeConditions = linkedSetOf(request.mode.condition).apply {
                 add(TYPES_CONDITION)
                 add(NODE_CONDITION)
@@ -59,8 +63,14 @@ internal object R2NodeResolutionKernel {
     private fun requestFailure(
         request: R2NodeResolutionRequest,
         conditions: List<String>,
+        versionTwo: Boolean,
     ): R2NodeResolutionResult.Failure? {
-        if (!request.containingPath.isCanonicalTargetPath()) {
+        val validContainingPath = if (versionTwo) {
+            request.containingPath.isCanonicalVersionTwoTargetPath()
+        } else {
+            request.containingPath.isCanonicalTargetPath()
+        }
+        if (!validContainingPath) {
             return failure(R2NodeResolutionFailureCode.INVALID_CONTAINING_PATH)
         }
         if (!request.specifier.isCanonicalSpecifier()) {
@@ -78,6 +88,7 @@ internal object R2NodeResolutionKernel {
     private class Session(
         private val packageMetadata: R2NodePackageMetadataCatalog?,
         private val targetIndex: TargetIndex,
+        private val versionTwo: Boolean,
         private val activeConditions: Set<String>,
     ) {
 
@@ -110,6 +121,7 @@ internal object R2NodeResolutionKernel {
                 boundary = containingPath.substringBeforeLast('/', missingDelimiterValue = "/"),
                 relative = specifier,
                 enforceBoundary = false,
+                versionTwo = versionTwo,
             ) ?: return failure(R2NodeResolutionFailureCode.TARGET_ESCAPE)
             return targetIndex.resolve(
                 candidate = candidate,
@@ -357,6 +369,7 @@ internal object R2NodeResolutionKernel {
                     boundary = record.boundaryPath,
                     relative = substituted,
                     enforceBoundary = true,
+                    versionTwo = versionTwo,
                 ) ?: return failure(
                     R2NodeResolutionFailureCode.TARGET_ESCAPE,
                     record,
@@ -464,7 +477,12 @@ internal object R2NodeResolutionKernel {
                 val exact = LinkedHashMap<String, R2NodeResolutionTarget>(targets.size)
                 val folded = LinkedHashMap<String, R2NodeResolutionTarget>(targets.size)
                 targets.forEach { target ->
-                    if (!target.path.isCanonicalTargetPath()) {
+                    val validTargetPath = if (versionTwo) {
+                        target.path.isCanonicalVersionTwoTargetPath()
+                    } else {
+                        target.path.isCanonicalTargetPath()
+                    }
+                    if (!validTargetPath) {
                         return invalid(R2NodeResolutionFailureCode.INVALID_TARGET, versionTwo)
                     }
                     val supportedKind = if (versionTwo) {
@@ -548,6 +566,7 @@ internal object R2NodeResolutionKernel {
         boundary: String,
         relative: String,
         enforceBoundary: Boolean,
+        versionTwo: Boolean,
     ): String? {
         val baseSegments = if (boundary == "/") {
             ArrayList()
@@ -569,7 +588,12 @@ internal object R2NodeResolutionKernel {
             }
         }
         val candidate = "/" + baseSegments.joinToString("/")
-        if (!candidate.isCanonicalTargetPath()) return null
+        val validCandidate = if (versionTwo) {
+            candidate.isCanonicalVersionTwoTargetPath()
+        } else {
+            candidate.isCanonicalTargetPath()
+        }
+        if (!validCandidate) return null
         if (
             enforceBoundary && boundary != "/" &&
             candidate != boundary && !candidate.startsWith("$boundary/")
@@ -646,6 +670,24 @@ internal object R2NodeResolutionKernel {
                     segment != ".." &&
                     !segment.equals(NODE_MODULES_SEGMENT, ignoreCase = true) &&
                     TARGET_SEGMENT_PATTERN.matches(segment)
+            }
+    }
+
+    private fun String.isCanonicalVersionTwoTargetPath(): Boolean {
+        if (
+            !R2UnicodePathPolicy.isCanonicalAbsolutePath(
+                path = this,
+                maximumUtf16Chars = MAXIMUM_TARGET_PATH_CHARS,
+                maximumRelativeUtf8Bytes = MAXIMUM_TARGET_PATH_CHARS.toLong(),
+            )
+        ) {
+            return false
+        }
+        val segments = drop(1).split('/')
+        return segments.size >= 2 &&
+            segments.first() in ALLOWED_TARGET_ROOTS &&
+            segments.none { segment ->
+                segment.equals(NODE_MODULES_SEGMENT, ignoreCase = true)
             }
     }
 

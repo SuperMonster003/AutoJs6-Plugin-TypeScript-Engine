@@ -107,6 +107,18 @@ const isSafeUnicodePathText = (value) => {
     }
     return true;
 };
+const nodeRevisionTwoCanonicalPath = (value) =>
+    Array.from(new TextEncoder().encode(value))
+        .map((byte) =>
+            byte >= 0x20 &&
+            byte <= 0x7e &&
+            byte !== "%".charCodeAt(0) &&
+            byte !== "|".charCodeAt(0) &&
+            byte !== ",".charCodeAt(0)
+                ? String.fromCharCode(byte)
+                : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`,
+        )
+        .join("");
 const inputInventoryDomainOrder = Object.freeze({
     source: 0,
     declaration: 1,
@@ -732,6 +744,32 @@ const isControlledNodeCanonicalTargetPath = (path) => {
         );
 };
 
+const isNodeRevisionTwoCanonicalTargetPath = (path) => {
+    if (
+        typeof path !== "string" ||
+        !path.startsWith("/") ||
+        path.length <= 1 ||
+        path.length > controlledNodeResolutionMaximumTargetPathChars ||
+        new TextEncoder().encode(path.slice(1)).byteLength >
+            controlledNodeResolutionMaximumTargetPathChars ||
+        path.includes("\\") ||
+        !isSafeUnicodePathText(path)
+    ) {
+        return false;
+    }
+    const segments = path.slice(1).split("/");
+    return segments.length >= 2 &&
+        controlledNodeResolutionAllowedTargetRoots.has(segments[0]) &&
+        segments.every(
+            (segment) =>
+                segment.length > 0 &&
+                segment !== "." &&
+                segment !== ".." &&
+                segment.toLowerCase() !== "node_modules" &&
+                isSafeUnicodePathText(segment),
+        );
+};
+
 const hasControlledNodeSupportedTargetKind = (target) => {
     if (target.kind === controlledNodeResolutionTargetKinds.projectSource) {
         return target.path.endsWith(".ts") &&
@@ -956,7 +994,12 @@ const parseControlledNodePackageSpecifier = (specifier) => {
     });
 };
 
-const resolveControlledNodeRelativePath = (boundary, relative, enforceBoundary) => {
+const resolveControlledNodeRelativePath = (
+    boundary,
+    relative,
+    enforceBoundary,
+    versionTwo = false,
+) => {
     const baseSegments = boundary === "/" ? [] : boundary.slice(1).split("/");
     for (const segment of relative.split("/")) {
         if (segment === "" || segment === ".") continue;
@@ -974,7 +1017,10 @@ const resolveControlledNodeRelativePath = (boundary, relative, enforceBoundary) 
         }
     }
     const candidate = `/${baseSegments.join("/")}`;
-    if (!isControlledNodeCanonicalTargetPath(candidate)) return null;
+    const validCandidate = versionTwo
+        ? isNodeRevisionTwoCanonicalTargetPath(candidate)
+        : isControlledNodeCanonicalTargetPath(candidate);
+    if (!validCandidate) return null;
     if (
         enforceBoundary &&
         boundary !== "/" &&
@@ -1516,15 +1562,15 @@ const createNodeRevisionTwoTargetIndex = (targets) => {
             !isRecord(target) ||
             !Object.isFrozen(target) ||
             !hasExactKeys(target, ["kind", "path"]) ||
-            !isControlledNodeCanonicalTargetPath(target.path) ||
+            !isNodeRevisionTwoCanonicalTargetPath(target.path) ||
             (!isDeclaration && !isSource) ||
             exact.has(target.path) ||
-            folded.has(target.path.toLowerCase())
+            folded.has(asciiCaseFold(target.path))
         ) {
             throw new Error("Node revision 2 target universe is malformed.");
         }
         exact.set(target.path, target);
-        folded.set(target.path.toLowerCase(), target);
+        folded.set(asciiCaseFold(target.path), target);
     }
     const candidates = (candidate) => {
         if (
@@ -1566,7 +1612,7 @@ const createNodeRevisionTwoTargetIndex = (targets) => {
                     matchedConditions,
                 );
             }
-            if (folded.has(substituted.toLowerCase())) {
+            if (folded.has(asciiCaseFold(substituted))) {
                 return controlledNodeResolutionFailure(
                     controlledNodeResolutionFailureCodes.ambiguousCase,
                     {
@@ -1607,7 +1653,7 @@ const resolveNodeRevisionTwoSnapshot = (
         !isRecord(request) ||
         !Object.isFrozen(request) ||
         !hasExactKeys(request, ["conditions", "containingPath", "mode", "specifier"]) ||
-        !isControlledNodeCanonicalTargetPath(request.containingPath) ||
+        !isNodeRevisionTwoCanonicalTargetPath(request.containingPath) ||
         !targetIndex.contains(request.containingPath)
     ) {
         return controlledNodeResolutionFailure(
@@ -1832,6 +1878,7 @@ const resolveNodeRevisionTwoSnapshot = (
                 record.boundaryPath,
                 substituted,
                 true,
+                true,
             );
             if (candidate === null) {
                 return recordFailure(
@@ -1996,6 +2043,7 @@ const resolveNodeRevisionTwoSnapshot = (
             ) || "/",
             request.specifier,
             false,
+            true,
         );
         if (candidate === null) {
             return controlledNodeResolutionFailure(
@@ -2815,20 +2863,20 @@ const deriveNodeRevisionTwoResolutionAuthority = async (
             !Number.isSafeInteger(file.byteLength) ||
             file.byteLength < 0 ||
             !sha256Pattern.test(file.sha256) ||
-            file.path.includes("|") ||
-            file.path.includes(",") ||
-            foldedFiles.has(file.path.toLowerCase())
+            !isNodeRevisionTwoCanonicalTargetPath(file.path) ||
+            foldedFiles.has(asciiCaseFold(file.path))
         ) {
             throw new Error("Node revision 2 snapshot target inventory is malformed.");
         }
-        foldedFiles.add(file.path.toLowerCase());
+        foldedFiles.add(asciiCaseFold(file.path));
         const kind = file.path.endsWith(".d.ts")
             ? controlledNodeResolutionTargetKinds.declaration
             : isNodeRevisionTwoExecutableSourcePath(file.path)
               ? controlledNodeResolutionTargetKinds.projectSource
               : "non-resolution";
         snapshotCanonical +=
-            `|file=${file.path},${file.byteLength},${file.text.length},${file.sha256},${kind}`;
+            `|file=${nodeRevisionTwoCanonicalPath(file.path)},${file.byteLength},` +
+            `${file.text.length},${file.sha256},${kind}`;
         if (kind !== "non-resolution") {
             snapshotTargets.push(Object.freeze({ kind, path: file.path }));
         }
@@ -2851,7 +2899,7 @@ const deriveNodeRevisionTwoResolutionAuthority = async (
     const exactTargets = new Set();
     const foldedTargets = new Set();
     for (const target of resolutionTargets) {
-        const folded = target.path.toLowerCase();
+        const folded = asciiCaseFold(target.path);
         if (exactTargets.has(target.path) || foldedTargets.has(folded)) {
             throw new Error(
                 "Node revision 2 target universe contains a path collision.",
@@ -2868,7 +2916,10 @@ const deriveNodeRevisionTwoResolutionAuthority = async (
         `|snapshotTargetInventoryFingerprint=${snapshotFingerprint}` +
         `|packageTargetInventoryFingerprint=${packageTargets?.fingerprint ?? "none"}` +
         resolutionTargets
-            .map((target) => `|target=${target.path},${target.kind}`)
+            .map(
+                (target) =>
+                    `|target=${nodeRevisionTwoCanonicalPath(target.path)},${target.kind}`,
+            )
             .join("");
     const targetUniverseFingerprint = await sha256(targetUniverseCanonical);
     if (targetUniverseFingerprint !== declaredTargetUniverseFingerprint) {
@@ -4059,7 +4110,7 @@ const createControlledNodeResolutionSession = (vfs, options) => {
 };
 
 const nodeRevisionTwoImpliedModuleFormat = (path, packageFormatCatalog) => {
-    if (!isControlledNodeCanonicalTargetPath(path)) {
+    if (!isNodeRevisionTwoCanonicalTargetPath(path)) {
         throw new Error("Node revision 2 implied-format path is not canonical.");
     }
     if (path.endsWith(".d.mts") || path.endsWith(".mts")) return "esm";
@@ -4225,7 +4276,7 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
             containingSourceFile !== null &&
             containingSourceFile.fileName === containingPath
                 ? containingSourceFile
-                : isControlledNodeCanonicalTargetPath(containingPath)
+                : isNodeRevisionTwoCanonicalTargetPath(containingPath)
                   ? Object.freeze({ fileName: containingPath })
                   : undefined;
         resolutionDiagnostics.push(

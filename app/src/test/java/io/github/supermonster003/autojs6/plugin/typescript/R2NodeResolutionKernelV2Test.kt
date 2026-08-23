@@ -127,6 +127,42 @@ class R2NodeResolutionKernelV2Test {
     }
 
     @Test
+    fun revisionTwoPreservesUtf8SourcePathsInFingerprintAndResolution() {
+        val context = authority(
+            projectJson = null,
+            packageJson = null,
+            targetPaths = listOf("/sources/dep.mts"),
+            additionalSnapshotPaths = listOf("/sources/入口.mts"),
+        )
+        val resolved = resolved(resolve(context, "/sources/入口.mts", "./dep.mjs"))
+        assertEquals("/sources/dep.mts", resolved.target.path)
+        assertTrue(context.snapshotTargets.canonicalInput.contains("/sources/%E5%85%A5%E5%8F%A3.mts"))
+        assertTrue(context.targetUniverseCanonicalInput.contains("/sources/%E5%85%A5%E5%8F%A3.mts"))
+        assertTrue(
+            context.snapshotTargets.canonicalInput.all { character ->
+                character.code in 0x20..0x7e
+            },
+        )
+
+        val literalPercentPath = snapshotTargets(
+            listOf(projectFile("/sources/%E5%85%A5%E5%8F%A3.mts")),
+        )
+        assertNotEquals(context.snapshotTargets.fingerprint, literalPercentPath.fingerprint)
+        assertTrue(literalPercentPath.canonicalInput.contains("/sources/%25E5%2585"))
+
+        val nestedContext = authority(
+            projectJson = null,
+            packageJson = null,
+            targetPaths = listOf("/sources/目录/dep.mts"),
+            additionalSnapshotPaths = listOf("/sources/目录/入口.mts"),
+        )
+        assertEquals(
+            "/sources/目录/dep.mts",
+            resolved(resolve(nestedContext, "/sources/目录/入口.mts", "./dep.mjs")).target.path,
+        )
+    }
+
+    @Test
     fun metadataOnlyRootImportsCanResolveOrdinarySnapshotTargets() {
         val context = authority(
             projectJson =
