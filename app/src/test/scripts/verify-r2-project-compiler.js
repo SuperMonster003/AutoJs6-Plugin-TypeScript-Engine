@@ -5383,6 +5383,18 @@ const verifyCompilerPageStateMachine = () => {
 };
 
 (async () => {
+    if (process.env.R2_S1_SMOKE_ONLY === "1") {
+        const { result } = await compile(
+            "s1-rhino-smoke",
+            snapshot(fixture.success.mainSource),
+        );
+        verifySuccess(result);
+        process.stdout.write(
+            `S1 Rhino Worker smoke passed (TypeScript ${expectedVersion}; ` +
+                "2 modules + paired source maps).\n",
+        );
+        return;
+    }
     if (process.env.R2_S1_AUTHORITY_ONLY === "1") {
         await verifyWorkerRejectsEveryTamperedAcceptedInputAuthorityField();
         return;

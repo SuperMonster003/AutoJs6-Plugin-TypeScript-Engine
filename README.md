@@ -4,7 +4,7 @@ AutoJs6 的完整 TypeScript 编译前端插件. 插件负责把 TypeScript 项�
 JavaScript, Source Map 和结构化诊断, 最终 JavaScript 仍由 AutoJs6 选择的
 Rhino 或 Node.js 引擎执行.
 
-> 当前状态（2026-08-23）：新版 Roadmap 的 `S1-1`–`S1-5` 已完成。插件现在通过
+> 当前状态（2026-08-23）：新版 Roadmap 的六个必需插件切片 `S1-1`–`S1-6` 已完成。插件现在通过
 > `getCompilerInfo()` 广告 `typescriptCompilerAvailable`、项目编译、语义诊断与
 > Source Map v3 四项 capability（mask `15`）；输入/输出 ZIP、Worker VFS、模块映射与
 > diagnostics URI 已端到端支持安全 UTF-8 路径（仍拒绝控制字符、畸形 Unicode、绝对路径、
@@ -28,6 +28,11 @@ Rhino 或 Node.js 引擎执行.
 > authority。`.mts + .cts` 的 focused Public Binder 回归已通过 API 31/API 35 实机与 API 37
 > 模拟器；详见
 > [S1-5 NodeNext Public Admission](docs/architecture/NODE_NEXT_PUBLIC_ADMISSION_S1_5.md)。
+> 默认验证图也已瘦身：`gradlew check --offline` 只运行应用/API 单元测试、统一供应链锁、
+> AIDL/API v1 freeze，以及各一次真实 Rhino/NodeNext Worker 编译；历史 lint/APK/release/device/
+> `verifyR2M*` 证据任务仍可显式调用。清理全部 project build/cache outputs 后的本地冷基线为
+> 116 个任务、28.1 秒；详见
+> [S1-6 Daily Verification](docs/architecture/DAILY_VERIFICATION_S1_6.md)。
 > `nodeRuntimeRequired` 仍为 `false`。
 > 编译服务已经可由宿主集成，但 AutoJs6 主仓库的消费端尚未实现，因此终端用户还不能
 > 直接点击运行 `.ts`。当前工作清单以 [ROADMAP.md](ROADMAP.md) 为准。

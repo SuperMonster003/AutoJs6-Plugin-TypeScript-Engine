@@ -1437,6 +1437,28 @@ const runP1Regression = async () => {
         "P2-6 scenario inventory drifted.",
     );
 
+    if (process.env.R2_S1_SMOKE_ONLY === "1") {
+        const scenario = scenarioById.get(
+            "target-bearing-relative-exports-types",
+        );
+        const compiled = await compileP2Operation(createP2Operation(scenario));
+        assertSuccessfulP2(compiled, scenario);
+        assert(
+            programCalls.length === 1 &&
+                programCalls[0].hasResolutionHooks &&
+                compilerSystemAccessCount === 0 &&
+                defaultResolverAccessCount === 0 &&
+                networkAccessCount === 0,
+            "S1 Node smoke escaped its exact Worker resolver authority.",
+        );
+        assertWorkerIdle("S1 Node revision-2 smoke");
+        process.stdout.write(
+            `S1 Node revision-2 Worker smoke passed (TypeScript ${expectedVersion}; ` +
+                ".mts/.cts -> .mjs/.cjs + paired source maps).\n",
+        );
+        return;
+    }
+
     for (const id of [
         "metadata-only-root-imports",
         "target-bearing-relative-exports-types",

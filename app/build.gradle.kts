@@ -554,7 +554,8 @@ val verifyR2DeclarationDistribution =
 
 tasks.withType<Test>().configureEach {
     if (name == "testDebugUnitTest") {
-        dependsOn(verifyR2DeclarationDistribution)
+        // The single S1-6 supply-chain gate owns distribution acquisition and verification.
+        dependsOn("verifyCompilerDistributionLock")
         inputs.dir(generatedR2DeclarationDistributionDirectory)
         inputs.dir(generatedTypeScriptDistributionDirectory)
         systemProperty(
@@ -5370,6 +5371,91 @@ val verifyR2M2P2P6NodeNextProgramDesktop =
             "Compatibility alias for the superseding P2-7 executable Worker proof; " +
                 "the historical P2-6 aggregate remains a static Program/identity gate."
         dependsOn(verifyR2M2P2P7NodeNextResultDesktop)
+    }
+
+val verifyCompilerSmokeRhino =
+    tasks.register<Exec>("verifyCompilerSmokeRhino") {
+        group = "verification"
+        description =
+            "Runs one real Rhino Worker compilation with JavaScript and Source Map output."
+        dependsOn("verifyCompilerDistributionLock")
+        val workerFile = compilerHostSourceAssetDirectory.file("compiler-worker.js")
+        val compilerFile = generatedTypeScriptDistributionDirectory.map {
+            it.file("lib/typescript.js")
+        }
+        val fixtureFile = layout.projectDirectory.file(
+            "src/test/resources/r2-project-compiler/provisional-rhino.json",
+        )
+        val harnessFile = layout.projectDirectory.file(
+            "src/test/scripts/verify-r2-project-compiler.js",
+        )
+        inputs.files(
+            workerFile,
+            compilerFile,
+            fixtureFile,
+            r2DiagnosticStopEmitFixture,
+            harnessFile,
+            r2InputArchiveAuthorityHarness,
+        )
+        environment("R2_S1_SMOKE_ONLY", "1")
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            "--expose-gc",
+            "--max-old-space-size=512",
+            harnessFile.asFile.absolutePath,
+            workerFile.asFile.absolutePath,
+            compilerFile.get().asFile.absolutePath,
+            fixtureFile.asFile.absolutePath,
+            typeScriptVersion,
+        )
+    }
+
+val verifyCompilerSmokeNode =
+    tasks.register<Exec>("verifyCompilerSmokeNode") {
+        group = "verification"
+        description =
+            "Runs one real NodeNext revision-2 Worker compilation with mjs/cjs Source Maps."
+        dependsOn("verifyCompilerDistributionLock")
+        val compilerFile = generatedTypeScriptDistributionDirectory.map {
+            it.file("lib/typescript.js")
+        }
+        val workerFile = compilerHostSourceAssetDirectory.file("compiler-worker.js")
+        inputs.files(
+            workerFile,
+            compilerFile,
+            r2M2P2P6NodeNextProgramFixture,
+            r2M2P2P6NodeNextP1RegressionFixture,
+            r2M2P2NodePackageFormatWorkerTransportFixture,
+            r2M2P2P6PackageMetadataPolicyFixture,
+            r2M2P2NodeModuleOutputPolicyFixture,
+            r2M2P2P5NodePackageTargetPolicyFixture,
+            r2M2P2NodePackageFormatCatalogPolicy,
+            r2M2P2P6NodeNextProgramHarness,
+            r2InputArchiveAuthorityHarness,
+        )
+        environment("R2_S1_SMOKE_ONLY", "1")
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            "--max-old-space-size=512",
+            r2M2P2P6NodeNextProgramHarness.asFile.absolutePath,
+            workerFile.asFile.absolutePath,
+            compilerFile.get().asFile.absolutePath,
+            r2M2P2P6NodeNextProgramFixture.asFile.absolutePath,
+            r2M2P2P6NodeNextP1RegressionFixture.asFile.absolutePath,
+            r2M2P2NodePackageFormatWorkerTransportFixture.asFile.absolutePath,
+            r2M2P2P6PackageMetadataPolicyFixture.asFile.absolutePath,
+            r2M2P2NodeModuleOutputPolicyFixture.asFile.absolutePath,
+            r2M2P2P5NodePackageTargetPolicyFixture.asFile.absolutePath,
+            typeScriptVersion,
+        )
+    }
+
+val verifyCompilerSmoke =
+    tasks.register("verifyCompilerSmoke") {
+        group = "verification"
+        description =
+            "Runs one real Worker compilation for each public Rhino and NodeNext profile."
+        dependsOn(verifyCompilerSmokeRhino, verifyCompilerSmokeNode)
     }
 
 val verifyR2M2P2P5NodePackageTargetResolutionV2 =
@@ -16236,7 +16322,9 @@ tasks {
 
     register("verifyCompilerDistributionLock") {
         group = "verification"
-        description = "Verifies the pinned TypeScript compiler distribution metadata."
+        description =
+            "Verifies the pinned TypeScript and declaration distributions and lock metadata."
+        dependsOn(verifyTypeScriptDistribution, verifyR2DeclarationDistribution)
         val lockFile = rootProject.file("compiler-distribution.lock.json")
         inputs.file(lockFile)
         inputs.file(rootProject.file("version.properties"))
@@ -16298,19 +16386,6 @@ tasks {
             check("android:process=\":typescript_compiler\"" in manifestText)
             check("android.permission.INTERNET" !in manifestText)
         }
-    }
-
-    named("check") {
-        dependsOn("verifyOptionalPluginIndependence")
-        dependsOn("verifyCompilerDistributionLock")
-        dependsOn(verifyCompilerHostSourcePolicy)
-        dependsOn(verifyDebugCompilerHostApk)
-        dependsOn(verifyR2ReleaseCompatibilityApks)
-        dependsOn("verifyR0DebugApkContents")
-        dependsOn(verifyTypeScriptDistribution)
-        dependsOn(verifyDebugTypeScriptDistributionApk)
-        dependsOn(verifyR2DeclarationDistribution)
-        dependsOn(verifyDebugR2DeclarationDistributionApk)
     }
 
     matching {

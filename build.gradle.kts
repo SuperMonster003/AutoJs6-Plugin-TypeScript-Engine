@@ -118,3 +118,38 @@ tasks {
         dependsOn("verifyR1ProtocolCompatibility")
     }
 }
+
+// S1-6 daily verification policy. Android plugins attach lifecycle dependencies lazily, so the
+// final replacement happens only after every project has been evaluated. Historical APK, lint,
+// release, device, and verifyR2M* evidence tasks stay registered and remain explicitly runnable.
+gradle.projectsEvaluated {
+    project(":app").tasks.named("check").configure {
+        setDependsOn(
+            listOf(
+                ":app:testDebugUnitTest",
+                ":plugin-api:typescript-api:testDebugUnitTest",
+                ":app:verifyCompilerDistributionLock",
+                ":plugin-api:typescript-api:verifyTypeScriptApiV1Freeze",
+                ":app:verifyCompilerSmoke",
+            ),
+        )
+    }
+    project(":plugin-api:typescript-api").tasks.named("check").configure {
+        setDependsOn(
+            listOf(
+                ":plugin-api:typescript-api:testDebugUnitTest",
+                ":plugin-api:typescript-api:verifyTypeScriptApiV1Freeze",
+            ),
+        )
+    }
+    listOf(
+        ":plugin-api:common-plugin-api",
+        ":r1-compat-v1",
+        ":r2-public-preview",
+        ":release-smoke",
+    ).forEach { projectPath ->
+        project(projectPath).tasks.named("check").configure {
+            setDependsOn(emptyList<Any>())
+        }
+    }
+}

@@ -48,7 +48,7 @@
 
 | 阶段 | 主题 | 用户可感知结果 | 状态 |
 |---|---|---|---|
-| S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 进行中 (5/7) |
+| S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 已完成 (6/6 必需；S1-7 可选) |
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 未开始 |
 | S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 未开始 |
 | S4 | Node profile 与项目级能力 | `.mts/.cts`、多文件项目、tsconfig 常用项 | 未开始 |
@@ -110,13 +110,20 @@ S4/S5 在 S2 跑通后即可按需插队。唯一硬前提: **S2 之前必须完
       仍 fail closed。focused Public Binder 验收已在 API 31、API 35 实机与 API 37
       模拟器同时产出 `.mjs/.cjs` 及配对 map。设计与接入字段见
       [S1-5 NodeNext Public Admission](docs/architecture/NODE_NEXT_PUBLIC_ADMISSION_S1_5.md)。
-- [ ] **S1-6 验证层瘦身**: `check` 只保留 — 单元测试、
+- [x] **S1-6 验证层瘦身**: `check` 只保留 — 单元测试、
       `verifyCompilerDistributionLock` (供应链锁)、AIDL 冻结门禁、
       一个覆盖 Rhino/Node 各一次真实编译的 smoke 任务。其余 80+ 个
       `verifyR2M*` 证据任务从默认图摘除 (保留任务定义可手动跑, 或
       直接删除, 二选一执行时决定)。CI/本地验证默认 `--offline`,
       仅 distribution lock 任务允许联网。
       验收: 干净 checkout 后 `gradlew check --offline` < 5 分钟通过。
+      当前 `check` 最终依赖在所有 Android project 配置完成后统一替换；历史 lint/APK/release/
+      device/`verifyR2M*` 任务仍注册但只允许显式调用。`verifyCompilerSmoke` 使用真实 Worker
+      分别执行一个 Rhino 双模块编译与一个 Node revision-2 `.mts/.cts` 编译。供应链获取与
+      byte-for-byte 校验统一由 `verifyCompilerDistributionLock` 持有。清理 project Gradle/Kotlin/
+      native/build outputs 后，Windows 本地 `gradlew check --offline` 以 116 个全部执行任务在
+      28.1 秒通过；详见
+      [S1-6 Daily Verification](docs/architecture/DAILY_VERIFICATION_S1_6.md)。
 - [ ] **S1-7 简化握手 (可选, 若宿主集成时嫌繁)**: 5 秒 ack 握手保留
       但把未 ack 定为宽限 30 秒, 或在 additive key 中允许
       `ackMode=implicit`。不动 AIDL。
