@@ -53,8 +53,8 @@
 |---|---|---|---|
 | S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 已完成 (6/6 必需；S1-7 可选) |
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 已完成 (6/6) |
-| S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 核心完成 (A1-A2、B1、C1-C3；原生 TSX A3 后置) |
-| S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 进行中 (S4-1、S4-3、S4-4 已完成；S4-2 主执行路径已迁移, 删除旧实现待办) |
+| S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 已完成 (A1-A3、B1、C1-C3) |
+| S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 进行中 (S4-1、S4-3、S4-4、S4-6 已完成；S4-2 主执行路径已迁移, 删除旧实现待办) |
 | S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 未开始 |
 
 依赖关系: S1 → S2 → S3 → S4 → S5 严格递进不是必须的 —— S1 与 S2 可
@@ -160,11 +160,11 @@ Rhino 执行并输出 toast。
       有界 output archive/diagnostics 解析；中文文件名经真实 Public Binder
       编译并保留 UTF-8 source identity。
 - [x] **S2-4 路由改造**: `.ts` 从 Node 文件判断中移除, 成为独立
-      TypeScript source kind; 默认引擎 Rhino; `.d.ts` 不可执行;
-      `.tsx` 明确报错。当前路由优先级为显式 Node project > 普通单文件
+      TypeScript source kind; 默认引擎 Rhino; `.d.ts` 不可执行。S2 阶段
+      `.tsx` 明确报错, 后由 S4-6 独立解禁。路由优先级为显式 Node project > 普通单文件
       TypeScript > Rhino fallback；普通 `.ts` 中尚未支持的 Node directive
       明确失败，不静默改走其他引擎；`"ui"` directive 则进入 Rhino
-      Activity，并支持字符串 XML 布局。原生 TSX DSL 仍明确拒绝。
+      Activity，并支持字符串 XML 布局。原生 TSX DSL 在本阶段留到 S4。
       宿主提交 `6d6450315` 引入 `TypeScriptFileSource` 并覆盖普通文件、编辑器
       cache/semantic path 路由；`1f986545d` 对普通 TSX 与声明文件返回本地化
       明确错误；`c8088ae7b` 补齐 UI Activity 路由。显式 Node project 保留
@@ -187,14 +187,14 @@ Rhino 执行并输出 toast。
       `http.get`、通过 `images.read/pixel/recycle` 读取并检查 PNG、在受控悬浮窗
       上真实触发 click/swipe，以及 `"ui"` 模式下加载字符串 XML、查找视图、
       处理点击、更新文本并显式 `ui.finish()`；另覆盖 UTF-8 emit、类型错误
-      fail-closed 与 TSX 明确拒绝。MediaProjection 在设备初始未授权状态下，
+      fail-closed 与 S2 阶段的 TSX 明确拒绝。MediaProjection 在设备初始未授权状态下，
       由无障碍分别自动完成拒绝与允许分支：拒绝时 `requestScreenCapture()`
       确实返回 `false`；允许时选择整屏、捕获真实帧并检查尺寸、像素、回收与
       前台服务退出。宿主提交 `fdbdf8892` 的 12 项套件在 API 31/35/37
       各 12/12、合计 36/36 通过。API 37 上将 Node Runtime 插件置为
       `disabled-user` 后，完整套件仍 12/12 通过，测试结束后已恢复原始
       `default` 状态。经确认，原生 TSX DSL 不作为 S2 验收条件，独立进入
-      S3/S4；当前 `.tsx` 继续显式拒绝。
+      S3/S4；其后已由 S3-A3/S4-6 完成类型层与执行链。
 
 退出标准: Node Runtime 插件未安装或停用的设备上, 上述冒烟脚本全部可运行;
 TypeScript 插件未安装时给出明确安装提示而非崩溃。**已达成**：API 37 的
@@ -234,10 +234,15 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
       release/distribution 身份, 可直接服务后续缓存 key。生成、runtime、Program、
       NodeNext 与 APK 校验均通过, 新包在 API 31/33/35/37 上完成 profile 读取、
       strict API 编译和字符串 XML UI 执行回归。
-- [ ] **S3-A3 原生 TSX DSL 类型层**: 独立定义 JSX namespace、内置元素、
+- [x] **S3-A3 原生 TSX DSL 类型层**: 独立定义 JSX namespace、内置元素、
       属性与事件类型，不复用字符串 XML 的宽泛签名。
       验收: 一个包含布局、id 引用和点击处理器的真实 `.tsx` UI 脚本在
       strict 下通过类型检查，错误属性能给出稳定诊断。
+      提交 `2e27bb8` 将 JSX 类型作为 Rhino declaration `index.d.ts` 的独立
+      compiler-owned 投影生成：定义私有 factory/fragment、`JSX.Element`、
+      显式 intrinsic element 集合、分组属性与 `onClick` 事件签名，不提供
+      字符串索引签名。真实 strict `.tsx` 布局、id 查找、点击闭包编译成功；
+      未声明属性稳定返回 TypeScript diagnostic，且不会产生可执行输出。
 
 **B. 编译诊断直达编辑器** (宿主仓库)
 
@@ -397,12 +402,29 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
 - [ ] **S4-5 输入配额按需上调**: 若真实项目撞到 512 files / 8 MiB,
       直接上调至传输层上限 (4096 files / 64 MiB) 并实测一个大项目。
       不预先做容量证明, 撞到再调。
-- [ ] **S4-6 原生 TSX DSL 执行链** (插件 + 宿主): 在受控 profile 中定义
+- [x] **S4-6 原生 TSX DSL 执行链** (插件 + 宿主): 在受控 profile 中定义
       JSX lowering/runtime 契约，宿主放行 `.tsx` 并将产物送入 Rhino UI
       Activity；该链路独立于 S2 的字符串 XML 实现，不以正则转换或静默
       fallback 冒充支持。
       验收: 一个原生 TSX 布局脚本能渲染、响应点击、更新文本并主动关闭，
       同时保留 Source Map 与编译诊断。
+      - [x] 插件新增 exact Rhino profile revision 2，固定 classic JSX lowering
+        (`jsx=React`, `jsxFactory=__autojs6Tsx`,
+        `jsxFragmentFactory=__autojs6TsxFragment`)；`.ts/.tsx` 统一进入完整
+        TypeScript Program，`.tsx -> .js` 与配对 Source Map 贯穿 framed
+        transport、归档、诊断、模块映射和 capability metadata。revision 1
+        保持原字节级 authority 并继续准入，冻结 API v1 常量未修改。
+      - [x] 宿主在内部 source policy 中仅为 Rhino 放行 `.tsx`，并以私有全局
+        factory 构造有界 descriptor tree；`ui.layout()` 将其安全转义为现有 XML
+        inflater 输入，再绑定 `onClick` Callable。支持单根布局、Fragment、
+        字符串/数值/布尔属性、文本子节点和自动事件 id；元素数、深度、属性数、
+        数组长度与 XML 字节数均有明确上限，非法值直接失败。
+      - [x] 插件提交 `2e27bb8`，AutoJs6 宿主提交 `37e1ab2be`。插件
+        `gradlew check --offline` 116 个任务与 `assembleDebug` 通过；宿主归档、
+        路由、TSX 渲染单测通过。同一 strict `.tsx` UI 脚本在 API 31、API 35
+        实机与 API 37 x86_64 模拟器上均完成真实 Binder 编译、布局渲染、点击、
+        文本更新及 `ui.finish()`。API 37 测试只点击一次性兼容提示的 `OK`，
+        不选择 `Don't Show Again`，且不依赖无障碍服务或 MediaProjection 权限。
 
 ## S5 周边整合: 缓存、打包、编辑器
 
@@ -433,8 +455,8 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
 - AIDL v1 transaction prefix 冻结, 新能力走 additive Bundle key。
 - Source Map 强制产出; 不用生成 JS 冒充 TS 坐标。
 - 禁止项目自定义 transformer/compiler plugin/lifecycle script。
-- `.tsx`/JSX 不属于 S2 最小闭环；其类型层与执行链分别按 S3-A3、S4-6
-  独立推进，在完成前继续显式拒绝。
+- `.tsx`/JSX 不属于 S2 最小闭环；其已完成的类型层与执行链继续按
+  S3-A3、S4-6 独立维护，不并入字符串 XML 转换，不使用正则或静默 fallback。
 - 不恢复正则 stripping 作为任何形式的 fallback。
 
 ## 已明确放弃 (相对旧路线)
