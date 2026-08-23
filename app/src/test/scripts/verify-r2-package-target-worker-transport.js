@@ -267,7 +267,7 @@ const startFrame = (operation, extra = {}) => ({
     configByteLength: operation.configBytes.length,
     configKind: "tsconfig",
     configPolicyFingerprint: configPolicy.fingerprint,
-    configPolicyRevision: 1,
+    configPolicyRevision: configPolicy.revision,
     configSchemaRevision: 2,
     configSha256: sha256(operation.configBytes),
     entryPath: "/sources/main.ts",

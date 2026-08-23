@@ -9,7 +9,7 @@ import org.junit.Test
 class R2ControlledTsConfigPolicyTest {
 
     @Test
-    fun closedWorldScopeAndDefaultsAreExact() {
+    fun controlledScopeDefaultsAndStructuralFencesAreExact() {
         assertEquals(
             setOf("\$schema", "compilerOptions", "exclude", "files", "include"),
             R2ControlledTsConfigPolicy.allowedTopLevelKeys,
@@ -56,10 +56,16 @@ class R2ControlledTsConfigPolicyTest {
             "max-of-decoded-json-string-and-nfc-normalized-string",
             R2ControlledTsConfigPolicy.SELECTOR_UTF8_MEASUREMENT,
         )
+        assertEquals(
+            setOf("customTransformer", "customTransformers", "transformers"),
+            R2ControlledTsConfigPolicy.customTransformerCompilerOptions,
+        )
+        assertEquals("warning-ignore", R2ControlledTsConfigPolicy.UNKNOWN_TOP_LEVEL_FALLBACK)
+        assertEquals("warning-ignore", R2ControlledTsConfigPolicy.KNOWN_OPTION_FALLBACK)
     }
 
     @Test
-    fun rejectionClassificationIsStableAndClosedWorld() {
+    fun structuralOptionsRejectWhileUnclassifiedPropertiesWarnAndIgnore() {
         R2ControlledTsConfigPolicy.allowedTopLevelKeys.forEach { name ->
             assertNull(R2ControlledTsConfigPolicy.topLevelRejectionCode(name))
         }
@@ -69,9 +75,10 @@ class R2ControlledTsConfigPolicyTest {
                 R2ControlledTsConfigPolicy.topLevelRejectionCode(name),
             )
         }
+        assertNull(R2ControlledTsConfigPolicy.topLevelRejectionCode("futureUnknownTopLevel"))
         assertEquals(
-            TypeScriptR2Contract.CONFIG_POLICY_CODE_UNKNOWN_PROPERTY,
-            R2ControlledTsConfigPolicy.topLevelRejectionCode("futureUnknownTopLevel"),
+            TypeScriptR2Contract.CONFIG_DIAGNOSTIC_CODE_IGNORED_TOP_LEVEL_PROPERTY,
+            R2ControlledTsConfigPolicy.topLevelWarningDiagnosticCode("futureUnknownTopLevel"),
         )
 
         R2ControlledTsConfigPolicy.allowedBooleanCompilerOptions.keys.forEach { name ->
@@ -103,16 +110,37 @@ class R2ControlledTsConfigPolicyTest {
                 ),
             )
         }
-        assertEquals(
-            TypeScriptR2Contract.CONFIG_POLICY_CODE_UNSUPPORTED_FEATURE,
+        R2ControlledTsConfigPolicy.customTransformerCompilerOptions.forEach { name ->
+            assertEquals(
+                TypeScriptR2Contract.CONFIG_POLICY_CODE_UNKNOWN_PROPERTY,
+                R2ControlledTsConfigPolicy.compilerOptionRejectionCode(
+                    name,
+                    isKnownTypeScriptOption = false,
+                ),
+            )
+        }
+        assertNull(
             R2ControlledTsConfigPolicy.compilerOptionRejectionCode(
                 "experimentalDecorators",
                 isKnownTypeScriptOption = true,
             ),
         )
         assertEquals(
-            TypeScriptR2Contract.CONFIG_POLICY_CODE_UNKNOWN_PROPERTY,
+            TypeScriptR2Contract.CONFIG_DIAGNOSTIC_CODE_IGNORED_COMPILER_OPTION,
+            R2ControlledTsConfigPolicy.compilerOptionWarningDiagnosticCode(
+                "experimentalDecorators",
+                isKnownTypeScriptOption = true,
+            ),
+        )
+        assertNull(
             R2ControlledTsConfigPolicy.compilerOptionRejectionCode(
+                "definitelyNotATypeScriptOption",
+                isKnownTypeScriptOption = false,
+            ),
+        )
+        assertEquals(
+            TypeScriptR2Contract.CONFIG_DIAGNOSTIC_CODE_IGNORED_COMPILER_OPTION,
+            R2ControlledTsConfigPolicy.compilerOptionWarningDiagnosticCode(
                 "definitelyNotATypeScriptOption",
                 isKnownTypeScriptOption = false,
             ),
@@ -122,7 +150,7 @@ class R2ControlledTsConfigPolicyTest {
     @Test
     fun checkedInGoldenExactlyMirrorsThePolicyAuthority() {
         val fixtureBytes = requireNotNull(
-            javaClass.getResourceAsStream("/r2-controlled-tsconfig/policy-v1.json"),
+            javaClass.getResourceAsStream("/r2-controlled-tsconfig/policy-v2.json"),
         ).use { input -> input.readBytes() }
         val root = R2StrictJson.parseObject(fixtureBytes)
 
@@ -131,7 +159,7 @@ class R2ControlledTsConfigPolicyTest {
             "autojs6.typescript.controlled-tsconfig-policy",
             root.getValue("schema"),
         )
-        assertNumber(1, root.getValue("revision"))
+        assertNumber(2, root.getValue("revision"))
         assertEquals(
             TypeScriptR2Contract.CONFIG_KIND_TSCONFIG,
             root.getValue("configKind"),
@@ -245,6 +273,14 @@ class R2ControlledTsConfigPolicyTest {
             root.requireStringList("outputForbiddenCompilerOptions"),
         )
         assertEquals(
+            R2ControlledTsConfigPolicy.customTransformerCompilerOptions.sorted(),
+            root.requireStringList("customTransformerCompilerOptions"),
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.UNKNOWN_TOP_LEVEL_FALLBACK,
+            root.getValue("unknownTopLevelFallback"),
+        )
+        assertEquals(
             R2ControlledTsConfigPolicy.policyCodes.toList(),
             root.requireStringList("policyCodes"),
         )
@@ -252,10 +288,20 @@ class R2ControlledTsConfigPolicyTest {
             R2ControlledTsConfigPolicy.KNOWN_OPTION_FALLBACK,
             root.getValue("knownOptionFallback"),
         )
+        val warningCodes = root.requireObject("warningDiagnosticCodes")
+        assertEquals(EXACT_WARNING_CODE_KEYS, warningCodes.keys)
+        assertNumber(
+            TypeScriptR2Contract.CONFIG_DIAGNOSTIC_CODE_IGNORED_TOP_LEVEL_PROPERTY,
+            warningCodes.getValue("ignoredTopLevelProperty"),
+        )
+        assertNumber(
+            TypeScriptR2Contract.CONFIG_DIAGNOSTIC_CODE_IGNORED_COMPILER_OPTION,
+            warningCodes.getValue("ignoredCompilerOption"),
+        )
     }
 
     @Test
-    fun declaringTsConfigPolicyDoesNotActivateTheCurrentProductionAuthority() {
+    fun controlledConfigRemainsAnOverlayOnTheFrozenRhinoRuntimeProfile() {
         assertEquals(
             TypeScriptR2Contract.CONFIG_KIND_NONE,
             R2CompilationProfileRegistry.CONFIG_KIND_NONE,
@@ -307,7 +353,10 @@ class R2ControlledTsConfigPolicyTest {
             "profileManagedCompilerOptions",
             "escapeForbiddenCompilerOptions",
             "outputForbiddenCompilerOptions",
+            "customTransformerCompilerOptions",
+            "unknownTopLevelFallback",
             "knownOptionFallback",
+            "warningDiagnosticCodes",
             "policyCodes",
         )
         val EXACT_GRAMMAR_KEYS = setOf(
@@ -336,6 +385,10 @@ class R2ControlledTsConfigPolicyTest {
             "defaultExclude",
             "filesAndInclude",
             "excludeAffects",
+        )
+        val EXACT_WARNING_CODE_KEYS = setOf(
+            "ignoredTopLevelProperty",
+            "ignoredCompilerOption",
         )
         val STRICT_DEPENDENT_OPTIONS = setOf(
             "noImplicitAny",

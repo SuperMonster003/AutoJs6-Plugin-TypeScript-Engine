@@ -190,15 +190,15 @@ object TypeScriptR2Contract {
     }
 
     /*
-     * Controlled project-config policy. Revision 1 is a closed-world policy for the raw
-     * tsconfig.json carried by a future R2 request shape. Declaring these values does not make
-     * configKind=tsconfig admissible; the current production path remains configKind=none until
-     * downstream root-selection, result/output, and public-activation gates are completed.
+     * Controlled project-config policy. Revision 2 admits raw tsconfig.json for the public Rhino
+     * compilation path. Its 18 Boolean options are effective compiler inputs; unclassified keys
+     * are ignored with bounded warning diagnostics, while profile, output, resolution, and
+     * transformer escape surfaces remain fail-closed.
      */
     const val CONFIG_KIND_NONE = "none"
     const val CONFIG_KIND_TSCONFIG = "tsconfig"
     const val CONTROLLED_TSCONFIG_SCHEMA_REVISION = 2
-    const val CONTROLLED_TSCONFIG_POLICY_REVISION = 1
+    const val CONTROLLED_TSCONFIG_POLICY_REVISION = 2
     const val MAX_CONTROLLED_TSCONFIG_BYTES =
         TypeScriptCompilerContract.MAX_COMPILER_OPTIONS_BYTES
     const val MAX_CONTROLLED_TSCONFIG_SELECTORS = 512
@@ -218,6 +218,10 @@ object TypeScriptR2Contract {
     const val CONFIG_POLICY_CODE_COMPLEXITY_EXCEEDED = "CONFIG_COMPLEXITY_EXCEEDED"
     const val CONFIG_POLICY_CODE_NO_INPUTS = "CONFIG_NO_INPUTS"
     const val CONFIG_POLICY_CODE_ENTRY_NOT_SELECTED = "CONFIG_ENTRY_NOT_SELECTED"
+
+    /* Stable non-TypeScript diagnostic codes emitted by controlled-config policy revision 2. */
+    const val CONFIG_DIAGNOSTIC_CODE_IGNORED_TOP_LEVEL_PROPERTY = 910_001
+    const val CONFIG_DIAGNOSTIC_CODE_IGNORED_COMPILER_OPTION = 910_002
 
     const val KEY_CANCELLATION_OPERATION = "cancellationOperation"
     const val CANCELLATION_OPERATION_CANCEL = "cancel"

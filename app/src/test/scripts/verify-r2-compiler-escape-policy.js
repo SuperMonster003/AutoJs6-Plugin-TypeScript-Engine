@@ -26,8 +26,8 @@ if (
 ) {
     throw new Error(
         "Usage: node verify-r2-compiler-escape-policy.js " +
-            "<worker.js> <typescript.js> <escape-policy-v1.json> " +
-            "<controlled-policy-v1.json> <expected-version>",
+            "<worker.js> <typescript.js> <escape-policy-v2.json> " +
+            "<controlled-policy-v2.json> <expected-version>",
     );
 }
 
@@ -108,7 +108,7 @@ const fixtureFields = [
 assert(exactKeys(fixture, fixtureFields), "Escape-policy fixture shape drifted.");
 assert(
     fixture.schema === "autojs6.typescript.compiler-escape-policy" &&
-        fixture.revision === 1,
+        fixture.revision === 2,
     "Escape-policy fixture identity drifted.",
 );
 for (const [field, values] of Object.entries({
@@ -125,7 +125,7 @@ for (const [field, values] of Object.entries({
 }
 
 const canonicalInput =
-    "autojs6.typescript.compiler-escape-policy.v1" +
+    "autojs6.typescript.compiler-escape-policy.v2" +
     `|revision=${fixture.revision}` +
     `|configPolicyFingerprint=${fixture.configPolicyFingerprint}` +
     `|inlineCompilerOptionsJson=${fixture.inlineCompilerOptionsJson}` +
@@ -417,7 +417,7 @@ const controlledStartFrame = (operation, extra = {}) => ({
     configByteLength: operation.bytes.length,
     configKind: "tsconfig",
     configPolicyFingerprint: fixture.configPolicyFingerprint,
-    configPolicyRevision: 1,
+    configPolicyRevision: controlledPolicy.revision,
     configSchemaRevision: 2,
     configSha256: operation.digest,
     entryPath: "/sources/main.ts",
@@ -732,7 +732,19 @@ const makeProject = (sourceText) => {
         const operation = await beginControlledConfig(
             JSON.stringify({ compilerOptions: { [callbackName]: true } }),
         );
-        await endControlledConfig(operation, "CONFIG_UNKNOWN_PROPERTY");
+        await endControlledConfig(operation);
+        assert(
+            exactJson(workerBinding("framedInput.controlledConfig.ignoredProperties"), [
+                {
+                    kind: "compiler-option",
+                    known: false,
+                    name: callbackName,
+                },
+            ]),
+            `${callbackName} did not remain inert ignored JSON data.`,
+        );
+        releaseAcceptedControlledInput();
+        assertWorkerProjectStateCleared(`${callbackName} ignored-option cleanup`);
     }
 
     const poisonBeforeRemoteSchema = totalPoisonAccesses();
@@ -1006,7 +1018,7 @@ const makeProject = (sourceText) => {
         `R2-M2-C4 compiler escape policy verified: ` +
             `${fixture.escapeForbiddenCompilerOptions.length} escape options, ` +
             `${fixture.customTransformerOptionNames.length} authority transformer aliases, ` +
-            `${callbackTransformerNames.length} callback transformer names, ` +
+            `${callbackTransformerNames.length} inert callback-shaped names, ` +
             `${pathAttacks.length} path attacks, ` +
             `${coveredExactFrameInjectionKinds.size} exact framed shapes, ` +
             `${representativeFrameInjectionNames.length} representative ` +

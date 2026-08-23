@@ -27,7 +27,7 @@ function assertExactKeys(value, expected, label) {
 }
 
 function buildCanonicalInput(policy) {
-    let input = "autojs6.typescript.controlled-tsconfig-policy.v1";
+    let input = "autojs6.typescript.controlled-tsconfig-policy.v2";
     input += `|revision=${policy.revision}`;
     input += `|configKind=${policy.configKind}`;
     input += `|configPath=${policy.configPath}`;
@@ -59,7 +59,15 @@ function buildCanonicalInput(policy) {
     input = appendSet(input, "profileManaged", policy.profileManagedCompilerOptions);
     input = appendSet(input, "escapeForbidden", policy.escapeForbiddenCompilerOptions);
     input = appendSet(input, "outputForbidden", policy.outputForbiddenCompilerOptions);
+    input = appendSet(input, "customTransformers", policy.customTransformerCompilerOptions);
+    input += `|unknownTopLevelFallback=${policy.unknownTopLevelFallback}`;
     input += `|knownOptionFallback=${policy.knownOptionFallback}`;
+    input +=
+        `|ignoredTopLevelDiagnosticCode=` +
+        `${policy.warningDiagnosticCodes.ignoredTopLevelProperty}`;
+    input +=
+        `|ignoredCompilerOptionDiagnosticCode=` +
+        `${policy.warningDiagnosticCodes.ignoredCompilerOption}`;
     input = appendSet(input, "policyCodes", policy.policyCodes);
     return input;
 }
@@ -94,7 +102,10 @@ function main() {
             "profileManagedCompilerOptions",
             "escapeForbiddenCompilerOptions",
             "outputForbiddenCompilerOptions",
+            "customTransformerCompilerOptions",
+            "unknownTopLevelFallback",
             "knownOptionFallback",
+            "warningDiagnosticCodes",
             "policyCodes",
         ],
         "Policy root",
@@ -126,7 +137,7 @@ function main() {
         "Root selection",
     );
     assert(ts.version === expectedVersion, `Expected TypeScript ${expectedVersion}, found ${ts.version}.`);
-    assert(policy.revision === 1, "Controlled tsconfig policy revision drifted.");
+    assert(policy.revision === 2, "Controlled tsconfig policy revision drifted.");
     assert(policy.configKind === "tsconfig", "Controlled config kind drifted.");
     assert(policy.grammar.name === `typescript-jsonc-${expectedVersion}`, "JSONC grammar/version drifted.");
     assert(policy.budgets.maximumBytes === 48 * 1024, "Raw config budget drifted.");
@@ -155,10 +166,20 @@ function main() {
     for (const name of classified) {
         assert(declarations.has(name), `Classified compiler option is unknown to TypeScript ${expectedVersion}: ${name}`);
     }
-    assert(policy.knownOptionFallback === "unsupported-feature", "Known-option fallback must fail closed.");
     assert(
-        ts.optionDeclarations.every((option) => classified.has(option.name) || policy.knownOptionFallback === "unsupported-feature"),
-        "A TypeScript option has no fail-closed classification.",
+        policy.customTransformerCompilerOptions.join(",") ===
+            "customTransformer,customTransformers,transformers",
+        "Custom transformer rejection inventory drifted.",
+    );
+    assert(
+        policy.unknownTopLevelFallback === "warning-ignore" &&
+            policy.knownOptionFallback === "warning-ignore",
+        "Forward-compatible property fallback must warn and ignore.",
+    );
+    assert(
+        policy.warningDiagnosticCodes.ignoredTopLevelProperty === 910001 &&
+            policy.warningDiagnosticCodes.ignoredCompilerOption === 910002,
+        "Controlled-config warning diagnostic identity drifted.",
     );
 
     const strictDependents = Object.entries(policy.allowedBooleanCompilerOptions)

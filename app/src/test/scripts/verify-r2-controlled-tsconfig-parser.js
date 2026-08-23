@@ -28,7 +28,7 @@ if (
     throw new Error(
         "Usage: node verify-r2-controlled-tsconfig-parser.js " +
             "<worker.js> <typescript.js> <parser-fixture.json> " +
-            "<policy-v1.json> <expected-version>",
+            "<policy-v2.json> <expected-version>",
     );
 }
 
@@ -151,8 +151,8 @@ const beginConfig = async (bytes, options = {}) => {
         configByteLength: declaredByteLength,
         configKind: "tsconfig",
         configPolicyFingerprint:
-            "849f882618d294d61683cc5930ecd4855f53435d7a673ceda08ad127504fa24d",
-        configPolicyRevision: 1,
+            "64ef1cf36d6531f84088cec49127e6407b107ab86eeaf7f4512358fd1343598b",
+        configPolicyRevision: 2,
         configSchemaRevision: 2,
         configSha256: digest,
         entryPath: "/sources/main.ts",
@@ -262,9 +262,9 @@ const verifyAccepted = async (testCase) => {
     assert(
         parsed.configKind === "tsconfig" &&
             parsed.configSchemaRevision === 2 &&
-            parsed.configPolicyRevision === 1 &&
+            parsed.configPolicyRevision === 2 &&
             parsed.configPolicyFingerprint ===
-                "849f882618d294d61683cc5930ecd4855f53435d7a673ceda08ad127504fa24d",
+                "64ef1cf36d6531f84088cec49127e6407b107ab86eeaf7f4512358fd1343598b",
         `${testCase.name} parsed authority drifted.`,
     );
     assert(
@@ -283,8 +283,38 @@ const verifyAccepted = async (testCase) => {
         `${testCase.name} explicit option count drifted.`,
     );
     assert(
+        JSON.stringify(parsed.ignoredProperties) ===
+            JSON.stringify(testCase.ignoredProperties),
+        `${testCase.name} ignored-property authority drifted.`,
+    );
+    const warningDiagnostics = workerBinding(
+        "createControlledTsConfigWarningDiagnostics",
+    )(parsed.ignoredProperties);
+    assert(
+        warningDiagnostics.length === testCase.ignoredProperties.length &&
+            warningDiagnostics.every(
+                (diagnostic) =>
+                    diagnostic.category === ts.DiagnosticCategory.Warning &&
+                    (diagnostic.code === 910001 || diagnostic.code === 910002) &&
+                    typeof diagnostic.messageText === "string" &&
+                    diagnostic.messageText.startsWith("Ignored controlled tsconfig "),
+            ),
+        `${testCase.name} ignored-property warning diagnostics drifted.`,
+    );
+    assert(
+        warningDiagnostics.map((diagnostic) => diagnostic.code).join(",") ===
+            testCase.ignoredProperties
+                .map((property) =>
+                    property.kind === "top-level" ? 910001 : 910002,
+                )
+                .join(","),
+        `${testCase.name} ignored-property warning code mapping drifted.`,
+    );
+    assert(
         Object.isFrozen(parsed.presentTopLevelKeys) &&
             Object.isFrozen(parsed.explicitBooleanOptions) &&
+            Object.isFrozen(parsed.ignoredProperties) &&
+            parsed.ignoredProperties.every(Object.isFrozen) &&
             Object.isFrozen(parsed.selectors) &&
             ["files", "include", "exclude"].every(
                 (key) =>
@@ -307,7 +337,7 @@ const nestedArray = (depth) => {
     return source;
 };
 const nodeBoundary = (childNodes) =>
-    `{"unknown":[${Array(childNodes).fill("0").join(",")}]}`;
+    `{"extends":[${Array(childNodes).fill("0").join(",")}]}`;
 const selectorCountBoundary = (count) =>
     JSON.stringify({ include: Array(count).fill("src/**/*.ts") });
 const selectorByteBoundary = (count) =>
@@ -382,8 +412,8 @@ const verifyCompilerHostConfigTerminal = () => {
             configByteLength: 2,
             configKind: "tsconfig",
             configPolicyFingerprint:
-                "849f882618d294d61683cc5930ecd4855f53435d7a673ceda08ad127504fa24d",
-            configPolicyRevision: 1,
+                "64ef1cf36d6531f84088cec49127e6407b107ab86eeaf7f4512358fd1343598b",
+            configPolicyRevision: 2,
             configSchemaRevision: 2,
             configSha256: sha256(configBytes),
             entryPath: "/sources/main.ts",
@@ -479,7 +509,7 @@ const verifyCompilerHostConfigTerminal = () => {
     assert(
         fixture.schema ===
             "autojs6.typescript.controlled-tsconfig-parser-fixture" &&
-            fixture.revision === 1,
+            fixture.revision === 2,
         "Controlled-config parser fixture authority drifted.",
     );
     assert(global.ts.version === expectedVersion, "TypeScript version drifted.");
@@ -490,7 +520,7 @@ const verifyCompilerHostConfigTerminal = () => {
             workerAuthority.configPolicyRevision === policy.revision &&
             workerAuthority.configPolicyFingerprint === policy.fingerprint &&
             workerAuthority.configSchemaRevision === 2,
-        "Worker controlled-config identity drifted from policy-v1.",
+        "Worker controlled-config identity drifted from policy-v2.",
     );
     assert(
         workerAuthority.maximumBytes === policy.budgets.maximumBytes &&
@@ -502,13 +532,13 @@ const verifyCompilerHostConfigTerminal = () => {
                 policy.budgets.maximumSelectorUtf8Bytes &&
             workerAuthority.maximumSelectors ===
                 policy.budgets.maximumSelectors,
-        "Worker controlled-config budgets drifted from policy-v1.",
+        "Worker controlled-config budgets drifted from policy-v2.",
     );
     const assertExactStringSet = (bindingName, expected, label) => {
         const actual = Array.from(workerBinding(bindingName)).sort();
         assert(
             JSON.stringify(actual) === JSON.stringify(Array.from(expected).sort()),
-            `${label} drifted from policy-v1.`,
+            `${label} drifted from policy-v2.`,
         );
     };
     assertExactStringSet(
@@ -546,6 +576,32 @@ const verifyCompilerHostConfigTerminal = () => {
 
     for (const testCase of fixture.accepted) await verifyAccepted(testCase);
     for (const testCase of fixture.rejected) await verifyRejected(testCase);
+
+    {
+        const ignoredProperties = Object.freeze(
+            Array.from({ length: 100 }, (_, index) =>
+                Object.freeze({
+                    kind: "top-level",
+                    name: `future-setting-${index}`,
+                }),
+            ),
+        );
+        const diagnostics = workerBinding(
+            "createControlledTsConfigWarningDiagnostics",
+        )(ignoredProperties);
+        assert(
+            diagnostics.length === 65 &&
+                diagnostics.every(
+                    (diagnostic) =>
+                        diagnostic.category === ts.DiagnosticCategory.Warning &&
+                        diagnostic.code === 910001,
+                ) &&
+                diagnostics.at(-1).messageText ===
+                    "Ignored 36 additional controlled tsconfig properties; " +
+                        "the warning list was bounded.",
+            "Ignored-property warning diagnostics are not bounded at 64 plus summary.",
+        );
+    }
 
     {
         const operation = await beginConfig(Buffer.from([0xc3, 0x28]));
@@ -598,7 +654,7 @@ const verifyCompilerHostConfigTerminal = () => {
     await verifyRejected({
         name: "node-4096-accepted-by-scanner",
         source: nodeBoundary(4094),
-        policyCode: "CONFIG_UNKNOWN_PROPERTY",
+        policyCode: "CONFIG_UNSUPPORTED_FEATURE",
     });
     await verifyRejected({
         name: "node-4097-rejected",

@@ -48,7 +48,7 @@
 
 | 阶段 | 主题 | 用户可感知结果 | 状态 |
 |---|---|---|---|
-| S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII 拦下 | 进行中 (3/7) |
+| S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 进行中 (4/7) |
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 未开始 |
 | S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 未开始 |
 | S4 | Node profile 与项目级能力 | `.mts/.cts`、多文件项目、tsconfig 常用项 | 未开始 |
@@ -86,13 +86,18 @@ S4/S5 在 S2 跑通后即可按需插队。唯一硬前提: **S2 之前必须完
       已在 API 37 模拟器与 Android 12 实机通过 5 MiB source 的 Public Binder
       回归；caller + Rhino declarations 的 retained snapshot 超过旧 8 MiB，最终
       JavaScript 超过 2 MiB，formal output 成功提交。
-- [ ] **S1-4 tsconfig 受控子集激活**: `configKind="tsconfig"` 不再
+- [x] **S1-4 tsconfig 受控子集激活**: `configKind="tsconfig"` 不再
       返回 not-activated; 启用已实现的 18 个受控布尔项 (`strict` 家族、
       `noUnused*`、`skipLibCheck`)。越界键报 warning 并忽略, 不拒绝
       整个请求 (fail-open on unknown keys, 保持对 `paths`/`outFile`/
       自定义 transformer 等结构性选项的拒绝)。
       验收: 带 `{"compilerOptions":{"strict":false}}` 的项目按非
       strict 编译通过。
+      Public Rhino classifier、Worker 与 output provenance 已贯通；未知 top-level/
+      compiler option 分别形成 warning `910001/910002`，结构性选项仍 fail closed。
+      focused Public Binder 验收已通过 API 31、API 35 实机与 API 37 模拟器。
+      设计与接入字段见
+      [S1-4 Public Controlled tsconfig Activation](docs/architecture/CONTROLLED_TSCONFIG_ACTIVATION_S1_4.md)。
 - [ ] **S1-5 NodeNext revision 2 准入**: `.ts/.mts/.cts` →
       `.js/.mjs/.cjs` 已在 Worker 实现, 将其加入 endToEnd admitted
       authorities, 走完输出归档。

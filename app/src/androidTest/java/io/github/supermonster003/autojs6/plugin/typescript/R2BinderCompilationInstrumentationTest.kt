@@ -80,15 +80,28 @@ class R2BinderCompilationInstrumentationTest {
                     compilerInfo.getInt(TypeScriptR2Contract.KEY_PROFILE_REVISION, -1),
                 )
                 assertEquals(
-                    R2CompilationProfileRegistry.CONFIG_SCHEMA_REVISION,
+                    TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION,
                     compilerInfo.getInt(
                         TypeScriptR2Contract.KEY_CONFIG_SCHEMA_REVISION,
                         -1,
                     ),
                 )
                 assertEquals(
-                    R2CompilationProfileRegistry.CONFIG_KIND_NONE,
+                    TypeScriptR2Contract.CONFIG_KIND_TSCONFIG,
                     compilerInfo.getString(TypeScriptR2Contract.KEY_CONFIG_KIND),
+                )
+                assertEquals(
+                    TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
+                    compilerInfo.getInt(
+                        TypeScriptR2Contract.KEY_CONFIG_POLICY_REVISION,
+                        -1,
+                    ),
+                )
+                assertEquals(
+                    R2ControlledTsConfigPolicy.fingerprint,
+                    compilerInfo.getString(
+                        TypeScriptR2Contract.KEY_CONFIG_POLICY_FINGERPRINT,
+                    ),
                 )
                 assertEquals(
                     TypeScriptR2Contract.INPUT_ARCHIVE_SCHEMA_REVISION,
@@ -147,6 +160,119 @@ class R2BinderCompilationInstrumentationTest {
                     terminal.getString(TypeScriptCompilerContract.KEY_OUTCOME),
                 )
                 assertEquals(1, callback.terminalCount.get())
+            } finally {
+                fixture.delete()
+            }
+        }
+    }
+
+    @Test
+    fun controlledTsConfigAppliesStrictFalseAndPublishesIgnoredPropertyWarnings() {
+        bindCompilerService().use { session ->
+            val fixture = createFixture(
+                requestId = newRequestId("controlled-tsconfig"),
+                sources = linkedMapOf(
+                    "sources/main.ts" to
+                        "export function identity(value) { return value; }\n",
+                ),
+                rootPaths = listOf("sources/main.ts"),
+                tsconfigJson =
+                    "{\"futureEditorSetting\":true," +
+                        "\"compilerOptions\":{" +
+                        "\"strict\":false," +
+                        "\"futureCompilerOption\":\"ignored\"}}",
+            )
+            try {
+                val terminal = compileAndAcknowledge(
+                    compiler = session.compiler,
+                    fixture = fixture,
+                    request = fixture.publicRequest(),
+                    publicShapedAcknowledgement = true,
+                )
+                assertEquals(
+                    TypeScriptCompilerContract.OUTCOME_EMITTED,
+                    terminal.getString(TypeScriptCompilerContract.KEY_OUTCOME),
+                )
+                assertTrue(
+                    terminal.getBoolean(
+                        TypeScriptCompilerContract.KEY_SUCCEEDED,
+                        false,
+                    ),
+                )
+                assertEquals(
+                    1,
+                    terminal.getInt(
+                        TypeScriptCompilerContract.KEY_EMITTED_MODULE_COUNT,
+                        -1,
+                    ),
+                )
+                assertEquals(
+                    2,
+                    terminal.getInt(
+                        TypeScriptCompilerContract.KEY_DIAGNOSTIC_COUNT,
+                        -1,
+                    ),
+                )
+
+                ZipArchiveV1Validator.validate(
+                    fixture.output,
+                    ZipArchiveV1Limits.OUTPUT,
+                )
+                ZipFile(fixture.output).use { archive ->
+                    assertNotNull(archive.getEntry("modules/main.js"))
+                    val manifest = R2StrictJson.parseObject(
+                        archive.getInputStream(
+                            archive.getEntry(R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH),
+                        ).use { input -> input.readBytes() },
+                    )
+                    assertEquals(
+                        TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION.toLong(),
+                        (manifest["configSchemaRevision"] as R2StrictJson.NumberToken)
+                            .source.toLong(),
+                    )
+                    assertEquals(
+                        TypeScriptR2Contract.CONFIG_KIND_TSCONFIG,
+                        manifest["configKind"],
+                    )
+                    assertEquals(
+                        R2ControlledTsConfigEffectiveOptions.resolve(
+                            mapOf("strict" to false),
+                        ).fingerprint,
+                        manifest["effectiveOptionsFingerprint"],
+                    )
+
+                    val diagnosticsEnvelope = R2StrictJson.parseObject(
+                        archive.getInputStream(
+                            archive.getEntry(R2PrivateOutputArchive.DIAGNOSTICS_PATH),
+                        ).use { input -> input.readBytes() },
+                    )
+                    val diagnostics = (diagnosticsEnvelope["diagnostics"] as List<*>)
+                        .map { diagnostic -> diagnostic as Map<*, *> }
+                    assertEquals(2, diagnostics.size)
+                    assertEquals(
+                        setOf(
+                            TypeScriptR2Contract
+                                .CONFIG_DIAGNOSTIC_CODE_IGNORED_TOP_LEVEL_PROPERTY,
+                            TypeScriptR2Contract
+                                .CONFIG_DIAGNOSTIC_CODE_IGNORED_COMPILER_OPTION,
+                        ),
+                        diagnostics.mapTo(linkedSetOf()) { diagnostic ->
+                            (diagnostic["code"] as R2StrictJson.NumberToken)
+                                .source.toInt()
+                        },
+                    )
+                    diagnostics.forEach { diagnostic ->
+                        assertEquals("options", diagnostic["phase"])
+                        assertEquals(
+                            TypeScriptR2Contract.DIAGNOSTIC_CATEGORY_WARNING.toLong(),
+                            (diagnostic["category"] as R2StrictJson.NumberToken)
+                                .source.toLong(),
+                        )
+                        assertEquals(null, diagnostic["uri"])
+                        assertEquals(null, diagnostic["range"])
+                        assertTrue((diagnostic["message"] as String).startsWith("Ignored "))
+                    }
+                }
             } finally {
                 fixture.delete()
             }
@@ -1813,6 +1939,7 @@ class R2BinderCompilationInstrumentationTest {
             R2ProjectExecutionPhase.PARSE.takeIf {
                 workerSpinMilliseconds > 0
             },
+        tsconfigJson: String? = null,
         timeoutMs: Long = DEFAULT_TIMEOUT_MILLIS,
         terminalCleanupDelayMilliseconds: Int = 0,
     ): CompilationFixture {
@@ -1825,8 +1952,20 @@ class R2BinderCompilationInstrumentationTest {
                 sha256 = R2Digests.sha256(bytes),
             )
         }
-        val inventoryFingerprint =
-            R2ProvisionalRequestManifest.inventoryFingerprint(files)
+        val rawConfigBytes = tsconfigJson?.toByteArray(StandardCharsets.UTF_8)
+        val rawConfigAuthority = rawConfigBytes?.let { bytes ->
+            R2RawProjectConfigAuthority(
+                size = bytes.size.toLong(),
+                sha256 = R2Digests.sha256(bytes),
+            )
+        }
+        val inventoryFingerprint = R2InputArchiveSchemaV1.callerInventoryFingerprint(
+            sources = files,
+            rawConfig = rawConfigAuthority?.descriptor(),
+            packageMetadata = null,
+            packageTargets = null,
+            nodePackageTargetsV2 = null,
+        )
         val fileJson = files.joinToString(separator = ",") { file ->
             "{\"path\":\"${file.path}\",\"sha256\":\"${file.sha256}\"," +
                 "\"size\":${file.size}}"
@@ -1836,6 +1975,24 @@ class R2BinderCompilationInstrumentationTest {
             context,
             profileAuthority.profile,
         ).profileFingerprint
+        val configSchemaRevision = if (rawConfigAuthority == null) {
+            profileAuthority.configSchemaRevision
+        } else {
+            TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION
+        }
+        val configKind = if (rawConfigAuthority == null) {
+            profileAuthority.configKind
+        } else {
+            TypeScriptR2Contract.CONFIG_KIND_TSCONFIG
+        }
+        val rawConfigJson = rawConfigAuthority?.let { authority ->
+            ",\"config\":{" +
+                "\"path\":\"${authority.path}\"," +
+                "\"size\":${authority.size}," +
+                "\"sha256\":\"${authority.sha256}\"," +
+                "\"policyRevision\":${authority.policyRevision}," +
+                "\"policyFingerprint\":\"${authority.policyFingerprint}\"}"
+        }.orEmpty()
         val manifest = (
             "{\"schema\":\"${R2InputArchiveSchemaV1.SCHEMA}\"," +
                 "\"revision\":${R2InputArchiveSchemaV1.REVISION}," +
@@ -1856,7 +2013,7 @@ class R2BinderCompilationInstrumentationTest {
                 "\"runtimeCapabilitySchemaRevision\":" +
                 "${TypeScriptCompilerContract.RUNTIME_CAPABILITY_SCHEMA_REVISION}," +
                 "\"configSchemaRevision\":" +
-                "${profileAuthority.configSchemaRevision}," +
+                "$configSchemaRevision," +
                 "\"runtimeCapabilitiesFingerprint\":\"" +
                 "${profileAuthority.runtimeCapabilitiesFingerprint}\"," +
                 "\"compilerPackage\":\"typescript\"," +
@@ -1865,7 +2022,8 @@ class R2BinderCompilationInstrumentationTest {
                 "${metadata.distributionFingerprint}\"," +
                 "\"declarationsFingerprint\":\"${metadata.declarationsFingerprint}\"," +
                 "\"declarationProfileFingerprint\":\"$declarationProfileFingerprint\"," +
-                "\"configKind\":\"${profileAuthority.configKind}\"," +
+                "\"configKind\":\"$configKind\"" +
+                rawConfigJson + "," +
                 "\"callerInventoryFingerprint\":\"$inventoryFingerprint\"," +
                 "\"rootPaths\":[$rootJson],\"files\":[$fileJson]}"
             ).toByteArray(StandardCharsets.UTF_8)
@@ -1873,6 +2031,9 @@ class R2BinderCompilationInstrumentationTest {
         val entries = linkedMapOf(
             R2InputArchiveSchemaV1.REQUEST_MANIFEST_PATH to manifest,
         )
+        rawConfigBytes?.let { bytes ->
+            entries[R2ControlledTsConfigPolicy.CONFIG_PATH] = bytes
+        }
         sources.forEach { (path, text) ->
             entries[path] = text.toByteArray(StandardCharsets.UTF_8)
         }
@@ -1889,6 +2050,7 @@ class R2BinderCompilationInstrumentationTest {
             declarationsFingerprint = metadata.declarationsFingerprint,
             declarationProfileFingerprint = declarationProfileFingerprint,
             profileAuthority = profileAuthority,
+            rawConfigAuthority = rawConfigAuthority,
             workerSpinMilliseconds = workerSpinMilliseconds,
             workerSpinPhase = workerSpinPhase,
             timeoutMs = timeoutMs,
@@ -2706,14 +2868,35 @@ class R2BinderCompilationInstrumentationTest {
             TypeScriptR2Contract.KEY_PROFILE_REVISION,
             R2CompilationProfileRegistry.PROVISIONAL_RHINO.profileRevision,
         )
+        val config = rawConfigAuthority
         putInt(
             TypeScriptR2Contract.KEY_CONFIG_SCHEMA_REVISION,
-            R2CompilationProfileRegistry.CONFIG_SCHEMA_REVISION,
+            if (config == null) {
+                R2CompilationProfileRegistry.CONFIG_SCHEMA_REVISION
+            } else {
+                TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION
+            },
         )
         putString(
             TypeScriptR2Contract.KEY_CONFIG_KIND,
-            R2CompilationProfileRegistry.CONFIG_KIND_NONE,
+            if (config == null) {
+                R2CompilationProfileRegistry.CONFIG_KIND_NONE
+            } else {
+                TypeScriptR2Contract.CONFIG_KIND_TSCONFIG
+            },
         )
+        if (config != null) {
+            putLong(TypeScriptR2Contract.KEY_CONFIG_BYTE_LENGTH, config.size)
+            putString(TypeScriptR2Contract.KEY_CONFIG_SHA256, config.sha256)
+            putInt(
+                TypeScriptR2Contract.KEY_CONFIG_POLICY_REVISION,
+                config.policyRevision,
+            )
+            putString(
+                TypeScriptR2Contract.KEY_CONFIG_POLICY_FINGERPRINT,
+                config.policyFingerprint,
+            )
+        }
         putString(
             TypeScriptR2Contract.KEY_INPUT_ARCHIVE_SHA256,
             inputArchiveSha256,
@@ -3010,6 +3193,7 @@ class R2BinderCompilationInstrumentationTest {
         val declarationsFingerprint: String,
         val declarationProfileFingerprint: String,
         val profileAuthority: R2CompilationProfileAuthority,
+        val rawConfigAuthority: R2RawProjectConfigAuthority?,
         val workerSpinMilliseconds: Int,
         val workerSpinPhase: R2ProjectExecutionPhase?,
         val timeoutMs: Long,

@@ -77,9 +77,9 @@ assert(
 );
 assert(
     configPolicy.schema === "autojs6.typescript.controlled-tsconfig-policy" &&
-        configPolicy.revision === 1 &&
+        configPolicy.revision === 2 &&
         configPolicy.fingerprint ===
-            "849f882618d294d61683cc5930ecd4855f53435d7a673ceda08ad127504fa24d",
+            "64ef1cf36d6531f84088cec49127e6407b107ab86eeaf7f4512358fd1343598b",
     "Controlled-tsconfig fixture identity drifted.",
 );
 for (const marker of [

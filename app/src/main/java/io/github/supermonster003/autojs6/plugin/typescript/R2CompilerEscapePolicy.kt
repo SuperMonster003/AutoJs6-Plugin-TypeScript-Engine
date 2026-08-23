@@ -13,12 +13,13 @@ internal enum class R2CompilerEscapeSourcePathRejection(
 
 /**
  * R2-M2-C4 authority for compiler escape surfaces that are independent of the C1 tsconfig
- * grammar. Keeping this authority separate preserves the frozen C1 policy fingerprint.
+ * grammar. Keeping this authority separate gives host/Worker escape closure its own revisioned
+ * identity while binding it to the current controlled-config policy fingerprint.
  */
 internal object R2CompilerEscapePolicy {
 
     const val SCHEMA = "autojs6.typescript.compiler-escape-policy"
-    const val REVISION = 1
+    const val REVISION = 2
     const val INLINE_COMPILER_OPTIONS_JSON = "{}"
     const val FIXED_WORKER_IMPORT_SCRIPT = "typescript.js"
     const val BINDER_METADATA_MODE = "primitive-additive-no-executable-authority"
@@ -27,11 +28,8 @@ internal object R2CompilerEscapePolicy {
     val escapeForbiddenCompilerOptions: Set<String> =
         R2ControlledTsConfigPolicy.escapeForbiddenCompilerOptions
 
-    val customTransformerOptionNames: Set<String> = immutableSetOf(
-        "customTransformer",
-        "customTransformers",
-        "transformers",
-    )
+    val customTransformerOptionNames: Set<String> =
+        R2ControlledTsConfigPolicy.customTransformerCompilerOptions
 
     val forbiddenPackageMetadataKeys: Set<String> = immutableSetOf(
         "scripts",
@@ -62,7 +60,7 @@ internal object R2CompilerEscapePolicy {
     )
 
     val canonicalInput: String = buildString {
-        append("autojs6.typescript.compiler-escape-policy.v1")
+        append("autojs6.typescript.compiler-escape-policy.v2")
         append("|revision=")
         append(REVISION)
         append("|configPolicyFingerprint=")
@@ -89,7 +87,7 @@ internal object R2CompilerEscapePolicy {
     )
 
     init {
-        require(REVISION == 1)
+        require(REVISION == 2)
         require(escapeForbiddenCompilerOptions.size == 10)
         require(canonicalInput.all { character -> character.code in 0x20..0x7e })
         R2Digests.requireLowerSha256(fingerprint, "Compiler escape policy fingerprint")

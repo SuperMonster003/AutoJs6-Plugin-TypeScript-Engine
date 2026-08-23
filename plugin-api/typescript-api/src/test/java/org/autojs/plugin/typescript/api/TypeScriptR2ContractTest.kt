@@ -302,7 +302,7 @@ class TypeScriptR2ContractTest {
         assertEquals("none", TypeScriptR2Contract.CONFIG_KIND_NONE)
         assertEquals("tsconfig", TypeScriptR2Contract.CONFIG_KIND_TSCONFIG)
         assertEquals(2, TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION)
-        assertEquals(1, TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION)
+        assertEquals(2, TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION)
         assertEquals(
             TypeScriptCompilerContract.MAX_COMPILER_OPTIONS_BYTES,
             TypeScriptR2Contract.MAX_CONTROLLED_TSCONFIG_BYTES,
@@ -314,6 +314,14 @@ class TypeScriptR2ContractTest {
         )
         assertEquals(16, TypeScriptR2Contract.MAX_CONTROLLED_TSCONFIG_JSON_DEPTH)
         assertEquals(4 * 1024, TypeScriptR2Contract.MAX_CONTROLLED_TSCONFIG_JSON_NODES)
+        assertEquals(
+            910_001,
+            TypeScriptR2Contract.CONFIG_DIAGNOSTIC_CODE_IGNORED_TOP_LEVEL_PROPERTY,
+        )
+        assertEquals(
+            910_002,
+            TypeScriptR2Contract.CONFIG_DIAGNOSTIC_CODE_IGNORED_COMPILER_OPTION,
+        )
         assertEquals(
             listOf(
                 "CONFIG_ENCODING_INVALID",

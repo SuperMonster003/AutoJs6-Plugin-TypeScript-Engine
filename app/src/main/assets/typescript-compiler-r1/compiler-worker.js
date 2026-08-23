@@ -246,8 +246,8 @@ const controlledTsConfigAuthority = Object.freeze({
     configKind: "tsconfig",
     configPath: "tsconfig.json",
     configPolicyFingerprint:
-        "849f882618d294d61683cc5930ecd4855f53435d7a673ceda08ad127504fa24d",
-    configPolicyRevision: 1,
+        "64ef1cf36d6531f84088cec49127e6407b107ab86eeaf7f4512358fd1343598b",
+    configPolicyRevision: 2,
     configSchemaRevision: 2,
     maximumBytes: 48 * 1024,
     maximumJsonDepth: 16,
@@ -392,6 +392,33 @@ const controlledTsConfigEscapeForbiddenOptions = new Set([
     "typeRoots",
     "types",
 ]);
+const controlledTsConfigOutputForbiddenOptions = new Set([
+    "declaration",
+    "declarationDir",
+    "declarationMap",
+    "emitBOM",
+    "emitDeclarationOnly",
+    "importHelpers",
+    "incremental",
+    "inlineSourceMap",
+    "inlineSources",
+    "mapRoot",
+    "noEmit",
+    "noEmitHelpers",
+    "outFile",
+    "removeComments",
+    "sourceRoot",
+    "tsBuildInfoFile",
+]);
+const controlledTsConfigCustomTransformerOptions = new Set([
+    "customTransformer",
+    "customTransformers",
+    "transformers",
+]);
+const controlledTsConfigIgnoredDiagnosticCodes = Object.freeze({
+    compilerOption: 910_002,
+    topLevelProperty: 910_001,
+});
 const compilerEscapeSourcePathRejectionCodes = Object.freeze({
     deferredSourceKind: "deferred-source-kind",
     packageDependencyTree: "package-dependency-tree",
@@ -4650,6 +4677,59 @@ const createDiagnosticCollector = () => {
     });
 };
 
+const maximumControlledTsConfigPropertyWarnings = 64;
+const createControlledTsConfigWarningDiagnostics = (ignoredProperties) => {
+    if (!Array.isArray(ignoredProperties) || !Object.isFrozen(ignoredProperties)) {
+        throw new Error("Controlled tsconfig ignored-property authority is malformed.");
+    }
+    const diagnostics = ignoredProperties
+        .slice(0, maximumControlledTsConfigPropertyWarnings)
+        .map((property) => {
+            const topLevel =
+                isRecord(property) &&
+                hasExactKeys(property, ["kind", "name"]) &&
+                property.kind === "top-level";
+            const compilerOption =
+                isRecord(property) &&
+                hasExactKeys(property, ["kind", "known", "name"]) &&
+                property.kind === "compiler-option" &&
+                typeof property.known === "boolean";
+            if (
+                (!topLevel && !compilerOption) ||
+                typeof property.name !== "string"
+            ) {
+                throw new Error(
+                    "Controlled tsconfig ignored-property record is malformed.",
+                );
+            }
+            const boundedName = JSON.stringify(property.name.slice(0, 256));
+            const label = topLevel
+                ? "top-level property"
+                : property.known
+                  ? "unsupported compiler option"
+                  : "unknown compiler option";
+            return {
+                category: ts.DiagnosticCategory.Warning,
+                code: topLevel
+                    ? controlledTsConfigIgnoredDiagnosticCodes.topLevelProperty
+                    : controlledTsConfigIgnoredDiagnosticCodes.compilerOption,
+                messageText:
+                    `Ignored controlled tsconfig ${label} ${boundedName}; ` +
+                    "the frozen compiler profile is unchanged.",
+            };
+        });
+    if (ignoredProperties.length > maximumControlledTsConfigPropertyWarnings) {
+        diagnostics.push({
+            category: ts.DiagnosticCategory.Warning,
+            code: controlledTsConfigIgnoredDiagnosticCodes.topLevelProperty,
+            messageText:
+                `Ignored ${ignoredProperties.length - maximumControlledTsConfigPropertyWarnings} ` +
+                "additional controlled tsconfig properties; the warning list was bounded.",
+        });
+    }
+    return diagnostics;
+};
+
 const resolveSourceMapPath = (
     mapPath,
     sourceRoot,
@@ -4853,6 +4933,8 @@ const compileProject = async (project, frameToken = null) => {
     try {
         vfs = createReadonlyProjectVfs(project);
         const controlledEffectiveOptions = project.controlledEffectiveOptions;
+        const ignoredConfigProperties =
+            project.ignoredConfigProperties ?? Object.freeze([]);
         if (
             isControlledProject &&
             (
@@ -4867,10 +4949,15 @@ const compileProject = async (project, frameToken = null) => {
                 JSON.stringify(controlledEffectiveOptions.compilerOptions) !==
                     controlledEffectiveOptions.canonicalJson ||
                 Object.keys(controlledEffectiveOptions.compilerOptions).join("\n") !==
-                    controlledTsConfigCanonicalOptionKeys.join("\n")
+                    controlledTsConfigCanonicalOptionKeys.join("\n") ||
+                !Array.isArray(ignoredConfigProperties) ||
+                !Object.isFrozen(ignoredConfigProperties)
             )
         ) {
             throw new Error("Controlled effective option authority is malformed.");
+        }
+        if (!isControlledProject && ignoredConfigProperties.length !== 0) {
+            throw new Error("Config-none project carried ignored config properties.");
         }
         const options = isControlledProject
             ? controlledEffectiveOptions.compilerOptions
@@ -4926,6 +5013,14 @@ const compileProject = async (project, frameToken = null) => {
             }
         }
         diagnosticCollector = createDiagnosticCollector();
+        if (isControlledProject) {
+            diagnosticCollector.consume(
+                "options",
+                createControlledTsConfigWarningDiagnostics(
+                    ignoredConfigProperties,
+                ),
+            );
+        }
         if (resolutionSession !== null) {
             diagnosticCollector.consume(
                 "resolution",
@@ -5790,18 +5885,21 @@ const parseControlledTsConfig = (source) => {
         );
     }
 
+    const ignoredProperties = [];
     for (const key of Object.keys(value).sort(compareCodeUnits)) {
         if (controlledTsConfigAllowedTopLevel.has(key)) {
             continue;
         }
-        rejectControlledTsConfig(
-            controlledTsConfigUnsupportedTopLevel.has(key)
-                ? controlledTsConfigPolicyCodes.unsupportedFeature
-                : controlledTsConfigPolicyCodes.unknownProperty,
-            controlledTsConfigUnsupportedTopLevel.has(key)
-                ? "Controlled tsconfig uses an unsupported top-level feature."
-                : "Controlled tsconfig contains an unknown top-level property.",
-        );
+        if (controlledTsConfigUnsupportedTopLevel.has(key)) {
+            rejectControlledTsConfig(
+                controlledTsConfigPolicyCodes.unsupportedFeature,
+                "Controlled tsconfig uses an unsupported top-level feature.",
+            );
+        }
+        ignoredProperties.push(Object.freeze({
+            kind: "top-level",
+            name: key,
+        }));
     }
 
     if (
@@ -5847,14 +5945,23 @@ const parseControlledTsConfig = (source) => {
                     "Controlled tsconfig attempts to enable a host or resolution escape.",
                 );
             }
-            rejectControlledTsConfig(
-                controlledTsConfigKnownOptions.has(name)
-                    ? controlledTsConfigPolicyCodes.unsupportedFeature
-                    : controlledTsConfigPolicyCodes.unknownProperty,
-                controlledTsConfigKnownOptions.has(name)
-                    ? "Controlled tsconfig uses an unsupported compiler option."
-                    : "Controlled tsconfig contains an unknown compiler option.",
-            );
+            if (controlledTsConfigOutputForbiddenOptions.has(name)) {
+                rejectControlledTsConfig(
+                    controlledTsConfigPolicyCodes.unsupportedFeature,
+                    "Controlled tsconfig attempts to change the frozen output topology.",
+                );
+            }
+            if (controlledTsConfigCustomTransformerOptions.has(name)) {
+                rejectControlledTsConfig(
+                    controlledTsConfigPolicyCodes.unknownProperty,
+                    "Controlled tsconfig attempts to install a custom transformer.",
+                );
+            }
+            ignoredProperties.push(Object.freeze({
+                kind: "compiler-option",
+                known: controlledTsConfigKnownOptions.has(name),
+                name,
+            }));
         }
     }
 
@@ -5909,6 +6016,7 @@ const parseControlledTsConfig = (source) => {
         configSchemaRevision:
             controlledTsConfigAuthority.configSchemaRevision,
         explicitBooleanOptions: Object.freeze(explicitBooleanOptions),
+        ignoredProperties: Object.freeze(ignoredProperties),
         presentTopLevelKeys: Object.freeze(
             Object.keys(value).sort(compareCodeUnits),
         ),
@@ -7661,6 +7769,8 @@ const acceptProjectInputEnd = async (message, frameToken) => {
     requireActiveProjectInputFrame(frameToken);
     const nodePackageFormatCatalog = state.nodePackageFormatCatalog;
     const nodeRevisionTwoProgramMode = state.nodeRevisionTwoProgramMode;
+    const ignoredConfigProperties =
+        state.controlledConfig?.ignoredProperties ?? Object.freeze([]);
     const runtimeCapabilitiesFingerprint =
         state.runtimeCapabilitiesFingerprint;
     const packageTargetFiles = state.packageTargetFiles.slice();
@@ -7713,6 +7823,7 @@ const acceptProjectInputEnd = async (message, frameToken) => {
         controlledEffectiveOptions: state.controlledEffectiveOptions,
         directoryIndex: state.directoryIndex,
         files: state.files,
+        ignoredConfigProperties,
         packageTargetAuthority,
         packageTargetFiles,
         packageTargetTextHolders,

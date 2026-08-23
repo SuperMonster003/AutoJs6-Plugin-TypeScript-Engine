@@ -5,6 +5,7 @@ import org.autojs.plugin.typescript.api.TypeScriptR2Contract
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -120,9 +121,15 @@ class R2CompilerSyntaxMatrixFixtureTest {
 
         listOf("experimentalDecorators", "emitDecoratorMetadata").forEach { option ->
             assertFalse(option in R2ControlledTsConfigPolicy.allowedBooleanCompilerOptions)
-            assertEquals(
-                TypeScriptR2Contract.CONFIG_POLICY_CODE_UNSUPPORTED_FEATURE,
+            assertNull(
                 R2ControlledTsConfigPolicy.compilerOptionRejectionCode(
+                    option,
+                    isKnownTypeScriptOption = true,
+                ),
+            )
+            assertEquals(
+                TypeScriptR2Contract.CONFIG_DIAGNOSTIC_CODE_IGNORED_COMPILER_OPTION,
+                R2ControlledTsConfigPolicy.compilerOptionWarningDiagnosticCode(
                     option,
                     isKnownTypeScriptOption = true,
                 ),

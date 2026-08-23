@@ -43,7 +43,7 @@
       "policyCode": "CONFIG_UNKNOWN_PROPERTY",
       "boundary": "config-end",
       "sourceEncoding": "utf8",
-      "source": "{\"custom\":true}"
+      "source": "{\"compilerOptions\":{\"customTransformer\":true}}"
     },
     {
       "name": "invalid-value",

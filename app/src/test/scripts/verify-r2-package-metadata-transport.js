@@ -22,7 +22,7 @@ if (
     throw new Error(
         "Usage: node verify-r2-package-metadata-transport.js " +
             "<worker.js> <typescript.js> <package-policy-v1.json> " +
-            "<controlled-policy-v1.json> <expected-version>",
+            "<controlled-policy-v2.json> <expected-version>",
     );
 }
 
@@ -334,7 +334,7 @@ const startFrame = (operation, extra = {}) => ({
     configByteLength: operation.configBytes.length,
     configKind: "tsconfig",
     configPolicyFingerprint: controlledPolicy.fingerprint,
-    configPolicyRevision: 1,
+    configPolicyRevision: controlledPolicy.revision,
     configSchemaRevision: 2,
     configSha256: operation.configSha256,
     entryPath: "/sources/main.ts",
@@ -676,7 +676,7 @@ const rejectPackageBody = async (body, expectedCode, label) => {
             configByteLength: configBytes.length,
             configKind: "tsconfig",
             configPolicyFingerprint: controlledPolicy.fingerprint,
-            configPolicyRevision: 1,
+            configPolicyRevision: controlledPolicy.revision,
             configSchemaRevision: 2,
             configSha256: operation.configSha256,
             entryPath: "/sources/main.ts",

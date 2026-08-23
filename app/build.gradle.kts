@@ -1815,13 +1815,13 @@ val r2CompilationProbeProtocolTestSource = layout.projectDirectory.file(
         "R2CompilationProbeProtocolTest.kt",
 )
 val r2ControlledTsConfigPolicyFixture = layout.projectDirectory.file(
-    "src/test/resources/r2-controlled-tsconfig/policy-v1.json",
+    "src/test/resources/r2-controlled-tsconfig/policy-v2.json",
 )
 val r2ControlledTsConfigPolicyHarness = layout.projectDirectory.file(
     "src/test/scripts/verify-r2-controlled-tsconfig-policy.js",
 )
 val r2ControlledTsConfigParserFixture = layout.projectDirectory.file(
-    "src/test/resources/r2-controlled-tsconfig/parser-v1.json",
+    "src/test/resources/r2-controlled-tsconfig/parser-v2.json",
 )
 val r2ControlledTsConfigParserHarness = layout.projectDirectory.file(
     "src/test/scripts/verify-r2-controlled-tsconfig-parser.js",
@@ -1849,7 +1849,7 @@ val r2CompilerEscapePolicyTestSource = layout.projectDirectory.file(
         "R2CompilerEscapePolicyTest.kt",
 )
 val r2CompilerEscapePolicyFixture = layout.projectDirectory.file(
-    "src/test/resources/r2-controlled-tsconfig/escape-policy-v1.json",
+    "src/test/resources/r2-controlled-tsconfig/escape-policy-v2.json",
 )
 val r2CompilerEscapePolicyHarness = layout.projectDirectory.file(
     "src/test/scripts/verify-r2-compiler-escape-policy.js",
@@ -2230,7 +2230,7 @@ val verifyR2M2C1ControlledTsConfigPolicy =
     tasks.register<Exec>("verifyR2M2C1ControlledTsConfigPolicy") {
         group = "verification"
         description =
-            "Freezes the closed-world R2-M2-C1 controlled tsconfig policy without enabling it."
+            "Verifies the activated revision-2 controlled tsconfig policy and structural fences."
         dependsOn(generateTypeScriptDistribution)
         dependsOn("testDebugUnitTest")
         dependsOn(":plugin-api:typescript-api:verifyTypeScriptApiV1Freeze")
@@ -2280,7 +2280,7 @@ val verifyR2M2C1ControlledTsConfigPolicy =
             val contractSource = typeScriptR2ContractSource.asFile.readText(Charsets.UTF_8)
             listOf(
                 "const val CONFIG_KIND_TSCONFIG = \"tsconfig\"",
-                "const val CONTROLLED_TSCONFIG_POLICY_REVISION = 1",
+                "const val CONTROLLED_TSCONFIG_POLICY_REVISION = 2",
                 "const val CONFIG_POLICY_CODE_ENCODING_INVALID",
                 "const val CONFIG_POLICY_CODE_ENTRY_NOT_SELECTED",
             ).forEach { marker ->
@@ -2296,7 +2296,8 @@ val verifyR2M2C1ControlledTsConfigPolicy =
                     authoritySource &&
                     "TypeScriptR2Contract.CONFIG_KIND_TSCONFIG" !in authoritySource,
             ) {
-                "R2-M2-C1 must not activate tsconfig in the current profile authority."
+                "R2-M2-C1 must retain config-none as the frozen runtime profile below the " +
+                    "activated raw-config overlay."
             }
             check(
                 "compilerOptionsJson == " +
@@ -2316,12 +2317,14 @@ val verifyR2M2C1ControlledTsConfigPolicy =
             val admissionTestSource =
                 r2CompilationProbeProtocolTestSource.asFile.readText(Charsets.UTF_8)
             listOf(
-                "fun controlledTsConfigDeclarationDoesNotActivatePublicAdmission()",
+                "fun completeControlledTsConfigMetadataCreatesExactPublicRawConfigControls()",
+                "R2PublicCompilationDisposition.ACCEPTED_CONTROLLED_TSCONFIG",
+                "controls.rawConfigAuthority",
                 "R2PublicCompilationProtocol.controlsOrNull(",
                 "configKind = TypeScriptR2Contract.CONFIG_KIND_TSCONFIG",
             ).forEach { marker ->
                 check(marker in admissionTestSource) {
-                    "R2-M2-C1 public non-activation test is missing marker: $marker"
+                    "R2-M2-C1 public activation test is missing marker: $marker"
                 }
             }
 
@@ -2335,7 +2338,7 @@ val verifyR2M2C2ControlledTsConfigParser =
         group = "verification"
         description =
             "Verifies the R2-M2-C2 raw tsconfig identity, framing, parser, and " +
-                "public non-activation fences."
+                "public activation fences."
         dependsOn(generateTypeScriptDistribution)
         dependsOn(verifyR2M2C1ControlledTsConfigPolicy)
         dependsOn(verifyR2ProjectCompilerDesktop)
@@ -2504,12 +2507,12 @@ val verifyR2M2C2ControlledTsConfigParser =
             val admissionTestSource =
                 r2CompilationProbeProtocolTestSource.asFile.readText(Charsets.UTF_8)
             listOf(
-                "fun controlledTsConfigDeclarationDoesNotActivatePublicAdmission()",
-                "CONTROLLED_TSCONFIG_NOT_ACTIVATED",
-                "ERROR_CONTRACT_MISMATCH",
+                "fun completeControlledTsConfigMetadataCreatesExactPublicRawConfigControls()",
+                "ACCEPTED_CONTROLLED_TSCONFIG",
+                "R2RawProjectConfigAuthority(",
             ).forEach { marker ->
                 check(marker in admissionTestSource) {
-                    "R2-M2-C2 public non-activation test is missing marker: $marker"
+                    "R2-M2-C2 public activation test is missing marker: $marker"
                 }
             }
             val serviceSource = r2PublicPreviewServiceSource.asFile.readText(Charsets.UTF_8)
@@ -2545,7 +2548,8 @@ val verifyR2M2C2ControlledTsConfigParser =
                     coordinatorAdmissionIndex > publicTsConfigRejectionIndex &&
                     ownershipTransferIndex > publicTsConfigRejectionIndex,
             ) {
-                "R2-M2-C2 public tsconfig rejection must precede coordinator admission and " +
+                "R2-M2-C2 malformed public metadata rejection must precede coordinator " +
+                    "admission and " +
                     "FD ownership transfer."
             }
             val synchronousPublicRejection = Regex(
@@ -2555,7 +2559,7 @@ val verifyR2M2C2ControlledTsConfigParser =
                 RegexOption.DOT_MATCHES_ALL,
             )
             check(synchronousPublicRejection.containsMatchIn(serviceSource)) {
-                "R2-M2-C2 public tsconfig classification must return synchronously."
+                "R2-M2-C2 malformed public metadata classification must return synchronously."
             }
 
             val coordinatorSource =
@@ -2586,7 +2590,7 @@ val verifyR2M2C2ControlledTsConfigParser =
                     authoritySource &&
                     "TypeScriptR2Contract.CONFIG_KIND_TSCONFIG" !in authoritySource,
             ) {
-                "R2-M2-C2 must not activate tsconfig in the current profile authority."
+                "R2-M2-C2 must retain config-none as the runtime profile beneath raw config."
             }
             check(
                 "compilerOptionsJson == " +
@@ -2610,7 +2614,7 @@ val verifyR2M2C3ControlledTsConfigEffectiveOptions =
         group = "verification"
         description =
             "Verifies the R2-M2-C3 controlled-tsconfig precedence, canonical effective " +
-                "options/fingerprint, and public non-activation fences."
+                "options/fingerprint, and public activation fences."
         dependsOn(generateTypeScriptDistribution)
         dependsOn(verifyR2M2C2ControlledTsConfigParser)
         dependsOn(verifyR2ProjectCompilerDesktop)
@@ -2885,7 +2889,7 @@ val verifyR2M2C3ControlledTsConfigEffectiveOptions =
             val contractSource = typeScriptR2ContractSource.asFile.readText(Charsets.UTF_8)
             listOf(
                 "const val CONTROLLED_TSCONFIG_SCHEMA_REVISION = 2",
-                "const val CONTROLLED_TSCONFIG_POLICY_REVISION = 1",
+                "const val CONTROLLED_TSCONFIG_POLICY_REVISION = 2",
             ).forEach { marker ->
                 check(marker in contractSource) {
                     "R2-M2-C3 additive config contract is missing marker: $marker"
@@ -2901,12 +2905,12 @@ val verifyR2M2C3ControlledTsConfigEffectiveOptions =
             val admissionTestSource =
                 r2CompilationProbeProtocolTestSource.asFile.readText(Charsets.UTF_8)
             listOf(
-                "fun controlledTsConfigDeclarationDoesNotActivatePublicAdmission()",
-                "CONTROLLED_TSCONFIG_NOT_ACTIVATED",
-                "ERROR_CONTRACT_MISMATCH",
+                "fun completeControlledTsConfigMetadataCreatesExactPublicRawConfigControls()",
+                "ACCEPTED_CONTROLLED_TSCONFIG",
+                "controls.authority(validRequest()).rawConfigAuthority",
             ).forEach { marker ->
                 check(marker in admissionTestSource) {
-                    "R2-M2-C3 public non-activation test is missing marker: $marker"
+                    "R2-M2-C3 public activation test is missing marker: $marker"
                 }
             }
             val serviceSource = r2PublicPreviewServiceSource.asFile.readText(Charsets.UTF_8)
@@ -2928,7 +2932,7 @@ val verifyR2M2C3ControlledTsConfigEffectiveOptions =
                     ownershipTransferIndex > publicTsConfigRejectionIndex &&
                     synchronousPublicRejection.containsMatchIn(serviceSource),
             ) {
-                "R2-M2-C3 public tsconfig must reject synchronously before admission/FD ownership."
+                "R2-M2-C3 malformed public metadata must reject before admission/FD ownership."
             }
 
             val coordinatorSource =
@@ -2983,7 +2987,7 @@ val verifyR2M2C4CompilerEscapeClosure =
         group = "verification"
         description =
             "Verifies the R2-M2-C4 compiler escape policy, package/path fences, " +
-                "isolated host, and public non-activation contract."
+                "isolated host, and public controlled-config admission contract."
         dependsOn(generateTypeScriptDistribution)
         dependsOn(verifyR2M2C3ControlledTsConfigEffectiveOptions)
         dependsOn(verifyR2ProjectCompilerDesktop)
@@ -3042,9 +3046,9 @@ val verifyR2M2C4CompilerEscapeClosure =
         )
         doLast {
             val escapePolicyFingerprint =
-                "ac6acb29d2c544584a84a4c5fe5828e5d7958755aade00cebf224191faf0a9fb"
+                "4f42fdf38782fd8d94b40a1bf5797295698b9ba24ca0f555c30186e4b43a1e98"
             val controlledPolicyFingerprint =
-                "849f882618d294d61683cc5930ecd4855f53435d7a673ceda08ad127504fa24d"
+                "64ef1cf36d6531f84088cec49127e6407b107ab86eeaf7f4512358fd1343598b"
             val legacyEffectiveOptionsFingerprint =
                 "76a173383972b1bd8d4ffa3fffe5d51f5adecf7b84e7b16f58554c14f3c08e0b"
 
@@ -3073,7 +3077,7 @@ val verifyR2M2C4CompilerEscapeClosure =
             val policySource = r2CompilerEscapePolicySource.asFile.readText(Charsets.UTF_8)
             listOf(
                 "internal object R2CompilerEscapePolicy",
-                "const val REVISION = 1",
+                "const val REVISION = 2",
                 "const val INLINE_COMPILER_OPTIONS_JSON = \"{}\"",
                 "val escapeForbiddenCompilerOptions:",
                 "val customTransformerOptionNames:",
@@ -3412,7 +3416,7 @@ val verifyR2M2C5ControlledPackageMetadataTransport =
         group = "verification"
         description =
             "Verifies the R2-M2-C5 package metadata conditional manifest shape, isolated " +
-                "snapshot transport, Worker policy, and public non-activation contract."
+                "snapshot transport, Worker policy, and public controlled-config contract."
         dependsOn(generateTypeScriptDistribution)
         dependsOn(verifyR2M2C4CompilerEscapeClosure)
         dependsOn(verifyR2ProjectCompilerDesktop)
@@ -3465,7 +3469,7 @@ val verifyR2M2C5ControlledPackageMetadataTransport =
             val emptyInventoryFingerprint =
                 "5226a24ffd4ccf70a6ae0aa18b5c0f30630612a2e2edd348bf007c87e62a941d"
             val controlledPolicyFingerprint =
-                "849f882618d294d61683cc5930ecd4855f53435d7a673ceda08ad127504fa24d"
+                "64ef1cf36d6531f84088cec49127e6407b107ab86eeaf7f4512358fd1343598b"
 
             val fixtureSource =
                 r2PackageMetadataPolicyFixture.asFile.readText(Charsets.UTF_8)
@@ -5243,7 +5247,7 @@ val verifyR2M2P2P4NodeSourceKindAdmission =
                     "P2-4 source-kind authority is missing marker: $marker"
                 }
             }
-            check("const val REVISION = 1" in escape)
+            check("const val REVISION = 2" in escape)
             check("\".cts\"" in escape && "\".mts\"" in escape)
             check("R2ProjectSourceKindAdmission.sourcePathRejection(" in archive)
             check("R2ProjectSourceKindAdmission.isExecutableSourcePath(" in archive)
@@ -6369,8 +6373,9 @@ val verifyR2M2P2P8FinalAggregate =
         dependsOn(verifyR2M2P2P6NodeNextProgramIntegration)
         dependsOn(verifyR2M2P2P7NodeNextResultAndPrivateOutput)
 
-        // APK inventory, frozen API, production source, public non-activation, and optional-plugin
-        // independence are P2 completion evidence rather than a later Core-only side effect.
+        // APK inventory, frozen API, production source, controlled-config admission, and
+        // optional-plugin independence are P2 completion evidence rather than a later Core-only
+        // side effect.
         dependsOn(verifyDebugTypeScriptDistributionApk)
         dependsOn(verifyReleaseTypeScriptDistributionApk)
         dependsOn(verifyDebugR2DeclarationDistributionApk)
@@ -7041,8 +7046,8 @@ val verifyR2M2P4CompilerSyntax =
         group = "verification"
         description =
             "Closes R2-M2-P4 with a deterministic 7-syntax x 2-profile desktop/JVM matrix " +
-                "while keeping legacy decorators, production authorities, public " +
-                "capabilities, and runtime execution closed."
+                "while keeping legacy decorators, production authorities, and runtime " +
+                "execution closed."
 
         dependsOn(verifyR2M2P3CompilerBundleGolden)
         dependsOn(verifyR2M2P4CompilerSyntaxDesktop)
@@ -7270,7 +7275,7 @@ val verifyR2M2P4CompilerSyntax =
                 "fixtureFreezesSevenSyntaxKindsAcrossTwoProfilesAndRebuildsSourceAndOutputIdentities",
                 "standardDecoratorsKeepExperimentalOptionsClosedAndNodeRevisionTwoWorkerResultOnly",
                 "R2ProjectSourceKindAdmission.isExecutableSourcePath",
-                "CONFIG_POLICY_CODE_UNSUPPORTED_FEATURE",
+                "CONFIG_DIAGNOSTIC_CODE_IGNORED_COMPILER_OPTION",
                 "requireWorkerResultAdmittedExactContractValue",
             ).forEach { marker ->
                 check(marker in fixtureTestSource) {
@@ -7450,7 +7455,7 @@ val verifyR2M2P5CompilerBoundaries =
         group = "verification"
         description =
             "Closes R2-M2-P5 with deterministic compiler-boundary desktop/JVM evidence " +
-                "while keeping production paths printable-ASCII, collisions fail-closed, " +
+                "while keeping production paths canonical UTF-8, collisions fail-closed, " +
                 "and runtime execution out of scope."
 
         dependsOn(verifyR2M2P4CompilerSyntax)
@@ -7748,7 +7753,7 @@ val verifyR2M2P5CompilerBoundaries =
                 source = fixtureTestSource,
                 markers = listOf(
                     "fixtureFreezesSevenBoundaryKindsAcrossTwoProfilesAndRebuildsDeterministicIdentities",
-                    "productionPathPolicyKeepsUnicodeNegativeSpacePositiveAndCollisionFailClosed",
+                    "productionPathPolicyAcceptsUtf8AndSpaceWhileKeepingCollisionsFailClosed",
                     "R2ProjectSnapshot.validateProjectPath",
                     "acceptedTokenCount",
                     "overflowTokenCount",
@@ -7767,22 +7772,23 @@ val verifyR2M2P5CompilerBoundaries =
 
             val zipSource = r2ZipArchiveValidatorSource.asFile.readText(Charsets.UTF_8)
             requireMarkers(
-                label = "ZIP printable-ASCII authority",
+                label = "ZIP canonical UTF-8 authority",
                 source = zipSource,
                 markers = listOf(
-                    "ZIP entry path contains bytes outside printable ASCII.",
-                    "String(rawName, StandardCharsets.US_ASCII)",
+                    "ZIP entry path contains non-ASCII bytes without the UTF-8 flag.",
+                    "R2Utf8.decode(rawName, \"ZIP entry path\")",
+                    "ZIP entry path contains a control character:",
                     "asciiLowercase(path)",
                 ),
             )
             val archiveSource = r2ProjectArchiveSource.asFile.readText(Charsets.UTF_8)
             requireMarkers(
-                label = "manifest printable-ASCII authority",
+                label = "manifest canonical UTF-8 authority",
                 source = archiveSource,
                 markers = listOf(
                     "validateCanonicalArchivePath(path, label)",
-                    "path.any { character -> character.code !in PRINTABLE_ASCII }",
-                    "val collisionKey = path.asciiCaseFold()",
+                    "R2UnicodePathPolicy.isCanonicalRelativePath(path)",
+                    "val collisionKey = R2UnicodePathPolicy.asciiCaseFold(path)",
                 ),
             )
             val snapshotSource = r2ProjectSnapshotSource.asFile.readText(Charsets.UTF_8)
@@ -7790,8 +7796,8 @@ val verifyR2M2P5CompilerBoundaries =
                 label = "snapshot path/UTF-8 authority",
                 source = snapshotSource,
                 markers = listOf(
-                    "Project VFS path must contain only printable ASCII",
-                    "val collisionKey = file.path.asciiCaseFold()",
+                    "Project VFS path must be a bounded canonical UTF-8 absolute path",
+                    "val collisionKey = R2UnicodePathPolicy.asciiCaseFold(file.path)",
                     ".onMalformedInput(CodingErrorAction.REPORT)",
                     ".onUnmappableCharacter(CodingErrorAction.REPORT)",
                 ),
@@ -7802,7 +7808,8 @@ val verifyR2M2P5CompilerBoundaries =
                 label = "generated mapping path authority",
                 source = mappingSource,
                 markers = listOf(
-                    "sourcePath.any { character -> character.code !in PRINTABLE_ASCII }",
+                    "R2UnicodePathPolicy.isCanonicalAbsolutePath(",
+                    "Generated mapping source path is not a canonical UTF-8 /sources path.",
                     "canonicalEvidence.toByteArray(StandardCharsets.US_ASCII)",
                     "mapping.sourcePath.asciiCaseFold()",
                 ),
@@ -7816,7 +7823,8 @@ val verifyR2M2P5CompilerBoundaries =
                     "const maximumTokensPerFile = 65_536;",
                     "const maximumProjectTokens = 262_144;",
                     "const validateCanonicalVfsPath = (",
-                    "Project VFS path must use printable ASCII.",
+                    "!isSafeUnicodePathText(path)",
+                    "Project VFS path is not a canonical absolute path.",
                     "new TextDecoder(\"utf-8\", {",
                     "fatal: true,",
                     "ignoreBOM: true,",
@@ -7832,14 +7840,13 @@ val verifyR2M2P5CompilerBoundaries =
             val protocolPathFence = between(
                 protocolSource,
                 "private fun String.isCanonicalProtocolPath(): Boolean =",
-                "private fun String.asciiLowercase(): String",
+                "private fun ByteArray.sha256(): String",
             )
             requireMarkers(
                 label = "result protocol path authority",
                 source = protocolPathFence,
                 markers = listOf(
-                    "all { character -> character.code in 0x20..0x7e }",
-                    "segments.all { segment ->",
+                    "R2UnicodePathPolicy.isCanonicalAbsolutePath(this)",
                 ),
             )
             val privateOutputSource =
@@ -7848,8 +7855,9 @@ val verifyR2M2P5CompilerBoundaries =
                 label = "private output path authority",
                 source = privateOutputSource,
                 markers = listOf(
-                    "entry.path.toByteArray(StandardCharsets.US_ASCII)",
-                    "any { character -> character.code !in 0x20..0x7e }",
+                    "R2Utf8.encode(entry.path, \"Output ZIP entry path\")",
+                    "FLAG_UTF8",
+                    "R2UnicodePathPolicy.isCanonicalRelativePath(this)",
                     "Compiler Source Map contains a non-canonical source.",
                 ),
             )
@@ -7874,8 +7882,8 @@ val verifyR2M2P5CompilerBoundaries =
                 label = "manifest path authority regression",
                 source = archiveTestSource,
                 markers = listOf(
-                    "p5ManifestAuthorityKeepsUnicodeNegativeSpacePositiveAndCollisionFailClosed",
-                    "bounded printable-ASCII relative path",
+                    "manifestAuthorityAcceptsSafeUtf8AndSpacePathsWhileCaseCollisionsStayClosed",
+                    "sources/中文目录/入口.ts",
                     "ASCII case-fold collision",
                 ),
             )
@@ -7914,8 +7922,8 @@ val verifyR2M2P5CompilerBoundaries =
 
             logger.lifecycle(
                 "R2-M2-P5 compiler boundaries verified: TypeScript 6.0.3, kinds=7, " +
-                    "profiles=2, rows=14, positive=12, compiles=48, production Unicode " +
-                    "paths rejected, ordinary space paths accepted, 65,536-token inclusive, " +
+                    "profiles=2, rows=14, positive=12, compiles=48, safe production Unicode " +
+                    "and space paths accepted, controls rejected, 65,536-token inclusive, " +
                     "ASCII collision pre-Program, compiler capability mask=15",
             )
         }
@@ -8359,9 +8367,10 @@ val verifyR2M2X2DiagnosticStopEmitModel =
             check(
                 "R2CompilationProfileRegistry.PROVISIONAL_RHINO" in publicClassifier &&
                     "PROVISIONAL_NODE_NEXT_REVISION_1" !in publicClassifier &&
-                    "CONTROLLED_TSCONFIG_NOT_ACTIVATED" in publicClassifier
+                    "ACCEPTED_CONTROLLED_TSCONFIG" in publicClassifier &&
+                    "rawConfigAuthority = R2RawProjectConfigAuthority(" in publicClassifier
             ) {
-                "R2-M2-X2 must not promote public Node or controlled-tsconfig admission."
+                "R2-M2-X2 must keep public Node closed while admitting controlled tsconfig."
             }
             val probeTestSource =
                 r2CompilationProbeProtocolTestSource.asFile.readText(Charsets.UTF_8)
@@ -8370,7 +8379,7 @@ val verifyR2M2X2DiagnosticStopEmitModel =
                 source = probeTestSource,
                 markers = listOf(
                     "publicPreviewCannotActivateTheInternalNodeProfile",
-                    "controlledTsConfigDeclarationDoesNotActivatePublicAdmission",
+                    "completeControlledTsConfigMetadataCreatesExactPublicRawConfigControls",
                     "registeredNodeRevisionTwoCannotEnterTheEndToEndPipeline",
                 ),
             )
@@ -8400,7 +8409,7 @@ val verifyR2M2X2DiagnosticStopEmitModel =
                 "R2-M2-X2 pre-device source/JVM/APK evidence verified: unified options/" +
                     "syntactic/global/semantic no-emit model; Android Rhino r1 + NodeNext r1 " +
                     "source-reachable diagnostics-only matrix; Node r2 Worker-result-only; " +
-                    "compiler capability mask=15; tsconfig/runtime activation remains pending",
+                    "compiler capability mask=15; controlled tsconfig revision 2 active",
             )
         }
     }
@@ -8660,9 +8669,10 @@ val verifyR2M2X3StableConfigurationAndResolutionFailures =
             check(
                 "R2CompilationProfileRegistry.PROVISIONAL_RHINO" in publicClassifier &&
                     "PROVISIONAL_NODE_NEXT_REVISION_1" !in publicClassifier &&
-                    "CONTROLLED_TSCONFIG_NOT_ACTIVATED" in publicClassifier
+                    "ACCEPTED_CONTROLLED_TSCONFIG" in publicClassifier &&
+                    "rawConfigAuthority = R2RawProjectConfigAuthority(" in publicClassifier
             ) {
-                "R2-M2-X3 must not promote public Node or controlled-tsconfig admission."
+                "R2-M2-X3 must keep public Node closed while admitting controlled tsconfig."
             }
             val probeTests = r2CompilationProbeProtocolTestSource.asFile.readText(Charsets.UTF_8)
             requireMarkers(
@@ -8670,7 +8680,7 @@ val verifyR2M2X3StableConfigurationAndResolutionFailures =
                 source = probeTests,
                 markers = listOf(
                     "publicPreviewCannotActivateTheInternalNodeProfile",
-                    "controlledTsConfigDeclarationDoesNotActivatePublicAdmission",
+                    "completeControlledTsConfigMetadataCreatesExactPublicRawConfigControls",
                     "registeredNodeRevisionTwoCannotEnterTheEndToEndPipeline",
                 ),
             )
@@ -9010,14 +9020,14 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                 source = apiSource + "\n" +
                     r2ApiContractTestSource.asFile.readText(Charsets.UTF_8),
                 markers = listOf(
-                    "const val ORDINARY_COMPILATION_INPUT_QUOTA_REVISION = 1",
+                    "const val ORDINARY_COMPILATION_INPUT_QUOTA_REVISION = 2",
                     "const val MAX_ORDINARY_COMPILATION_INPUT_FILES = 512",
                     "const val MAX_ORDINARY_COMPILATION_SINGLE_FILE_BYTES = " +
                         "8L * 1024L * 1024L",
                     "const val MAX_ORDINARY_COMPILATION_INPUT_BYTES = 8L * 1024L * 1024L",
                     "transport-valid does",
                     "not make it eligible for ordinary compilation",
-                    "ordinaryCompilationInputQuotaIsExactRevisionOneAndNotTheTransportCeiling",
+                    "ordinaryCompilationInputQuotaIsExactRevisionTwoAndNotTheTransportCeiling",
                 ),
             )
 
@@ -9032,7 +9042,7 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                     "TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES",
                     "val PROVISIONAL_WORKER = ORDINARY_COMPILATION",
                     "internal fun ordinaryCompilationAdmission(",
-                    "(authority?.capacity ?: derived).admissionAgainst(limits)",
+                    "(authority?.callerCapacity ?: derivedCaller).admissionAgainst(limits)",
                     "fileCount > limits.maximumFiles",
                     "largestFileUtf8Bytes > limits.maximumSingleFileBytes",
                     "totalUtf8Bytes > limits.maximumTotalBytes",
@@ -11724,7 +11734,7 @@ tasks.register("verifyR2PublicPreviewSourcePolicy") {
             label = "public ordinary compilation quota",
             source = r2ApiContractSource.asFile.readText(Charsets.UTF_8),
             markers = listOf(
-                "const val ORDINARY_COMPILATION_INPUT_QUOTA_REVISION = 1",
+                "const val ORDINARY_COMPILATION_INPUT_QUOTA_REVISION = 2",
                 "const val MAX_ORDINARY_COMPILATION_INPUT_FILES = 512",
                 "const val MAX_ORDINARY_COMPILATION_SINGLE_FILE_BYTES = " +
                     "8L * 1024L * 1024L",
@@ -11742,7 +11752,7 @@ tasks.register("verifyR2PublicPreviewSourcePolicy") {
                 "TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES",
                 "val PROVISIONAL_WORKER = ORDINARY_COMPILATION",
                 "internal fun ordinaryCompilationAdmission(",
-                "(authority?.capacity ?: derived).admissionAgainst(limits)",
+                "(authority?.callerCapacity ?: derivedCaller).admissionAgainst(limits)",
             ),
         )
 

@@ -9,10 +9,10 @@ import org.junit.Test
 class R2ProjectSourceKindAdmissionTest {
 
     @Test
-    fun overlayDoesNotReviseTheFrozenC4Authority() {
-        assertEquals(1, R2CompilerEscapePolicy.REVISION)
+    fun activatedConfigOverlayRebindsTheEscapeAuthority() {
+        assertEquals(2, R2CompilerEscapePolicy.REVISION)
         assertEquals(
-            "ac6acb29d2c544584a84a4c5fe5828e5d7958755aade00cebf224191faf0a9fb",
+            "4f42fdf38782fd8d94b40a1bf5797295698b9ba24ca0f555c30186e4b43a1e98",
             R2CompilerEscapePolicy.fingerprint,
         )
     }

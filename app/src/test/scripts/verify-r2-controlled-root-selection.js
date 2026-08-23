@@ -176,8 +176,8 @@ const projectFiles = Object.freeze([
 const controlledPolicy = Object.freeze({
     configKind: "tsconfig",
     configPolicyFingerprint:
-        "849f882618d294d61683cc5930ecd4855f53435d7a673ceda08ad127504fa24d",
-    configPolicyRevision: 1,
+        "64ef1cf36d6531f84088cec49127e6407b107ab86eeaf7f4512358fd1343598b",
+    configPolicyRevision: 2,
     configSchemaRevision: 2,
     profileRevision: 1,
     profileSchemaRevision: 1,

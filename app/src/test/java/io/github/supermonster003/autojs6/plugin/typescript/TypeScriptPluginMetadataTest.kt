@@ -15,6 +15,14 @@ class TypeScriptPluginMetadataTest {
         assertTrue(TypeScriptPluginMetadata.ADVERTISED_SEMANTIC_DIAGNOSTICS)
         assertTrue(TypeScriptPluginMetadata.ADVERTISED_SOURCE_MAP_V3)
         assertFalse(TypeScriptPluginMetadata.ADVERTISED_NODE_RUNTIME_REQUIRED)
+        assertEquals(
+            TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION,
+            TypeScriptPluginMetadata.ADVERTISED_CONFIG_SCHEMA_REVISION,
+        )
+        assertEquals(
+            TypeScriptR2Contract.CONFIG_KIND_TSCONFIG,
+            TypeScriptPluginMetadata.ADVERTISED_CONFIG_KIND,
+        )
 
         assertEquals(
             15,

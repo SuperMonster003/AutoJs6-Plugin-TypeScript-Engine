@@ -1,5 +1,12 @@
 # R2 Production/Public-shaped Admission Preview
 
+> **S1-1–S1-4 current-state supersession（2026-08-23）。** 本页主体记录 pre-S1 historical
+> preview，不再描述当前 public admission。四项 compiler capability 已开放；formal input
+> archive schema v1 的 config-none 与 controlled-tsconfig conditional shapes 均可进入 exact
+> public Rhino pipeline。受控配置使用 schema/policy revision 2、18 个 effective boolean options、
+> 未分类项 warning-ignore，并继续拒绝 profile/output/resolution/transformer escape。当前接入
+> 契约见 [S1-4 Public Controlled tsconfig Activation](CONTROLLED_TSCONFIG_ACTIVATION_S1_4.md)。
+
 > **R2-M3-S1 supersession（2026-08-14）。** 本页中的 provisional archive revision `2` 与旧
 > request/start shape 只保留为 pre-S1 admission provenance，不是当前 formal alias/fallback。
 > 当前 formal input 只接受 `autojs6.typescript.input-archive/revision=1`，见

@@ -4,7 +4,7 @@ AutoJs6 的完整 TypeScript 编译前端插件. 插件负责把 TypeScript 项�
 JavaScript, Source Map 和结构化诊断, 最终 JavaScript 仍由 AutoJs6 选择的
 Rhino 或 Node.js 引擎执行.
 
-> 当前状态（2026-08-23）：新版 Roadmap 的 `S1-1`、`S1-2`、`S1-3` 已完成。插件现在通过
+> 当前状态（2026-08-23）：新版 Roadmap 的 `S1-1`–`S1-4` 已完成。插件现在通过
 > `getCompilerInfo()` 广告 `typescriptCompilerAvailable`、项目编译、语义诊断与
 > Source Map v3 四项 capability（mask `15`）；输入/输出 ZIP、Worker VFS、模块映射与
 > diagnostics URI 已端到端支持安全 UTF-8 路径（仍拒绝控制字符、畸形 Unicode、绝对路径、
@@ -12,6 +12,13 @@ Rhino 或 Node.js 引擎执行.
 > `512 files / 8 MiB` 输入额度（插件声明由独立 retained-input guardrail 约束），输出为
 > `512 artifacts / 16 MiB per JS or map / 64 MiB aggregate`；约 5 MiB source 的公共 Binder
 > 编译已在 API 37 模拟器与 Android 12 实机产出超过 2 MiB 的 JavaScript。
+> Public Rhino 也已激活 controlled-tsconfig policy revision 2：18 个 boolean 选项真实参与
+> effective options，未知或非结构性字段产生有界 warning 后忽略，`paths`、`outFile`、profile
+> override 与 transformer authority 仍 fail closed。宿主可从 compiler info 读取 policy revision
+> 与 fingerprint，并以 archive 内 hash-bound `tsconfig.json` 发起编译；详见
+> [S1-4 Public Controlled tsconfig Activation](docs/architecture/CONTROLLED_TSCONFIG_ACTIVATION_S1_4.md)。
+> `strict=false` + warning-ignore 的 focused Public Binder 回归已通过 API 31/API 35 实机与
+> API 37 模拟器。
 > `nodeRuntimeRequired` 仍为 `false`。
 > 编译服务已经可由宿主集成，但 AutoJs6 主仓库的消费端尚未实现，因此终端用户还不能
 > 直接点击运行 `.ts`。当前工作清单以 [ROADMAP.md](ROADMAP.md) 为准。

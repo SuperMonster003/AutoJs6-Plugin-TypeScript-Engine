@@ -17,6 +17,9 @@ object TypeScriptPluginMetadata {
     internal const val ADVERTISED_SEMANTIC_DIAGNOSTICS = true
     internal const val ADVERTISED_SOURCE_MAP_V3 = true
     internal const val ADVERTISED_NODE_RUNTIME_REQUIRED = false
+    internal const val ADVERTISED_CONFIG_SCHEMA_REVISION =
+        TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION
+    internal const val ADVERTISED_CONFIG_KIND = TypeScriptR2Contract.CONFIG_KIND_TSCONFIG
 
     fun pluginInfo(context: Context): PluginInfo = PluginInfo(
         name = context.getString(R.string.app_name),
@@ -45,11 +48,19 @@ object TypeScriptPluginMetadata {
         )
         putInt(
             TypeScriptR2Contract.KEY_CONFIG_SCHEMA_REVISION,
-            R2CompilationProfileRegistry.PROVISIONAL_RHINO.configSchemaRevision,
+            ADVERTISED_CONFIG_SCHEMA_REVISION,
         )
         putString(
             TypeScriptR2Contract.KEY_CONFIG_KIND,
-            R2CompilationProfileRegistry.PROVISIONAL_RHINO.configKind,
+            ADVERTISED_CONFIG_KIND,
+        )
+        putInt(
+            TypeScriptR2Contract.KEY_CONFIG_POLICY_REVISION,
+            TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
+        )
+        putString(
+            TypeScriptR2Contract.KEY_CONFIG_POLICY_FINGERPRINT,
+            R2ControlledTsConfigPolicy.fingerprint,
         )
         putString(
             TypeScriptCompilerContract.KEY_RUNTIME_CAPABILITIES_FINGERPRINT,
@@ -166,11 +177,19 @@ object TypeScriptPluginMetadata {
         )
         putInt(
             TypeScriptR2Contract.KEY_CONFIG_SCHEMA_REVISION,
-            R2CompilationProfileRegistry.PROVISIONAL_RHINO.configSchemaRevision,
+            ADVERTISED_CONFIG_SCHEMA_REVISION,
         )
         putString(
             TypeScriptR2Contract.KEY_CONFIG_KIND,
-            R2CompilationProfileRegistry.PROVISIONAL_RHINO.configKind,
+            ADVERTISED_CONFIG_KIND,
+        )
+        putInt(
+            TypeScriptR2Contract.KEY_CONFIG_POLICY_REVISION,
+            TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
+        )
+        putString(
+            TypeScriptR2Contract.KEY_CONFIG_POLICY_FINGERPRINT,
+            R2ControlledTsConfigPolicy.fingerprint,
         )
         putInt(
             TypeScriptPluginCapabilityKeys.RUNTIME_CAPABILITY_SCHEMA_REVISION,

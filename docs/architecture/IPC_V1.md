@@ -1,11 +1,15 @@
 # Compiler IPC v1
 
-> **S1-1–S1-3 current-state amendment（2026-08-23）。** frozen AIDL transaction 与 ZIP
+> **S1-1–S1-4 current-state amendment（2026-08-23）。** frozen AIDL transaction 与 ZIP
 > transport version 不变；四项 compiler capability 当前均已开放。formal input/output archive
 > schema revision 仍为 1，但 ordinary input/output quota revision 均为 2：caller input 是
 > `512 files / 8 MiB per file / 8 MiB total` 且不计 plugin declarations；output 是 512 artifacts、
 > 单 JS/map 各 16 MiB、64 MiB aggregate；decoded typed-result envelope 为 144 MiB。本文中更早的
 > “capability=false”、shared declaration headroom 与 `512 KiB / 1 MiB / 6 MiB` 描述仅是历史记录。
+> Public Rhino 当前也接受 controlled `tsconfig.json` schema/policy revision 2；18 个 boolean
+> options 生效，未知非结构性字段 warning-ignore，结构性 profile/output/resolution/transformer
+> 输入仍 fail closed。接入字段与精确语义见
+> [S1-4 Public Controlled tsconfig Activation](CONTROLLED_TSCONFIG_ACTIVATION_S1_4.md)。
 
 > **R2-M3-S1 input supersession（2026-08-14）。** 本页继续定义 frozen AIDL/Bundle/ZIP
 > transport；`Input archive v1` 一节中的 manifest revisions `2..7`、caller-carried declarations
@@ -393,8 +397,9 @@ cancel, timeout, internal error 和 transport error 不提交 ZIP, output 必须
 [R2-M2-C3 Effective Options Authority](CONTROLLED_TSCONFIG_R2_M2_C3.md) 已完成 41-key
 merge、canonicalization 与 fingerprint；
 [R2-M2-C4 Compiler Escape Closure](COMPILER_ESCAPE_CLOSURE_R2_M2_C4.md) 已关闭
-transformer/plugin、package/deferred path、Binder 与 host/network escape。当前 production
-request 仍为 `configKind=none`，C1-C4 的 internal completion 不表示 tsconfig 已可调用：
+transformer/plugin、package/deferred path、Binder 与 host/network escape。S1-4 已把这条链路
+接入 production public Rhino；当前 request 可选择 `configKind=none` 或 exact revision-2
+`configKind=tsconfig`：
 
 ```text
 immutable AutoJs6 security/profile constraints
@@ -430,18 +435,18 @@ immutable AutoJs6 security/profile constraints
   不尝试猜测或合并.
 
 C2 additive metadata 为 `configSchemaRevision=2/configKind=tsconfig` 以及
-`configByteLength(Long)`、`configSha256`、`configPolicyRevision=1`、
+`configByteLength(Long)`、`configSha256`、`configPolicyRevision=2`、
 `configPolicyFingerprint`。service 必须识别这些 key：malformed/incomplete 返回
-`ERROR_INVALID_REQUEST`，unsupported authority 或完整但尚未公开激活的 controlled declaration 返回
-`ERROR_CONTRACT_MISMATCH`，均不接管 caller FD。历史 manifest revision 2/config-none exact
-shape 不变；revision 3 才携带 root `tsconfig.json` descriptor。
+`ERROR_INVALID_REQUEST`，unsupported authority 返回 `ERROR_CONTRACT_MISMATCH`，均不接管
+caller FD；完整且与本地 policy fingerprint 匹配的 identity 进入 public Rhino coordinator。
+formal input archive schema v1 以 conditional config descriptor 携带 root `tsconfig.json`；旧
+manifest revisions 2/3 仅保留为 pre-S1 provenance。
 
 controlled `projectInputConfigEnd` 的 ACK 是 parse、precedence、组合校验、canonical/fingerprint
 与 immutable state freeze 的原子 commit point；任一步失败都不 ACK，也不继续 source
-framing。成功 ACK 后 selectors 仍只保存给 C7。C7 完成前 project end fail closed，不创建
-Program、compiler result 或 output/diagnostics ZIP。config policy failure 目前只形成内部
-typed `stage=config/outcome=diagnostics/policyCode=CONFIG_*` terminal 并保持 output 为空；
-正式 diagnostics-only ZIP schema 仍由 M3 冻结。
+framing。成功 ACK 后 selectors 由 C7 root selection 消费并进入真实 Program/result/output；
+config policy failure 形成 typed `stage=config/outcome=diagnostics/policyCode=CONFIG_*` terminal。
+未知非结构性字段改为 warning `910001/910002` 后忽略，不计入 no-emit error count。
 
 C4 还要求九个 active input frame handler 各自只接受 exact key set，拒绝 transformer/plugin
 注入字段；revision 2/3 archive、heap/file-backed snapshot 与 Worker VFS 逐层拒绝 reserved

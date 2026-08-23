@@ -1,0 +1,75 @@
+{
+  "schema": "autojs6.typescript.controlled-tsconfig-parser-fixture",
+  "revision": 2,
+  "accepted": [
+    {
+      "name": "comments-trailing-bom-and-full-allowlist",
+      "source": "\ufeff{\n  // editor-only annotation\n  \"$schema\": \"https://json.schemastore.org/tsconfig\",\n  \"compilerOptions\": {\n    \"strict\": false,\n    \"noImplicitAny\": true,\n    \"strictNullChecks\": true,\n    \"strictFunctionTypes\": true,\n    \"strictBindCallApply\": true,\n    \"strictPropertyInitialization\": true,\n    \"strictBuiltinIteratorReturn\": true,\n    \"noImplicitThis\": true,\n    \"useUnknownInCatchVariables\": true,\n    \"noUnusedLocals\": false,\n    \"noUnusedParameters\": false,\n    \"exactOptionalPropertyTypes\": false,\n    \"noImplicitReturns\": false,\n    \"noFallthroughCasesInSwitch\": false,\n    \"noUncheckedIndexedAccess\": false,\n    \"noImplicitOverride\": false,\n    \"noPropertyAccessFromIndexSignature\": false,\n    \"skipLibCheck\": false,\n  },\n  \"files\": [\"src/é.ts\", \"src/é.ts\",],\n  \"include\": [\"src/**/*\",],\n  \"exclude\": [\"src/generated/**/*\",],\n}\n",
+      "presentTopLevelKeys": ["$schema", "compilerOptions", "exclude", "files", "include"],
+      "normalizedFiles": ["src/é.ts"],
+      "explicitOptionCount": 18,
+      "ignoredProperties": []
+    },
+    {
+      "name": "absent-fields-preserve-presence",
+      "source": "{}",
+      "presentTopLevelKeys": [],
+      "normalizedFiles": null,
+      "explicitOptionCount": 0,
+      "ignoredProperties": []
+    },
+    {
+      "name": "present-empty-fields-preserve-presence",
+      "source": "{\"$schema\":\"\",\"compilerOptions\":{},\"files\":[],\"include\":[],\"exclude\":[]}",
+      "presentTopLevelKeys": ["$schema", "compilerOptions", "exclude", "files", "include"],
+      "normalizedFiles": [],
+      "explicitOptionCount": 0,
+      "ignoredProperties": []
+    },
+    {
+      "name": "unknown-and-nonstructural-options-warn-and-ignore",
+      "source": "{\"futureEditorSetting\":true,\"compilerOptions\":{\"jsx\":\"preserve\",\"futureCompilerOption\":42,\"strict\":false}}",
+      "presentTopLevelKeys": ["compilerOptions", "futureEditorSetting"],
+      "normalizedFiles": null,
+      "explicitOptionCount": 1,
+      "ignoredProperties": [
+        {"kind": "top-level", "name": "futureEditorSetting"},
+        {"kind": "compiler-option", "known": false, "name": "futureCompilerOption"},
+        {"kind": "compiler-option", "known": true, "name": "jsx"}
+      ]
+    }
+  ],
+  "rejected": [
+    {"name": "empty-document", "source": "", "policyCode": "CONFIG_SYNTAX_INVALID"},
+    {"name": "single-quoted-key", "source": "{'compilerOptions':{}}", "policyCode": "CONFIG_SYNTAX_INVALID"},
+    {"name": "unquoted-key", "source": "{compilerOptions:{}}", "policyCode": "CONFIG_SYNTAX_INVALID"},
+    {"name": "array-hole", "source": "{\"include\":[,]}", "policyCode": "CONFIG_SYNTAX_INVALID"},
+    {"name": "hex-number", "source": "{\"$schema\":0x10}", "policyCode": "CONFIG_SYNTAX_INVALID"},
+    {"name": "leading-decimal", "source": "{\"$schema\":.5}", "policyCode": "CONFIG_SYNTAX_INVALID"},
+    {"name": "trailing-decimal", "source": "{\"$schema\":1.}", "policyCode": "CONFIG_SYNTAX_INVALID"},
+    {"name": "numeric-separator", "source": "{\"$schema\":1_0}", "policyCode": "CONFIG_SYNTAX_INVALID"},
+    {"name": "non-finite-number", "source": "{\"$schema\":1e999}", "policyCode": "CONFIG_SYNTAX_INVALID"},
+    {"name": "unterminated-comment", "source": "{/*", "policyCode": "CONFIG_SYNTAX_INVALID"},
+    {"name": "duplicate-unescaped-key", "source": "{\"compilerOptions\":{\"strict\":true,\"strict\":false}}", "policyCode": "CONFIG_DUPLICATE_KEY"},
+    {"name": "duplicate-escaped-key", "source": "{\"compilerOptions\":{\"strict\":true,\"str\\u0069ct\":false}}", "policyCode": "CONFIG_DUPLICATE_KEY"},
+    {"name": "misplaced-bom", "source": "{\"$schema\":\"\ufeff\"}", "policyCode": "CONFIG_ENCODING_INVALID"},
+    {"name": "duplicate-leading-bom", "source": "\ufeff\ufeff{}", "policyCode": "CONFIG_ENCODING_INVALID"},
+    {"name": "escaped-lone-surrogate", "source": "{\"$schema\":\"\\ud800\"}", "policyCode": "CONFIG_ENCODING_INVALID"},
+    {"name": "root-array", "source": "[]", "policyCode": "CONFIG_INVALID_VALUE"},
+    {"name": "schema-type", "source": "{\"$schema\":false}", "policyCode": "CONFIG_INVALID_VALUE"},
+    {"name": "compiler-options-type", "source": "{\"compilerOptions\":[]}", "policyCode": "CONFIG_INVALID_VALUE"},
+    {"name": "boolean-option-type", "source": "{\"compilerOptions\":{\"strict\":1}}", "policyCode": "CONFIG_INVALID_VALUE"},
+    {"name": "selector-field-type", "source": "{\"files\":\"src/main.ts\"}", "policyCode": "CONFIG_INVALID_VALUE"},
+    {"name": "unsupported-top-level", "source": "{\"extends\":\"./base.json\"}", "policyCode": "CONFIG_UNSUPPORTED_FEATURE"},
+    {"name": "profile-conflict", "source": "{\"compilerOptions\":{\"target\":\"ES2018\"}}", "policyCode": "CONFIG_PROFILE_CONFLICT"},
+    {"name": "resolution-escape", "source": "{\"compilerOptions\":{\"paths\":{\"*\":[\"outside/*\"]}}}", "policyCode": "CONFIG_UNSUPPORTED_FEATURE"},
+    {"name": "output-topology", "source": "{\"compilerOptions\":{\"outFile\":\"bundle.js\"}}", "policyCode": "CONFIG_UNSUPPORTED_FEATURE"},
+    {"name": "plugin-transformer", "source": "{\"compilerOptions\":{\"plugins\":[]}}", "policyCode": "CONFIG_UNSUPPORTED_FEATURE"},
+    {"name": "custom-transformer", "source": "{\"compilerOptions\":{\"customTransformer\":true}}", "policyCode": "CONFIG_UNKNOWN_PROPERTY"},
+    {"name": "absolute-selector", "source": "{\"files\":[\"/src/main.ts\"]}", "policyCode": "CONFIG_PATH_INVALID"},
+    {"name": "backslash-selector", "source": "{\"files\":[\"src\\\\main.ts\"]}", "policyCode": "CONFIG_PATH_INVALID"},
+    {"name": "parent-selector", "source": "{\"include\":[\"src/../outside.ts\"]}", "policyCode": "CONFIG_PATH_INVALID"},
+    {"name": "drive-selector", "source": "{\"files\":[\"C:/main.ts\"]}", "policyCode": "CONFIG_PATH_INVALID"},
+    {"name": "glob-in-files", "source": "{\"files\":[\"src/*.ts\"]}", "policyCode": "CONFIG_PATH_INVALID"}
+  ]
+}

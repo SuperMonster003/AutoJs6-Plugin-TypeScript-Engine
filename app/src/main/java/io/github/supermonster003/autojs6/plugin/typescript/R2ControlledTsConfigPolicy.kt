@@ -13,11 +13,12 @@ internal enum class R2ControlledTsConfigDefault(
 }
 
 /**
- * Closed-world R2-M2-C1 policy for a future controlled tsconfig.json request shape.
+ * Controlled tsconfig.json policy used by the public Rhino compilation path.
  *
- * C2 binds this policy to raw bytes/hash transport and the Worker parser. C3 consumes its defaults
- * through a separate controlled effective-options authority; the production config-none profile
- * remains unchanged, so these internal contracts still cannot activate public project config.
+ * Revision 2 preserves the C1 grammar, budgets, selector semantics, and 18 Boolean option subset,
+ * but makes forward-compatible properties warning-only. Options that can change the frozen
+ * profile, output topology, module resolution, host access, or transformer execution remain
+ * explicit fail-closed branches.
  */
 internal object R2ControlledTsConfigPolicy {
 
@@ -35,7 +36,8 @@ internal object R2ControlledTsConfigPolicy {
         "all-array-elements-before-validation-normalization-dedup-inclusive"
     const val SELECTOR_UTF8_MEASUREMENT =
         "max-of-decoded-json-string-and-nfc-normalized-string"
-    const val KNOWN_OPTION_FALLBACK = "unsupported-feature"
+    const val UNKNOWN_TOP_LEVEL_FALLBACK = "warning-ignore"
+    const val KNOWN_OPTION_FALLBACK = "warning-ignore"
 
     const val ALLOW_UTF8_BOM = true
     const val ALLOW_COMMENTS = true
@@ -135,6 +137,12 @@ internal object R2ControlledTsConfigPolicy {
         "tsBuildInfoFile",
     )
 
+    val customTransformerCompilerOptions: Set<String> = immutableSetOf(
+        "customTransformer",
+        "customTransformers",
+        "transformers",
+    )
+
     val policyCodes: Set<String> = immutableSetOf(
         TypeScriptR2Contract.CONFIG_POLICY_CODE_ENCODING_INVALID,
         TypeScriptR2Contract.CONFIG_POLICY_CODE_SYNTAX_INVALID,
@@ -150,7 +158,7 @@ internal object R2ControlledTsConfigPolicy {
     )
 
     val canonicalInput: String = buildString {
-        append("autojs6.typescript.controlled-tsconfig-policy.v1")
+        append("autojs6.typescript.controlled-tsconfig-policy.v2")
         append("|revision=")
         append(TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION)
         append("|configKind=")
@@ -208,8 +216,15 @@ internal object R2ControlledTsConfigPolicy {
         appendSet("profileManaged", profileManagedCompilerOptions)
         appendSet("escapeForbidden", escapeForbiddenCompilerOptions)
         appendSet("outputForbidden", outputForbiddenCompilerOptions)
+        appendSet("customTransformers", customTransformerCompilerOptions)
+        append("|unknownTopLevelFallback=")
+        append(UNKNOWN_TOP_LEVEL_FALLBACK)
         append("|knownOptionFallback=")
         append(KNOWN_OPTION_FALLBACK)
+        append("|ignoredTopLevelDiagnosticCode=")
+        append(TypeScriptR2Contract.CONFIG_DIAGNOSTIC_CODE_IGNORED_TOP_LEVEL_PROPERTY)
+        append("|ignoredCompilerOptionDiagnosticCode=")
+        append(TypeScriptR2Contract.CONFIG_DIAGNOSTIC_CODE_IGNORED_COMPILER_OPTION)
         appendSet("policyCodes", policyCodes)
     }
 
@@ -218,13 +233,21 @@ internal object R2ControlledTsConfigPolicy {
     )
 
     init {
-        require(TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION == 1)
+        require(TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION == 2)
         require(allowedBooleanCompilerOptions.keys.intersect(profileManagedCompilerOptions).isEmpty())
         require(allowedBooleanCompilerOptions.keys.intersect(escapeForbiddenCompilerOptions).isEmpty())
         require(allowedBooleanCompilerOptions.keys.intersect(outputForbiddenCompilerOptions).isEmpty())
         require(profileManagedCompilerOptions.intersect(escapeForbiddenCompilerOptions).isEmpty())
         require(profileManagedCompilerOptions.intersect(outputForbiddenCompilerOptions).isEmpty())
         require(escapeForbiddenCompilerOptions.intersect(outputForbiddenCompilerOptions).isEmpty())
+        require(
+            customTransformerCompilerOptions.intersect(
+                allowedBooleanCompilerOptions.keys +
+                    profileManagedCompilerOptions +
+                    escapeForbiddenCompilerOptions +
+                    outputForbiddenCompilerOptions,
+            ).isEmpty(),
+        )
         R2Digests.requireLowerSha256(fingerprint, "Controlled tsconfig policy fingerprint")
     }
 
@@ -232,9 +255,16 @@ internal object R2ControlledTsConfigPolicy {
         in allowedTopLevelKeys -> null
         in unsupportedTopLevelKeys ->
             TypeScriptR2Contract.CONFIG_POLICY_CODE_UNSUPPORTED_FEATURE
-        else -> TypeScriptR2Contract.CONFIG_POLICY_CODE_UNKNOWN_PROPERTY
+        else -> null
     }
 
+    fun topLevelWarningDiagnosticCode(name: String): Int? =
+        TypeScriptR2Contract.CONFIG_DIAGNOSTIC_CODE_IGNORED_TOP_LEVEL_PROPERTY
+            .takeIf {
+                name !in allowedTopLevelKeys && name !in unsupportedTopLevelKeys
+            }
+
+    @Suppress("UNUSED_PARAMETER")
     fun compilerOptionRejectionCode(
         name: String,
         isKnownTypeScriptOption: Boolean,
@@ -245,12 +275,19 @@ internal object R2ControlledTsConfigPolicy {
         in escapeForbiddenCompilerOptions,
         in outputForbiddenCompilerOptions,
         -> TypeScriptR2Contract.CONFIG_POLICY_CODE_UNSUPPORTED_FEATURE
-        else -> if (isKnownTypeScriptOption) {
-            TypeScriptR2Contract.CONFIG_POLICY_CODE_UNSUPPORTED_FEATURE
-        } else {
+        in customTransformerCompilerOptions ->
             TypeScriptR2Contract.CONFIG_POLICY_CODE_UNKNOWN_PROPERTY
-        }
+        else -> null
     }
+
+    fun compilerOptionWarningDiagnosticCode(
+        name: String,
+        isKnownTypeScriptOption: Boolean,
+    ): Int? = TypeScriptR2Contract.CONFIG_DIAGNOSTIC_CODE_IGNORED_COMPILER_OPTION
+        .takeIf {
+            compilerOptionRejectionCode(name, isKnownTypeScriptOption) == null &&
+                name !in allowedBooleanCompilerOptions
+        }
 
     private fun StringBuilder.appendSet(
         label: String,

@@ -27,7 +27,7 @@ if (
     throw new Error(
         "Usage: node verify-r2-controlled-tsconfig-effective-options.js " +
             "<worker.js> <typescript.js> <effective-options-v1.json> " +
-            "<policy-v1.json> <expected-version>",
+            "<policy-v2.json> <expected-version>",
     );
 }
 

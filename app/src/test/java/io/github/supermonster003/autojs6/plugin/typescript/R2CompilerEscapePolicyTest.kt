@@ -12,7 +12,7 @@ class R2CompilerEscapePolicyTest {
     fun checkedInFixtureExactlyMirrorsTheEscapeAuthority() {
         val bytes = requireNotNull(
             javaClass.getResourceAsStream(
-                "/r2-controlled-tsconfig/escape-policy-v1.json",
+                "/r2-controlled-tsconfig/escape-policy-v2.json",
             ),
         ).use { input -> input.readBytes() }
         val root = R2StrictJson.parseObject(bytes)
@@ -71,8 +71,8 @@ class R2CompilerEscapePolicyTest {
     @Test
     fun canonicalInputAndFingerprintAreStableAsciiAuthorities() {
         val expectedCanonical =
-            "autojs6.typescript.compiler-escape-policy.v1" +
-                "|revision=1" +
+            "autojs6.typescript.compiler-escape-policy.v2" +
+                "|revision=2" +
                 "|configPolicyFingerprint=" + R2ControlledTsConfigPolicy.fingerprint +
                 "|inlineCompilerOptionsJson={}" +
                 "|escapeForbidden=" +
@@ -98,7 +98,7 @@ class R2CompilerEscapePolicyTest {
             R2CompilerEscapePolicy.fingerprint,
         )
         assertEquals(
-            "849f882618d294d61683cc5930ecd4855f53435d7a673ceda08ad127504fa24d",
+            "64ef1cf36d6531f84088cec49127e6407b107ab86eeaf7f4512358fd1343598b",
             R2ControlledTsConfigPolicy.fingerprint,
         )
         assertEquals(

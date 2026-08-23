@@ -342,6 +342,7 @@ class R2CompilationProbeProtocolTest {
         assertNull(controls.workerSpinPhase)
         assertEquals(false, controls.expandedWorkerCapacity)
         assertEquals(0, controls.terminalCleanupDelayMilliseconds)
+        assertNull(controls.rawConfigAuthority)
         assertEquals(SHA_A, controls.inputArchiveSha256)
         assertEquals(SHA_B, controls.requestManifestSha256)
         assertEquals(
@@ -413,19 +414,29 @@ class R2CompilationProbeProtocolTest {
     }
 
     @Test
-    fun controlledTsConfigDeclarationDoesNotActivatePublicAdmission() {
+    fun completeControlledTsConfigMetadataCreatesExactPublicRawConfigControls() {
         requireNotNull(publicControlsOrNull(validPublicMetadata()))
         val metadata = validControlledTsConfigMetadata()
         val classification = classifyPublic(metadata)
+        val controls = requireNotNull(publicControlsOrNull(metadata))
 
-        assertNull(publicControlsOrNull(metadata))
         assertEquals(
-            R2PublicCompilationDisposition.CONTROLLED_TSCONFIG_NOT_ACTIVATED,
+            R2PublicCompilationDisposition.ACCEPTED_CONTROLLED_TSCONFIG,
             classification.disposition,
         )
+        assertEquals(controls, classification.controls)
+        assertNull(classification.errorCode)
+        assertEquals(R2CompilationControlOrigin.PUBLIC_PREVIEW, controls.origin)
         assertEquals(
-            TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
-            classification.errorCode,
+            R2RawProjectConfigAuthority(
+                size = requireNotNull(metadata.configByteLength),
+                sha256 = requireNotNull(metadata.configSha256),
+            ),
+            controls.rawConfigAuthority,
+        )
+        assertEquals(
+            controls.rawConfigAuthority,
+            controls.authority(validRequest()).rawConfigAuthority,
         )
     }
 
@@ -467,7 +478,10 @@ class R2CompilationProbeProtocolTest {
         val unsupported = listOf(
             validControlledTsConfigMetadata().copy(configSchemaRevision = 3),
             validPublicMetadata().copy(configKind = "future-config"),
-            validControlledTsConfigMetadata().copy(configPolicyRevision = 2),
+            validControlledTsConfigMetadata().copy(
+                configPolicyRevision =
+                    TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION + 1,
+            ),
             validControlledTsConfigMetadata().copy(configPolicyFingerprint = SHA_A),
         )
 

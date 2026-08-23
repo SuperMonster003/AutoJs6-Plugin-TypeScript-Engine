@@ -3,10 +3,7 @@ package io.github.supermonster003.autojs6.plugin.typescript
 import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
 import org.autojs.plugin.typescript.api.TypeScriptR2Contract
 
-/**
- * Private same-UID controls for exercising the complete R2 pipeline while public capability
- * advertisement remains disabled.
- */
+/** Private same-UID controls for fault injection and non-shipping R2 evidence workloads. */
 internal object R2CompilationProbeProtocol {
 
     const val KEY_ENABLED = "__autojs6_r2_debug_compilation"
@@ -119,6 +116,7 @@ internal data class R2CompilationControls(
     val origin: R2CompilationControlOrigin,
     val profileAuthority: R2CompilationProfileAuthority =
         R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+    val rawConfigAuthority: R2RawProjectConfigAuthority? = null,
     val workerSpinMilliseconds: Int = 0,
     val workerSpinPhase: R2ProjectExecutionPhase? = null,
     val expandedWorkerCapacity: Boolean = false,
@@ -142,6 +140,17 @@ internal data class R2CompilationControls(
         )
         require(R2CompilationProfileRegistry.containsExact(profileAuthority)) {
             "R2 controls do not carry an exact registered profile authority."
+        }
+        require(
+            rawConfigAuthority == null ||
+                profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+        ) {
+            "Controlled tsconfig is admitted only for the exact Rhino profile authority."
+        }
+        require(
+            rawConfigAuthority == null || origin != R2CompilationControlOrigin.DEBUG_PROBE,
+        ) {
+            "The private debug control plane cannot synthesize public raw-config authority."
         }
         require(
             when (origin) {
@@ -211,6 +220,7 @@ internal data class R2CompilationControls(
             archiveSha256 = inputArchiveSha256,
             requestManifestSha256 = requestManifestSha256,
             compilerOptionsJson = request.compilerOptionsJson,
+            rawConfigAuthority = rawConfigAuthority,
         )
     }
 }
@@ -236,9 +246,9 @@ internal data class R2PublicCompilationMetadata(
 
 internal enum class R2PublicCompilationDisposition {
     ACCEPTED_CONFIG_NONE,
+    ACCEPTED_CONTROLLED_TSCONFIG,
     INCOMPLETE_OR_MALFORMED,
     UNSUPPORTED_AUTHORITY,
-    CONTROLLED_TSCONFIG_NOT_ACTIVATED,
 }
 
 internal data class R2PublicCompilationClassification(
@@ -258,8 +268,9 @@ internal enum class R2CompilationControlPlaneRoute {
 /**
  * Classifies the additive, production-facing R2 request fields without depending on Android
  * Bundle. [controlsOrNull] preserves the nullable API used by the config-none preview, while
- * [classify] gives the Binder service a stable error category for malformed metadata, unsupported
- * authority, and a complete controlled-tsconfig declaration that is intentionally not activated.
+ * [classify] gives the Binder service a stable error category for malformed metadata and
+ * unsupported authority. Both config-none and the revision-2 controlled tsconfig identity can
+ * produce exact controls for the public Rhino pipeline.
  */
 internal object R2PublicCompilationProtocol {
 
@@ -471,12 +482,29 @@ internal object R2PublicCompilationProtocol {
                 }
                 R2PublicCompilationClassification(
                     disposition =
-                        R2PublicCompilationDisposition
-                            .CONTROLLED_TSCONFIG_NOT_ACTIVATED,
-                    errorCode = TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
-                    errorMessage =
-                        "Controlled tsconfig metadata is valid, but public tsconfig " +
-                            "compilation is not activated.",
+                        R2PublicCompilationDisposition.ACCEPTED_CONTROLLED_TSCONFIG,
+                    controls = R2CompilationControls(
+                        inputArchiveSchemaRevision = inputArchiveSchemaRevision,
+                        inputArchiveSha256 = inputArchiveSha256,
+                        requestManifestSha256 = requestManifestSha256,
+                        compilerDistributionFingerprint =
+                            compilerDistributionFingerprint,
+                        declarationsFingerprint = declarationsFingerprint,
+                        declarationProfileFingerprint =
+                            declarationProfileFingerprint,
+                        runtimeCapabilitiesFingerprint =
+                            runtimeCapabilitiesFingerprint,
+                        origin = R2CompilationControlOrigin.PUBLIC_PREVIEW,
+                        profileAuthority = profileAuthority,
+                        rawConfigAuthority = R2RawProjectConfigAuthority(
+                            size = requireNotNull(metadata.configByteLength),
+                            sha256 = requireNotNull(metadata.configSha256),
+                            policyRevision =
+                                requireNotNull(metadata.configPolicyRevision),
+                            policyFingerprint =
+                                requireNotNull(metadata.configPolicyFingerprint),
+                        ),
+                    ),
                 )
             }
 
