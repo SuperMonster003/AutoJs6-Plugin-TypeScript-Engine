@@ -129,10 +129,10 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
             )
         }
         val rhino = profiles.single { profile -> profile.string("profile") == "rhino" }
-        assertEquals(1, rhino.int("profileFiles"))
-        assertEquals(3_185L, rhino.long("profileBytes"))
-        assertEquals(109, rhino.int("occupiedFiles"))
-        assertEquals(3_787_943L, rhino.long("occupiedBytes"))
+        assertEquals(51, rhino.int("profileFiles"))
+        assertEquals(878_019L, rhino.long("profileBytes"))
+        assertEquals(159, rhino.int("occupiedFiles"))
+        assertEquals(4_662_777L, rhino.long("occupiedBytes"))
         assertEquals(512, rhino.int("maximumCallerFilesBeforeOptionalMetadata"))
         assertEquals(8_388_608L, rhino.long("maximumCallerBytesBeforeOptionalMetadata"))
 

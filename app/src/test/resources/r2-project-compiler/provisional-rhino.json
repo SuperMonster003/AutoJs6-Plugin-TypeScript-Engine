@@ -34,6 +34,10 @@
   "commonFiles": [
     {
       "path": "/declarations/lib.d.ts",
+      "text": ""
+    },
+    {
+      "path": "/declarations/lib.es2018.d.ts",
       "text": "interface Array<T> { readonly length: number; [n: number]: T; }\ninterface Boolean {}\ninterface CallableFunction extends Function {}\ninterface Function {}\ninterface IArguments { length: number; [n: number]: any; }\ninterface NewableFunction extends Function {}\ninterface Number {}\ninterface Object {}\ninterface RegExp {}\ninterface String {}\n"
     },
     {
@@ -91,7 +95,7 @@
       "category": 1,
       "code": 1110,
       "message": "Type expected.",
-      "sourcePath": "/declarations/lib.d.ts",
+      "sourcePath": "/declarations/lib.es2018.d.ts",
       "start": 365,
       "length": 1,
       "line": 11,

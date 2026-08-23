@@ -223,6 +223,10 @@ const declarationErrorSnapshot = () => ({
     files: [
         {
             path: "/declarations/lib.d.ts",
+            text: "",
+        },
+        {
+            path: "/declarations/lib.es2018.d.ts",
             text: fixture.declarationError.libraryText,
         },
         {
@@ -1336,8 +1340,14 @@ const verifySuccess = (result) => {
         result.compilerApi === "createIncrementalProgram",
         "Worker did not use createIncrementalProgram.",
     );
-    assert(!result.emitSkipped, "Valid project emit was skipped.");
-    assert(result.diagnostics.length === 0, "Valid project has diagnostics.");
+    assert(
+        !result.emitSkipped,
+        `Valid project emit was skipped: ${JSON.stringify(result.diagnostics)}`,
+    );
+    assert(
+        result.diagnostics.length === 0,
+        `Valid project has diagnostics: ${JSON.stringify(result.diagnostics)}`,
+    );
     const expected = new Map(
         fixture.success.outputs.map((output) => [output.path, output]),
     );
@@ -4588,12 +4598,16 @@ const exactAsciiFile = (body, byteLength) => {
 const p3bBoundaryProject = () => {
     const perFileBytes = 8 * 1024 * 1024;
     const baseLibrary = fixture.commonFiles.find(
-        (file) => file.path === "/declarations/lib.d.ts",
+        (file) => file.path === "/declarations/lib.es2018.d.ts",
     );
-    assert(baseLibrary, "P3b boundary fixture cannot find controlled lib.d.ts.");
+    assert(baseLibrary, "P3b boundary fixture cannot find controlled lib.es2018.d.ts.");
     const declarations = [
         {
             path: "/declarations/lib.d.ts",
+            text: "",
+        },
+        {
+            path: "/declarations/lib.es2018.d.ts",
             text: exactAsciiFile(baseLibrary.text, perFileBytes),
         },
     ];

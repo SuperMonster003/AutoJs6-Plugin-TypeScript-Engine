@@ -18,7 +18,7 @@ const authority = Object.freeze({
     projectNamespacePrefix: "p-",
     rhinoProfileRevision: 1,
     rhinoRuntimeCapabilitiesFingerprint:
-        "b15d5ae70d9c2898126ca026dbadfdf722ecd1f54a50a8b7adf807967360cea8",
+        "21dd79c85ff5b6ab04e0c2314e4e07fede635829f7abd21d1ea13451d892e749",
     nodeRevisionTwoRuntimeCapabilitiesFingerprint:
         "a19e8da1a4ab5961aada8d49e1f70eef847b84a0a8f348b6f784f43dc26e2d3a",
     schema: "autojs6.typescript.generated-module-mapping",

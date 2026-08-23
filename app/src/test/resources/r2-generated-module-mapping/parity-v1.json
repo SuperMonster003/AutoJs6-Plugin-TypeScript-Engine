@@ -11,7 +11,7 @@
     {
       "id": "rhino-ts-commonjs",
       "request": { "projectId": "demo", "profile": "rhino", "profileRevision": 1, "sourcePath": "/sources/main.ts", "impliedModuleFormat": "commonjs", "packageFormatAuthority": null },
-      "expected": { "projectNamespace": "p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea", "originalSourceUri": "autojs://source/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/sources/main.ts", "outputExtension": ".js", "generatedPath": "/outputs/main.js", "sourceMapPath": "/outputs/main.js.map", "generatedUri": "autojs://generated/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/outputs/main.js", "fingerprint": "28be6edbf344c1dfb1385ff064142dda7758369dcc1248e2112bf3dd740989e6" }
+      "expected": { "projectNamespace": "p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea", "originalSourceUri": "autojs://source/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/sources/main.ts", "outputExtension": ".js", "generatedPath": "/outputs/main.js", "sourceMapPath": "/outputs/main.js.map", "generatedUri": "autojs://generated/p-2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea/outputs/main.js", "fingerprint": "25db0b2a30354267223a9183cc032f736150e3b7c016e6c5f9cf13abb123410a" }
     },
     {
       "id": "node-mts-esm",
