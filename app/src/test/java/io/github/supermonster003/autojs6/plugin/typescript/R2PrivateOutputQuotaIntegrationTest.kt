@@ -18,7 +18,7 @@ class R2PrivateOutputQuotaIntegrationTest {
     val temporaryFolder = TemporaryFolder()
 
     @Test
-    fun exactFinalPackagedBoundaryIsAcceptedAfterRewrite() {
+    fun exactPerArtifactBoundariesAreAcceptedAfterRewrite() {
         val privateDirectory = temporaryFolder.newFolder("packaged-exact-boundary")
         val sourceMap = sourceMapOfSize(
             file = "main.js",
@@ -61,7 +61,8 @@ class R2PrivateOutputQuotaIntegrationTest {
                 sourceMapBytes,
             )
             assertEquals(
-                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_OUTPUT_BYTES,
+                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_JAVASCRIPT_BYTES +
+                    TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_SOURCE_MAP_BYTES,
                 javascriptBytes + sourceMapBytes,
             )
         }
@@ -92,7 +93,10 @@ class R2PrivateOutputQuotaIntegrationTest {
         }
 
         assertEquals(TypeScriptCompilerContract.ERROR_OUTPUT_TRANSPORT, failure.contractErrorCode)
-        assertTrue(failure.message.orEmpty().contains("javascript_bytes"))
+        assertTrue(
+            failure.message,
+            failure.message.orEmpty().contains("javascript"),
+        )
         assertTrue(privateDirectory.listFiles().orEmpty().isEmpty())
     }
 

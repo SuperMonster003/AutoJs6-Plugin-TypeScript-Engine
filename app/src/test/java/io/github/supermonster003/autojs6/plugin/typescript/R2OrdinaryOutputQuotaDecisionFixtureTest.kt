@@ -15,12 +15,12 @@ class R2OrdinaryOutputQuotaDecisionFixtureTest {
         val fixture = fixture()
         assertEquals(ROOT_KEYS, fixture.keys.toList())
         assertEquals(
-            "autojs6.typescript.r2-m3-d2.ordinary-output-quota-decision",
+            "autojs6.typescript.s1-3.ordinary-output-quota-decision",
             fixture.string("schema"),
         )
-        assertEquals(1, fixture.int("revision"))
+        assertEquals(2, fixture.int("revision"))
         assertEquals(
-            "retain-512-artifacts-512kib-per-artifact-1mib-packaged-payload",
+            "expand-512-artifacts-16mib-per-artifact-64mib-packaged-payload",
             fixture.string("decision"),
         )
 
@@ -86,22 +86,23 @@ class R2OrdinaryOutputQuotaDecisionFixtureTest {
             domain.string("packagedArchiveDiagnosticsShapeDependency"),
         )
 
-        val deferred = fixture.objectValue("separateDeferredGuardrails")
-        assertEquals(listOf("diagnostics", "internalResultEnvelope"), deferred.keys.toList())
-        val diagnostics = deferred.objectValue("diagnostics")
+        val guardrails = fixture.objectValue("separateGuardrails")
+        assertEquals(listOf("diagnostics", "internalResultEnvelope"), guardrails.keys.toList())
+        val diagnostics = guardrails.objectValue("diagnostics")
         assertEquals(DIAGNOSTICS_GUARDRAIL_KEYS, diagnostics.keys.toList())
         assertEquals(1_000, diagnostics.int("maximumDiagnostics"))
         assertEquals(512L * 1024L, diagnostics.long("maximumEncodedArrayBytes"))
         assertEquals("worker-result-json-domain", diagnostics.string("unit"))
-        assertFalse(diagnostics.boolean("publicD2Quota"))
-        assertEquals("R2-M3-S3-diagnostics-schema", diagnostics.string("freezeDeferredTo"))
+        assertFalse(diagnostics.boolean("publicOutputQuota"))
 
-        val result = deferred.objectValue("internalResultEnvelope")
+        val result = guardrails.objectValue("internalResultEnvelope")
         assertEquals(RESULT_GUARDRAIL_KEYS, result.keys.toList())
-        assertEquals(6L * 1024L * 1024L, result.long("maximumDecodedTypedResultBytes"))
+        assertEquals(
+            R2_PROJECT_MAXIMUM_RESULT_ENVELOPE_BYTES.toLong(),
+            result.long("maximumDecodedTypedResultBytes"),
+        )
         assertEquals("decoded-result-json-utf8-bytes", result.string("unit"))
-        assertFalse(result.boolean("publicD2Quota"))
-        assertEquals("R2-M3-O1-streaming-output", result.string("freezeDeferredTo"))
+        assertFalse(result.boolean("publicOutputQuota"))
 
         val legacy = fixture.objectValue("legacyTransportAndArchiveCeiling")
         assertEquals(LEGACY_KEYS, legacy.keys.toList())
@@ -201,21 +202,20 @@ class R2OrdinaryOutputQuotaDecisionFixtureTest {
             TypeScriptCompilerContract.ERROR_OUTPUT_TRANSPORT,
             failure.string("nativeFinalPackagedQuotaFailureCode"),
         )
-        assertEquals(
-            listOf("R2-M3-O1-streaming-output", "R2-M3-S2-output-archive-schema"),
-            failure.stringList("unifiedPublicQuotaFailureDeferredTo"),
-        )
         assertEquals(0, failure.int("diagnosticCount"))
         assertEquals(0L, failure.long("callerOutputBytes"))
         assertFalse(failure.boolean("automaticRetryAllowed"))
 
         val promotion = fixture().objectValue("promotionState")
         assertEquals(PROMOTION_KEYS, promotion.keys.toList())
-        promotion.values.forEach { value -> assertEquals(false, value) }
+        assertTrue(promotion.boolean("publicCapabilityAvailable"))
+        assertTrue(promotion.boolean("runtimeCapabilityAvailable"))
+        assertFalse(promotion.boolean("nodeRevisionTwoEndToEndAvailable"))
+        assertTrue(promotion.boolean("largeOutputDeviceEvidenceRefreshed"))
     }
 
     private fun fixture(): Map<String, Any?> = requireNotNull(
-        javaClass.getResourceAsStream("/r2-output-quota/d2-v1.json"),
+        javaClass.getResourceAsStream("/r2-output-quota/s1-3-v2.json"),
     ).use { input -> R2StrictJson.parseObject(input.readBytes()) }
 
     private fun Map<String, Any?>.string(key: String): String = getValue(key) as String
@@ -245,7 +245,7 @@ class R2OrdinaryOutputQuotaDecisionFixtureTest {
             "ordinaryCompilationOutputQuota",
             "countingDomain",
             "boundaryCases",
-            "separateDeferredGuardrails",
+            "separateGuardrails",
             "measuredWorkloads",
             "legacyTransportAndArchiveCeiling",
             "failureOwnership",
@@ -281,23 +281,25 @@ class R2OrdinaryOutputQuotaDecisionFixtureTest {
             "plusOneAccepted",
         )
         val BOUNDARY_LIMITS = linkedMapOf(
-            "packaged-file-count" to 512L,
-            "packaged-javascript-bytes" to 512L * 1024L,
-            "packaged-source-map-bytes" to 512L * 1024L,
-            "packaged-payload-bytes" to 1024L * 1024L,
+            "packaged-file-count" to
+                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_OUTPUT_FILES.toLong(),
+            "packaged-javascript-bytes" to
+                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_JAVASCRIPT_BYTES,
+            "packaged-source-map-bytes" to
+                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_SOURCE_MAP_BYTES,
+            "packaged-payload-bytes" to
+                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_OUTPUT_BYTES,
         )
         val DIAGNOSTICS_GUARDRAIL_KEYS = listOf(
             "maximumDiagnostics",
             "maximumEncodedArrayBytes",
             "unit",
-            "publicD2Quota",
-            "freezeDeferredTo",
+            "publicOutputQuota",
         )
         val RESULT_GUARDRAIL_KEYS = listOf(
             "maximumDecodedTypedResultBytes",
             "unit",
-            "publicD2Quota",
-            "freezeDeferredTo",
+            "publicOutputQuota",
         )
         val MEASURED_WORKLOAD_KEYS = listOf(
             "id",
@@ -327,16 +329,15 @@ class R2OrdinaryOutputQuotaDecisionFixtureTest {
         val FAILURE_KEYS = listOf(
             "workerOrHostQuotaFailureCode",
             "nativeFinalPackagedQuotaFailureCode",
-            "unifiedPublicQuotaFailureDeferredTo",
             "diagnosticCount",
             "callerOutputBytes",
             "automaticRetryAllowed",
         )
         val PROMOTION_KEYS = listOf(
-            "publicCapabilityChanged",
-            "runtimeCapabilityChanged",
-            "nodeRevisionTwoEndToEndChanged",
-            "deviceEvidenceRefreshed",
+            "publicCapabilityAvailable",
+            "runtimeCapabilityAvailable",
+            "nodeRevisionTwoEndToEndAvailable",
+            "largeOutputDeviceEvidenceRefreshed",
         )
     }
 }

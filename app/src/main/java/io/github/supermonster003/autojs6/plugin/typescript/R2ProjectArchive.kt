@@ -1341,11 +1341,12 @@ internal object R2ProjectArchiveAdapter {
             )
         }
 
-        val snapshotLimits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION
-        if (trustedDeclarations.files.size > snapshotLimits.maximumFiles) {
+        val callerLimits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION
+        val snapshotLimits = R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE
+        if (trustedDeclarations.files.size > R2_TRUSTED_DECLARATION_MAXIMUM_FILES) {
             fail(
                 TypeScriptCompilerContract.ERROR_COMPILER_UNAVAILABLE,
-                "Local declarations exceed the ordinary compilation file-count limit.",
+                "Local declarations exceed the retained-input file-count limit.",
             )
         }
         val callerPayloadCount =
@@ -1354,95 +1355,94 @@ internal object R2ProjectArchiveAdapter {
                 (manifest.packageTargetInventory?.files?.size ?: 0) +
                 (manifest.nodePackageTargetV2Inventory?.files?.size ?: 0) +
                 if (manifest.rawConfigDescriptor == null) 0 else 1
-        if (callerPayloadCount > snapshotLimits.maximumFiles - trustedDeclarations.files.size) {
+        if (callerPayloadCount > callerLimits.maximumFiles) {
             fail(
                 TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
-                "Project input and local declarations exceed the ordinary compilation " +
-                    "file-count limit.",
+                "Caller project input exceeds the ordinary compilation file-count limit.",
             )
         }
-        var snapshotBytes = 0L
+        var trustedBytes = 0L
         trustedDeclarations.files.forEach { declaration ->
-            if (declaration.size > snapshotLimits.maximumSingleFileBytes) {
+            if (declaration.size > callerLimits.maximumSingleFileBytes) {
                 fail(
                     TypeScriptCompilerContract.ERROR_COMPILER_UNAVAILABLE,
-                    "A local declaration exceeds the ordinary compilation single-file limit.",
+                    "A local declaration exceeds the retained-input single-file limit.",
                 )
             }
-            if (snapshotBytes > snapshotLimits.maximumTotalBytes - declaration.size) {
+            if (trustedBytes > R2_TRUSTED_DECLARATION_MAXIMUM_BYTES - declaration.size) {
                 fail(
                     TypeScriptCompilerContract.ERROR_COMPILER_UNAVAILABLE,
-                    "Local declarations exceed the ordinary compilation byte limit.",
+                    "Local declarations exceed the retained-input byte limit.",
                 )
             }
-            snapshotBytes += declaration.size
+            trustedBytes += declaration.size
         }
+        var callerBytes = 0L
         manifest.rawConfigDescriptor?.let { config ->
-            if (snapshotBytes > snapshotLimits.maximumTotalBytes - config.size) {
+            if (callerBytes > callerLimits.maximumTotalBytes - config.size) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
-                    "Project input and local declarations exceed the ordinary compilation " +
-                        "byte limit.",
+                    "Caller project input exceeds the ordinary compilation byte limit.",
                 )
             }
-            snapshotBytes += config.size
+            callerBytes += config.size
         }
         manifest.packageMetadataInventory?.files?.forEach { file ->
-            if (file.size > snapshotLimits.maximumSingleFileBytes) {
+            if (file.size > callerLimits.maximumSingleFileBytes) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
                     "Package metadata exceeds the ordinary compilation single-file limit.",
                 )
             }
-            if (snapshotBytes > snapshotLimits.maximumTotalBytes - file.size) {
+            if (callerBytes > callerLimits.maximumTotalBytes - file.size) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
-                    "Package metadata, project files and local declarations exceed the " +
-                        "ordinary compilation byte limit.",
+                    "Caller package metadata and project files exceed the ordinary " +
+                        "compilation byte limit.",
                 )
             }
-            snapshotBytes += file.size
+            callerBytes += file.size
         }
         manifest.packageTargetInventory?.files?.forEach { file ->
-            if (file.size > snapshotLimits.maximumSingleFileBytes) {
+            if (file.size > callerLimits.maximumSingleFileBytes) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
                     "Package target exceeds the ordinary compilation single-file limit.",
                 )
             }
-            if (snapshotBytes > snapshotLimits.maximumTotalBytes - file.size) {
+            if (callerBytes > callerLimits.maximumTotalBytes - file.size) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
-                    "Package metadata, package targets, project files and local declarations " +
-                        "exceed the ordinary compilation byte limit.",
+                    "Caller package metadata, package targets and project files exceed the " +
+                        "ordinary compilation byte limit.",
                 )
             }
-            snapshotBytes += file.size
+            callerBytes += file.size
         }
         manifest.nodePackageTargetV2Inventory?.files?.forEach { file ->
-            if (file.size > snapshotLimits.maximumSingleFileBytes) {
+            if (file.size > callerLimits.maximumSingleFileBytes) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
                     "Node package-target v2 exceeds the ordinary compilation single-file limit.",
                 )
             }
-            if (snapshotBytes > snapshotLimits.maximumTotalBytes - file.size) {
+            if (callerBytes > callerLimits.maximumTotalBytes - file.size) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
-                    "Node package-target v2, project files and local declarations exceed the " +
+                    "Caller Node package-target v2 and project files exceed the " +
                         "ordinary compilation byte limit.",
                 )
             }
-            snapshotBytes += file.size
+            callerBytes += file.size
         }
         manifest.files.forEach { file ->
-            if (snapshotBytes > snapshotLimits.maximumTotalBytes - file.size) {
+            if (callerBytes > callerLimits.maximumTotalBytes - file.size) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
-                    "Project plus local declarations exceed the ordinary compilation byte limit.",
+                    "Caller project files exceed the ordinary compilation byte limit.",
                 )
             }
-            snapshotBytes += file.size
+            callerBytes += file.size
         }
 
         val snapshotFiles = ArrayList<R2ProjectTextFile>(
@@ -1853,6 +1853,7 @@ internal object R2ProjectArchiveAdapter {
             )
         }
 
+        val callerLimits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION
         val snapshotLimits = R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE
         if (trustedDeclarations.files.size > R2_TRUSTED_DECLARATION_MAXIMUM_FILES) {
             fail(
@@ -1864,11 +1865,10 @@ internal object R2ProjectArchiveAdapter {
             manifest.files.size + packageMetadataRecords.size + packageTargetRecords.size +
                 nodePackageTargetV2Records.size +
                 if (rawConfigRecord == null) 0 else 1
-        if (callerPayloadCount > snapshotLimits.maximumFiles - trustedDeclarations.files.size) {
+        if (callerPayloadCount > callerLimits.maximumFiles) {
             fail(
                 TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
-                "Project config, package metadata, sources and local declarations exceed the " +
-                    "file-backed input file-count limit.",
+                "Caller project input exceeds the ordinary compilation file-count limit.",
             )
         }
         var trustedBytes = 0L
@@ -1891,7 +1891,14 @@ internal object R2ProjectArchiveAdapter {
             trustedBytes += declaration.size
         }
         var snapshotBytes = trustedBytes
+        var callerBytes = 0L
         manifest.rawConfigDescriptor?.let { config ->
+            if (callerBytes > callerLimits.maximumTotalBytes - config.size) {
+                fail(
+                    TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
+                    "Caller project input exceeds the ordinary compilation byte limit.",
+                )
+            }
             if (snapshotBytes > snapshotLimits.maximumTotalBytes - config.size) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
@@ -1899,6 +1906,7 @@ internal object R2ProjectArchiveAdapter {
                         "limit.",
                 )
             }
+            callerBytes += config.size
             snapshotBytes += config.size
         }
         manifest.packageMetadataInventory?.files?.forEach { file ->
@@ -1908,6 +1916,13 @@ internal object R2ProjectArchiveAdapter {
                     "Package metadata exceeds the file-backed single-file input limit.",
                 )
             }
+            if (callerBytes > callerLimits.maximumTotalBytes - file.size) {
+                fail(
+                    TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
+                    "Caller package metadata and project files exceed the ordinary " +
+                        "compilation byte limit.",
+                )
+            }
             if (snapshotBytes > snapshotLimits.maximumTotalBytes - file.size) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
@@ -1915,6 +1930,7 @@ internal object R2ProjectArchiveAdapter {
                         "file-backed input byte limit.",
                 )
             }
+            callerBytes += file.size
             snapshotBytes += file.size
         }
         manifest.packageTargetInventory?.files?.forEach { file ->
@@ -1924,6 +1940,13 @@ internal object R2ProjectArchiveAdapter {
                     "Package target exceeds the file-backed single-file input limit.",
                 )
             }
+            if (callerBytes > callerLimits.maximumTotalBytes - file.size) {
+                fail(
+                    TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
+                    "Caller package metadata, package targets and project files exceed the " +
+                        "ordinary compilation byte limit.",
+                )
+            }
             if (snapshotBytes > snapshotLimits.maximumTotalBytes - file.size) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
@@ -1931,6 +1954,7 @@ internal object R2ProjectArchiveAdapter {
                         "exceed the file-backed input byte limit.",
                 )
             }
+            callerBytes += file.size
             snapshotBytes += file.size
         }
         manifest.nodePackageTargetV2Inventory?.files?.forEach { file ->
@@ -1940,6 +1964,13 @@ internal object R2ProjectArchiveAdapter {
                     "Node package-target v2 exceeds the file-backed single-file input limit.",
                 )
             }
+            if (callerBytes > callerLimits.maximumTotalBytes - file.size) {
+                fail(
+                    TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
+                    "Caller Node package-target v2 and project files exceed the ordinary " +
+                        "compilation byte limit.",
+                )
+            }
             if (snapshotBytes > snapshotLimits.maximumTotalBytes - file.size) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
@@ -1947,9 +1978,16 @@ internal object R2ProjectArchiveAdapter {
                         "file-backed input byte limit.",
                 )
             }
+            callerBytes += file.size
             snapshotBytes += file.size
         }
         manifest.files.forEach { file ->
+            if (callerBytes > callerLimits.maximumTotalBytes - file.size) {
+                fail(
+                    TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
+                    "Caller project files exceed the ordinary compilation byte limit.",
+                )
+            }
             if (snapshotBytes > snapshotLimits.maximumTotalBytes - file.size) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
@@ -1957,6 +1995,7 @@ internal object R2ProjectArchiveAdapter {
                         "file-backed input byte limit.",
                 )
             }
+            callerBytes += file.size
             snapshotBytes += file.size
         }
         val records = ArrayList<R2FileBackedProjectRecord>(

@@ -14,6 +14,10 @@ capability promotion。
 > 2026-08-23 S1-2 amendment：schema revision 保持 1；此前不可达的 artifact/source path
 > 现可使用 canonical UTF-8，inventory fingerprint 对 path 使用 UTF-8 bytes。此前合法的
 > ASCII archive、排序与 fingerprint 不变。
+>
+> 2026-08-23 S1-3 amendment：schema revision 仍为 1，当前 `outputQuotaRevision=2`；最终
+> packaged JS/map 为 512 artifacts、单 JS/map 各 16 MiB、aggregate 64 MiB。下文 quota
+> revision 1 的数字已由本 amendment 取代。
 
 ## Schema identity 与版本边界
 
@@ -24,7 +28,7 @@ schema = autojs6.typescript.output-archive
 revision = 1
 manifest path = compilation-manifest.json
 diagnostics path = diagnostics.json
-outputQuotaRevision = 1
+outputQuotaRevision = 2
 ```
 
 成功提交 emitted 或 diagnostics-only archive 后，terminal Bundle 同时携带：
@@ -212,13 +216,13 @@ original/generated URI、跨 profile module kind、显式 JS/map pairing descrip
 
 ## D2 quota 与 deterministic container
 
-`outputQuotaRevision=1` 复用已冻结的 ordinary final packaged output quota：
+`outputQuotaRevision=2` 使用当前 ordinary final packaged output quota：
 
 ```text
 maximum emitted artifacts      = 512
-maximum single JavaScript      = 512 KiB
-maximum single Source Map      = 512 KiB
-maximum aggregate JS/map bytes = 1 MiB
+maximum single JavaScript      = 16 MiB
+maximum single Source Map      = 16 MiB
+maximum aggregate JS/map bytes = 64 MiB
 comparison                     = inclusive
 measurement point              = after canonical sourceMappingURL rewrite
 ```
@@ -228,8 +232,8 @@ manifest、diagnostics 与 ZIP/container bytes 不进入 ordinary emitted-artifa
 按最终 bytes 做 D2 复核，不能只信 Worker 的 raw output size。
 
 当前 archive container 仍是 deterministic ZIP v1 `STORED`：manifest first，随后按 canonical
-artifact path 排序，timestamps 为 0，不使用 compression。S2 冻结 schema/container relationship，
-不宣称当前 writer 已 nonmaterializing；真正 streaming/file-backed writer 仍由 `R2-M3-O1` 负责。
+artifact path 排序，timestamps 为 0，不使用 compression。S2 冻结 schema/container relationship；
+当前 writer 仍会 materialize 输出，后续若真实负载需要再单独优化 streaming/file-backed writer。
 
 ## Diagnostics 与后续任务边界
 

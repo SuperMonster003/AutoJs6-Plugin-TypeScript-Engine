@@ -456,12 +456,50 @@ internal class R2PrivateProjectSpool private constructor(
                 nodePackageTargetV2Inventory?.totalBytes ?: 0L,
             ),
         )
+        val callerProjectRecords = projectRecords.filterNot { record ->
+            record.metadata.path.startsWith("/declarations/")
+        }
+        val acceptedCallerCapacity = R2ProjectInputCapacity(
+            fileCount = Math.addExact(
+                Math.addExact(
+                    Math.addExact(
+                        callerProjectRecords.size + if (rawConfigRecord == null) 0 else 1,
+                        packageMetadataRecords.size,
+                    ),
+                    packageTargetRecords.size,
+                ),
+                nodePackageTargetV2Records.size,
+            ),
+            largestFileUtf8Bytes = maxOf(
+                callerProjectRecords.maxOfOrNull { record -> record.metadata.utf8Bytes } ?: 0L,
+                rawConfigRecord?.descriptor?.size ?: 0L,
+                packageMetadataLargest,
+                packageTargetLargest,
+                nodePackageTargetV2Largest,
+            ),
+            totalUtf8Bytes = Math.addExact(
+                Math.addExact(
+                    Math.addExact(
+                        Math.addExact(
+                            callerProjectRecords.sumOf { record -> record.metadata.utf8Bytes },
+                            rawConfigRecord?.descriptor?.size ?: 0L,
+                        ),
+                        packageMetadataInventory?.totalBytes ?: 0L,
+                    ),
+                    packageTargetInventory?.totalBytes ?: 0L,
+                ),
+                nodePackageTargetV2Inventory?.totalBytes ?: 0L,
+            ),
+        )
         require(acceptedCapacity.admissionAgainst(limits).isEligible) {
             "Project config, package metadata, package targets and files exceed the snapshot " +
                 "limits."
         }
         acceptedInputAuthority?.let { authority ->
-            require(authority.capacity == acceptedCapacity) {
+            require(
+                authority.capacity == acceptedCapacity &&
+                    authority.callerCapacity == acceptedCallerCapacity,
+            ) {
                 "Accepted input authority capacity does not match the file-backed snapshot."
             }
         }

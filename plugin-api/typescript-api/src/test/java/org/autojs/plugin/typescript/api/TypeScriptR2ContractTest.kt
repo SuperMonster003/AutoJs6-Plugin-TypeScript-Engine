@@ -9,8 +9,8 @@ import org.junit.Test
 class TypeScriptR2ContractTest {
 
     @Test
-    fun ordinaryCompilationInputQuotaIsExactRevisionOneAndNotTheTransportCeiling() {
-        assertEquals(1, TypeScriptR2Contract.ORDINARY_COMPILATION_INPUT_QUOTA_REVISION)
+    fun ordinaryCompilationInputQuotaIsExactRevisionTwoAndNotTheTransportCeiling() {
+        assertEquals(2, TypeScriptR2Contract.ORDINARY_COMPILATION_INPUT_QUOTA_REVISION)
         assertEquals(512, TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_FILES)
         assertEquals(
             8L * 1024L * 1024L,
@@ -35,19 +35,19 @@ class TypeScriptR2ContractTest {
     }
 
     @Test
-    fun ordinaryCompilationOutputQuotaIsExactRevisionOneAndNotTheTransportCeiling() {
-        assertEquals(1, TypeScriptR2Contract.ORDINARY_COMPILATION_OUTPUT_QUOTA_REVISION)
+    fun ordinaryCompilationOutputQuotaIsExactRevisionTwoAndNotTheTransportCeiling() {
+        assertEquals(2, TypeScriptR2Contract.ORDINARY_COMPILATION_OUTPUT_QUOTA_REVISION)
         assertEquals(512, TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_OUTPUT_FILES)
         assertEquals(
-            512L * 1024L,
+            16L * 1024L * 1024L,
             TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_JAVASCRIPT_BYTES,
         )
         assertEquals(
-            512L * 1024L,
+            16L * 1024L * 1024L,
             TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_SOURCE_MAP_BYTES,
         )
         assertEquals(
-            1024L * 1024L,
+            64L * 1024L * 1024L,
             TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_OUTPUT_BYTES,
         )
         assertTrue(

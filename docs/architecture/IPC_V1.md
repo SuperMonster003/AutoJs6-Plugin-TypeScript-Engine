@@ -1,5 +1,12 @@
 # Compiler IPC v1
 
+> **S1-1–S1-3 current-state amendment（2026-08-23）。** frozen AIDL transaction 与 ZIP
+> transport version 不变；四项 compiler capability 当前均已开放。formal input/output archive
+> schema revision 仍为 1，但 ordinary input/output quota revision 均为 2：caller input 是
+> `512 files / 8 MiB per file / 8 MiB total` 且不计 plugin declarations；output 是 512 artifacts、
+> 单 JS/map 各 16 MiB、64 MiB aggregate；decoded typed-result envelope 为 144 MiB。本文中更早的
+> “capability=false”、shared declaration headroom 与 `512 KiB / 1 MiB / 6 MiB` 描述仅是历史记录。
+
 > **R2-M3-S1 input supersession（2026-08-14）。** 本页继续定义 frozen AIDL/Bundle/ZIP
 > transport；`Input archive v1` 一节中的 manifest revisions `2..7`、caller-carried declarations
 > 与旧 start shapes 只保留为 pre-S1 provenance，不是当前 formal alias/fallback。当前 formal input
@@ -183,18 +190,13 @@ ownership commit 和两个 server clock 的共同锚点。该 budget 不保证 t
 成功 ACK 的重复调用可幂等命中 terminal tombstone，但不能复活任务。private
 debug probe 保留既有 late-unack 幂等返回值。
 
-这组 optional key 位于 additive `TypeScriptR2Contract`，不改变 frozen AIDL、
-contract version/hash 或 `TypeScriptCompilerContract`。当前 capability 仍为
-`false`，因为 archive/profile 仍是 provisional，NodeNext 尚未完成，且 P3a 只
-完成 native file-backed streaming；P3b-a 虽把 Worker 内部 envelope 提升到
-4607 files/72 MiB 并加入 bounded lifetime，production 仍保留 512 files/8 MiB
-total admission。P3b-b1 的 DEBUG Android capacity/realm proof 不改变该围栏，
-Worker 最终仍可能同时持有 String/AST。P3b-b2a 的 synthetic phase-entry
-cancel/timeout 与主动 renderer termination 同样不改变围栏；它不是 natural
-mid-phase、PSS、LMK 或 OOM evidence。
-P1/P2/P3a/P3b-a/P3b-b1/P3b-b2a 是 production/public-shaped preview，不等同于
-Public R2。P2 的 config-none request manifest、framed Worker result 与 output
-revision 2 必须绑定同一个本地 profile/config authority。
+这组 optional key 位于 additive `TypeScriptR2Contract`，不改变 frozen AIDL、contract
+version/hash 或 `TypeScriptCompilerContract`。四项 compiler capability 当前为 `true`；NodeNext
+端到端准入仍未完成。Worker retained-input guardrail 是 4607 files/72 MiB，ordinary production
+另对 caller domain 保留 512 files/8 MiB total admission，plugin declarations 不占 caller
+headroom。Worker 最终仍可能同时持有 String/AST，因此该 guardrail 不是 Public 72 MiB 编译承诺。
+当前 formal config-none request manifest、framed Worker result 与 output 必须绑定同一个本地
+profile/config authority。
 
 ### progress/result/cancellation
 
@@ -349,15 +351,11 @@ sink `abort`；后续
 manifest/UTF-8 failure 同样 fail closed 并关闭、丢弃 spool。
 
 上述实现允许 native 层覆盖冻结的 64 MiB container/64 MiB actual uncompressed
-结构 envelope，但不是 public 语言服务容量声明。P3b-a Worker 内部已加入
-4607 files/8 MiB/file/72 MiB total、path/directory/token budgets、单份 decoded
-String/lazy SourceFile 与 per-job release；dispatch 前的 Android production gate
-仍为 512 files、8 MiB/file、8 MiB total，Worker 最终仍可能同时持有 decoded
-strings 与 TypeScript AST。P3b-b1 已证明 DEBUG low-token ASCII 的 direct/Binder
-boundary；P3b-b2a 已证明 same-UID DEBUG synthetic phase-entry hard-stop 与一次
-active exact-64-MiB renderer loss/recovery。Public end-to-end 64 MiB 仍需
-external-UID debug/minified-release、自然零 spin mid-phase 与完整
-memory/system-fault device gates。
+结构 envelope，但不是 public 语言服务容量声明。Worker retained-input guardrail 是
+4607 files/8 MiB/file/72 MiB total，并带 path/directory/token budgets、单份 decoded
+String/lazy SourceFile 与 per-job release；dispatch 前的 production gate 对 caller domain
+执行 512 files、8 MiB/file、8 MiB total admission，trusted declarations 单独计入 retained
+authority。Worker 最终仍可能同时持有 decoded strings 与 TypeScript AST。
 
 ## Output archive v1
 
@@ -467,23 +465,14 @@ source/declaration files，revision 3 因 raw config 占用一个 caller archive
 revision 3 还包含 offset-backed raw config）；
 这只是 `64 MiB caller input + 8 MiB trusted declarations` 的存储上界。
 
-P3b-a Worker 内部 direct-framing capacity 已对齐 4607 files、8 MiB/file、
-72 MiB，并用 complexity budgets 和 explicit release 约束 allocation shape；
-Android production admission 继续独立限制为 512 files、8 MiB/file、8 MiB
-total。P3b-b1 已增加 DEBUG device boundary 与 exact realm retirement，但仍不能
-推导 Public R2 已具备端到端 64 MiB 编译能力；P3b-b2a 增加 strict phase
-protocol、synthetic phase-entry stop 与主动 renderer loss/recovery，也不改变
-这一结论。四项 capability 与 0/54 Public checklist 均不变，必须由
-external-UID debug/minified-release、自然 mid-phase、重复大任务 PSS/cleanup、
-真实 LMK/OOM 与其余 P3b-b gates 另行关闭。
+Worker direct-framing retained capacity 为 4607 files、8 MiB/file、72 MiB，并用 complexity
+budgets 和 explicit release 约束 allocation shape；ordinary production caller admission 独立限制为
+512 files、8 MiB/file、8 MiB total。四项 compiler capability 已开放，但这不把 retained guardrail
+提升为 caller 可选的 72 MiB 编译额度。
 
-以下是尚待 R2 冻结的项目语义配额, 不属于 ZIP v1 结构层:
+当前项目语义配额不属于 ZIP v1 结构层：
 
-- 单 JS 16 MiB, 单 Source Map 32 MiB.
-- diagnostics 最多 10000 条, 序列化后最多 8 MiB.
-- 单 manifest 最多 4 MiB, JSON nesting depth 最多 64.
-- input extraction, private output ZIP 和 output copy 同时占用的私有 staging
-  总预算最多 384 MiB.
-
-R2 冻结 schema 前还必须增加 manifest inventory/hash、项目 root allowlist 和
-上述语义配额测试; R1 的 container golden 不能被当成合法项目 archive fixture.
+- ordinary output：512 artifacts，单 JS/map 各 16 MiB，aggregate 64 MiB；
+- diagnostics：最多 1000 条 primary，canonical document 最多 512 KiB；
+- 单 manifest 最多 4 MiB，JSON nesting depth 最多 64；
+- decoded typed-result internal envelope 最多 144 MiB。

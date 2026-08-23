@@ -1,5 +1,11 @@
 # R2-M3-S1 Input Archive Schema v1
 
+> **2026-08-23 S1-3 amendment：** formal archive schema revision 继续为 1，但其当前
+> `inputQuotaRevision` 已增至 2。accepted authority 同时绑定 caller capacity 与完整 retained
+> capacity；ordinary `512 files / 8 MiB per file / 8 MiB total` 只约束 caller domain，
+> plugin-owned trusted declarations 由独立 retained-input guardrail 约束。下文关于 quota revision 1
+> 与 declarations 消耗 caller headroom 的叙述只保留为历史 provenance。
+
 状态：**已完成（PASS，2026-08-14）**。本文冻结 `R2-M3-S1` 的 formal input archive schema
 revision 1。canonical fixture、source/JVM gate、Android compile-and-package gate 与最终无排除
 Core 均已在当前源码上通过；本项未运行 ADB/connected tests、未使用设备，也未扩大
@@ -13,7 +19,7 @@ formal manifest 的唯一 schema identity 为：
 schema = autojs6.typescript.input-archive
 revision = 1
 manifest path = request-manifest.json
-inputQuotaRevision = 1
+inputQuotaRevision = 2
 ```
 
 Public additive Bundle authority 使用：
@@ -159,8 +165,8 @@ declaration、config、package metadata、selected package target 五类内容�
 - `declarationInventoryFingerprint`、`declarationFileCount` 与 `declarationByteLength` 由 loader
   对本地已验证 C8 declarations 派生，caller wire 不得提供；
 - `retainedInventoryFingerprint` 覆盖 exact caller inventory 加 local declarations；accepted
-  authority 还保存 schema revision、declaration profile fingerprint、input quota revision 与完整
-  retained capacity。
+  authority 还保存 schema revision、declaration profile fingerprint、input quota revision、caller
+  capacity 与完整 retained capacity。
 
 manifest 本身不进入 logical inventory，避免 self-reference；它仍由
 `requestManifestSha256` 独立绑定。完整 ZIP container 由 `inputArchiveSha256` 独立绑定。loader 必须
@@ -170,7 +176,7 @@ accepted authority 时必须拒绝，不能从可变 snapshot 临时合成。
 
 ## Ordinary quota、transport 与 TEST_ONLY capacity
 
-`inputQuotaRevision=1` 的 ordinary production admission 覆盖完整 Worker-retained content：
+`inputQuotaRevision=2` 的 ordinary production admission 覆盖 caller-owned content：
 
 ```text
 maximum files             = 512
@@ -179,21 +185,23 @@ maximum total bytes       = 8 MiB
 comparison                = inclusive
 ```
 
-计数/计字节覆盖 caller sources、trusted declarations、optional raw config、package metadata 与
-selected package targets。`request-manifest.json`、ZIP container bytes 与 framing overhead 不进入
-ordinary semantic quota。trusted declarations 会真实消耗这 512 files / 8 MiB headroom，因此这组
-上限不承诺 caller 总能单独使用全部额度。
+计数/计字节覆盖 caller sources、optional raw config、package metadata 与 selected package
+targets。trusted declarations、`request-manifest.json`、ZIP container bytes 与 framing overhead
+不进入 ordinary caller quota。trusted declarations 仍进入 exact retained inventory，并受 trusted
+host 选择的 file-backed/Worker guardrail 约束；caller 可以独立使用完整 512 files / 8 MiB 额度。
 
 以下更大数字继续属于不同 authority，不能 promotion ordinary/Public capability：
 
 - ZIP/PFD validation 与 private staging transport ceiling：4096 archive entries、64 MiB container、
   64 MiB expanded、8 MiB per entry；
-- non-shipping `TEST_ONLY_EXPANDED` file-backed/Worker evidence envelope：最多 4607 files、72 MiB
-  total；它只能由 trusted test seam 选择，manifest/control plane 不能请求。
+- retained file-backed/Worker guardrail：最多 4607 files、8 MiB per file、72 MiB total，覆盖
+  caller input 加 plugin declarations；它只能由 trusted host 选择，manifest/control plane 不能请求；
+- non-shipping `TEST_ONLY_EXPANDED` 可把同一 guardrail 用作 caller authority，但仍只能由 trusted
+  test seam 选择，Public caller 不可请求。
 
 ordinary quota rejection 必须发生在 Worker handle claim/framing 之前。caller-owned oversize 映射为
-`ERR_AUTOJS6_TYPESCRIPT_ARCHIVE_QUOTA`；plugin-local declarations 使当前 profile 无法落入 frozen
-ordinary envelope 时属于 compiler unavailable。两者都保持 terminal empty output 且不自动重试。
+`ERR_AUTOJS6_TYPESCRIPT_ARCHIVE_QUOTA`；plugin-local declarations 破坏 retained guardrail 时属于
+compiler unavailable。两者都保持 terminal empty output 且不自动重试。
 
 ## Native framing 与 Worker independent recomputation
 

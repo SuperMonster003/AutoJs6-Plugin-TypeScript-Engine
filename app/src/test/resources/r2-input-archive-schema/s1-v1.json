@@ -305,20 +305,20 @@
     }
   ],
   "ordinaryQuota": {
-    "inputQuotaRevision": 1,
+    "inputQuotaRevision": 2,
     "maximumFiles": 512,
     "maximumSingleFileBytes": 8388608,
     "maximumTotalBytes": 8388608,
     "comparison": "inclusive",
     "countedDomains": [
       "source",
-      "declaration",
       "config",
       "package-metadata",
       "package-target-v1",
       "package-target-v2"
     ],
     "excludedDomains": [
+      "declaration",
       "request-manifest-json",
       "zip-container-bytes",
       "framing-overhead"

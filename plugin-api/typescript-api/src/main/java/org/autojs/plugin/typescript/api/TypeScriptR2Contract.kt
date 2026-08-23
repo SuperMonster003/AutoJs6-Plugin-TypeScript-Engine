@@ -74,25 +74,24 @@ object TypeScriptR2Contract {
     const val DIAGNOSTIC_CATEGORY_MESSAGE = 3
 
     /**
-     * Revision 1 ordinary-compilation input quota.
+     * Revision 2 ordinary-compilation caller-input quota.
      *
-     * The file and byte totals cover the complete Worker-retained snapshot: caller sources,
-     * plugin-owned trusted declarations, the optional raw config, package metadata, and package
-     * targets (v1 or v2). Trusted declarations therefore reduce the capacity available to caller
-     * files; these constants are not a promise that every caller may supply the full totals. The
-     * transport-owned request-manifest.json entry is not part of this accounting domain.
+     * The file and byte totals cover caller sources, the optional raw config, package metadata,
+     * and package targets (v1 or v2). Plugin-owned trusted declarations are deliberately outside
+     * this caller domain and are governed by the compiler's separate retained-input guardrail.
+     * The transport-owned request-manifest.json entry is also outside this accounting domain.
      *
      * These values are deliberately independent from the larger v1 archive transport and ZIP
      * validation ceilings in [TypeScriptCompilerContract]. A payload being transport-valid does
      * not make it eligible for ordinary compilation.
      */
-    const val ORDINARY_COMPILATION_INPUT_QUOTA_REVISION = 1
+    const val ORDINARY_COMPILATION_INPUT_QUOTA_REVISION = 2
     const val MAX_ORDINARY_COMPILATION_INPUT_FILES = 512
     const val MAX_ORDINARY_COMPILATION_SINGLE_FILE_BYTES = 8L * 1024L * 1024L
     const val MAX_ORDINARY_COMPILATION_INPUT_BYTES = 8L * 1024L * 1024L
 
     /**
-     * Revision 1 ordinary-compilation output quota.
+     * Revision 2 ordinary-compilation output quota.
      *
      * File count, single-artifact bytes, and aggregate bytes cover emitted JavaScript and Source
      * Map artifacts after the private packager's canonical `sourceMappingURL` rewrite. The
@@ -103,14 +102,14 @@ object TypeScriptR2Contract {
      * The Worker and native protocol parser apply the same numeric limits to raw compiler text as
      * a conservative early prefilter. The private packager is the final authority because it
      * measures bytes again after rewriting. These values deliberately retain the shipped heap
-     * envelope. The larger v1 output archive constants in [TypeScriptCompilerContract] are frozen
-     * transport and ZIP validation ceilings, not ordinary compilation capacity.
+     * envelope. The larger v1 output archive constants in [TypeScriptCompilerContract] remain
+     * frozen transport and ZIP validation ceilings.
      */
-    const val ORDINARY_COMPILATION_OUTPUT_QUOTA_REVISION = 1
+    const val ORDINARY_COMPILATION_OUTPUT_QUOTA_REVISION = 2
     const val MAX_ORDINARY_COMPILATION_OUTPUT_FILES = 512
-    const val MAX_ORDINARY_COMPILATION_SINGLE_JAVASCRIPT_BYTES = 512L * 1024L
-    const val MAX_ORDINARY_COMPILATION_SINGLE_SOURCE_MAP_BYTES = 512L * 1024L
-    const val MAX_ORDINARY_COMPILATION_OUTPUT_BYTES = 1024L * 1024L
+    const val MAX_ORDINARY_COMPILATION_SINGLE_JAVASCRIPT_BYTES = 16L * 1024L * 1024L
+    const val MAX_ORDINARY_COMPILATION_SINGLE_SOURCE_MAP_BYTES = 16L * 1024L * 1024L
+    const val MAX_ORDINARY_COMPILATION_OUTPUT_BYTES = 64L * 1024L * 1024L
 
     /**
      * Identifies the closed capability-promotion compatibility relation advertised by a peer.

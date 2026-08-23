@@ -82,7 +82,6 @@ internal object R2InputArchiveSchemaV1 {
             )
         }
         val retainedRecords = callerRecords + declarationRecords
-        val capacity = capacity(retainedRecords)
         return R2AcceptedInputAuthorityV1(
             schemaRevision = REVISION,
             callerInventoryFingerprint = callerInventoryFingerprint,
@@ -92,7 +91,8 @@ internal object R2InputArchiveSchemaV1 {
             declarationFileCount = declarationRecords.size,
             declarationByteLength = declarationRecords.sumOf(Record::size),
             inputQuotaRevision = INPUT_QUOTA_REVISION,
-            capacity = capacity,
+            callerCapacity = capacity(callerRecords),
+            capacity = capacity(retainedRecords),
         )
     }
 
@@ -153,6 +153,7 @@ internal object R2InputArchiveSchemaV1 {
             declarationFileCount = declarationRecords.size,
             declarationByteLength = declarationRecords.sumOf(Record::size),
             inputQuotaRevision = INPUT_QUOTA_REVISION,
+            callerCapacity = capacity(callerRecords),
             capacity = capacity(retainedRecords),
         )
     }
@@ -252,6 +253,7 @@ internal data class R2AcceptedInputAuthorityV1(
     val declarationFileCount: Int,
     val declarationByteLength: Long,
     val inputQuotaRevision: Int,
+    val callerCapacity: R2ProjectInputCapacity,
     val capacity: R2ProjectInputCapacity,
 ) {
     init {
@@ -269,5 +271,20 @@ internal data class R2AcceptedInputAuthorityV1(
         )
         require(declarationFileCount > 0 && declarationFileCount <= capacity.fileCount)
         require(declarationByteLength in 0L..capacity.totalUtf8Bytes)
+        require(
+            Math.addExact(callerCapacity.fileCount, declarationFileCount) ==
+                capacity.fileCount,
+        ) {
+            "Caller and declaration file counts do not cover the retained input."
+        }
+        require(
+            Math.addExact(callerCapacity.totalUtf8Bytes, declarationByteLength) ==
+                capacity.totalUtf8Bytes,
+        ) {
+            "Caller and declaration bytes do not cover the retained input."
+        }
+        require(callerCapacity.largestFileUtf8Bytes <= capacity.largestFileUtf8Bytes) {
+            "Caller largest-file authority exceeds the retained input."
+        }
     }
 }

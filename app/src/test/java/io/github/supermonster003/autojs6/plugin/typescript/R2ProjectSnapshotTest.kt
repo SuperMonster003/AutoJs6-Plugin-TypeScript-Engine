@@ -702,9 +702,12 @@ class R2ProjectSnapshotTest {
         assertEquals(validFiles().size, snapshot.fileInventory.size)
         assertEquals(listOf(MAIN_SOURCE), snapshot.rootNames)
         val admission = R2ProjectSnapshot.ordinaryCompilationAdmission(snapshot)
-        assertEquals(validFiles().size + 4, admission.capacity.fileCount)
+        val callerVfs = snapshot.fileInventory.filterNot { file ->
+            file.path.startsWith("/declarations/")
+        }
+        assertEquals(callerVfs.size + 4, admission.capacity.fileCount)
         assertEquals(
-            snapshot.totalUtf8Bytes + rawConfig.size + rootPackage.size +
+            callerVfs.sumOf { file -> file.utf8Bytes } + rawConfig.size + rootPackage.size +
                 dependencyPackage.size + expectedTargetBytes.size,
             admission.capacity.totalUtf8Bytes,
         )
@@ -788,12 +791,16 @@ class R2ProjectSnapshotTest {
         assertTrue(snapshot.nodePackageMetadataCatalog != null)
         assertTrue(targetPaths.none(snapshot.filePaths::contains))
         val admission = R2ProjectSnapshot.ordinaryCompilationAdmission(snapshot)
+        val callerVfs = snapshot.fileInventory.filterNot { file ->
+            file.path.startsWith("/declarations/")
+        }
         assertEquals(
-            validFiles().size + metadata.files.size + targets.files.size,
+            callerVfs.size + metadata.files.size + targets.files.size,
             admission.capacity.fileCount,
         )
         assertEquals(
-            snapshot.totalUtf8Bytes + metadata.totalBytes + targets.totalBytes,
+            callerVfs.sumOf { file -> file.utf8Bytes } +
+                metadata.totalBytes + targets.totalBytes,
             admission.capacity.totalUtf8Bytes,
         )
         assertFails<IndexOutOfBoundsException> {
@@ -976,9 +983,12 @@ class R2ProjectSnapshotTest {
         )
 
         val admission = R2ProjectSnapshot.ordinaryCompilationAdmission(snapshot)
-        assertEquals(validFiles().size + 2, admission.capacity.fileCount)
+        val callerVfs = snapshot.fileInventory.filterNot { file ->
+            file.path.startsWith("/declarations/")
+        }
+        assertEquals(callerVfs.size + 2, admission.capacity.fileCount)
         assertEquals(
-            snapshot.totalUtf8Bytes + rawConfig.size + packageJson.size,
+            callerVfs.sumOf { file -> file.utf8Bytes } + rawConfig.size + packageJson.size,
             admission.capacity.totalUtf8Bytes,
         )
         assertEquals(validFiles().size, snapshot.fileInventory.size)
@@ -987,13 +997,13 @@ class R2ProjectSnapshotTest {
     }
 
     @Test
-    fun rawConfigConsumesWorkerFileAndByteAdmissionButNotVfsInventory() {
+    fun callerFilesAndRawConfigConsumeOrdinaryQuotaButTrustedDeclarationsDoNot() {
         val emptyRawConfig = ByteArray(0)
         val emptyDescriptor = rawConfigDescriptor(emptyRawConfig)
         val exactFileInventory = buildList {
             add(R2ProjectTextFile(DEFAULT_LIBRARY, ""))
             add(R2ProjectTextFile(MAIN_SOURCE, ""))
-            repeat(TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_FILES - 3) { index ->
+            repeat(TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_FILES - 2) { index ->
                 add(R2ProjectTextFile("/sources/$index.json", ""))
             }
         }
@@ -1005,7 +1015,7 @@ class R2ProjectSnapshotTest {
             rawConfigDescriptor = emptyDescriptor,
             rawConfigBytes = emptyRawConfig,
         )
-        assertEquals(511, exactFileCount.fileInventory.size)
+        assertEquals(512, exactFileCount.fileInventory.size)
         assertTrue(R2ProjectSnapshot.ordinaryCompilationAdmission(exactFileCount).isEligible)
 
         val oneFileTooMany = R2ProjectSnapshot.create(
@@ -1025,9 +1035,10 @@ class R2ProjectSnapshotTest {
         val exactSourceBytes =
             TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES.toInt() -
                 maximumRawConfig.size
+        val trustedDeclaration = "declare const pluginOwned: number;\n"
         val exactBytes = R2ProjectSnapshot.create(
             files = listOf(
-                R2ProjectTextFile(DEFAULT_LIBRARY, ""),
+                R2ProjectTextFile(DEFAULT_LIBRARY, trustedDeclaration),
                 R2ProjectTextFile(MAIN_SOURCE, "a".repeat(exactSourceBytes)),
             ),
             rootNames = listOf(MAIN_SOURCE),
@@ -1036,12 +1047,24 @@ class R2ProjectSnapshotTest {
             rawConfigDescriptor = rawConfigDescriptor(maximumRawConfig),
             rawConfigBytes = maximumRawConfig,
         )
-        assertTrue(R2ProjectSnapshot.ordinaryCompilationAdmission(exactBytes).isEligible)
-        assertEquals(exactSourceBytes.toLong(), exactBytes.totalUtf8Bytes)
+        val exactByteAdmission = R2ProjectSnapshot.ordinaryCompilationAdmission(exactBytes)
+        assertTrue(exactByteAdmission.isEligible)
+        assertEquals(
+            TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES,
+            exactByteAdmission.capacity.totalUtf8Bytes,
+        )
+        assertEquals(
+            exactSourceBytes + trustedDeclaration.toByteArray().size.toLong(),
+            exactBytes.totalUtf8Bytes,
+        )
+        assertTrue(
+            exactBytes.totalUtf8Bytes + maximumRawConfig.size >
+                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES,
+        )
 
         val oneByteTooMany = R2ProjectSnapshot.create(
             files = listOf(
-                R2ProjectTextFile(DEFAULT_LIBRARY, ""),
+                R2ProjectTextFile(DEFAULT_LIBRARY, trustedDeclaration),
                 R2ProjectTextFile(MAIN_SOURCE, "a".repeat(exactSourceBytes)),
                 R2ProjectTextFile(JSON_DEPENDENCY, "x"),
             ),

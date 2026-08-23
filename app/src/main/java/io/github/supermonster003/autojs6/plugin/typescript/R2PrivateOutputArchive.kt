@@ -142,8 +142,8 @@ internal data class R2OutputArchiveAuthority(
             declarationFileCount > 0 &&
                 declarationFileCount <= retainedFileCount &&
                 declarationByteLength in 0L..retainedByteLength &&
-                retainedFileCount in 1..TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_FILES &&
-                retainedByteLength in 0L..TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES &&
+                retainedFileCount in 1..R2_FILE_BACKED_MAXIMUM_FILES &&
+                retainedByteLength in 0L..R2_FILE_BACKED_MAXIMUM_TOTAL_BYTES &&
                 largestRetainedFileBytes in
                 0L..TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_FILE_BYTES,
         ) {
@@ -328,12 +328,11 @@ internal class R2StagedOutputArchive private constructor(
 /**
  * Builds formal output archive schema v1 in a bounded private ZIP v1 container.
  *
- * D2 bounds final packaged JavaScript and Source Maps at 512 artifacts, 512 KiB per artifact, and
- * 1 MiB aggregate after sourceMappingURL rewriting. This class establishes that final quota and
- * the durable staging/validation boundary; O1 still owns removal of heap materialization through a
- * streaming/file-backed writer. The legacy 128/256 MiB ZIP ceilings are validation limits, not a
- * future ordinary-capacity target. The independently versioned diagnostics document is frozen by
- * [R2DiagnosticsSchemaV1] and retains its own 1000-record/512-KiB semantic quota.
+ * S1-3 quota revision 2 bounds final packaged output at 512 artifacts, 16 MiB per JavaScript or
+ * Source Map artifact, and 64 MiB aggregate after sourceMappingURL rewriting. This class is the
+ * final quota authority and durable staging/validation boundary. The larger legacy ZIP ceilings
+ * remain transport validation limits. The independently versioned diagnostics document is frozen
+ * by [R2DiagnosticsSchemaV1] and retains its own 1000-record/512-KiB semantic quota.
  */
 internal object R2PrivateOutputArchive {
 

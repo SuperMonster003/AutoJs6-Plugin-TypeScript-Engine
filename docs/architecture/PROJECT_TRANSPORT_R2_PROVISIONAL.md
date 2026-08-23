@@ -1,5 +1,10 @@
 # R2 Provisional Framed Project Transport
 
+> **S1-3 amendment（2026-08-23）。** ordinary input revision 2 将 caller
+> `512 files / 8 MiB` 与 plugin declarations 分账；完整 retained input 仍由 trusted
+> 4607-files/72-MiB guardrail 约束。ordinary output revision 2 为 512 artifacts、单 JS/map
+> 各 16 MiB、aggregate 64 MiB，decoded typed-result envelope 为 144 MiB。
+
 > **S1-2 amendment（2026-08-23）。** 本文中的 printable-ASCII VFS path 是历史边界；
 > 当前 framed transport 与 Worker VFS 接受 canonical UTF-8 path，安全规则见
 > [ZIP Archive Container v1](ARCHIVE_CONTAINER_V1.md)。
@@ -53,16 +58,16 @@ API 24/35 × evidence Debug/Release-equivalent 四行通过 external-UID Binder
 - P3a native snapshot 是 metadata + offsets + read-only inode；framer 用一个
   64 KiB buffer 从当前 file cursor 随机读取并在 file end 重新计算 SHA-256，
   不在 native heap 保留 source-sized `ByteArray` 或 UTF-16 text map。
-- native VFS snapshot/index 与 P3b-a Worker 内部 capacity 最多 4607 files、
-  72 MiB source + trusted declarations、8 MiB/file，但 production host 在发
-  frame 前仍执行独立 admission：512 files、8 MiB/file、8 MiB total。
+- native VFS snapshot/index 与 Worker retained-input guardrail 最多 4607 files、
+  72 MiB caller + trusted declarations、8 MiB/file；production host 在发 frame 前另对 caller
+  domain 执行 admission：512 files、8 MiB/file、8 MiB total，trusted declarations 不占该额度。
 - Worker 为当前文件分配完整 `Uint8Array`，fatal UTF-8 decode 后清零 bytes 并
   只保留一份 text record；VFS 不再重编码，`SourceFile` 按需创建并在当前 job
   缓存。TypeScript 最终仍可能同时持有全部 strings 与 Program/AST，因此 input
   frame 和 desktop 64+8 MiB proof 不能外推为 WebView heap/device capacity。
-- output 仍为 512 files、512 KiB/file、1 MiB total，完整 typed result 最多
-  6 MiB，并继续在 heap materialize。正式 output 128 MiB container/256 MiB
-  uncompressed 仍需要 file-backed/compressed writer。
+- ordinary output 为 512 artifacts、单 JS/map 各 16 MiB、64 MiB aggregate，完整 decoded typed
+  result 最多 144 MiB，并继续在 heap materialize。legacy output 128 MiB container/256 MiB
+  uncompressed 只是 ZIP/transport ceiling，不是 ordinary capacity。
 
 ## 输入状态机
 

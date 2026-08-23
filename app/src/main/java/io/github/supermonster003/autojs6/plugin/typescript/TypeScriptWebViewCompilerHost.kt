@@ -817,8 +817,8 @@ class TypeScriptWebViewCompilerHost(
             snapshot = snapshot,
             limits = workerAdmissionLimits,
         )
-        check(workerAdmissionLimits == workerInputQuotaAuthority.limits) {
-            "Host admission and Worker quota authorities must be identical."
+        check(workerAdmissionLimits == workerInputQuotaAuthority.callerLimits) {
+            "Host caller admission and Worker quota authorities must be identical."
         }
         workerAdmission.exceededDimension?.let { exceededDimension ->
             return R2ProjectCompilationOutcome.failed(

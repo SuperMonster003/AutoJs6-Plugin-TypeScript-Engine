@@ -21,12 +21,20 @@ class R2OrdinaryOutputQuotaTest {
                     R2OrdinaryOutputArtifactKind.SOURCE_MAP,
                     TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_SOURCE_MAP_BYTES,
                 ),
+                artifact(
+                    R2OrdinaryOutputArtifactKind.JAVASCRIPT,
+                    TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_JAVASCRIPT_BYTES,
+                ),
+                artifact(
+                    R2OrdinaryOutputArtifactKind.SOURCE_MAP,
+                    TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_SOURCE_MAP_BYTES,
+                ),
             ),
         )
 
         assertTrue(admission.eligible)
         assertNull(admission.exceededDimension)
-        assertEquals(2, admission.measurement.fileCount)
+        assertEquals(4, admission.measurement.fileCount)
         assertEquals(
             TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_OUTPUT_BYTES,
             admission.measurement.totalBytes,
@@ -37,6 +45,14 @@ class R2OrdinaryOutputQuotaTest {
     fun aggregatePlusOneIsRejectedAfterPerArtifactChecksPass() {
         val admission = R2OrdinaryOutputQuota.admission(
             listOf(
+                artifact(
+                    R2OrdinaryOutputArtifactKind.JAVASCRIPT,
+                    TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_JAVASCRIPT_BYTES,
+                ),
+                artifact(
+                    R2OrdinaryOutputArtifactKind.SOURCE_MAP,
+                    TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_SOURCE_MAP_BYTES,
+                ),
                 artifact(
                     R2OrdinaryOutputArtifactKind.JAVASCRIPT,
                     TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_JAVASCRIPT_BYTES,
@@ -56,6 +72,14 @@ class R2OrdinaryOutputQuotaTest {
         assertThrows(IllegalArgumentException::class.java) {
             R2OrdinaryOutputQuota.requireEligibility(
                 listOf(
+                    artifact(
+                        R2OrdinaryOutputArtifactKind.JAVASCRIPT,
+                        TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_JAVASCRIPT_BYTES,
+                    ),
+                    artifact(
+                        R2OrdinaryOutputArtifactKind.SOURCE_MAP,
+                        TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_SOURCE_MAP_BYTES,
+                    ),
                     artifact(
                         R2OrdinaryOutputArtifactKind.JAVASCRIPT,
                         TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_JAVASCRIPT_BYTES,

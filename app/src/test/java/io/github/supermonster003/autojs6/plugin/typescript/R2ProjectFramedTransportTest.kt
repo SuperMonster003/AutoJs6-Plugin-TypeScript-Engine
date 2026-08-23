@@ -2340,6 +2340,27 @@ class R2ProjectFramedTransportTest {
     }
 
     @Test
+    fun framedResultParserAcceptsMappingsBeyondTheLegacyHalfMebibyteGate() {
+        val mappings = "A".repeat(512 * 1024 + 1)
+        val sourceMap = strictSourceMapText().replace(
+            "\"mappings\":\"\"",
+            "\"mappings\":\"$mappings\"",
+        )
+
+        val parsed = CompilerHostProtocol.parseFramedProjectResult(
+            requestId = "expanded-source-map",
+            generation = 4,
+            payload = strictSuccessResultPayload(sourceMap)
+                .toByteArray(StandardCharsets.UTF_8),
+        )
+        val parsedMap = R2StrictJson.parseObject(
+            parsed.compilation.sourceMaps.single().text.toByteArray(StandardCharsets.UTF_8),
+        )
+
+        assertEquals(mappings.length, (parsedMap.getValue("mappings") as String).length)
+    }
+
+    @Test
     fun framedResultParserBindsControlledRootsAndExactEffectiveOptions() {
         val effective = R2ControlledTsConfigEffectiveOptions.resolve(
             mapOf("noUnusedLocals" to true),

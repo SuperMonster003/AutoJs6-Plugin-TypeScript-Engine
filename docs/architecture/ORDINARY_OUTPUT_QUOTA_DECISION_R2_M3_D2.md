@@ -1,5 +1,10 @@
 # R2-M3-D2 Ordinary Output Quota Decision
 
+> **S1-3 supersession（2026-08-23）。** 本文余下的 `512 KiB / 1 MiB` 数值属于历史
+> `outputQuotaRevision=1`。当前 production 使用 revision 2：最多 512 个 JS/map artifacts，单个
+> JavaScript 与 Source Map 各 16 MiB，最终 packaged artifact aggregate 为 64 MiB；内部 decoded
+> typed-result envelope 同步提高到 144 MiB。formal output archive schema revision 仍为 1。
+
 > **R2-M3-S2 follow-up（2026-08-22）。** S2 已将本页的 D2 decision 绑定为 formal output
 > manifest 的 `outputQuotaRevision=1`，并冻结 packaged artifact authority；见
 > [S2 Output Archive Schema v1](OUTPUT_ARCHIVE_SCHEMA_V1_R2_M3_S2.md)。下文把 S2 写成未来

@@ -43,11 +43,24 @@ const inputArchiveAuthority = Object.freeze({
     maximumFiles: 512,
     maximumSingleFileBytes: 8 * 1024 * 1024,
     maximumTotalBytes: 8 * 1024 * 1024,
-    quotaRevision: 1,
+    quotaRevision: 2,
     schemaRevision: 1,
 });
+// Direct historical Worker fixtures may still replay revision 1, whose quota
+// covered the complete retained inventory including declarations.
+const legacyRetainedInputQuotaAuthority = Object.freeze({
+    maximumFiles: 512,
+    maximumSingleFileBytes: 8 * 1024 * 1024,
+    maximumTotalBytes: 8 * 1024 * 1024,
+    quotaRevision: 1,
+});
+const ordinaryRetainedInputGuardrail = Object.freeze({
+    maximumFiles: maximumProjectFiles,
+    maximumSingleFileBytes: maximumProjectFileBytes,
+    maximumTotalBytes: maximumProjectBytes,
+});
 // This sentinel can only be emitted by the guarded native test/evidence path.
-// Public request manifests are pinned to ordinary input quota revision 1.
+// Public request manifests are pinned to ordinary caller-input quota revision 2.
 const testOnlyExpandedInputQuotaAuthority = Object.freeze({
     maximumFiles: maximumProjectFiles,
     maximumSingleFileBytes: maximumProjectFileBytes,
@@ -62,14 +75,14 @@ const maximumProjectDirectoryChars = 4 * 1024 * 1024;
 const maximumTokensPerFile = 65_536;
 const maximumProjectTokens = 262_144;
 const maximumOutputFiles = 512;
-const maximumOutputBytes = 1024 * 1024;
-const maximumJavaScriptBytes = 512 * 1024;
-const maximumSourceMapBytes = 512 * 1024;
+const maximumOutputBytes = 64 * 1024 * 1024;
+const maximumJavaScriptBytes = 16 * 1024 * 1024;
+const maximumSourceMapBytes = 16 * 1024 * 1024;
 const maximumDiagnostics = 1000;
 const maximumDiagnosticsBytes = 512 * 1024;
 const maximumRelatedInformationPerDiagnostic = 1000;
 const maximumRelatedInformationTotal = 1000;
-const maximumProjectResultBytes = 6 * 1024 * 1024;
+const maximumProjectResultBytes = 144 * 1024 * 1024;
 const sha256Pattern = /^[0-9a-f]{64}$/;
 const compareCodeUnits = (left, right) =>
     left < right ? -1 : left > right ? 1 : 0;
@@ -6634,26 +6647,37 @@ const acceptProjectInputStart = async (message, frameToken) => {
         isNodePackageTargetProgramStart;
     const isAnyNodeRevisionTwoTransport =
         isNodeRevision2Transport || isNodeRevisionTwoProgramTransport;
-    const workerInputQuotaAuthority =
+    const callerInputQuotaAuthority =
         message.inputQuotaRevision === inputArchiveAuthority.quotaRevision
             ? inputArchiveAuthority
+            : message.inputQuotaRevision ===
+                legacyRetainedInputQuotaAuthority.quotaRevision
+              ? legacyRetainedInputQuotaAuthority
             : message.inputQuotaRevision ===
                 testOnlyExpandedInputQuotaAuthority.quotaRevision
               ? testOnlyExpandedInputQuotaAuthority
               : null;
+    const retainedInputQuotaAuthority =
+        message.inputQuotaRevision ===
+        legacyRetainedInputQuotaAuthority.quotaRevision
+            ? legacyRetainedInputQuotaAuthority
+            : callerInputQuotaAuthority === null
+              ? null
+              : ordinaryRetainedInputGuardrail;
     if (
         projectOperationActive(frameToken) ||
         (!isConfigNoneStart &&
             !hasControlledConfig &&
             !isAnyNodeRevisionTwoTransport) ||
         message.sequence !== 0 ||
-        workerInputQuotaAuthority === null ||
+        callerInputQuotaAuthority === null ||
+        retainedInputQuotaAuthority === null ||
         !Number.isSafeInteger(message.fileCount) ||
         message.fileCount < 1 ||
-        message.fileCount > workerInputQuotaAuthority.maximumFiles ||
+        message.fileCount > retainedInputQuotaAuthority.maximumFiles ||
         !Number.isSafeInteger(message.totalBytes) ||
         message.totalBytes < 0 ||
-        message.totalBytes > workerInputQuotaAuthority.maximumTotalBytes ||
+        message.totalBytes > retainedInputQuotaAuthority.maximumTotalBytes ||
         message.inputArchiveSchemaRevision !== inputArchiveAuthority.schemaRevision ||
         typeof message.callerInventoryFingerprint !== "string" ||
         !sha256Pattern.test(message.callerInventoryFingerprint) ||
@@ -6666,10 +6690,11 @@ const acceptProjectInputStart = async (message, frameToken) => {
         !Number.isSafeInteger(message.retainedFileCount) ||
         message.retainedFileCount !==
             message.fileCount + (hasControlledConfig ? 1 : 0) ||
-        message.retainedFileCount > workerInputQuotaAuthority.maximumFiles ||
+        message.retainedFileCount > retainedInputQuotaAuthority.maximumFiles ||
         !Number.isSafeInteger(message.largestFileBytes) ||
         message.largestFileBytes < 0 ||
-        message.largestFileBytes > workerInputQuotaAuthority.maximumSingleFileBytes ||
+        message.largestFileBytes >
+            retainedInputQuotaAuthority.maximumSingleFileBytes ||
         message.largestFileBytes > message.totalBytes ||
         !Number.isSafeInteger(message.declarationFileCount) ||
         message.declarationFileCount < 1 ||
@@ -6778,6 +6803,7 @@ const acceptProjectInputStart = async (message, frameToken) => {
         configTransport: null,
         controlledConfig: null,
         controlledEffectiveOptions: null,
+        callerInputQuotaAuthority,
         currentFile: null,
         callerInventoryFingerprint: message.callerInventoryFingerprint,
         declarationByteLength: message.declarationByteLength,
@@ -7491,6 +7517,14 @@ const acceptProjectInputEnd = async (message, frameToken) => {
         (total, record) => total + record.byteLength,
         0,
     );
+    const callerBytes = callerRecords.reduce(
+        (total, record) => total + record.byteLength,
+        0,
+    );
+    const largestCallerFileBytes = callerRecords.reduce(
+        (largest, record) => Math.max(largest, record.byteLength),
+        0,
+    );
     const largestFileBytes = retainedRecords.reduce(
         (largest, record) => Math.max(largest, record.byteLength),
         0,
@@ -7512,7 +7546,11 @@ const acceptProjectInputEnd = async (message, frameToken) => {
         retainedRecords.length !== state.retainedFileCount ||
         declarationRecords.length !== state.declarationFileCount ||
         declarationBytes !== state.declarationByteLength ||
-        largestFileBytes !== state.largestFileBytes
+        largestFileBytes !== state.largestFileBytes ||
+        callerRecords.length > state.callerInputQuotaAuthority.maximumFiles ||
+        callerBytes > state.callerInputQuotaAuthority.maximumTotalBytes ||
+        largestCallerFileBytes >
+            state.callerInputQuotaAuthority.maximumSingleFileBytes
     ) {
         throw new Error(
             "Project input authority does not match its exact retained inventory.",

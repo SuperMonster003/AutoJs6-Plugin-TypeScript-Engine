@@ -199,11 +199,11 @@
     "exactPhysicalCoverage": "manifest-plus-every-declared-artifact-exactly-once"
   },
   "ordinaryQuota": {
-    "outputQuotaRevision": 1,
+    "outputQuotaRevision": 2,
     "maximumArtifacts": 512,
-    "maximumSingleJavaScriptBytes": 524288,
-    "maximumSingleSourceMapBytes": 524288,
-    "maximumArtifactBytes": 1048576,
+    "maximumSingleJavaScriptBytes": 16777216,
+    "maximumSingleSourceMapBytes": 16777216,
+    "maximumArtifactBytes": 67108864,
     "comparison": "inclusive",
     "measurementPoint": "after-canonical-sourceMappingURL-rewrite",
     "manifestDiagnosticsAndZipBytesExcluded": true

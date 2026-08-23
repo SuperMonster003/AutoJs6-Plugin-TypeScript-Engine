@@ -747,12 +747,51 @@ internal class R2ProjectSnapshot private constructor(
                         nodePackageTargetV2BytesTotal,
                     ),
                 )
+                val callerProjectFiles = inventory.filterNot { file ->
+                    file.path.startsWith(DECLARATIONS_ROOT_PREFIX)
+                }
+                val acceptedCallerCapacity = R2ProjectInputCapacity(
+                    fileCount = Math.addExact(
+                        Math.addExact(
+                            Math.addExact(
+                                callerProjectFiles.size +
+                                    if (rawConfigDescriptor == null) 0 else 1,
+                                packageMetadataInventory?.files?.size ?: 0,
+                            ),
+                            packageTargetInventory?.files?.size ?: 0,
+                        ),
+                        nodePackageTargetV2Inventory?.files?.size ?: 0,
+                    ),
+                    largestFileUtf8Bytes = maxOf(
+                        callerProjectFiles.maxOfOrNull { file -> file.utf8Bytes } ?: 0L,
+                        rawConfigDescriptor?.size ?: 0L,
+                        packageMetadataLargest,
+                        packageTargetLargest,
+                        nodePackageTargetV2Largest,
+                    ),
+                    totalUtf8Bytes = Math.addExact(
+                        Math.addExact(
+                            Math.addExact(
+                                Math.addExact(
+                                    callerProjectFiles.sumOf { file -> file.utf8Bytes },
+                                    rawConfigDescriptor?.size ?: 0L,
+                                ),
+                                packageMetadataBytesTotal,
+                            ),
+                            packageTargetBytesTotal,
+                        ),
+                        nodePackageTargetV2BytesTotal,
+                    ),
+                )
                 require(acceptedCapacity.admissionAgainst(limits).isEligible) {
                     "Project config, package metadata, package targets and files exceed the " +
                         "snapshot limits."
                 }
                 acceptedInputAuthority?.let { authority ->
-                    require(authority.capacity == acceptedCapacity) {
+                    require(
+                        authority.capacity == acceptedCapacity &&
+                            authority.callerCapacity == acceptedCallerCapacity,
+                    ) {
                         "Accepted input authority capacity does not match the snapshot."
                     }
                 }
@@ -934,7 +973,7 @@ internal class R2ProjectSnapshot private constructor(
             snapshot: R2ProjectInputSnapshot,
         ) {
             val limits = R2ProjectSnapshotLimits.PROVISIONAL_WEB_MESSAGE
-            val capacity = inputCapacity(snapshot)
+            val capacity = retainedInputCapacity(snapshot)
             require(capacity.fileCount <= limits.maximumFiles) {
                 "Project snapshot exceeds the provisional WebMessage file-count limit."
             }
@@ -967,12 +1006,17 @@ internal class R2ProjectSnapshot private constructor(
             snapshot: R2ProjectInputSnapshot,
             limits: R2ProjectSnapshotLimits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION,
         ): R2ProjectInputAdmission {
-            val derived = inputCapacity(snapshot)
+            val derivedRetained = retainedInputCapacity(snapshot)
+            val derivedCaller = callerInputCapacity(snapshot)
             val authority = snapshot.acceptedInputAuthority
-            require(authority == null || authority.capacity == derived) {
+            require(
+                authority == null ||
+                    authority.capacity == derivedRetained &&
+                    authority.callerCapacity == derivedCaller,
+            ) {
                 "Accepted input authority capacity drifted after archive acceptance."
             }
-            return (authority?.capacity ?: derived).admissionAgainst(limits)
+            return (authority?.callerCapacity ?: derivedCaller).admissionAgainst(limits)
         }
 
         @Deprecated(
@@ -991,7 +1035,7 @@ internal class R2ProjectSnapshot private constructor(
             snapshot: R2ProjectInputSnapshot,
         ): R2ProjectInputAdmission = ordinaryCompilationAdmission(snapshot)
 
-        private fun inputCapacity(
+        private fun retainedInputCapacity(
             snapshot: R2ProjectInputSnapshot,
         ): R2ProjectInputCapacity {
             val rawConfig = snapshot.rawConfigDescriptor
@@ -1033,6 +1077,61 @@ internal class R2ProjectSnapshot private constructor(
                         Math.addExact(
                             Math.addExact(
                                 snapshot.totalUtf8Bytes,
+                                rawConfig?.size ?: 0L,
+                            ),
+                            packageMetadataBytes,
+                        ),
+                        packageTargetBytes,
+                    ),
+                    nodePackageTargetV2Bytes,
+                ),
+            )
+        }
+
+        private fun callerInputCapacity(
+            snapshot: R2ProjectInputSnapshot,
+        ): R2ProjectInputCapacity {
+            val callerFiles = snapshot.fileInventory.filterNot { file ->
+                file.path.startsWith(DECLARATIONS_ROOT_PREFIX)
+            }
+            val rawConfig = snapshot.rawConfigDescriptor
+            val packageMetadata = snapshot.packageMetadataInventory
+            val packageMetadataBytes = packageMetadata?.totalBytes ?: 0L
+            val packageMetadataLargest = packageMetadata?.files?.maxOfOrNull { file ->
+                file.size
+            } ?: 0L
+            val packageTargets = snapshot.packageTargetInventory
+            val packageTargetBytes = packageTargets?.totalBytes ?: 0L
+            val packageTargetLargest = packageTargets?.files?.maxOfOrNull { file ->
+                file.size
+            } ?: 0L
+            val nodePackageTargetsV2 = snapshot.nodePackageTargetV2Inventory
+            val nodePackageTargetV2Bytes = nodePackageTargetsV2?.totalBytes ?: 0L
+            val nodePackageTargetV2Largest =
+                nodePackageTargetsV2?.files?.maxOfOrNull { file -> file.size } ?: 0L
+            return R2ProjectInputCapacity(
+                fileCount = Math.addExact(
+                    Math.addExact(
+                        Math.addExact(
+                            callerFiles.size + if (rawConfig == null) 0 else 1,
+                            packageMetadata?.files?.size ?: 0,
+                        ),
+                        packageTargets?.files?.size ?: 0,
+                    ),
+                    nodePackageTargetsV2?.files?.size ?: 0,
+                ),
+                largestFileUtf8Bytes = maxOf(
+                    callerFiles.maxOfOrNull { file -> file.utf8Bytes } ?: 0L,
+                    rawConfig?.size ?: 0L,
+                    packageMetadataLargest,
+                    packageTargetLargest,
+                    nodePackageTargetV2Largest,
+                ),
+                totalUtf8Bytes = Math.addExact(
+                    Math.addExact(
+                        Math.addExact(
+                            Math.addExact(
+                                callerFiles.sumOf { file -> file.utf8Bytes },
                                 rawConfig?.size ?: 0L,
                             ),
                             packageMetadataBytes,
@@ -1289,6 +1388,7 @@ internal class R2ProjectSnapshot private constructor(
 
         private const val SOURCES_ROOT = "sources"
         private const val DECLARATIONS_ROOT = "declarations"
+        private const val DECLARATIONS_ROOT_PREFIX = "/declarations/"
         private const val REQUIRED_DEFAULT_LIBRARY = "/declarations/lib.d.ts"
     }
 }

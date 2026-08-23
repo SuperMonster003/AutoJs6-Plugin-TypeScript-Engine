@@ -264,6 +264,85 @@ class R2BinderCompilationInstrumentationTest {
     }
 
     @Test
+    fun largeCallerSourceAndOutputCompileThroughThePublicService() {
+        bindCompilerService().use { session ->
+            val payload = "A".repeat(LARGE_EMIT_PAYLOAD_CHARS)
+            val source = "export const payload: string = \"$payload\";\n"
+            val sourceBytes = source.toByteArray(StandardCharsets.UTF_8).size.toLong()
+            assertTrue(sourceBytes > LARGE_OUTPUT_ACCEPTANCE_BYTES)
+            assertTrue(
+                sourceBytes <=
+                    TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES,
+            )
+            val fixture = createFixture(
+                requestId = newRequestId("large-output"),
+                sources = linkedMapOf("sources/main.ts" to source),
+                rootPaths = listOf("sources/main.ts"),
+                timeoutMs = TypeScriptCompilerContract.MAX_TIMEOUT_MS,
+            )
+            try {
+                val terminal = compileAndAcknowledge(
+                    compiler = session.compiler,
+                    fixture = fixture,
+                    request = fixture.publicRequest(),
+                    publicShapedAcknowledgement = true,
+                    callbackTimeoutSeconds = CAPACITY_CALLBACK_TIMEOUT_SECONDS,
+                )
+                assertEmittedTerminal(terminal)
+                assertEquals(
+                    1,
+                    terminal.getInt(
+                        TypeScriptCompilerContract.KEY_EMITTED_MODULE_COUNT,
+                        -1,
+                    ),
+                )
+
+                ZipArchiveV1Validator.validate(
+                    fixture.output,
+                    ZipArchiveV1Limits.OUTPUT,
+                )
+                ZipFile(fixture.output).use { archive ->
+                    val module = requireNotNull(archive.getEntry("modules/main.js"))
+                    assertTrue(
+                        "Expected an emitted JavaScript payload above 2 MiB, got ${module.size}.",
+                        module.size > LARGE_OUTPUT_ACCEPTANCE_BYTES,
+                    )
+                    val manifest = R2StrictJson.parseObject(
+                        archive.getInputStream(
+                            archive.getEntry(R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH),
+                        ).use { input -> input.readBytes() },
+                    )
+                    assertEquals(
+                        TypeScriptR2Contract.ORDINARY_COMPILATION_OUTPUT_QUOTA_REVISION.toLong(),
+                        (manifest["outputQuotaRevision"] as R2StrictJson.NumberToken)
+                            .source.toLong(),
+                    )
+                    assertEquals(
+                        TypeScriptR2Contract.ORDINARY_COMPILATION_INPUT_QUOTA_REVISION.toLong(),
+                        (manifest["inputQuotaRevision"] as R2StrictJson.NumberToken)
+                            .source.toLong(),
+                    )
+                    val declarationBytes =
+                        (manifest["declarationByteLength"] as R2StrictJson.NumberToken)
+                            .source.toLong()
+                    val retainedBytes =
+                        (manifest["retainedByteLength"] as R2StrictJson.NumberToken)
+                            .source.toLong()
+                    assertTrue(declarationBytes > 0L)
+                    assertEquals(sourceBytes, retainedBytes - declarationBytes)
+                    assertTrue(
+                        "The retained snapshot must exceed the legacy shared 8 MiB quota.",
+                        retainedBytes >
+                            TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES,
+                    )
+                }
+            } finally {
+                fixture.delete()
+            }
+        }
+    }
+
+    @Test
     fun utf8SourcePathsCompileEmitAndMapDiagnosticsThroughThePublicService() {
         bindCompilerService().use { session ->
             val unicodeSourcePath = "sources/中文目录/工具😀.ts"
@@ -1823,6 +1902,7 @@ class R2BinderCompilationInstrumentationTest {
         fixture: CompilationFixture,
         request: Bundle = fixture.request(),
         publicShapedAcknowledgement: Boolean = false,
+        callbackTimeoutSeconds: Long = CALLBACK_TIMEOUT_SECONDS,
     ): Bundle {
         val callback = RecordingCallback()
         val ticket = startCompilation(
@@ -1842,7 +1922,7 @@ class R2BinderCompilationInstrumentationTest {
                 },
             ),
         )
-        val terminal = callback.awaitTerminal()
+        val terminal = callback.awaitTerminal(callbackTimeoutSeconds)
         assertFalse(callback.callbackBeforeStartReturned)
         assertEquals(1, callback.terminalCount.get())
         SystemClock.sleep(EXACTLY_ONCE_OBSERVATION_MILLIS)
@@ -3067,6 +3147,8 @@ class R2BinderCompilationInstrumentationTest {
         const val LATE_ACK_TERMINAL_CLEANUP_DELAY_MILLIS = 3_000
         const val NO_CALLBACK_OBSERVATION_MILLIS = 750L
         const val OUTPUT_SENTINEL = "caller-output-sentinel"
+        const val LARGE_EMIT_PAYLOAD_CHARS = 5 * 1024 * 1024
+        const val LARGE_OUTPUT_ACCEPTANCE_BYTES = 2L * 1024L * 1024L
         const val BIND_TIMEOUT_SECONDS = 10L
         const val CALLBACK_TIMEOUT_SECONDS = 30L
         const val CAPACITY_CALLBACK_TIMEOUT_SECONDS = 135L

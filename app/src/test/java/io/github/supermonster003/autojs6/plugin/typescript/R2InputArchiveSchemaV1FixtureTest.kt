@@ -380,6 +380,9 @@ class R2InputArchiveSchemaV1FixtureTest {
         assertEquals(trusted.profileFingerprint, accepted.declarationProfileFingerprint)
         assertEquals(1, accepted.declarationFileCount)
         assertEquals(declaration.bytes.size.toLong(), accepted.declarationByteLength)
+        assertEquals(1, accepted.callerCapacity.fileCount)
+        assertEquals(source.bytes.size.toLong(), accepted.callerCapacity.totalUtf8Bytes)
+        assertEquals(source.bytes.size.toLong(), accepted.callerCapacity.largestFileUtf8Bytes)
         assertEquals(2, accepted.capacity.fileCount)
         assertEquals(
             source.bytes.size.toLong() + declaration.bytes.size.toLong(),
@@ -405,7 +408,7 @@ class R2InputArchiveSchemaV1FixtureTest {
             quota.long("maximumTotalBytes"),
         )
         assertEquals("inclusive", quota.string("comparison"))
-        assertEquals(RETAINED_DOMAINS, quota.stringList("countedDomains"))
+        assertEquals(CALLER_QUOTA_DOMAINS, quota.stringList("countedDomains"))
         assertEquals(QUOTA_EXCLUDES, quota.stringList("excludedDomains"))
         assertEquals(TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA, quota.string("callerQuotaError"))
         assertEquals(
@@ -721,6 +724,9 @@ class R2InputArchiveSchemaV1FixtureTest {
             "package-target-v2",
         )
         val RETAINED_DOMAINS = CANONICAL_DOMAIN_ORDER
+        val CALLER_QUOTA_DOMAINS = CANONICAL_DOMAIN_ORDER.filterNot { domain ->
+            domain == "declaration"
+        }
         val CALLER_EXCLUDES = listOf(
             "request-manifest-json",
             "declaration",
@@ -759,6 +765,7 @@ class R2InputArchiveSchemaV1FixtureTest {
             "admissionPoint",
         )
         val QUOTA_EXCLUDES = listOf(
+            "declaration",
             "request-manifest-json",
             "zip-container-bytes",
             "framing-overhead",

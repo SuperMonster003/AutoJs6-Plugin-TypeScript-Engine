@@ -1,5 +1,12 @@
 # R2-M3-D1 Ordinary Input Quota Decision
 
+> **S1-3 supersession（2026-08-23）。** 本文余下内容冻结的是历史
+> `inputQuotaRevision=1`。当前 production 使用 revision 2：`512 files / 8 MiB per file /
+> 8 MiB total` 只计 caller sources、raw config、package metadata 与 package targets；
+> plugin-owned trusted declarations 不再占 caller headroom，而由 trusted host 的独立 retained-input
+> guardrail（4607 files / 72 MiB）约束。formal input archive schema revision 仍为 1，Public caller
+> 不能选择 retained guardrail，也不能回退请求 revision 1。
+
 状态：**完成（2026-08-13）**。本页冻结首版 ordinary compilation input quota 的职责边界；
 `verifyR2M3D1OrdinaryInputQuotaDecision` 与无排除项 `verifyR2ProjectCompilerCore` 已在当前源码上
 通过，Roadmap 的 D1 已关闭。

@@ -135,7 +135,7 @@ internal object CompilerHostProtocol {
         validateRequestId(requestId)
         check(generation > 0)
         check(payload.size in 1..MAX_FRAMED_PROJECT_RESULT_BYTES) {
-            "Framed project result is outside the provisional byte limit."
+            "Framed project result is outside the internal result-envelope limit."
         }
         val strictResult = R2StrictJson.parseObject(
             bytes = payload,
@@ -291,7 +291,7 @@ internal object CompilerHostProtocol {
                     generation = generation,
                     byteLength = message.requirePositiveInt("byteLength").also { bytes ->
                         check(bytes <= MAX_FRAMED_PROJECT_RESULT_BYTES) {
-                            "Framed project result exceeds the provisional byte limit."
+                            "Framed project result exceeds the internal result-envelope limit."
                         }
                     },
                     sha256 = message.requireString("sha256").also { sha256 ->
@@ -343,7 +343,7 @@ internal object CompilerHostProtocol {
                     generation = generation,
                     byteLength = message.requirePositiveInt("byteLength").also { bytes ->
                         check(bytes <= MAX_FRAMED_PROJECT_RESULT_BYTES) {
-                            "Framed project result exceeds the provisional byte limit."
+                            "Framed project result exceeds the internal result-envelope limit."
                         }
                     },
                     sha256 = message.requireString("sha256").also { sha256 ->
@@ -1590,8 +1590,10 @@ internal object CompilerHostProtocol {
         "autojs://source/r1-probe/syntax-error.ts"
     private const val MAX_ERROR_MESSAGE_CHARS = 4_096
     private const val MAX_MESSAGE_BYTES = R2_PROJECT_MAXIMUM_FRAME_BYTES
-    private const val MAX_FRAMED_PROJECT_RESULT_BYTES = 6 * 1024 * 1024
-    private const val MAX_PROJECT_SOURCE_MAP_MAPPINGS_CHARS = 512 * 1024
+    private const val MAX_FRAMED_PROJECT_RESULT_BYTES =
+        R2_PROJECT_MAXIMUM_RESULT_ENVELOPE_BYTES
+    private const val MAX_PROJECT_SOURCE_MAP_MAPPINGS_CHARS =
+        TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_SOURCE_MAP_BYTES.toInt()
     private const val MAX_REQUEST_ID_CHARS = 128
     private const val MIN_PROJECT_PHASE_PROGRESS_UNITS = 8
     private const val MAX_PROJECT_PHASE_PROGRESS_UNITS = 2 * 4_607

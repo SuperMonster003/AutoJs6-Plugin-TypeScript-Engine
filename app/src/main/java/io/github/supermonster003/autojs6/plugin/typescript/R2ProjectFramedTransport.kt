@@ -3,23 +3,29 @@ package io.github.supermonster003.autojs6.plugin.typescript
 import java.security.MessageDigest
 import org.autojs.plugin.typescript.api.TypeScriptR2Contract
 
+/** Allows a 64 MiB artifact payload plus worst-case JSON string escaping and bounded metadata. */
+internal const val R2_PROJECT_MAXIMUM_RESULT_ENVELOPE_BYTES = 144 * 1024 * 1024
+
 /**
- * Worker-retained input quota selected by trusted host code, never by the caller archive.
+ * Caller and retained-input authorities selected by trusted host code, never by the archive.
  *
  * [TEST_ONLY_EXPANDED] preserves the historical 72 MiB file-backed evidence path without making
  * that capacity selectable through the Public R2 manifest or control plane.
  */
 internal enum class R2WorkerInputQuotaAuthority(
     val revision: Int,
-    val limits: R2ProjectSnapshotLimits,
+    val callerLimits: R2ProjectSnapshotLimits,
+    val retainedLimits: R2ProjectSnapshotLimits,
 ) {
     ORDINARY(
         revision = TypeScriptR2Contract.ORDINARY_COMPILATION_INPUT_QUOTA_REVISION,
-        limits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION,
+        callerLimits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION,
+        retainedLimits = R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE,
     ),
     TEST_ONLY_EXPANDED(
         revision = Int.MAX_VALUE,
-        limits = R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE,
+        callerLimits = R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE,
+        retainedLimits = R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE,
     ),
 }
 
@@ -80,11 +86,18 @@ internal class R2ProjectInputFramer(
             "Accepted archive authority must retain the ordinary caller quota revision."
         }
         require(
-            acceptedInputAuthority.capacity
-                .admissionAgainst(workerInputQuotaAuthority.limits)
+            acceptedInputAuthority.callerCapacity
+                .admissionAgainst(workerInputQuotaAuthority.callerLimits)
                 .isEligible,
         ) {
-            "Accepted input exceeds the trusted Worker quota authority."
+            "Accepted caller input exceeds the trusted Worker quota authority."
+        }
+        require(
+            acceptedInputAuthority.capacity
+                .admissionAgainst(workerInputQuotaAuthority.retainedLimits)
+                .isEligible,
+        ) {
+            "Accepted retained input exceeds the trusted Worker guardrail."
         }
     }
 
@@ -1061,8 +1074,8 @@ internal class R2ProjectResultAccumulator(
     private var finished = false
 
     init {
-        require(byteLength in 1..MAXIMUM_PROJECT_RESULT_BYTES) {
-            "Project result byte length is outside the provisional limit."
+        require(byteLength in 1..R2_PROJECT_MAXIMUM_RESULT_ENVELOPE_BYTES) {
+            "Project result byte length is outside the internal result-envelope limit."
         }
         require(
             chunkCount ==
@@ -1140,9 +1153,6 @@ internal class R2ProjectResultAccumulator(
             "%02x".format(byte.toInt() and 0xff)
         }
 
-    private companion object {
-        const val MAXIMUM_PROJECT_RESULT_BYTES = 6 * 1024 * 1024
-    }
 }
 
 internal object R2FramedBase64 {

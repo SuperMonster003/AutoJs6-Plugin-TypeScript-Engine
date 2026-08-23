@@ -16,12 +16,12 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
         val fixture = fixture()
         assertEquals(ROOT_KEYS, fixture.keys.toList())
         assertEquals(
-            "autojs6.typescript.r2-m3-d1.ordinary-input-quota-decision",
+            "autojs6.typescript.s1-3.ordinary-input-quota-decision",
             fixture.string("schema"),
         )
-        assertEquals(1, fixture.int("revision"))
+        assertEquals(2, fixture.int("revision"))
         assertEquals(
-            "retain-512-files-8mib-single-file-8mib-total",
+            "retain-512-caller-files-8mib-single-file-8mib-total-excluding-trusted-declarations",
             fixture.string("decision"),
         )
 
@@ -120,13 +120,11 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
                 profile.long("occupiedBytes"),
             )
             assertEquals(
-                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_FILES -
-                    profile.int("occupiedFiles"),
+                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_FILES,
                 profile.int("maximumCallerFilesBeforeOptionalMetadata"),
             )
             assertEquals(
-                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES -
-                    profile.long("occupiedBytes"),
+                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES,
                 profile.long("maximumCallerBytesBeforeOptionalMetadata"),
             )
         }
@@ -135,16 +133,16 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
         assertEquals(825L, rhino.long("profileBytes"))
         assertEquals(109, rhino.int("occupiedFiles"))
         assertEquals(3_785_583L, rhino.long("occupiedBytes"))
-        assertEquals(403, rhino.int("maximumCallerFilesBeforeOptionalMetadata"))
-        assertEquals(4_603_025L, rhino.long("maximumCallerBytesBeforeOptionalMetadata"))
+        assertEquals(512, rhino.int("maximumCallerFilesBeforeOptionalMetadata"))
+        assertEquals(8_388_608L, rhino.long("maximumCallerBytesBeforeOptionalMetadata"))
 
         val node = profiles.single { profile -> profile.string("profile") == "node" }
         assertEquals(59, node.int("profileFiles"))
         assertEquals(246_572L, node.long("profileBytes"))
         assertEquals(167, node.int("occupiedFiles"))
         assertEquals(4_031_330L, node.long("occupiedBytes"))
-        assertEquals(345, node.int("maximumCallerFilesBeforeOptionalMetadata"))
-        assertEquals(4_357_278L, node.long("maximumCallerBytesBeforeOptionalMetadata"))
+        assertEquals(512, node.int("maximumCallerFilesBeforeOptionalMetadata"))
+        assertEquals(8_388_608L, node.long("maximumCallerBytesBeforeOptionalMetadata"))
 
         val distributionRoot = requireNotNull(
             System.getProperty("r2.generatedDeclarationDistributionDir"),
@@ -164,7 +162,7 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
     }
 
     @Test
-    fun countingDomainAndTestOnlyTransportCapacityRemainDisjoint() {
+    fun callerCountingDomainAndRetainedTransportGuardrailsRemainDisjoint() {
         val fixture = fixture()
         val countingDomain = fixture.objectValue("countingDomain")
         assertEquals(COUNTING_DOMAIN_KEYS, countingDomain.keys.toList())
@@ -209,20 +207,24 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
         )
         packageTargetSnapshot.use { snapshot ->
             val admission = R2ProjectSnapshot.ordinaryCompilationAdmission(snapshot)
+            val callerVfs = snapshot.fileInventory.filterNot { file ->
+                file.path.startsWith("/declarations/")
+            }
             assertTrue(admission.isEligible)
             assertEquals(
-                snapshot.fileInventory.size + 1 + packageMetadata.files.size +
+                callerVfs.size + 1 + packageMetadata.files.size +
                     packageTargets.files.size,
                 admission.capacity.fileCount,
             )
             assertEquals(
-                snapshot.totalUtf8Bytes + rawConfig.size + packageMetadata.totalBytes +
+                callerVfs.sumOf { file -> file.utf8Bytes } + rawConfig.size +
+                    packageMetadata.totalBytes +
                     packageTargets.totalBytes,
                 admission.capacity.totalUtf8Bytes,
             )
             assertEquals(
                 maxOf(
-                    snapshot.largestFileUtf8Bytes,
+                    callerVfs.maxOf { file -> file.utf8Bytes },
                     rawConfig.size.toLong(),
                     packageMetadata.files.maxOf { file -> file.size },
                     packageTargets.files.maxOf { file -> file.size },
@@ -258,25 +260,50 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
         )
         nodeTargetSnapshot.use { snapshot ->
             val admission = R2ProjectSnapshot.ordinaryCompilationAdmission(snapshot)
+            val callerVfs = snapshot.fileInventory.filterNot { file ->
+                file.path.startsWith("/declarations/")
+            }
             assertTrue(admission.isEligible)
             assertEquals(
-                snapshot.fileInventory.size + packageMetadata.files.size +
+                callerVfs.size + packageMetadata.files.size +
                     nodeTargets.files.size,
                 admission.capacity.fileCount,
             )
             assertEquals(
-                snapshot.totalUtf8Bytes + packageMetadata.totalBytes + nodeTargets.totalBytes,
+                callerVfs.sumOf { file -> file.utf8Bytes } +
+                    packageMetadata.totalBytes + nodeTargets.totalBytes,
                 admission.capacity.totalUtf8Bytes,
             )
             assertEquals(
                 maxOf(
-                    snapshot.largestFileUtf8Bytes,
+                    callerVfs.maxOf { file -> file.utf8Bytes },
                     packageMetadata.files.maxOf { file -> file.size },
                     nodeTargets.files.maxOf { file -> file.size },
                 ),
                 admission.capacity.largestFileUtf8Bytes,
             )
         }
+
+        val retained = fixture.objectValue("retainedInputGuardrail")
+        assertEquals(RETAINED_GUARDRAIL_KEYS, retained.keys.toList())
+        assertEquals(
+            "trusted-host-caller-plus-plugin-declarations",
+            retained.string("authority"),
+        )
+        assertEquals(
+            R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE.maximumFiles,
+            retained.int("maximumWorkerFiles"),
+        )
+        assertEquals(
+            R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE.maximumSingleFileBytes,
+            retained.long("maximumWorkerSingleFileBytes"),
+        )
+        assertEquals(
+            R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE.maximumTotalBytes,
+            retained.long("maximumWorkerTotalBytes"),
+        )
+        assertFalse(retained.boolean("callerSelectable"))
+        assertFalse(retained.boolean("expandsCallerQuota"))
 
         val transport = fixture.objectValue("transportCeiling")
         assertEquals(TRANSPORT_KEYS, transport.keys.toList())
@@ -343,9 +370,9 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
 
         val promotion = fixture.objectValue("promotionState")
         assertEquals(PROMOTION_KEYS, promotion.keys.toList())
-        assertFalse(promotion.boolean("publicCapabilityChanged"))
-        assertFalse(promotion.boolean("runtimeCapabilityChanged"))
-        assertFalse(promotion.boolean("nodeRevisionTwoEndToEndChanged"))
+        assertTrue(promotion.boolean("publicCapabilityAvailable"))
+        assertTrue(promotion.boolean("runtimeCapabilityAvailable"))
+        assertFalse(promotion.boolean("nodeRevisionTwoEndToEndAvailable"))
     }
 
     private fun rawConfigDescriptor(bytes: ByteArray) = R2RawProjectConfigDescriptor(
@@ -377,7 +404,7 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
     )
 
     private fun fixture(): Map<String, Any?> = requireNotNull(
-        javaClass.getResourceAsStream("/r2-input-quota/d1-v1.json"),
+        javaClass.getResourceAsStream("/r2-input-quota/s1-3-v2.json"),
     ).use { input -> R2StrictJson.parseObject(input.readBytes()) }
 
     private fun Map<String, Any?>.string(key: String): String = getValue(key) as String
@@ -414,6 +441,7 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
             "countingDomain",
             "profileDeclarationOccupancy",
             "boundaryCases",
+            "retainedInputGuardrail",
             "transportCeiling",
             "testOnlyExpandedCapacity",
             "quotaRejection",
@@ -433,13 +461,14 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
             "excludes",
         )
         val COUNTED_INPUTS = listOf(
-            "project-vfs-files-including-trusted-declarations",
+            "caller-project-vfs-files-excluding-trusted-declarations",
             "raw-config-if-present",
             "package-metadata-files",
             "package-target-files",
             "node-package-target-v2-files",
         )
         val EXCLUDED_INPUTS = listOf(
+            "plugin-owned-trusted-declarations",
             "request-manifest-json",
             "zip-container-bytes",
             "framing-and-base64-overhead",
@@ -472,6 +501,14 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
             "maximumSingleFileBytes",
             "promotesOrdinaryCompilationQuota",
         )
+        val RETAINED_GUARDRAIL_KEYS = listOf(
+            "authority",
+            "maximumWorkerFiles",
+            "maximumWorkerSingleFileBytes",
+            "maximumWorkerTotalBytes",
+            "callerSelectable",
+            "expandsCallerQuota",
+        )
         val TEST_ONLY_KEYS = listOf(
             "authority",
             "evidenceBuildRequired",
@@ -491,9 +528,9 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
             "automaticRetryAllowed",
         )
         val PROMOTION_KEYS = listOf(
-            "publicCapabilityChanged",
-            "runtimeCapabilityChanged",
-            "nodeRevisionTwoEndToEndChanged",
+            "publicCapabilityAvailable",
+            "runtimeCapabilityAvailable",
+            "nodeRevisionTwoEndToEndAvailable",
         )
     }
 }
