@@ -1,5 +1,24 @@
 # R2-M2-C8 Declaration Profile Layering
 
+> **S3-A1/A2 现行 authority（2026-08-23）。** 提交 `12db299` 与 `6b85685`
+> 已取代本页下方记录的 C8/v1 初始实现：当前资产根为
+> `assets/r2-declarations/v2/`, manifest schema 2 / generator 3；release package 为
+> `autojs6-plugin-typescript-engine-declarations`, release version 必须等于
+> `BuildConfig.VERSION_NAME`。Rhino 层
+> 由公开 `@sm003/autojs6-dts@2.1.3` 的 50 个 internal declaration 模块与独立
+> `index.d.ts` 组成（51 files / 878,019 bytes / 42,694 tokens）, layer fingerprint
+> 为 `6de45f7a89fcafa99f70f5ddeb3d2a7cebdfb109cd9f8a4d3fc9b9eda29969a6`；Node
+> 层仍为 59 files / 246,572 bytes, layer fingerprint 仍为
+> `f38e4e384cd67fdad4134aa0400ba164704c987ee9683327fbe3eacdfa134603`。
+>
+> lock schema 2 继续以完整 tarball digest/SRI 锁定外部 Rhino npm 供应链, 但本仓库
+> Node 声明层不再绑定私有 host repository/commit/build 或逐文件 source hash。
+> `distribution.json` 中的逐文件 SHA-256 是实际 APK 文件 inventory/tamper authority,
+> 不是私有源码版本锁；layer/profile fingerprint 保持纯内容身份, release 身份另行进入
+> distribution fingerprint。当前 distribution 有 116 个 manifest-owned files,
+> fingerprint 为 `208f46053ad924e79c7952ce518b39eca3e110cb84e9315dbedaf8495fbbf244`。
+> **除本段外, 本页其余内容是 2026-08-02 的 C8/v1 历史闭环记录, 不再描述当前资产。**
+
 > **R2-M3-S1 binding（2026-08-14）。** Formal input revision 1 现在绑定所选 C8 exact
 > `declarationProfileFingerprint`，并由 plugin-local loader 派生 declaration inventory/count/bytes；
 > caller wire 不能提供这些本地 authority。见

@@ -9,7 +9,7 @@
 > 不以测试与安全边界的堆砌为产品本体, 不把验证正确性当成交付物。
 > 每一项的完成标准是"用户可感知的行为", 不是"某个 verify 任务变绿"。
 
-## 现状基线 (2026-08-22, 重写时点)
+## 现状基线 (2026-08-22 重写, 2026-08-23 更新)
 
 已经真实具备、且本路线直接继承的资产:
 
@@ -22,12 +22,15 @@
   真机走通。
 - **契约已冻结**: AIDL v1 (6 transaction, append-only)、input/output
   archive schema v1、diagnostics schema v1、双向兼容 AAR 门禁。
-- **声明分发机制可用**: TypeScript 6.0.3 标准库 + Node profile 59 个
-  AutoJs6 bridge 模块 d.ts 已打包进 APK 并逐文件锁 hash。
+- **声明分发机制可用**: TypeScript 6.0.3 标准库 + Rhino profile 51 个
+  模块化 AutoJs6 d.ts + Node profile 59 个 bridge d.ts 已打包进 APK。
+  声明 release 与插件版本一致, layer/profile fingerprint 可直接作为缓存
+  身份；外部 Rhino npm tarball 保持 digest/SRI 锁定, 本地 Node 层不再与
+  私有宿主 commit 或逐文件 source hash 耦合。
 - **进程隔离成熟**: `:typescript_compiler` 独立进程、Binder/FD 传输、
   超时/取消/进程死亡恢复均已在 API 24–35 真机验证过。
 
-重写时的真实缺口 (本路线要解决的):
+重写时的真实缺口 (以下 1–5 已由 S1–S3 当前主线关闭):
 
 1. **宿主一行消费代码都没有**: AutoJs6 主仓库没有 compiler client、
    没有 `.ts` 路由、没有引擎适配。插件编译得再好, 用户脚本也跑不起来。
@@ -50,7 +53,7 @@
 |---|---|---|---|
 | S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 已完成 (6/6 必需；S1-7 可选) |
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 已完成 (6/6) |
-| S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 进行中 (A1 已覆盖真实 API 与最小 UI; B1、C1-C3 已完成) |
+| S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 核心完成 (A1-A2、B1、C1-C3；原生 TSX A3 后置) |
 | S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 未开始 |
 | S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 未开始 |
 
@@ -204,21 +207,33 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
 
 **A. Rhino 声明层扩容** (本仓库)
 
-- [ ] **S3-A1** 解除 Rhino 层仅 825 字节的裁剪: 以
+- [x] **S3-A1** 解除 Rhino 层仅 825 字节的裁剪: 以
       `@sm003/autojs6-dts` 为源, 按模块拆分文件绕过单文件 65,536
       token 限制; 若项目 262,144 token 预算不足, 提高预算或按需
       加载 (用户项目引用到的全局才注入)。
       验收: `device.width`、`images.captureScreen()`、`ui.layout()`
       等常用 API 在 strict 下通过类型检查。
-      提交 `0032e20` 已把首批可信投影从 825 扩至 2,881 字节，并将
-      automator/device/http/images 四个上游声明文件纳入逐文件 hash 锁；
-      `device`、click/swipe、`http.get` 与 images 读图脚本已在 strict 编译后
-      真机执行。提交 `7579863` 又锁定上游 `aj6-int-ui.d.ts`，将投影扩至
-      3,185 字节，最小 UI 声明已支持字符串 XML、视图查找/点击/文本更新与
-      `ui.finish()`，并经 strict 编译和真机执行验证。当前仍保持单个 Rhino
-      layer 文件，且尚未覆盖完整 API 表面，因此本项保持未勾选。
-- [ ] **S3-A2** 声明包版本随插件版本发布, 不再要求与某个私有 host
+      提交 `12db299` 已将公开上游的 50 个 AutoJs6 internal declaration
+      模块逐模块生成, 再加独立 `index.d.ts`, 共 51 files / 878,019 bytes /
+      42,694 TypeScript tokens；最大单文件 6,839 tokens, 不再依赖单文件
+      巨型投影。`device/files/storages/colors/http/images/automator/ui` 等真实
+      API 与字符串 XML UI 均在 strict 用户源码中通过；上游兼容性
+      `@ts-nocheck` 仅存在于 compiler-owned trusted d.ts, 用户源码仍保持
+      strict 且没有全局打开 `skipLibCheck`。API 31/33/35/37 上的设备、手势、
+      本地 HTTP、图片、UI 与类型错误拒绝矩阵均通过。
+- [x] **S3-A2** 声明包版本随插件版本发布, 不再要求与某个私有 host
       commit 逐文件锁 hash (保留 fingerprint 用于缓存 key 即可)。
+      提交 `6b85685` 将资产根升级为 `r2-declarations/v2`, manifest schema 2 /
+      generator 3；顶层 release 固定为
+      `autojs6-plugin-typescript-engine-declarations@0.5.0`, runtime 要求其版本
+      与 `BuildConfig.VERSION_NAME` 完全一致。lock schema 2 只对外部 Rhino
+      tarball 保留 digest/SRI 供应链锁, Node 层仅声明本仓库 source directory、
+      license 与 package entry, 不再记录私有 repository/commit/host build 或
+      逐文件 source hash。生成 manifest 仍记录每个 APK 文件的 SHA-256 以验证
+      成品完整性；layer/profile fingerprint 保持纯内容身份, release 变化只改变
+      release/distribution 身份, 可直接服务后续缓存 key。生成、runtime、Program、
+      NodeNext 与 APK 校验均通过, 新包在 API 31/33/35/37 上完成 profile 读取、
+      strict API 编译和字符串 XML UI 执行回归。
 - [ ] **S3-A3 原生 TSX DSL 类型层**: 独立定义 JSX namespace、内置元素、
       属性与事件类型，不复用字符串 XML 的宽泛签名。
       验收: 一个包含布局、id 引用和点击处理器的真实 `.tsx` UI 脚本在
