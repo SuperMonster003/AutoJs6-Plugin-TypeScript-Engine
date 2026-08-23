@@ -9,7 +9,7 @@
 > 不以测试与安全边界的堆砌为产品本体, 不把验证正确性当成交付物。
 > 每一项的完成标准是"用户可感知的行为", 不是"某个 verify 任务变绿"。
 
-## 现状基线 (2026-08-22 重写, 2026-08-23 更新)
+## 现状基线 (2026-08-22 重写, 2026-08-24 更新)
 
 已经真实具备、且本路线直接继承的资产:
 
@@ -54,7 +54,7 @@
 | S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 已完成 (6/6 必需；S1-7 可选) |
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 已完成 (6/6) |
 | S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 核心完成 (A1-A2、B1、C1-C3；原生 TSX A3 后置) |
-| S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 进行中 (S4-1 单文件 `.mts/.cts` 切片与 S4-2 首段已完成) |
+| S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 进行中 (S4-1、S4-3 已完成；S4-2 主执行路径已迁移, 删除旧实现待办) |
 | S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 未开始 |
 
 依赖关系: S1 → S2 → S3 → S4 → S5 严格递进不是必须的 —— S1 与 S2 可
@@ -286,7 +286,7 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
 
 目标: 补齐与 Node.js Runtime 插件的组合, 以及真实多文件项目。
 
-- [ ] **S4-1 Node 引擎适配** (宿主 + Node 插件仓库): Node adapter
+- [x] **S4-1 Node 引擎适配** (宿主 + Node 插件仓库): Node adapter
       消费同一 CompilationBundle, `.ts/.mts/.cts` 按 NodeNext
       revision 2 产物执行 (`.js/.mjs/.cjs`); Node 栈映射到 TS
       文件/行/列。Node Runtime 不可用时给明确错误, 不影响 Rhino 路径。
@@ -303,24 +303,65 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
       - [x] API 31、API 35 实机与 API 37 模拟器分别通过 `.mts` 路由、`.cts`
         路由、ESM 栈映射、CJS 栈映射及 Node `.ts` 负向门禁中的 4 项组合，
         合计 12/12；两种异常均映射到原 TypeScript 第 4 行第 11 列。
-      - [ ] 单文件 Node `.ts` 与项目级 `.ts` 尚不能仅凭文件本身判定 ESM/CJS；
-        待 S4-3 传入 `package.json`/项目上下文后接入 `.js` 产物。当前带 Node
-        directive 的单文件 `.ts` 会明确拒绝，不猜测 module kind，也不回退到
-        Rhino、原始 TypeScript 或正则 stripping。因此 S4-1 整项仍未关闭。
+      - [x] Node `.ts` 现以最近的 `project.json`/根 `package.json` 作为明确项目
+        boundary，由编译插件发布并校验 package metadata schema/policy/inventory
+        authority；`type: module` 产出 ESM `.js`，`type: commonjs` 或缺失 `type`
+        产出 CommonJS `.js`。宿主提交 `622bfddcc`，编译插件提交 `2e35f64`。
+        不带任何项目/package 上下文的裸 Node `.ts` 仍明确拒绝，这是避免猜测
+        module kind 的既定边界；一个只有入口 `.ts` 与根 `package.json` 的目录
+        已可作为单文件项目执行。
+      - [x] 导入的 CommonJS 模块现在先扣除 Node `Function()` wrapper 与 strict
+        prologue 的 3 行偏移，再组合逐模块 compiler Source Map；Node Runtime
+        提交 `92f3be6`。导入模块异常在三台设备上精确回到 `lib/fail.ts:3:11`，
+        调用方回到 `main.ts:2:5`，生成的 `fail.js` 不再泄漏到最终栈。
 - [ ] **S4-2 退役正则 stripping**: NodeTypeScriptStripper 先挂
       legacy feature flag, 默认走插件编译; 稳定一个版本后删除。
       插件未安装时提示安装, 不静默回退 stripping。
       - [x] `.mts/.cts` 已默认且唯一走编译插件，不再触发旧 stripping，
         也没有编译器缺失时的 stripping fallback。
-      - [ ] 旧路径目前只为尚未迁移的项目级 Node `.ts` 保留。待 S4-3
-        接通 package 元数据与多文件项目后再完成 feature flag/删除步骤，
-        因此 S4-2 整项暂不勾选。
-- [ ] **S4-3 多文件项目**: 宿主项目 (project.json + tsconfig.json)
+      - [x] 宿主可静态发现的 Node `.ts` 项目已全部先编译再执行，不再经过
+        stripping；编译器缺失、package authority 不匹配或项目快照变化均直接
+        失败，不静默执行原 TypeScript。
+      - [ ] `NodeTypeScriptStripper` 及 Node Runtime 插件面向显式 raw `.ts`/
+        动态入口的兼容路径尚未挂 feature flag 或删除。需要先盘点这些非宿主
+        静态项目入口，再完成一个版本的迁移观察，因此 S4-2 整项仍不勾选。
+- [x] **S4-3 多文件项目**: 宿主项目 (project.json + tsconfig.json)
       按目录打包进 input archive; 插件内已有的受控模块解析
       (C6/C7 成果) 直接消费; import 图、循环依赖、JSON 导入按
       现有 Worker 能力放行。
       验收: 一个 10+ 文件、含相对 import 与 JSON 导入的项目在
       Rhino 与 Node 各跑通一例。
+      - [x] 宿主以 canonical project root 构造一次性、有界且确定排序的项目
+        快照：caller 上限保持 512 files / 8 MiB，支持 UTF-8 目录与文件名，
+        纳入 `.ts/.mts/.cts/.d.ts` 及运行期 `.js/.mjs/.cjs/.json`，排除
+        `.git/.gradle/.idea/build/dist/node_modules`。编译完成后、执行物化前会
+        重新校验每个源码与 package 文件的路径、大小及 SHA-256，源码在两阶段
+        之间变化即 fail closed。
+      - [x] 根 `package.json` 仅允许受控 metadata：严格 JSON、有界深度/节点，
+        `type` 只接受 `module`/`commonjs`/缺失，任何 `scripts` 字段都拒绝。
+        当前不猜测嵌套 package boundary；发现项目内第二个 `package.json` 即
+        明确拒绝，待未来有独立 monorepo authority 后再开放。生成模块与已有
+        runtime support 文件发生大小写折叠路径冲突时同样拒绝。
+      - [x] output reader 不再假设单模块：逐一校验 N 份 JS 与 N 份 map、每个
+        source path、Node generated mapping/catalog authority，并建立多 binding
+        栈映射。Rhino 将 CommonJS 模块与 JSON 物化到引擎生命周期目录；Node
+        以只读 module-source overlay 传输生成模块、JSON 与 package context。
+        Source Map 匹配优先精确路径，其次唯一最长多段 suffix，最后才在 basename
+        唯一时回退；同名模块存在歧义时保持未映射。
+      - [x] 三设备验收全部通过：API 31、API 35 实机与 API 37 模拟器各 5/5。
+        Rhino 用 10+ 模块、相对 import、CommonJS 循环依赖及 JSON 得到 `83`；
+        Node CommonJS 覆盖同一组能力；Node ESM 另以 10+ 模块的两层无环依赖
+        得到 `83`；导入文件中的 TS2322 返回该文件 URI；跨模块运行异常逐帧
+        映射回原 TypeScript。API 37 在最终生命周期修正后又复跑 5/5。
+      - [x] 实现提交：编译插件 `2e35f64`，AutoJs6 宿主 `622bfddcc`，Node
+        Runtime `92f3be6`。同时以 `dae705a` 同步 S3 Rhino 声明扩容后遗留的
+        runtime fingerprint、配额与 smoke fixture；本仓 `gradlew check --offline`
+        116 个默认任务全部通过。
+
+      已知边界：Node Runtime 当前的 partial ESM adapter 会把 named import 物化为
+      局部快照，尚不具备标准 ESM cycle 所需的 live binding；因此 S4-3 只宣称并
+      验收 CommonJS 循环依赖，ESM 验收保持无环。完整 ESM linker 属于后续 Node
+      Runtime 专项，不能用 `NaN` 结果冒充循环依赖已支持。
 - [ ] **S4-4 dynamic specifier 映射**: `.ts/.mts/.cts` 动态 import
       到生成扩展名的映射生效; 未命中给稳定错误码; 运行中出现的
       外部 TS 文件明确拒绝 (维持首个 GA 的 snapshot 边界)。
