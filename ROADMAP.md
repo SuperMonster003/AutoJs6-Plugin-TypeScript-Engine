@@ -50,7 +50,7 @@
 |---|---|---|---|
 | S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 已完成 (6/6 必需；S1-7 可选) |
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 已完成 (6/6) |
-| S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 进行中 (A1 已覆盖真实 API 与最小 UI) |
+| S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 进行中 (A1 已覆盖真实 API 与最小 UI; B1 已完成) |
 | S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 未开始 |
 | S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 未开始 |
 
@@ -226,9 +226,15 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
 
 **B. 编译诊断直达编辑器** (宿主仓库)
 
-- [ ] **S3-B1** diagnostics.json (schema v1) 解析为宿主
+- [x] **S3-B1** diagnostics.json (schema v1) 解析为宿主
       ScriptCompilationException, console/日志面板显示 TS 文件、行、
       列与 TS 错误码, 点击跳转编辑器对应位置。
+      宿主提交 `286187e2e` 新增稳定的 `ScriptCompilationException` 与结构化
+      diagnostic 模型，将 TypeScript schema v1 的文件、1 基行列、严重级别、
+      TS 错误码及 related information 投影为无 Java/Binder 栈污染的 Console
+      文本；日志链接统一转换为编辑器 0 基坐标，并支持含空格的 TS 文件名。
+      单元测试与 API 31/33/35/37 真机上的编译拒绝、Console 解析和实际点击
+      分发测试均通过，且类型错误脚本未创建 Rhino 引擎或执行原始源码。
 
 **C. 运行时栈映射** (宿主仓库为主)
 
