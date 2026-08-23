@@ -18,7 +18,7 @@
   结构化 diagnostics, `noEmitOnError` 生效。
 - **端到端管线已通**: input ZIP → 校验 → Worker 编译 → output ZIP
   (modules/ + maps/ + diagnostics.json + compilation-manifest.json) →
-  写回宿主 FD → callback。Rhino profile 与 NodeNext revision 1 均已在
+  写回宿主 FD → callback。Rhino profile 与 NodeNext revision 2 均已在
   真机走通。
 - **契约已冻结**: AIDL v1 (6 transaction, append-only)、input/output
   archive schema v1、diagnostics schema v1、双向兼容 AAR 门禁。
@@ -54,7 +54,7 @@
 | S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 已完成 (6/6 必需；S1-7 可选) |
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 已完成 (6/6) |
 | S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 核心完成 (A1-A2、B1、C1-C3；原生 TSX A3 后置) |
-| S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 未开始 |
+| S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 进行中 (S4-1 单文件 `.mts/.cts` 切片与 S4-2 首段已完成) |
 | S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 未开始 |
 
 依赖关系: S1 → S2 → S3 → S4 → S5 严格递进不是必须的 —— S1 与 S2 可
@@ -290,9 +290,31 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
       消费同一 CompilationBundle, `.ts/.mts/.cts` 按 NodeNext
       revision 2 产物执行 (`.js/.mjs/.cjs`); Node 栈映射到 TS
       文件/行/列。Node Runtime 不可用时给明确错误, 不影响 Rhino 路径。
+      - [x] 单文件 `.mts/.cts` 已成为 compiler-backed Node source：宿主按
+        Node profile revision 2 构造归档并严格校验 `.mjs/.cjs`、配对 map、
+        generated mapping authority 与输出 manifest，再将生成 JavaScript 交给
+        Node.js Runtime 插件。UTF-8/中文文件名贯穿插件 public admission、宿主
+        output reader 与运行时映射。插件提交 `adbedbc`，宿主提交
+        `0ae1ec30e`。
+      - [x] Node ESM/CJS 运行异常已组合 compiler map 与 Node Runtime 的
+        bootstrap/wrapper line map：V8 frame 可回到原 `.mts/.cts` 的精确行列，
+        Binder flatten 后的重复 `at` frame 仍能拆分，Console 与编辑器日志位置
+        可点击。Node Runtime 提交 `61f3a36`，宿主同上。
+      - [x] API 31、API 35 实机与 API 37 模拟器分别通过 `.mts` 路由、`.cts`
+        路由、ESM 栈映射、CJS 栈映射及 Node `.ts` 负向门禁中的 4 项组合，
+        合计 12/12；两种异常均映射到原 TypeScript 第 4 行第 11 列。
+      - [ ] 单文件 Node `.ts` 与项目级 `.ts` 尚不能仅凭文件本身判定 ESM/CJS；
+        待 S4-3 传入 `package.json`/项目上下文后接入 `.js` 产物。当前带 Node
+        directive 的单文件 `.ts` 会明确拒绝，不猜测 module kind，也不回退到
+        Rhino、原始 TypeScript 或正则 stripping。因此 S4-1 整项仍未关闭。
 - [ ] **S4-2 退役正则 stripping**: NodeTypeScriptStripper 先挂
       legacy feature flag, 默认走插件编译; 稳定一个版本后删除。
       插件未安装时提示安装, 不静默回退 stripping。
+      - [x] `.mts/.cts` 已默认且唯一走编译插件，不再触发旧 stripping，
+        也没有编译器缺失时的 stripping fallback。
+      - [ ] 旧路径目前只为尚未迁移的项目级 Node `.ts` 保留。待 S4-3
+        接通 package 元数据与多文件项目后再完成 feature flag/删除步骤，
+        因此 S4-2 整项暂不勾选。
 - [ ] **S4-3 多文件项目**: 宿主项目 (project.json + tsconfig.json)
       按目录打包进 input archive; 插件内已有的受控模块解析
       (C6/C7 成果) 直接消费; import 图、循环依赖、JSON 导入按
