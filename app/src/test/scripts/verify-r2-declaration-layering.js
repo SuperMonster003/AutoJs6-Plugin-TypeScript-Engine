@@ -4,11 +4,13 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const [distributionArgument, typeScriptLibArgument] = process.argv.slice(2);
-if (!distributionArgument || !typeScriptLibArgument) {
+const [distributionArgument, typeScriptLibArgument, expectedReleaseVersion] =
+    process.argv.slice(2);
+if (!distributionArgument || !typeScriptLibArgument || !expectedReleaseVersion) {
     throw new Error(
         "Usage: node verify-r2-declaration-layering.js " +
-            "<r2-declarations/v1> <typescript-6.0.3-lib-directory>",
+            "<r2-declarations/v2> <typescript-6.0.3-lib-directory> " +
+            "<declaration-release-version>",
     );
 }
 
@@ -62,13 +64,14 @@ assert(
     exactKeys(manifest, [
         "schemaVersion",
         "generator",
+        "release",
         "sources",
         "layers",
         "profiles",
         "files",
         "fingerprint",
     ]) &&
-        manifest.schemaVersion === 1 &&
+        manifest.schemaVersion === 2 &&
         sha256Pattern.test(manifest.fingerprint),
     "Declaration distribution top-level schema drifted.",
 );
@@ -76,7 +79,11 @@ assert(
     exactKeys(manifest.layers, ["common", "node", "rhino"]) &&
         exactKeys(manifest.profiles, ["node", "rhino"]) &&
         exactKeys(manifest.sources, ["common", "node", "rhino"]) &&
-        exactKeys(manifest.generator, ["id", "version", "fingerprint"]),
+        exactKeys(manifest.generator, ["id", "version", "fingerprint"]) &&
+        exactKeys(manifest.release, ["package", "version"]) &&
+        manifest.release.package ===
+            "autojs6-plugin-typescript-engine-declarations" &&
+        manifest.release.version === expectedReleaseVersion,
     "Declaration layer or profile inventory drifted.",
 );
 const generatorCanonical =
@@ -85,7 +92,7 @@ const generatorCanonical =
     `version\0${manifest.generator.version}\n`;
 assert(
     manifest.generator.id === "autojs6-plugin-typescript-engine" &&
-        manifest.generator.version === 2 &&
+        manifest.generator.version === 3 &&
         manifest.generator.fingerprint === sha256(generatorCanonical),
     "Declaration generator identity drifted.",
 );
@@ -302,13 +309,19 @@ for (const profileName of ["node", "rhino"]) {
 
 const distributionFingerprintDigest = crypto.createHash("sha256");
 distributionFingerprintDigest.update(
-    "autojs6.typescript.declarations.distribution.v1\n",
+    "autojs6.typescript.declarations.distribution.v2\n",
     "ascii",
 );
 distributionFingerprintDigest.update(
     `generator\0${manifest.generator.fingerprint}\n`,
     "ascii",
 );
+distributionFingerprintDigest.update("release\0", "ascii");
+distributionFingerprintDigest.update(
+    sha256(Buffer.from(canonicalJson(manifest.release), "utf8")),
+    "ascii",
+);
+distributionFingerprintDigest.update("\n", "ascii");
 for (const sourceId of Object.keys(manifest.sources).sort(compareCodeUnits)) {
     distributionFingerprintDigest.update(`source\0${sourceId}\0`, "ascii");
     distributionFingerprintDigest.update(

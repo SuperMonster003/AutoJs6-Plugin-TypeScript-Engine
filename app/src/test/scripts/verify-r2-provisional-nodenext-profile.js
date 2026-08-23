@@ -32,7 +32,7 @@ if (
 ) {
     throw new Error(
         "Usage: node verify-r2-provisional-nodenext-profile.js " +
-            "<compiler-worker.js> <r2-declarations/v1> <typescript-lib-directory> " +
+            "<compiler-worker.js> <r2-declarations/v2> <typescript-lib-directory> " +
             "<provisional-nodenext-p1.json> <typescript-version>",
     );
 }

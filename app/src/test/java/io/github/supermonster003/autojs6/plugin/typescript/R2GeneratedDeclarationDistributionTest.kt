@@ -6,6 +6,7 @@ import java.util.LinkedHashMap
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -28,6 +29,20 @@ class R2GeneratedDeclarationDistributionTest {
 
         val declarationManifestBytes = Files.readAllBytes(declarationRoot.resolve(MANIFEST_FILE))
         val declarationManifest = R2StrictJson.parseObject(declarationManifestBytes)
+        assertEquals(2, declarationManifest.requireLong("schemaVersion").toInt())
+        assertEquals(
+            mapOf(
+                "package" to "autojs6-plugin-typescript-engine-declarations",
+                "version" to BuildConfig.VERSION_NAME,
+            ),
+            declarationManifest.requireObject("release"),
+        )
+        val nodeSource = declarationManifest.requireObject("sources").requireObject("node")
+        assertEquals("plugin-bundled-declaration-layer", nodeSource.requireString("kind"))
+        assertEquals(BuildConfig.VERSION_NAME, nodeSource.requireString("releaseVersion"))
+        assertFalse(nodeSource.containsKey("commit"))
+        assertFalse(nodeSource.containsKey("hostBuild"))
+        assertFalse(nodeSource.containsKey("repositoryIdentity"))
         val packagedFiles = readPackagedFiles(declarationRoot)
         val rhino = R2DeclarationDistributionLoader.loadForTesting(
             profile = R2DeclarationProfile.RHINO,
@@ -79,6 +94,26 @@ class R2GeneratedDeclarationDistributionTest {
             node.files.any { file -> file.archivePath.startsWith("declarations/rhino/") },
         )
         assertNotEquals(rhino.profileFingerprint, node.profileFingerprint)
+
+        val releaseIdentity =
+            "\"release\":{\"package\":" +
+                "\"autojs6-plugin-typescript-engine-declarations\"," +
+                "\"version\":\"${BuildConfig.VERSION_NAME}\"}"
+        val tamperedManifest = declarationManifestBytes.toString(Charsets.UTF_8)
+            .replace(
+                releaseIdentity,
+                releaseIdentity.replace(BuildConfig.VERSION_NAME, "0.0.0"),
+            )
+            .toByteArray(Charsets.UTF_8)
+        assertThrows(IllegalArgumentException::class.java) {
+            R2DeclarationDistributionLoader.loadForTesting(
+                profile = R2DeclarationProfile.RHINO,
+                common = common,
+                manifestBytes = tamperedManifest,
+                packagedFiles = packagedFiles,
+                compilerDistributionFingerprint = compilerFingerprint,
+            )
+        }
     }
 
     private fun assertProfile(

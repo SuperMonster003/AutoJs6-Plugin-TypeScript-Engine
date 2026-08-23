@@ -1,10 +1,64 @@
 package io.github.supermonster003.autojs6.plugin.typescript
 
 import java.nio.charset.StandardCharsets
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class R2DeclarationDistributionTest {
+
+    @Test
+    fun declarationReleaseIsExactlyThePluginRelease() {
+        val descriptor =
+            "{\"package\":\"autojs6-plugin-typescript-engine-declarations\"," +
+                "\"version\":\"${BuildConfig.VERSION_NAME}\"}"
+        R2DeclarationDistributionLoader.validateReleaseDescriptorForTesting(
+            descriptor.toByteArray(StandardCharsets.UTF_8),
+        )
+
+        listOf(
+            descriptor.replace(BuildConfig.VERSION_NAME, "0.0.0"),
+            descriptor.replace(
+                "autojs6-plugin-typescript-engine-declarations",
+                "private-host-declarations",
+            ),
+            descriptor.dropLast(1) + ",\"extra\":true}",
+        ).forEach { tampered ->
+            assertThrows(IllegalArgumentException::class.java) {
+                R2DeclarationDistributionLoader.validateReleaseDescriptorForTesting(
+                    tampered.toByteArray(StandardCharsets.UTF_8),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun nodeSourceIsReleaseBoundWithoutPrivateHostIdentity() {
+        val descriptor =
+            "{\"kind\":\"plugin-bundled-declaration-layer\"," +
+                "\"releasePackage\":\"autojs6-plugin-typescript-engine-declarations\"," +
+                "\"releaseVersion\":\"${BuildConfig.VERSION_NAME}\"," +
+                "\"license\":\"MPL-2.0\"," +
+                "\"licenseFile\":\"licenses/node/MPL-2.0.txt\"," +
+                "\"noticeFile\":\"notices/node-source.txt\"}"
+        R2DeclarationDistributionLoader.validateNodeSourceDescriptorForTesting(
+            descriptor.toByteArray(StandardCharsets.UTF_8),
+        )
+        listOf("commit", "hostBuild", "repositoryIdentity", "gitBlobSha1").forEach { key ->
+            assertFalse(descriptor.contains("\"$key\""))
+        }
+
+        listOf(
+            descriptor.replace(BuildConfig.VERSION_NAME, "0.0.0"),
+            descriptor.dropLast(1) + ",\"commit\":\"${"0".repeat(40)}\"}",
+        ).forEach { tampered ->
+            assertThrows(IllegalArgumentException::class.java) {
+                R2DeclarationDistributionLoader.validateNodeSourceDescriptorForTesting(
+                    tampered.toByteArray(StandardCharsets.UTF_8),
+                )
+            }
+        }
+    }
 
     @Test
     fun acceptsOnlyTheExactlyFrozenRhinoSourceIdentity() {

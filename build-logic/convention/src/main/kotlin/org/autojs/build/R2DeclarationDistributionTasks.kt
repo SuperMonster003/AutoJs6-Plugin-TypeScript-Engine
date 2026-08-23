@@ -196,7 +196,7 @@ abstract class DownloadR2DeclarationDistributionTarball : DefaultTask() {
     }
 }
 
-/** Generates the independent assets/r2-declarations/v1 distribution root. */
+/** Generates the independent assets/r2-declarations/v2 distribution root. */
 @CacheableTask
 abstract class GenerateR2DeclarationDistribution : DefaultTask() {
 
@@ -218,6 +218,9 @@ abstract class GenerateR2DeclarationDistribution : DefaultTask() {
 
     @get:OutputDirectory
     abstract val distributionDirectory: DirectoryProperty
+
+    @get:Input
+    abstract val declarationReleaseVersion: Property<String>
 
     @get:Input
     abstract val maximumTarballBytes: Property<Long>
@@ -245,6 +248,7 @@ abstract class GenerateR2DeclarationDistribution : DefaultTask() {
             nodeSourceDirectory = nodeSourceDirectory.get().asFile,
             typescriptDistributionDirectory = typescriptDistributionDirectory.get().asFile,
             outputDirectory = distributionDirectory.get().asFile,
+            declarationReleaseVersion = declarationReleaseVersion.get(),
             limits = configuredLimits(),
         )
     }
@@ -290,6 +294,9 @@ abstract class VerifyR2DeclarationDistribution : DefaultTask() {
     abstract val distributionDirectory: DirectoryProperty
 
     @get:Input
+    abstract val declarationReleaseVersion: Property<String>
+
+    @get:Input
     abstract val maximumTarballBytes: Property<Long>
 
     @get:Input
@@ -315,6 +322,7 @@ abstract class VerifyR2DeclarationDistribution : DefaultTask() {
             nodeSourceDirectory = nodeSourceDirectory.get().asFile,
             typescriptDistributionDirectory = typescriptDistributionDirectory.get().asFile,
             distributionDirectory = distributionDirectory.get().asFile,
+            declarationReleaseVersion = declarationReleaseVersion.get(),
             limits = configuredLimits(),
         )
     }

@@ -29,6 +29,7 @@ val projectProperties = Properties().apply {
     rootProject.file("version.properties").inputStream().use(::load)
 }
 val typeScriptVersion = projectProperties.getProperty("TYPESCRIPT_VERSION")
+val pluginVersionName = projectProperties.getProperty("VERSION_NAME")
 val requiredHostVersion = projectProperties.getProperty("AUTOJS6_HOST_VERSION_BUILD").toInt()
 val androidNdkVersion = projectProperties.getProperty("NDK_VERSION")
 val androidCmakeVersion = projectProperties.getProperty("CMAKE_VERSION")
@@ -37,9 +38,9 @@ val generatedTypeScriptAssetsDirectory =
 val generatedTypeScriptDistributionDirectory =
     generatedTypeScriptAssetsDirectory.map { it.dir("typescript/$typeScriptVersion") }
 val generatedR2DeclarationAssetsDirectory =
-    layout.buildDirectory.dir("generated/r2DeclarationAssets/assets")
+    layout.buildDirectory.dir("generated/r2DeclarationAssetsV2/assets")
 val generatedR2DeclarationDistributionDirectory =
-    generatedR2DeclarationAssetsDirectory.map { it.dir("r2-declarations/v1") }
+    generatedR2DeclarationAssetsDirectory.map { it.dir("r2-declarations/v2") }
 val compilerHostSourceAssetDirectory =
     layout.projectDirectory.dir("src/main/assets/typescript-compiler-r1")
 val r1RhinoProbeLockFile =
@@ -535,6 +536,7 @@ val generateR2DeclarationDistribution =
         nodeSourceDirectory.set(r2DeclarationNodeSourceDirectory)
         typescriptDistributionDirectory.set(generatedTypeScriptDistributionDirectory)
         distributionDirectory.set(generatedR2DeclarationDistributionDirectory)
+        declarationReleaseVersion.set(pluginVersionName)
     }
 val verifyR2DeclarationDistribution =
     tasks.register<VerifyR2DeclarationDistribution>(
@@ -550,6 +552,7 @@ val verifyR2DeclarationDistribution =
         distributionDirectory.set(
             generateR2DeclarationDistribution.flatMap { it.distributionDirectory },
         )
+        declarationReleaseVersion.set(pluginVersionName)
     }
 
 tasks.withType<Test>().configureEach {
@@ -629,6 +632,7 @@ val verifyR2M2C8DeclarationProgramLayering =
             harnessFile.asFile.absolutePath,
             generatedR2DeclarationDistributionDirectory.get().asFile.absolutePath,
             typeScriptLibDirectory.get().asFile.absolutePath,
+            pluginVersionName,
         )
     }
 
@@ -1611,6 +1615,7 @@ val verifyReleaseTypeScriptDistributionApk =
 private fun verifyR2DeclarationDistributionInApk(
     apkFile: File,
     distributionDirectory: File,
+    declarationReleaseVersion: String,
 ) {
     val manifestFile = distributionDirectory.resolve("distribution.json")
     check(manifestFile.isFile) {
@@ -1618,7 +1623,12 @@ private fun verifyR2DeclarationDistributionInApk(
     }
     val manifestBytes = manifestFile.readBytes()
     val manifest = JsonSlurper().parse(manifestFile) as Map<String, Any?>
-    check((manifest["schemaVersion"] as? Number)?.toInt() == 1)
+    check((manifest["schemaVersion"] as? Number)?.toInt() == 2)
+    val release = manifest["release"] as? Map<String, Any?>
+        ?: error("R2 declaration manifest does not contain its release identity.")
+    check(release.keys == setOf("package", "version"))
+    check(release["package"] == "autojs6-plugin-typescript-engine-declarations")
+    check(release["version"] == declarationReleaseVersion)
     check((manifest["fingerprint"] as? String)?.matches(Regex("[0-9a-f]{64}")) == true)
     val manifestFiles = manifest["files"] as? List<Map<String, Any?>>
         ?: error("R2 declaration manifest does not contain a files array.")
@@ -1662,7 +1672,7 @@ private fun verifyR2DeclarationDistributionInApk(
         }
     }
 
-    val assetPrefix = "assets/r2-declarations/v1/"
+    val assetPrefix = "assets/r2-declarations/v2/"
     ZipFile(apkFile).use { apk ->
         val distributionEntries = apk.entries().asSequence().filter { entry ->
             !entry.isDirectory && entry.name.startsWith(assetPrefix)
@@ -1721,6 +1731,7 @@ fun registerR2DeclarationDistributionApkVerification(
             apkFile = resolveSingleApkOutput(apkDirectory.get().asFile),
             distributionDirectory =
                 generatedR2DeclarationDistributionDirectory.get().asFile,
+            declarationReleaseVersion = pluginVersionName,
         )
     }
 }

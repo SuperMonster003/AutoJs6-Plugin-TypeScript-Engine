@@ -8,6 +8,7 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -49,9 +50,36 @@ class R2DeclarationDistributionTest {
         @Suppress("UNCHECKED_CAST")
         val manifest = JsonSlurper().parseText(manifestText) as Map<String, Any?>
         assertEquals(
-            setOf("files", "fingerprint", "generator", "layers", "profiles", "schemaVersion", "sources"),
+            setOf(
+                "files",
+                "fingerprint",
+                "generator",
+                "layers",
+                "profiles",
+                "release",
+                "schemaVersion",
+                "sources",
+            ),
             manifest.keys,
         )
+        assertEquals(2, (manifest.getValue("schemaVersion") as Number).toInt())
+        @Suppress("UNCHECKED_CAST")
+        val release = manifest.getValue("release") as Map<String, String>
+        assertEquals(
+            mapOf(
+                "package" to "autojs6-plugin-typescript-engine-declarations",
+                "version" to DECLARATION_RELEASE_VERSION,
+            ),
+            release,
+        )
+        @Suppress("UNCHECKED_CAST")
+        val sources = manifest.getValue("sources") as Map<String, Map<String, Any?>>
+        val nodeSource = sources.getValue("node")
+        assertEquals("plugin-bundled-declaration-layer", nodeSource["kind"])
+        assertEquals(DECLARATION_RELEASE_VERSION, nodeSource["releaseVersion"])
+        assertFalse(nodeSource.containsKey("commit"))
+        assertFalse(nodeSource.containsKey("hostBuild"))
+        assertFalse(nodeSource.containsKey("repositoryIdentity"))
         @Suppress("UNCHECKED_CAST")
         val layers = manifest["layers"] as Map<String, Map<String, Any?>>
         assertEquals(108, (layers.getValue("common").getValue("fileCount") as Number).toInt())
@@ -123,11 +151,35 @@ class R2DeclarationDistributionTest {
     }
 
     @Test
-    fun `source hash archive link and case collisions fail closed`() {
+    fun `vendored content changes fingerprints without a private hash lock`() {
         val valid = fixture("source-tamper", validArchiveEntries())
+        val originalOutput = temporaryFolder.newFolder("source-original-output")
+        generate(valid, originalOutput)
+        @Suppress("UNCHECKED_CAST")
+        val originalManifest = JsonSlurper().parse(
+            File(originalOutput, "distribution.json"),
+        ) as Map<String, Any?>
         File(valid.nodeSource, "module-00.d.ts").appendText("tamper")
-        assertThrows(R2DeclarationDistributionException::class.java) {
-            generate(valid, temporaryFolder.newFolder("source-tamper-output"))
+        val changedOutput = temporaryFolder.newFolder("source-tamper-output")
+        generate(valid, changedOutput)
+        verify(valid, changedOutput)
+        @Suppress("UNCHECKED_CAST")
+        val changedManifest = JsonSlurper().parse(
+            File(changedOutput, "distribution.json"),
+        ) as Map<String, Any?>
+        assertNotEquals(originalManifest["fingerprint"], changedManifest["fingerprint"])
+        @Suppress("UNCHECKED_CAST")
+        val originalLayers = originalManifest.getValue("layers") as Map<String, Map<String, Any?>>
+        @Suppress("UNCHECKED_CAST")
+        val changedLayers = changedManifest.getValue("layers") as Map<String, Map<String, Any?>>
+        assertNotEquals(
+            originalLayers.getValue("node")["fingerprint"],
+            changedLayers.getValue("node")["fingerprint"],
+        )
+
+        val lockText = valid.lock.readText()
+        listOf("commit", "gitBlobSha1", "hostBuild", "repositoryIdentity").forEach { key ->
+            assertFalse("lock must not contain $key", lockText.contains("\"$key\""))
         }
 
         val linkFixture = fixture(
@@ -152,6 +204,43 @@ class R2DeclarationDistributionTest {
         }
     }
 
+    @Test
+    fun `release version is independent from content cache fingerprints`() {
+        val fixture = fixture("release-identity", validArchiveEntries())
+        val currentOutput = temporaryFolder.newFolder("release-current-output")
+        val nextOutput = temporaryFolder.newFolder("release-next-output")
+        generate(fixture, currentOutput, DECLARATION_RELEASE_VERSION)
+        generate(fixture, nextOutput, "0.5.1")
+
+        @Suppress("UNCHECKED_CAST")
+        val current = JsonSlurper().parse(
+            File(currentOutput, "distribution.json"),
+        ) as Map<String, Any?>
+        @Suppress("UNCHECKED_CAST")
+        val next = JsonSlurper().parse(
+            File(nextOutput, "distribution.json"),
+        ) as Map<String, Any?>
+        assertNotEquals(current["release"], next["release"])
+        assertNotEquals(current["fingerprint"], next["fingerprint"])
+
+        @Suppress("UNCHECKED_CAST")
+        val currentLayers = current.getValue("layers") as Map<String, Map<String, Any?>>
+        @Suppress("UNCHECKED_CAST")
+        val nextLayers = next.getValue("layers") as Map<String, Map<String, Any?>>
+        assertEquals(
+            currentLayers.mapValues { (_, layer) -> layer["fingerprint"] },
+            nextLayers.mapValues { (_, layer) -> layer["fingerprint"] },
+        )
+        @Suppress("UNCHECKED_CAST")
+        val currentProfiles = current.getValue("profiles") as Map<String, Map<String, Any?>>
+        @Suppress("UNCHECKED_CAST")
+        val nextProfiles = next.getValue("profiles") as Map<String, Map<String, Any?>>
+        assertEquals(
+            currentProfiles.mapValues { (_, profile) -> profile["fingerprint"] },
+            nextProfiles.mapValues { (_, profile) -> profile["fingerprint"] },
+        )
+    }
+
     private fun fixture(name: String, archiveEntries: List<ArchiveSpec>): Fixture {
         val root = temporaryFolder.newFolder(name)
         val tarball = createTarball(File(root, "rhino.tgz"), archiveEntries)
@@ -163,17 +252,22 @@ class R2DeclarationDistributionTest {
             Charsets.UTF_8,
         )
         val lock = File(root, "r2-declarations.lock.json")
-        createLock(lock, tarball, nodeSource, archiveEntries)
+        createLock(lock, tarball)
         return Fixture(lock, tarball, nodeSource, typeScript)
     }
 
-    private fun generate(fixture: Fixture, output: File) {
+    private fun generate(
+        fixture: Fixture,
+        output: File,
+        releaseVersion: String = DECLARATION_RELEASE_VERSION,
+    ) {
         R2DeclarationDistribution.generate(
             fixture.lock,
             fixture.tarball,
             fixture.nodeSource,
             fixture.typeScriptDistribution,
             output,
+            releaseVersion,
         )
     }
 
@@ -184,6 +278,7 @@ class R2DeclarationDistributionTest {
             fixture.nodeSource,
             fixture.typeScriptDistribution,
             output,
+            DECLARATION_RELEASE_VERSION,
         )
     }
 
@@ -204,31 +299,10 @@ class R2DeclarationDistributionTest {
     private fun createLock(
         target: File,
         tarball: File,
-        nodeSource: File,
-        archiveEntries: List<ArchiveSpec>,
     ) {
-        val selected = archiveEntries
-            .filter { it.type == EntryType.FILE && it.name in RHINO_PATHS }
-            .associateBy(ArchiveSpec::name)
         val tarballBytes = tarball.readBytes()
-        val nodeFiles = nodeSource.listFiles()!!.filter(File::isFile).map { file ->
-            mapOf(
-                "gitBlobSha1" to gitBlobSha1(file.readBytes()),
-                "path" to file.name,
-                "sha256" to digest("SHA-256", file.readBytes()),
-                "size" to file.length(),
-            )
-        }.sortedBy { it.getValue("path") as String }
-        val rhinoFiles = RHINO_PATHS.map { path ->
-            val bytes = selected.getValue(path).data
-            mapOf(
-                "path" to path,
-                "sha256" to digest("SHA-256", bytes),
-                "size" to bytes.size.toLong(),
-            )
-        }
         val lock = mapOf(
-            "schemaVersion" to 1L,
+            "schemaVersion" to 2L,
             "common" to mapOf(
                 "package" to "typescript",
                 "version" to "6.0.3",
@@ -248,18 +322,12 @@ class R2DeclarationDistributionTest {
                 "conversion" to "autojs6-rhino-modules-v2",
                 "license" to "MPL-2.0",
                 "licenseEntry" to "package/LICENSE",
-                "files" to rhinoFiles,
             ),
             "node" to mapOf(
-                "repositoryIdentity" to "AutoJs6-Private",
-                "commit" to "1d74c57aee7d4f6e300acedee395da6110fc8954",
-                "hostBuild" to 5253L,
-                "sourceAvailability" to "vendored-private-host-snapshot",
                 "sourceDirectory" to "r2-declaration-sources/node",
                 "license" to "MPL-2.0",
                 "licenseFile" to "LICENSE",
                 "packageFile" to "package.json",
-                "files" to nodeFiles,
             ),
         )
         target.writeBytes(CanonicalJson.encode(lock))
@@ -456,13 +524,6 @@ interface AutoJsError extends ErrorConstructor {}
     private fun digest(algorithm: String, bytes: ByteArray): String =
         MessageDigest.getInstance(algorithm).digest(bytes).toLowerHex()
 
-    private fun gitBlobSha1(bytes: ByteArray): String {
-        val digest = MessageDigest.getInstance("SHA-1")
-        digest.update("blob ${bytes.size}\u0000".toByteArray(StandardCharsets.US_ASCII))
-        digest.update(bytes)
-        return digest.digest().toLowerHex()
-    }
-
     private fun ByteArray.toLowerHex(): String =
         joinToString(separator = "") { "%02x".format(it.toInt() and 0xff) }
 
@@ -534,17 +595,7 @@ interface AutoJsError extends ErrorConstructor {}
     }
 
     companion object {
-        private val RHINO_PATHS = listOf(
-            "package/LICENSE",
-            "package/declarations/autojs6/aj6-int-automator.d.ts",
-            "package/declarations/autojs6/aj6-int-device.d.ts",
-            "package/declarations/autojs6/aj6-int-globals.d.ts",
-            "package/declarations/autojs6/aj6-int-http.d.ts",
-            "package/declarations/autojs6/aj6-int-images.d.ts",
-            "package/declarations/autojs6/aj6-int-init.d.ts",
-            "package/declarations/autojs6/aj6-int-toast.d.ts",
-            "package/declarations/autojs6/aj6-int-ui.d.ts",
-        )
+        private const val DECLARATION_RELEASE_VERSION = "0.5.0"
 
         private val RHINO_PROJECTION_PATHS = listOf(
             "package/declarations/autojs6/aj6-declarations.d.ts",

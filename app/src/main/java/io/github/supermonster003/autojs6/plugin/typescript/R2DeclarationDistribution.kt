@@ -48,6 +48,22 @@ internal object R2DeclarationDistributionLoader {
         RhinoDeclarationSource.parse(R2StrictJson.parseObject(bytes))
     }
 
+    internal fun validateReleaseDescriptorForTesting(bytes: ByteArray) {
+        DeclarationRelease.parse(R2StrictJson.parseObject(bytes))
+    }
+
+    internal fun validateNodeSourceDescriptorForTesting(bytes: ByteArray) {
+        NodeDeclarationSource.parse(
+            R2StrictJson.parseObject(bytes),
+            DeclarationRelease.parse(
+                mapOf(
+                    "package" to EXPECTED_RELEASE_PACKAGE,
+                    "version" to BuildConfig.VERSION_NAME,
+                ),
+            ),
+        )
+    }
+
     internal fun validateCommonSourceAndBindingForTesting(
         sourceBytes: ByteArray,
         bindingBytes: ByteArray,
@@ -298,7 +314,9 @@ internal object R2DeclarationDistributionLoader {
         val standardLibrariesFingerprint: String,
     )
 
-    private const val ASSET_ROOT = "r2-declarations/v1"
+    private const val EXPECTED_RELEASE_PACKAGE =
+        "autojs6-plugin-typescript-engine-declarations"
+    private const val ASSET_ROOT = "r2-declarations/v2"
     private const val MANIFEST_PATH = "distribution.json"
     private const val DECLARATION_LAYER_ROOT = "layers/"
     private const val MAXIMUM_MANIFEST_BYTES = 256L * 1024L
@@ -318,6 +336,7 @@ internal object R2DeclarationDistributionLoader {
 
 private data class R2DeclarationDistribution(
     val generator: DeclarationGenerator,
+    val release: DeclarationRelease,
     val sources: DeclarationSources,
     val layers: Map<String, DeclarationLayerDescriptor>,
     val profiles: Map<String, DeclarationProfileDescriptor>,
@@ -337,12 +356,14 @@ private data class R2DeclarationDistribution(
                 maximumNodes = MAXIMUM_JSON_NODES,
             )
             root.requireExactKeys(TOP_LEVEL_KEYS, "Declaration distribution")
-            require(root.requireInt("schemaVersion") == 1)
+            require(root.requireInt("schemaVersion") == 2)
             val generator = DeclarationGenerator.parse(root.requireObject("generator"))
+            val release = DeclarationRelease.parse(root.requireObject("release"))
             val sources = DeclarationSources.parse(
                 root.requireObject("sources"),
                 common,
                 compilerDistributionFingerprint,
+                release,
             )
             val files = parseFiles(root.requireList("files"))
             val layers = parseLayers(root.requireObject("layers"), sources, files, common)
@@ -350,6 +371,7 @@ private data class R2DeclarationDistribution(
             val fingerprint = root.requireLowerSha256("fingerprint")
             val calculated = calculateDistributionFingerprint(
                 generator = generator,
+                release = release,
                 sources = sources,
                 layers = layers,
                 profiles = profiles,
@@ -361,6 +383,7 @@ private data class R2DeclarationDistribution(
             requireExactPackagedTopology(sources, layers, files)
             return R2DeclarationDistribution(
                 generator = generator,
+                release = release,
                 sources = sources,
                 layers = layers,
                 profiles = profiles,
@@ -438,6 +461,7 @@ private data class R2DeclarationDistribution(
 
         private fun calculateDistributionFingerprint(
             generator: DeclarationGenerator,
+            release: DeclarationRelease,
             sources: DeclarationSources,
             layers: Map<String, DeclarationLayerDescriptor>,
             profiles: Map<String, DeclarationProfileDescriptor>,
@@ -447,6 +471,13 @@ private data class R2DeclarationDistribution(
             digest.update(DISTRIBUTION_FINGERPRINT_DOMAIN.toByteArray(StandardCharsets.US_ASCII))
             digest.update(
                 "generator\u0000${generator.fingerprint}\n"
+                    .toByteArray(StandardCharsets.US_ASCII),
+            )
+            val releaseFingerprint = R2Digests.sha256(
+                canonicalJson(release.raw).toByteArray(StandardCharsets.UTF_8),
+            )
+            digest.update(
+                "release\u0000$releaseFingerprint\n"
                     .toByteArray(StandardCharsets.US_ASCII),
             )
             sources.raw.toSortedMap().forEach { (id, descriptor) ->
@@ -511,10 +542,11 @@ private data class R2DeclarationDistribution(
         private const val MAXIMUM_PACKAGED_TOTAL_BYTES = 16L * 1024L * 1024L
         private const val NODE_PACKAGE_JSON = "layers/node/package.json"
         private const val DISTRIBUTION_FINGERPRINT_DOMAIN =
-            "autojs6.typescript.declarations.distribution.v1\n"
+            "autojs6.typescript.declarations.distribution.v2\n"
         private val TOP_LEVEL_KEYS = setOf(
             "schemaVersion",
             "generator",
+            "release",
             "sources",
             "layers",
             "profiles",
@@ -557,10 +589,33 @@ private data class DeclarationGenerator(
         }
 
         private const val EXPECTED_ID = "autojs6-plugin-typescript-engine"
-        private const val EXPECTED_VERSION = 2
+        private const val EXPECTED_VERSION = 3
         private const val FINGERPRINT_DOMAIN =
             "autojs6.typescript.declarations.generator.v1\n"
         private val KEYS = setOf("id", "version", "fingerprint")
+    }
+}
+
+private data class DeclarationRelease(
+    val packageName: String,
+    val version: String,
+    val raw: Map<String, Any?>,
+) {
+    companion object {
+        fun parse(value: Map<String, Any?>): DeclarationRelease {
+            value.requireExactKeys(KEYS, "Declaration release")
+            val packageName = value.requireString("package")
+            val version = value.requireString("version")
+            require(packageName == EXPECTED_PACKAGE)
+            require(version == BuildConfig.VERSION_NAME) {
+                "Declaration release $version does not match plugin ${BuildConfig.VERSION_NAME}."
+            }
+            return DeclarationRelease(packageName, version, LinkedHashMap(value))
+        }
+
+        private const val EXPECTED_PACKAGE =
+            "autojs6-plugin-typescript-engine-declarations"
+        private val KEYS = setOf("package", "version")
     }
 }
 
@@ -577,6 +632,7 @@ private data class DeclarationSources(
             value: Map<String, Any?>,
             common: R2TrustedDeclarations,
             compilerDistributionFingerprint: String,
+            release: DeclarationRelease,
         ): DeclarationSources {
             value.requireExactKeys(SOURCE_IDS, "Declaration sources")
             val raw = SOURCE_IDS.sorted().associateWithTo(LinkedHashMap()) { id ->
@@ -592,7 +648,7 @@ private data class DeclarationSources(
                     compilerDistributionFingerprint,
                 ),
                 rhino = RhinoDeclarationSource.parse(raw.getValue("rhino")),
-                node = NodeDeclarationSource.parse(raw.getValue("node")),
+                node = NodeDeclarationSource.parse(raw.getValue("node"), release),
                 raw = raw,
             )
         }
@@ -734,21 +790,14 @@ private data class NodeDeclarationSource(
     val noticeFile: String,
 ) {
     companion object {
-        fun parse(value: Map<String, Any?>): NodeDeclarationSource {
+        fun parse(
+            value: Map<String, Any?>,
+            release: DeclarationRelease,
+        ): NodeDeclarationSource {
             value.requireExactKeys(KEYS, "Node declaration source")
-            require(value.requireString("kind") == "vendored-private-host-snapshot")
-            require(value.requireString("repositoryIdentity") == "AutoJs6-Private")
-            require(
-                value.requireString("commit") ==
-                    "1d74c57aee7d4f6e300acedee395da6110fc8954",
-            )
-            require(value.requireInt("hostBuild") == 5_253)
-            require(
-                value.requireString("sourceAvailability") ==
-                    "vendored-private-host-snapshot",
-            )
-            require(value.requireString("packageName") == "@autojs6/node-types")
-            require(value.requireString("packageVersion") == "1.0.0")
+            require(value.requireString("kind") == "plugin-bundled-declaration-layer")
+            require(value.requireString("releasePackage") == release.packageName)
+            require(value.requireString("releaseVersion") == release.version)
             require(value.requireString("license") == "MPL-2.0")
             val licenseFile = value.requireString("licenseFile")
             val noticeFile = value.requireString("noticeFile")
@@ -759,12 +808,8 @@ private data class NodeDeclarationSource(
 
         private val KEYS = setOf(
             "kind",
-            "repositoryIdentity",
-            "commit",
-            "hostBuild",
-            "sourceAvailability",
-            "packageName",
-            "packageVersion",
+            "releasePackage",
+            "releaseVersion",
             "license",
             "licenseFile",
             "noticeFile",
