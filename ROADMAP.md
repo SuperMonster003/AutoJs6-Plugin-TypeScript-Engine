@@ -50,7 +50,7 @@
 |---|---|---|---|
 | S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 已完成 (6/6 必需；S1-7 可选) |
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 进行中 (5/6；核心执行链已通) |
-| S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 未开始 |
+| S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 进行中 (A1 已覆盖首批真实 API) |
 | S4 | Node profile 与项目级能力 | `.mts/.cts`、多文件项目、tsconfig 常用项 | 未开始 |
 | S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 未开始 |
 
@@ -173,13 +173,16 @@ Rhino 执行并输出 toast。
       loop 执行只编译一次。TS2322 负向测试确认 marker 未执行且
       `execution.engine == null`。
 - [ ] **S2-6 冒烟脚本集**: 5–10 个真实脚本 (toast、ui 布局、
-      click/swipe、http、images 截图) 的 `.ts` 版本手工跑通。
+      click/swipe、http、images 截图) 的 `.ts` 版本在真机/模拟器跑通。
       **跑不通的直接修** (插件或宿主), 每修一个记 CHANGELOG。
-      当前已完成 `hello.ts` 的 toast + 后续 Java marker 端到端 smoke，以及
-      UTF-8 emit、类型错误 fail-closed、TSX 明确拒绝；API 31/35/37 各 5 项
-      共 15/15 通过。API 37 上停用 Node Runtime 插件后 `hello.ts` 仍 1/1
-      通过，且测试后已恢复插件原状态。其余真实 API 脚本仍待补齐，故本项
-      保持未勾选。
+      当前已完成四组真实可执行脚本：`hello.ts` 调用 toast 并继续执行、
+      读取 `device` 属性并验证全局/`automator` 手势绑定、向本机回环服务发起
+      `http.get`、通过 `images.read/pixel/recycle` 读取并检查 PNG；另覆盖 UTF-8
+      emit、类型错误 fail-closed 与 TSX 明确拒绝。宿主提交 `f8624db4d` 的
+      8 项套件在 API 31/35/37 共 24/24 通过。API 37 上将 Node Runtime 插件
+      置为 `disabled-user` 后，完整 8 项仍 8/8 通过，测试结束后已恢复原始
+      `default` 状态。实际触发 click/swipe、需要 MediaProjection 授权的截图、
+      以及 UI layout/TSX 路径仍待补齐，故本项保持未勾选。
 
 退出标准: Node Runtime 插件未安装或停用的设备上, 上述冒烟脚本全部可运行;
 TypeScript 插件未安装时给出明确安装提示而非崩溃。
@@ -196,6 +199,11 @@ TypeScript 插件未安装时给出明确安装提示而非崩溃。
       加载 (用户项目引用到的全局才注入)。
       验收: `device.width`、`images.captureScreen()`、`ui.layout()`
       等常用 API 在 strict 下通过类型检查。
+      提交 `0032e20` 已把首批可信投影从 825 扩至 2,881 字节，并将
+      automator/device/http/images 四个上游声明文件纳入逐文件 hash 锁；
+      `device`、click/swipe、`http.get` 与 images 读图脚本已在 strict 编译后
+      真机执行。当前仍保持单个 Rhino layer 文件，且尚未覆盖 UI 与完整 API
+      表面，因此本项保持未勾选。
 - [ ] **S3-A2** 声明包版本随插件版本发布, 不再要求与某个私有 host
       commit 逐文件锁 hash (保留 fingerprint 用于缓存 key 即可)。
 
