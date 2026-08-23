@@ -907,6 +907,86 @@ const profileAuthorityFields = Object.freeze({
     profileRevision: fixture.profileAuthority.profileRevision,
     profileSchemaRevision: fixture.profileAuthority.profileSchemaRevision,
 });
+const rhinoRevision2ProfileAuthorityFields = Object.freeze({
+    configKind: "none",
+    configSchemaRevision: 1,
+    profileRevision: 2,
+    profileSchemaRevision: 1,
+    runtimeCapabilitiesFingerprint:
+        "49374b84060ce634472aa2db34d960892501adebb7a6b7ba3a767018a81b3d25",
+});
+const rhinoRevision2EffectiveOptions = Object.freeze({
+    allowJs: false,
+    checkJs: false,
+    ignoreDeprecations: "6.0",
+    incremental: false,
+    inlineSourceMap: false,
+    inlineSources: false,
+    jsx: 2,
+    jsxFactory: "__autojs6Tsx",
+    jsxFragmentFactory: "__autojs6TsxFragment",
+    module: 1,
+    moduleResolution: 2,
+    newLine: 1,
+    noEmitOnError: true,
+    noLib: false,
+    outDir: "/outputs",
+    rootDir: "/sources",
+    skipLibCheck: false,
+    sourceMap: true,
+    strict: true,
+    target: 5,
+    types: [],
+});
+
+const tsxDeclarationText =
+    "declare namespace UI { interface View { setText(text: string): void; } }\n" +
+    "declare namespace AutoJs6Tsx {\n" +
+    "  type Scalar = string | number | boolean;\n" +
+    "  type TextChild = string | number | boolean | null | undefined;\n" +
+    "  type ClickHandler = (view: UI.View) => void;\n" +
+    "  interface BaseAttributes { id?: string; padding?: Scalar; gravity?: Scalar; onClick?: ClickHandler; }\n" +
+    "  interface Element { readonly __autojs6TsxElement: unique symbol; }\n" +
+    "  type Child = Element | readonly Child[] | TextChild;\n" +
+    "  interface ContainerAttributes extends BaseAttributes { children?: Child | readonly Child[]; }\n" +
+    "  interface TextAttributes extends BaseAttributes { children?: TextChild | readonly TextChild[]; text?: Scalar; textSize?: Scalar; }\n" +
+    "}\n" +
+    "declare const __autojs6TsxFragment: unique symbol;\n" +
+    "declare function __autojs6Tsx(type: string | typeof __autojs6TsxFragment, props: AutoJs6Tsx.BaseAttributes | null, ...children: AutoJs6Tsx.Child[]): AutoJs6Tsx.Element;\n" +
+    "declare namespace JSX {\n" +
+    "  type Element = AutoJs6Tsx.Element;\n" +
+    "  interface ElementChildrenAttribute { children: {}; }\n" +
+    "  interface IntrinsicElements { vertical: AutoJs6Tsx.ContainerAttributes; text: AutoJs6Tsx.TextAttributes; button: AutoJs6Tsx.TextAttributes; }\n" +
+    "}\n";
+
+const tsxSnapshot = (
+    mainSource =
+        "const view = (<>\n" +
+        "  <vertical id=\"root\">\n" +
+        "    <text id=\"title\" text={\"ready\"} />\n" +
+        "    <button id=\"action\" text={7} onClick={() => \"done\"} />\n" +
+        "  </vertical>\n" +
+        "</>);\n" +
+        "void view;\n",
+) => ({
+    effectiveOptions: rhinoRevision2EffectiveOptions,
+    entryPath: "/sources/main.tsx",
+    files: fixture.commonFiles
+        .filter((file) => file.path.startsWith("/declarations/"))
+        .concat([
+            {
+                path: "/declarations/rhino/index.d.ts",
+                text: tsxDeclarationText,
+            },
+            {
+                path: "/sources/main.tsx",
+                text: mainSource,
+            },
+        ]),
+    profileAuthority: rhinoRevision2ProfileAuthorityFields,
+    rootNames: ["/sources/main.tsx"],
+    targetProfile: "rhino",
+});
 
 const digestBytes = (bytes) =>
     crypto.createHash("sha256").update(bytes).digest("hex");
@@ -930,20 +1010,23 @@ const inputArchiveAuthorityForFiles = (
         ...(inputQuotaRevision === undefined ? {} : { inputQuotaRevision }),
     });
 
-const verifyBoundProfile = (result) => {
+const verifyBoundProfile = (
+    result,
+    expectedAuthority = profileAuthorityFields,
+    expectedOptions = fixture.effectiveOptions,
+) => {
     assert(
         result.targetProfile === fixture.targetProfile &&
             result.profileSchemaRevision ===
-                profileAuthorityFields.profileSchemaRevision &&
-            result.profileRevision === profileAuthorityFields.profileRevision &&
+                expectedAuthority.profileSchemaRevision &&
+            result.profileRevision === expectedAuthority.profileRevision &&
             result.configSchemaRevision ===
-                profileAuthorityFields.configSchemaRevision &&
-            result.configKind === profileAuthorityFields.configKind,
+                expectedAuthority.configSchemaRevision &&
+            result.configKind === expectedAuthority.configKind,
         "Worker result profile authority does not match the golden.",
     );
     assert(
-        JSON.stringify(result.options) ===
-            JSON.stringify(fixture.effectiveOptions),
+        JSON.stringify(result.options) === JSON.stringify(expectedOptions),
         "Worker result effective options do not match the complete golden.",
     );
 };
@@ -1017,13 +1100,29 @@ const compile = async (
             ? TEST_ONLY_EXPANDED_INPUT_QUOTA_REVISION
             : undefined,
     );
+    const expectedProfileAuthority =
+        project.profileAuthority ?? profileAuthorityFields;
+    const revisionTwoStartAuthority = Object.prototype.hasOwnProperty.call(
+        expectedProfileAuthority,
+        "runtimeCapabilitiesFingerprint",
+    )
+        ? {
+              entryPath: project.entryPath,
+              runtimeCapabilitiesFingerprint:
+                  expectedProfileAuthority.runtimeCapabilitiesFingerprint,
+          }
+        : {};
     const startResponses = await dispatchWorkerMessage({
             ...authority,
             fileCount: encodedFiles.length,
             kind: "projectInputStart",
             requestId,
             sequence,
-            ...profileAuthorityFields,
+            configKind: expectedProfileAuthority.configKind,
+            configSchemaRevision: expectedProfileAuthority.configSchemaRevision,
+            profileRevision: expectedProfileAuthority.profileRevision,
+            profileSchemaRevision: expectedProfileAuthority.profileSchemaRevision,
+            ...revisionTwoStartAuthority,
             targetProfile: project.targetProfile,
             totalBytes,
             workerSpinMilliseconds,
@@ -1325,7 +1424,11 @@ const compile = async (
     const result = JSON.parse(
         new TextDecoder("utf-8", { fatal: true }).decode(resultBytes),
     );
-    verifyBoundProfile(result);
+    verifyBoundProfile(
+        result,
+        expectedProfileAuthority,
+        project.effectiveOptions ?? fixture.effectiveOptions,
+    );
     return {
         endElapsedMilliseconds,
         phaseProgressEvents,
@@ -1379,6 +1482,66 @@ const verifySuccess = (result) => {
             );
         }
     }
+};
+
+const verifyTsxSuccess = (result) => {
+    assert(result.tsVersion === expectedVersion, "TSX TypeScript version mismatch.");
+    assert(
+        result.compilerApi === "createIncrementalProgram",
+        "TSX project did not use createIncrementalProgram.",
+    );
+    assert(
+        !result.emitSkipped && result.diagnostics.length === 0,
+        `TSX project did not emit cleanly: ${JSON.stringify(result.diagnostics)}`,
+    );
+    const outputs = new Map(result.outputs.map((output) => [output.path, output]));
+    assert(
+        outputs.size === 2 &&
+            outputs.has("/outputs/main.js") &&
+            outputs.has("/outputs/main.js.map"),
+        `TSX project emitted an unexpected output inventory: ${Array.from(outputs.keys())}.`,
+    );
+    const javaScript = outputs.get("/outputs/main.js").text;
+    assert(
+        javaScript.includes("__autojs6Tsx(__autojs6TsxFragment, null") &&
+            javaScript.includes('__autojs6Tsx("vertical"') &&
+            javaScript.includes('__autojs6Tsx("text"') &&
+            javaScript.includes('__autojs6Tsx("button"') &&
+            javaScript.includes("onClick: () => \"done\"") &&
+            !javaScript.includes("<vertical"),
+        `TSX lowering did not use the controlled AutoJs6 factories: ${javaScript}`,
+    );
+    const sourceMap = JSON.parse(outputs.get("/outputs/main.js.map").text);
+    assert(sourceMap.version === 3, "TSX Source Map version mismatch.");
+    assert(sourceMap.mappings.length > 0, "TSX Source Map mappings are empty.");
+    assert(
+        sourceMap.sources.length === 1 &&
+            sourceMap.sources[0].endsWith("/sources/main.tsx"),
+        `TSX Source Map lost its .tsx source identity: ${sourceMap.sources}.`,
+    );
+    assert(
+        !Object.prototype.hasOwnProperty.call(sourceMap, "sourcesContent"),
+        "TSX Source Map unexpectedly contains inline source text.",
+    );
+};
+
+const verifyTsxAttributeDiagnostic = (result) => {
+    assert(result.emitSkipped, "Invalid TSX attribute unexpectedly emitted JavaScript.");
+    assert(result.outputs.length === 0, "Invalid TSX attribute retained executable output.");
+    assert(
+        result.diagnostics.length === 1,
+        `Invalid TSX attribute produced an unstable diagnostic set: ${JSON.stringify(result.diagnostics)}.`,
+    );
+    const diagnostic = result.diagnostics[0];
+    assert(
+        diagnostic.category === ts.DiagnosticCategory.Error &&
+            diagnostic.code === 2322 &&
+            diagnostic.phase === "semantic" &&
+            diagnostic.sourcePath === "/sources/main.tsx" &&
+            diagnostic.line === 1 &&
+            diagnostic.message.includes("texxt"),
+        `Invalid TSX attribute diagnostic drifted: ${JSON.stringify(diagnostic)}.`,
+    );
 };
 
 const countSourceTokens = (text) => {
@@ -3000,8 +3163,9 @@ const verifyDeclarationError = (result) => {
     const [actual] = result.diagnostics;
     const expected = fixture.declarationError.diagnostic;
     assert(
-        actual.sourcePath === "/declarations/lib.d.ts",
-        "Declaration diagnostic must retain the controlled declaration path.",
+        actual.sourcePath === expected.sourcePath,
+        "Declaration diagnostic must retain the exact controlled declaration path; " +
+            `received ${actual.sourcePath}.`,
     );
     for (const key of [
         "phase",
@@ -5485,6 +5649,21 @@ const verifyCompilerPageStateMachine = () => {
         "R2-M2-X2 unified no-emit diagnostics and clean successors",
         async () => {
             await verifyX2UnifiedNoEmitDiagnostics();
+        },
+        failures,
+    );
+    await runGolden(
+        "Rhino revision 2 native TSX lowering and Source Map",
+        async () => {
+            const project = tsxSnapshot();
+            const { result } = await compile("desktop-rhino-revision2-tsx", project);
+            verifyTsxSuccess(result);
+
+            const invalid = await compile(
+                "desktop-rhino-revision2-tsx-invalid-attribute",
+                tsxSnapshot('const view = <text texxt="typo" />;\nvoid view;\n'),
+            );
+            verifyTsxAttributeDiagnostic(invalid.result);
         },
         failures,
     );

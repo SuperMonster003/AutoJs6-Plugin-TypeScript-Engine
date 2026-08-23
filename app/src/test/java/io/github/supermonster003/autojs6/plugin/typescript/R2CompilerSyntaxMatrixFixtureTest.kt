@@ -40,7 +40,8 @@ class R2CompilerSyntaxMatrixFixtureTest {
             authority = authorities.objectValue("rhino"),
             expectedProfile = "rhino",
             expectedDeclarationLayer = "rhino",
-            productionAuthority = R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+            productionAuthority =
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1,
         )
         verifyFrozenAuthority(
             authority = authorities.objectValue("node"),
@@ -140,11 +141,12 @@ class R2CompilerSyntaxMatrixFixtureTest {
                 .useDefineForClassFields,
         )
 
-        val rhino = R2CompilationProfileRegistry.PROVISIONAL_RHINO
+        val rhinoOne = R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1
+        val rhinoTwo = R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2
         val revisionOne = R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_1
         val revisionTwo = R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
         assertEquals(
-            listOf(rhino, revisionOne, revisionTwo),
+            listOf(rhinoOne, rhinoTwo, revisionOne, revisionTwo),
             R2CompilationProfileRegistry.registeredAuthorities,
         )
         assertEquals(
@@ -160,8 +162,8 @@ class R2CompilerSyntaxMatrixFixtureTest {
             revisionTwo.runtimeCapabilitiesFingerprint,
         )
         assertSame(
-            rhino,
-            R2CompilationProfileRegistry.requireEndToEndAdmitted(rhino),
+            rhinoTwo,
+            R2CompilationProfileRegistry.requireEndToEndAdmitted(rhinoTwo),
         )
         assertSame(
             revisionOne,
@@ -202,7 +204,8 @@ class R2CompilerSyntaxMatrixFixtureTest {
         assertEquals(filePaths.size, filePaths.distinct().size)
 
         val productionAuthority = when (authorityName) {
-            "rhino" -> R2CompilationProfileRegistry.PROVISIONAL_RHINO
+            "rhino" ->
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1
             "node" -> R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_1
             else -> error("Unexpected P4 authority: $authorityName")
         }

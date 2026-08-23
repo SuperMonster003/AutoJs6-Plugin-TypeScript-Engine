@@ -31,7 +31,8 @@ class R2CompilerBoundaryMatrixFixtureTest {
         verifyFrozenAuthority(
             authority = authorities.objectValue("rhino"),
             expectedProfile = "rhino",
-            productionAuthority = R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+            productionAuthority =
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1,
         )
         verifyFrozenAuthority(
             authority = authorities.objectValue("node"),
@@ -101,7 +102,8 @@ class R2CompilerBoundaryMatrixFixtureTest {
         assertTrue(exactText.endsWith("\r\n"))
 
         val authorities = listOf(
-            R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1,
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2,
             R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_1,
         )
         authorities.forEach { authority ->
@@ -186,17 +188,21 @@ class R2CompilerBoundaryMatrixFixtureTest {
             )
         }
 
-        val rhino = R2CompilationProfileRegistry.PROVISIONAL_RHINO
+        val rhinoOne = R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1
+        val rhinoTwo = R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2
         val nodeOne = R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_1
         val nodeTwo = R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
         assertEquals(
-            listOf(rhino, nodeOne, nodeTwo),
+            listOf(rhinoOne, rhinoTwo, nodeOne, nodeTwo),
             R2CompilationProfileRegistry.registeredAuthorities,
         )
         assertEquals(nodeOne.canonicalEffectiveOptionsJson, nodeTwo.canonicalEffectiveOptionsJson)
         assertEquals(nodeOne.effectiveOptionsFingerprint, nodeTwo.effectiveOptionsFingerprint)
         assertNotEquals(nodeOne.runtimeCapabilitiesFingerprint, nodeTwo.runtimeCapabilitiesFingerprint)
-        assertSame(rhino, R2CompilationProfileRegistry.requireEndToEndAdmitted(rhino))
+        assertSame(
+            rhinoTwo,
+            R2CompilationProfileRegistry.requireEndToEndAdmitted(rhinoTwo),
+        )
         assertSame(nodeOne, R2CompilationProfileRegistry.requireEndToEndAdmitted(nodeOne))
         assertSame(
             nodeTwo,

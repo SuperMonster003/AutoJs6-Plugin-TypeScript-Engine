@@ -181,6 +181,33 @@ class R2GeneratedModuleMappingTest {
     }
 
     @Test
+    fun rhinoRevisionTwoMapsTsxToJavaScriptAndRevisionOneStaysClosed() {
+        val sourcePath = "/sources/ui/component.tsx"
+        val revisionTwo = R2GeneratedModuleMappingPolicy.map(
+            rhinoRequest(sourcePath = sourcePath),
+        )
+
+        assertEquals(sourcePath, revisionTwo.sourcePath)
+        assertEquals("/outputs/ui/component.js", revisionTwo.generatedPath)
+        assertEquals("/outputs/ui/component.js.map", revisionTwo.sourceMapPath)
+        assertTrue(revisionTwo.originalSourceUri.endsWith("/sources/ui/component.tsx"))
+        assertTrue(revisionTwo.generatedUri.endsWith("/outputs/ui/component.js"))
+
+        assertEquals(
+            R2GeneratedModuleMappingFailureCode.INVALID_PROFILE_AUTHORITY,
+            assertFails<R2GeneratedModuleMappingException> {
+                R2GeneratedModuleMappingPolicy.map(
+                    rhinoRequest(
+                        sourcePath = sourcePath,
+                        profileAuthority =
+                            R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1,
+                    ),
+                )
+            }.policyCode,
+        )
+    }
+
+    @Test
     fun strictUnicodeAndTransportRelativeBudgetsFailClosed() {
         val invalidProjectId = "bad\ud800id"
         assertEquals(
@@ -257,7 +284,10 @@ class R2GeneratedModuleMappingTest {
         val profileValue = value.string("profile")
         val profileRevision = value.integer("profileRevision")
         val profileAuthority = when (profileValue to profileRevision) {
-            "rhino" to 1 -> R2CompilationProfileRegistry.PROVISIONAL_RHINO
+            "rhino" to 1 ->
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1
+            "rhino" to 2 ->
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2
             "node" to 1 -> R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_1
             "node" to 2 -> R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
             else -> throw R2GeneratedModuleMappingException(
@@ -316,9 +346,11 @@ class R2GeneratedModuleMappingTest {
     private fun rhinoRequest(
         projectId: String = "budget",
         sourcePath: String = "/sources/main.ts",
+        profileAuthority: R2CompilationProfileAuthority =
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2,
     ): R2GeneratedModuleMappingRequest = R2GeneratedModuleMappingRequest(
         projectId = projectId,
-        profileAuthority = R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+        profileAuthority = profileAuthority,
         sourcePath = sourcePath,
         impliedModuleFormat = R2ModuleFormat.COMMONJS,
     )

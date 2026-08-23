@@ -179,7 +179,7 @@ const controlledPolicy = Object.freeze({
         "64ef1cf36d6531f84088cec49127e6407b107ab86eeaf7f4512358fd1343598b",
     configPolicyRevision: 2,
     configSchemaRevision: 2,
-    profileRevision: 1,
+    profileRevision: 2,
     profileSchemaRevision: 1,
     targetProfile: "rhino",
 });

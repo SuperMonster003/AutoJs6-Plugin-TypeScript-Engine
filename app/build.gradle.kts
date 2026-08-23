@@ -2682,6 +2682,9 @@ val verifyR2M2C3ControlledTsConfigEffectiveOptions =
                 "incremental",
                 "inlineSourceMap",
                 "inlineSources",
+                "jsx",
+                "jsxFactory",
+                "jsxFragmentFactory",
                 "module",
                 "moduleDetection",
                 "moduleResolution",
@@ -2713,15 +2716,15 @@ val verifyR2M2C3ControlledTsConfigEffectiveOptions =
                 "useDefineForClassFields",
                 "useUnknownInCatchVariables",
             )
-            check(expectedCanonicalOptionKeys.size == 41) {
-                "R2-M2-C3 canonical option inventory must contain exactly 41 keys."
+            check(expectedCanonicalOptionKeys.size == 44) {
+                "R2-M2-C3 canonical option inventory must contain exactly 44 keys."
             }
 
             val effectiveAuthoritySource =
                 r2ControlledTsConfigEffectiveOptionsSource.asFile.readText(Charsets.UTF_8)
             listOf(
                 "internal class R2ControlledTsConfigEffectiveOptions",
-                "const val REVISION = 1",
+                "const val REVISION = 2",
                 "fun resolve(",
                 "CONFIG_POLICY_CODE_INVALID_VALUE",
                 "resolved.getValue(\"strictNullChecks\")",
@@ -2750,7 +2753,7 @@ val verifyR2M2C3ControlledTsConfigEffectiveOptions =
             val effectiveAuthorityTestSource =
                 r2ControlledTsConfigEffectiveOptionsTestSource.asFile.readText(Charsets.UTF_8)
             listOf(
-                "assertEquals(41, R2ControlledTsConfigEffectiveOptions.canonicalOptionKeys.size)",
+                "assertEquals(44, R2ControlledTsConfigEffectiveOptions.canonicalOptionKeys.size)",
                 "fun TypeScriptInvalidStrictNullCombinationsAreTypedPolicyFailures()",
                 "assertEquals(18, legacyObject.size)",
                 "76a173383972b1bd8d4ffa3fffe5d51f5adecf7b84e7b16f58554c14f3c08e0b",
@@ -2776,7 +2779,7 @@ val verifyR2M2C3ControlledTsConfigEffectiveOptions =
 
             val workerSource = r2CompilerWorkerSource.asFile.readText(Charsets.UTF_8)
             listOf(
-                "const controlledTsConfigEffectiveOptionsRevision = 1",
+                "const controlledTsConfigEffectiveOptionsRevision = 2",
                 "const controlledTsConfigCanonicalOptionKeys",
                 "resolveControlledTsConfigEffectiveOptions",
                 "controlledEffectiveOptions",

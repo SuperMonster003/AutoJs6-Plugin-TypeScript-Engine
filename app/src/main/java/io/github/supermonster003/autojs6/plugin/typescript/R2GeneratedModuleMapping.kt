@@ -360,6 +360,7 @@ internal object R2GeneratedModuleMappingPolicy {
             )
         sourcePath.endsWith(".mts") -> ".mts"
         sourcePath.endsWith(".cts") -> ".cts"
+        sourcePath.endsWith(".tsx") -> ".tsx"
         sourcePath.endsWith(".ts") -> ".ts"
         else -> reject(
             R2GeneratedModuleMappingFailureCode.UNSUPPORTED_SOURCE_KIND,
@@ -392,12 +393,22 @@ internal object R2GeneratedModuleMappingPolicy {
     ): String = when (profileAuthority.profile) {
         R2ProjectProfile.PROVISIONAL_RHINO -> {
             if (
-                profileAuthority != R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
-                sourceExtension != ".ts"
+                (
+                    profileAuthority !=
+                    R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1 &&
+                        profileAuthority !=
+                        R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2
+                    ) ||
+                (sourceExtension != ".ts" && sourceExtension != ".tsx") ||
+                (
+                    sourceExtension == ".tsx" &&
+                        profileAuthority !=
+                        R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2
+                    )
             ) {
                 reject(
                     R2GeneratedModuleMappingFailureCode.INVALID_PROFILE_AUTHORITY,
-                    "Rhino generated mapping requires revision 1 and a .ts source.",
+                    "Rhino generated mapping requires a compatible .ts or revision-2 .tsx source.",
                 )
             }
             if (packageAuthority != null) rejectPackageAuthority()

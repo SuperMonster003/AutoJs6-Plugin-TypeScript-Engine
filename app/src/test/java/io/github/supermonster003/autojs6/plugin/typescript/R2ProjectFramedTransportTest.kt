@@ -1827,7 +1827,8 @@ class R2ProjectFramedTransportTest {
         )
         assertTrue(parsed.compilation.emitSkipped)
         assertEquals(1, parsed.compilation.diagnostics.size)
-        val authority = R2CompilationProfileRegistry.PROVISIONAL_RHINO
+        val authority =
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1
         assertEquals(authority.profileSchemaRevision, parsed.compilation.profileSchemaRevision)
         assertEquals(authority.profileRevision, parsed.compilation.profileRevision)
         assertEquals(authority.configSchemaRevision, parsed.compilation.configSchemaRevision)
@@ -2531,11 +2532,11 @@ class R2ProjectFramedTransportTest {
             "start":null
           }],
           "effectiveOptionsFingerprint":"${effective.fingerprint}",
-          "effectiveOptionsRevision":1,
+          "effectiveOptionsRevision":${R2ControlledTsConfigEffectiveOptions.REVISION},
           "emitSkipped":true,
           "options":${effective.canonicalJson},
           "outputs":[],
-          "profileRevision":1,
+          "profileRevision":2,
           "profileSchemaRevision":1,
           "rootNames":["/sources/main.ts"],
           "targetProfile":"rhino",
@@ -2691,11 +2692,11 @@ class R2ProjectFramedTransportTest {
             "start":0
           }],
           "effectiveOptionsFingerprint":"${effective.fingerprint}",
-          "effectiveOptionsRevision":1,
+          "effectiveOptionsRevision":${R2ControlledTsConfigEffectiveOptions.REVISION},
           "emitSkipped":true,
           "options":${effective.canonicalJson},
           "outputs":[],
-          "profileRevision":1,
+          "profileRevision":2,
           "profileSchemaRevision":1,
           "rootNames":["/sources/main.ts","/sources/types.d.ts"],
           "targetProfile":"rhino",

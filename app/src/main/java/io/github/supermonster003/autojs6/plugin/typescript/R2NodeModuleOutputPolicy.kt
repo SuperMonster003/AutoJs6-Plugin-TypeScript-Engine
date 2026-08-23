@@ -37,6 +37,7 @@ internal object R2NodeModuleOutputPolicy {
     const val SCHEMA_REVISION = 1
     const val POLICY_REVISION = 1
     const val RHINO_PROFILE_REVISION = 1
+    const val RHINO_TSX_PROFILE_REVISION = 2
     const val NODE_LEGACY_PROFILE_REVISION = 1
     const val NODE_PROFILE_REVISION = 2
 

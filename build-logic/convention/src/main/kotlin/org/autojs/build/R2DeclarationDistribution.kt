@@ -66,7 +66,7 @@ object R2DeclarationDistribution {
 
     const val MANIFEST_FILE_NAME = "distribution.json"
     const val GENERATOR_ID = "autojs6-plugin-typescript-engine"
-    const val GENERATOR_VERSION = 3
+    const val GENERATOR_VERSION = 4
     const val MANIFEST_SCHEMA_VERSION = 2
 
     const val COMMON_STANDARD_LIBRARIES_FINGERPRINT =
@@ -675,6 +675,7 @@ object R2DeclarationDistribution {
         append("\n")
         append("  interface UI {\n")
         append("    layout(layout: string): void;\n")
+        append("    layout(layout: AutoJs6Tsx.Element): void;\n")
         append("    findView(stringId: string): UI.View | null;\n")
         append("  }\n")
         append("}\n")
@@ -683,6 +684,163 @@ object R2DeclarationDistribution {
         append("  interface View {\n")
         append("    click(listener: () => void): void;\n")
         append("    setText(text: string): void;\n")
+        append("  }\n")
+        append("}\n")
+        append("\n")
+        append("// Private compiler/runtime contract for Rhino TSX lowering.\n")
+        append("declare namespace AutoJs6Tsx {\n")
+        append("  type Scalar = string | number | boolean;\n")
+        append("  type TextChild = string | number | boolean | null | undefined;\n")
+        append("  type ClickHandler = (view: UI.View) => void;\n")
+        append("  interface BaseAttributes {\n")
+        append("    id?: string;\n")
+        listOf(
+            "w",
+            "h",
+            "width",
+            "height",
+            "margin",
+            "marginLeft",
+            "marginRight",
+            "marginTop",
+            "marginBottom",
+            "marginStart",
+            "marginEnd",
+            "padding",
+            "paddingLeft",
+            "paddingRight",
+            "paddingTop",
+            "paddingBottom",
+            "paddingStart",
+            "paddingEnd",
+            "gravity",
+            "layout_gravity",
+            "background",
+            "alpha",
+            "visibility",
+            "enabled",
+            "clickable",
+        ).forEach { attribute ->
+            append("    $attribute?: Scalar;\n")
+        }
+        append("    onClick?: ClickHandler;\n")
+        append("  }\n")
+        append("  interface Element {\n")
+        append("    readonly __autojs6TsxElement: unique symbol;\n")
+        append("  }\n")
+        append("  type Child = Element | readonly Child[] | TextChild;\n")
+        append("  interface ContainerAttributes extends BaseAttributes {\n")
+        append("    children?: Child | readonly Child[];\n")
+        append("    orientation?: Scalar;\n")
+        append("    vertical?: Scalar;\n")
+        append("  }\n")
+        append("  interface TextAttributes extends BaseAttributes {\n")
+        append("    children?: TextChild | readonly TextChild[];\n")
+        listOf(
+            "text",
+            "textSize",
+            "size",
+            "textColor",
+            "textStyle",
+            "hint",
+            "hintColor",
+            "lines",
+            "maxLines",
+            "singleLine",
+            "inputType",
+            "checked",
+        ).forEach { attribute ->
+            append("    $attribute?: Scalar;\n")
+        }
+        append("  }\n")
+        append("  interface ImageAttributes extends BaseAttributes {\n")
+        append("    src?: Scalar;\n")
+        append("    tint?: Scalar;\n")
+        append("    scaleType?: Scalar;\n")
+        append("  }\n")
+        append("  interface ControlAttributes extends BaseAttributes {\n")
+        append("    checked?: Scalar;\n")
+        append("    progress?: Scalar;\n")
+        append("    max?: Scalar;\n")
+        append("    min?: Scalar;\n")
+        append("  }\n")
+        append("}\n")
+        append("declare const __autojs6TsxFragment: unique symbol;\n")
+        append("declare function __autojs6Tsx(\n")
+        append("  type: string | typeof __autojs6TsxFragment,\n")
+        append("  props: AutoJs6Tsx.BaseAttributes | null,\n")
+        append("  ...children: AutoJs6Tsx.Child[]\n")
+        append("): AutoJs6Tsx.Element;\n")
+        append("declare namespace JSX {\n")
+        append("  type Element = AutoJs6Tsx.Element;\n")
+        append("  interface ElementChildrenAttribute { children: {}; }\n")
+        append("  interface IntrinsicElements {\n")
+        listOf(
+            "actionmenu",
+            "appbar",
+            "card",
+            "drawer",
+            "frame",
+            "grid",
+            "horizontal",
+            "linear",
+            "list",
+            "radiogroup",
+            "radios",
+            "relative",
+            "scroll",
+            "tab",
+            "tabs",
+            "toolbar",
+            "vertical",
+            "viewflipper",
+            "viewpager",
+            "viewswitcher",
+        ).forEach { tagName ->
+            append("    $tagName: AutoJs6Tsx.ContainerAttributes;\n")
+        }
+        listOf(
+            "btn",
+            "button",
+            "checkbox",
+            "checkedtext",
+            "edittext",
+            "input",
+            "radio",
+            "radiobutton",
+            "switch",
+            "text",
+            "textclock",
+            "textswitcher",
+            "togglebutton",
+        ).forEach { tagName ->
+            append("    $tagName: AutoJs6Tsx.TextAttributes;\n")
+        }
+        listOf("fab", "image", "imagebutton", "img").forEach { tagName ->
+            append("    $tagName: AutoJs6Tsx.ImageAttributes;\n")
+        }
+        listOf(
+            "calendar",
+            "canvas",
+            "chronometer",
+            "console",
+            "datepicker",
+            "numberpicker",
+            "progressbar",
+            "quickcontactbadge",
+            "ratingbar",
+            "search",
+            "seekbar",
+            "space",
+            "spinner",
+            "timepicker",
+            "video",
+            "view",
+            "web",
+            "webview",
+        ).forEach { tagName ->
+            append("    $tagName: AutoJs6Tsx.ControlAttributes;\n")
+        }
         append("  }\n")
         append("}\n")
         append("\n")

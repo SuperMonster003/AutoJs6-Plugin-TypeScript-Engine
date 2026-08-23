@@ -37,9 +37,11 @@ class R2CompilerBundleGoldenFixtureTest {
             expectedRevision = 1,
             expectedDeclarationLayer = "rhino",
             expectedCanonicalOptions =
-                R2CompilationProfileRegistry.PROVISIONAL_RHINO.canonicalEffectiveOptionsJson,
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1
+                    .canonicalEffectiveOptionsJson,
             expectedFingerprint =
-                R2CompilationProfileRegistry.PROVISIONAL_RHINO.effectiveOptionsFingerprint,
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1
+                    .effectiveOptionsFingerprint,
         )
         verifyFrozenAuthority(
             authority = authorities.objectValue("node"),
@@ -99,6 +101,7 @@ class R2CompilerBundleGoldenFixtureTest {
         )
 
         val productionAuthorities = listOf(
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1,
             R2CompilationProfileRegistry.PROVISIONAL_RHINO,
             R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_1,
             R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,

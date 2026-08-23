@@ -105,6 +105,24 @@ class R2DeclarationDistributionTest {
             .toString(StandardCharsets.UTF_8)
         assertTrue(index.contains("/// <reference path=\"./app.d.ts\" />"))
         assertTrue(index.contains("/// <reference path=\"./ui.d.ts\" />"))
+        listOf(
+            "layout(layout: AutoJs6Tsx.Element): void;",
+            "declare namespace AutoJs6Tsx {",
+            "declare function __autojs6Tsx(",
+            "declare const __autojs6TsxFragment: unique symbol;",
+            "declare namespace JSX {",
+            "interface ContainerAttributes extends BaseAttributes",
+            "interface TextAttributes extends BaseAttributes",
+            "vertical: AutoJs6Tsx.ContainerAttributes;",
+            "text: AutoJs6Tsx.TextAttributes;",
+            "button: AutoJs6Tsx.TextAttributes;",
+        ).forEach { marker ->
+            assertTrue("Rhino TSX projection must contain $marker", index.contains(marker))
+        }
+        assertFalse(
+            "Rhino TSX projection must reject unknown intrinsic tags and attributes",
+            index.contains("[tagName: string]") || index.contains("[attribute: string]"),
+        )
         val projection = rhinoFiles.values.joinToString("\n") { bytes ->
             bytes.toString(StandardCharsets.UTF_8)
         }

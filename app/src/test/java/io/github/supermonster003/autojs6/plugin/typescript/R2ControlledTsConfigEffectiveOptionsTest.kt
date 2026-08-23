@@ -20,14 +20,14 @@ class R2ControlledTsConfigEffectiveOptionsTest {
         )
         assertNumber(R2ControlledTsConfigEffectiveOptions.REVISION, root.getValue("revision"))
         assertNumber(1, root.getValue("profileSchemaRevision"))
-        assertNumber(1, root.getValue("profileRevision"))
+        assertNumber(2, root.getValue("profileRevision"))
         assertNumber(2, root.getValue("configSchemaRevision"))
         assertEquals(TypeScriptR2Contract.CONFIG_KIND_TSCONFIG, root.getValue("configKind"))
         assertEquals(
             R2ControlledTsConfigEffectiveOptions.canonicalOptionKeys,
             root.requireStringList("canonicalOptionKeys"),
         )
-        assertEquals(41, R2ControlledTsConfigEffectiveOptions.canonicalOptionKeys.size)
+        assertEquals(44, R2ControlledTsConfigEffectiveOptions.canonicalOptionKeys.size)
 
         root.requireObjectList("accepted").forEach { testCase ->
             val explicit = testCase.requireBooleanMap("explicitBooleanOptions")
@@ -48,7 +48,7 @@ class R2ControlledTsConfigEffectiveOptionsTest {
                 R2ControlledTsConfigEffectiveOptions.canonicalOptionKeys,
                 canonicalObject.keys.toList(),
             )
-            assertEquals(41, canonicalObject.size)
+            assertEquals(44, canonicalObject.size)
             assertEquals(explicit.toSortedMap(), resolved.explicitBooleanOptions)
             assertEquals(18, resolved.resolvedBooleanOptions.size)
             assertEquals(
@@ -61,9 +61,9 @@ class R2ControlledTsConfigEffectiveOptionsTest {
     @Test
     fun strictChildrenAndFalseDefaultsUseFrozenPrecedence() {
         val defaults = R2ControlledTsConfigEffectiveOptions.resolve(emptyMap())
-        assertEquals(992, defaults.canonicalJson.toByteArray(StandardCharsets.UTF_8).size)
+        assertEquals(1_072, defaults.canonicalJson.toByteArray(StandardCharsets.UTF_8).size)
         assertEquals(
-            "2d8daf5f2f3516c9684f8e4659f51dfb9b037d21849bc2bbafca2fbaf034bd42",
+            "5b529b507e94fafe30ccce6de4d69f89604bc0f1430b7b4ee8f12259fe03a807",
             defaults.fingerprint,
         )
         assertEquals(
@@ -127,7 +127,7 @@ class R2ControlledTsConfigEffectiveOptionsTest {
             R2ControlledTsConfigEffectiveOptions.resolve(mapOf("futureOption" to true))
         }
 
-        val legacy = R2CompilationProfileRegistry.PROVISIONAL_RHINO
+        val legacy = R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1
         val legacyObject = R2StrictJson.parseObject(
             legacy.canonicalEffectiveOptionsJson.toByteArray(StandardCharsets.US_ASCII),
         )

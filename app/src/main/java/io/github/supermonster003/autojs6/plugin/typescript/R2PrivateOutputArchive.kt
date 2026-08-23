@@ -1217,7 +1217,7 @@ internal object R2PrivateOutputArchive {
     private fun String.expectedCompilerOutputPath(): String =
         "/outputs/" +
             removePrefix("/sources/")
-                .removeSuffix(".ts") +
+                .removeSuffix(if (endsWith(".tsx")) ".tsx" else ".ts") +
             ".js"
 
     private fun String.isCanonicalCompilerOutputPath(
@@ -1429,7 +1429,9 @@ internal object R2PrivateOutputArchive {
                         "modules/" +
                             authority.entryPath
                                 .removePrefix("sources/")
-                                .removeSuffix(".ts") +
+                                .removeSuffix(
+                                    if (authority.entryPath.endsWith(".tsx")) ".tsx" else ".ts",
+                                ) +
                             ".js"
                         )
             } else {

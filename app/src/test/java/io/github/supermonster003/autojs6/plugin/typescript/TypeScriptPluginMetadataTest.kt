@@ -1,6 +1,8 @@
 package io.github.supermonster003.autojs6.plugin.typescript
 
+import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
 import org.autojs.plugin.typescript.api.TypeScriptR2Contract
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -26,6 +28,18 @@ class TypeScriptPluginMetadataTest {
         assertEquals(
             R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
             TypeScriptPluginMetadata.ADVERTISED_NODE_PROFILE_AUTHORITY,
+        )
+        assertArrayEquals(
+            arrayOf(".ts"),
+            TypeScriptCompilerContract.RHINO_SUPPORTED_EXTENSIONS,
+        )
+        assertArrayEquals(
+            arrayOf(".ts", ".tsx"),
+            TypeScriptPluginMetadata.ADVERTISED_RHINO_SUPPORTED_EXTENSIONS,
+        )
+        assertArrayEquals(
+            arrayOf(".ts", ".tsx", ".mts", ".cts"),
+            TypeScriptPluginMetadata.ADVERTISED_SUPPORTED_EXTENSIONS,
         )
 
         assertEquals(

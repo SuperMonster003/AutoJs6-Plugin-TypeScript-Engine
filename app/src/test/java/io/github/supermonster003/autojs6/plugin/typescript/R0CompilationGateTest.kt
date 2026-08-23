@@ -136,6 +136,26 @@ class R0CompilationGateTest {
         assertEquals(TypeScriptCompilerContract.ERROR_R0_NOT_AVAILABLE, nodeDecision.errorCode)
     }
 
+    @Test
+    fun tsxPassesTheEnvelopeGateOnlyForTheAdvertisedRhinoProfile() {
+        val rhinoDecision = R0CompilationGate.reject(
+            validAdmission().withRequest {
+                copy(entrySourceUri = "autojs://source/project/main.tsx")
+            },
+        )
+        val nodeDecision = R0CompilationGate.reject(
+            validAdmission().withRequest {
+                copy(
+                    entrySourceUri = "autojs://source/project/main.tsx",
+                    targetProfile = TypeScriptCompilerContract.PROFILE_NODE,
+                )
+            },
+        )
+
+        assertEquals(TypeScriptCompilerContract.ERROR_R0_NOT_AVAILABLE, rhinoDecision.errorCode)
+        assertEquals(TypeScriptCompilerContract.ERROR_INVALID_REQUEST, nodeDecision.errorCode)
+    }
+
     private fun validAdmission() = R0CompilationAdmission(
         request = R0CompilationEnvelope(
             contractVersion = TypeScriptCompilerContract.VERSION,

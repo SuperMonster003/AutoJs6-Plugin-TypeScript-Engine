@@ -165,24 +165,24 @@ const verifyFixtureAuthority = async () => {
     assert(
         fixture.schema ===
             "autojs6.typescript.controlled-tsconfig-effective-options" &&
-            fixture.revision === 1 &&
+            fixture.revision === 2 &&
             fixture.profileSchemaRevision === 1 &&
-            fixture.profileRevision === 1 &&
+            fixture.profileRevision === 2 &&
             fixture.configSchemaRevision === 2 &&
             fixture.configKind === "tsconfig",
         "C3 effective-options fixture authority drifted.",
     );
     const workerKeys = workerBinding("controlledTsConfigCanonicalOptionKeys");
     assert(
-        fixture.canonicalOptionKeys.length === 41 &&
+        fixture.canonicalOptionKeys.length === 44 &&
             JSON.stringify(fixture.canonicalOptionKeys) ===
                 JSON.stringify(workerKeys) &&
             JSON.stringify(workerKeys) ===
                 JSON.stringify(workerKeys.slice().sort()),
-        "C3 canonical 41-key inventory is not exact code-unit order.",
+        "C3 canonical 44-key inventory is not exact code-unit order.",
     );
     assert(
-        workerBinding("controlledTsConfigEffectiveOptionsRevision") === 1,
+        workerBinding("controlledTsConfigEffectiveOptionsRevision") === 2,
         "C3 effective-options revision drifted.",
     );
     assert(
@@ -215,7 +215,7 @@ const verifyFixtureAuthority = async () => {
             `${testCase.name} canonical authority drifted.`,
         );
         assert(
-            Object.keys(authority.compilerOptions).length === 41 &&
+            Object.keys(authority.compilerOptions).length === 44 &&
                 JSON.stringify(Object.keys(authority.compilerOptions)) ===
                     JSON.stringify(fixture.canonicalOptionKeys) &&
                 JSON.stringify(authority.compilerOptions) ===

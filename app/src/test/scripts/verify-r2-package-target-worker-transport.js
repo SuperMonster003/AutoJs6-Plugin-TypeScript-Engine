@@ -290,7 +290,7 @@ const startFrame = (operation, extra = {}) => ({
     packageTargetPolicyFingerprint: targetPolicy.fingerprint,
     packageTargetPolicyRevision: targetPolicy.policyRevision,
     packageTargetSchemaRevision: targetPolicy.schemaRevision,
-    profileRevision: 1,
+    profileRevision: 2,
     profileSchemaRevision: 1,
     requestId: operation.requestId,
     sequence: operation.sequence,

@@ -167,6 +167,9 @@ internal data class R2ProjectEffectiveOptions(
     val incremental: Boolean,
     val inlineSourceMap: Boolean,
     val inlineSources: Boolean,
+    val jsx: Int?,
+    val jsxFactory: String?,
+    val jsxFragmentFactory: String?,
     val module: Int,
     val moduleResolution: Int,
     val newLine: Int,
@@ -189,6 +192,9 @@ internal data class R2ProjectEffectiveOptions(
             incremental = false,
             inlineSourceMap = false,
             inlineSources = false,
+            jsx = null,
+            jsxFactory = null,
+            jsxFragmentFactory = null,
             module = 1,
             moduleResolution = 2,
             newLine = 1,
@@ -206,6 +212,12 @@ internal data class R2ProjectEffectiveOptions(
         val PROVISIONAL_NODE_NEXT = PROVISIONAL_RHINO.copy(
             module = 199,
             moduleResolution = 99,
+        )
+
+        val PROVISIONAL_RHINO_TSX = PROVISIONAL_RHINO.copy(
+            jsx = 2,
+            jsxFactory = "__autojs6Tsx",
+            jsxFragmentFactory = "__autojs6TsxFragment",
         )
     }
 }
@@ -330,7 +342,7 @@ internal class R2ProjectCompilation(
 
 private fun String.isControlledProjectRootPath(): Boolean =
     startsWith("/sources/") &&
-        endsWith(".ts") &&
+        (endsWith(".ts") || endsWith(".tsx")) &&
         R2UnicodePathPolicy.isCanonicalAbsolutePath(this)
 
 internal data class R2ProjectCompilationOutcome(

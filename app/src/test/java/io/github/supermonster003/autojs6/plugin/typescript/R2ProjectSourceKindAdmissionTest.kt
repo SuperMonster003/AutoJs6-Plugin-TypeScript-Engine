@@ -18,9 +18,10 @@ class R2ProjectSourceKindAdmissionTest {
     }
 
     @Test
-    fun exactProfileMatrixOpensOnlyNodeRevisionTwoMtsAndCtsExecutables() {
+    fun exactProfileMatrixOpensOnlyRevisionSpecificExecutableKinds() {
         val profiles = listOf(
-            R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1,
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2,
             R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_1,
             R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
         )
@@ -35,6 +36,15 @@ class R2ProjectSourceKindAdmissionTest {
             assertTrue(
                 R2ProjectSourceKindAdmission.isExecutableSourcePath(
                     "sources/nested/main.ts",
+                    profile,
+                ),
+            )
+            val opensTsx =
+                profile == R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2
+            assertEquals(
+                opensTsx,
+                R2ProjectSourceKindAdmission.isExecutableSourcePath(
+                    "/sources/nested/main.tsx",
                     profile,
                 ),
             )
@@ -56,6 +66,46 @@ class R2ProjectSourceKindAdmissionTest {
                     ),
                 )
             }
+        }
+    }
+
+    @Test
+    fun rhinoRevisionTwoOverlayOnlyLiftsExactLowercaseTsxExecutables() {
+        val rhinoRevisionTwo =
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2
+
+        listOf(
+            "/sources/main.tsx",
+            "/sources/nested/component.tsx",
+            "sources/main.tsx",
+            "sources/nested/component.tsx",
+        ).forEach { path ->
+            assertNull(
+                path,
+                R2ProjectSourceKindAdmission.sourcePathRejection(path, rhinoRevisionTwo),
+            )
+            assertTrue(
+                path,
+                R2ProjectSourceKindAdmission.isExecutableSourcePath(path, rhinoRevisionTwo),
+            )
+        }
+
+        listOf(
+            "/sources/main.TSX",
+            "/sources/main.Tsx",
+            "/declarations/component.tsx",
+            "/outside/main.tsx",
+            "outside/main.tsx",
+        ).forEach { path ->
+            assertEquals(
+                path,
+                R2CompilerEscapeSourcePathRejection.DEFERRED_SOURCE_KIND,
+                R2ProjectSourceKindAdmission.sourcePathRejection(path, rhinoRevisionTwo),
+            )
+            assertFalse(
+                path,
+                R2ProjectSourceKindAdmission.isExecutableSourcePath(path, rhinoRevisionTwo),
+            )
         }
     }
 

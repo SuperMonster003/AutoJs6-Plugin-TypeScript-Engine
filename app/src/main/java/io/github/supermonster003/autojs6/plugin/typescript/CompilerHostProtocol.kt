@@ -487,6 +487,8 @@ internal object CompilerHostProtocol {
         }
 
         val optionsJson = result.requireObject("options")
+        val hasTsxOptions =
+            authority == R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2
         val effectiveOptions = R2ProjectEffectiveOptions(
             allowJs = optionsJson.requireBoolean("allowJs"),
             checkJs = optionsJson.requireBoolean("checkJs"),
@@ -494,6 +496,10 @@ internal object CompilerHostProtocol {
             incremental = optionsJson.requireBoolean("incremental"),
             inlineSourceMap = optionsJson.requireBoolean("inlineSourceMap"),
             inlineSources = optionsJson.requireBoolean("inlineSources"),
+            jsx = if (hasTsxOptions) optionsJson.requireProtocolInt("jsx") else null,
+            jsxFactory = if (hasTsxOptions) optionsJson.requireString("jsxFactory") else null,
+            jsxFragmentFactory =
+                if (hasTsxOptions) optionsJson.requireString("jsxFragmentFactory") else null,
             module = optionsJson.requireProtocolInt("module"),
             moduleResolution = optionsJson.requireProtocolInt("moduleResolution"),
             newLine = optionsJson.requireProtocolInt("newLine"),
@@ -1009,7 +1015,7 @@ internal object CompilerHostProtocol {
     private fun String.expectedLegacyOutputPath(): String =
         "/outputs/" +
             removePrefix("/sources/")
-                .removeSuffix(".ts") +
+                .removeSuffix(if (endsWith(".tsx")) ".tsx" else ".ts") +
             ".js"
 
     private fun resolveSourceMapSource(
@@ -1227,8 +1233,7 @@ internal object CompilerHostProtocol {
                 }
             }
         } else {
-            options.requireExactPayloadKeys(
-                label = "Framed project options",
+            val optionKeys = mutableListOf(
                 "allowJs",
                 "checkJs",
                 "ignoreDeprecations",
@@ -1248,6 +1253,18 @@ internal object CompilerHostProtocol {
                 "target",
                 "types",
             )
+            if (
+                result.requireString("targetProfile") ==
+                TypeScriptCompilerContract.PROFILE_RHINO &&
+                result.requireProtocolInt("profileRevision") ==
+                R2NodeModuleOutputPolicy.RHINO_TSX_PROFILE_REVISION
+            ) {
+                optionKeys += listOf("jsx", "jsxFactory", "jsxFragmentFactory")
+            }
+            options.requireExactPayloadKeys(
+                label = "Framed project options",
+                *optionKeys.toTypedArray(),
+            )
         }
         options.requireBoolean("allowJs")
         options.requireBoolean("checkJs")
@@ -1255,6 +1272,11 @@ internal object CompilerHostProtocol {
         options.requireBoolean("incremental")
         options.requireBoolean("inlineSourceMap")
         options.requireBoolean("inlineSources")
+        if ("jsx" in options) {
+            options.requireProtocolInt("jsx")
+            options.requireString("jsxFactory")
+            options.requireString("jsxFragmentFactory")
+        }
         options.requireProtocolInt("module")
         options.requireProtocolInt("moduleResolution")
         options.requireProtocolInt("newLine")

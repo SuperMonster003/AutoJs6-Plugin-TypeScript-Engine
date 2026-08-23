@@ -868,7 +868,9 @@ internal class R2ProjectSnapshot private constructor(
                 "Package target v1 and Node package-target v2 inventories are mutually exclusive."
             }
             when (profileAuthority) {
-                R2CompilationProfileRegistry.PROVISIONAL_RHINO -> require(
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1,
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2,
+                -> require(
                     nodePackageTargetV2Inventory == null,
                 ) {
                     "Rhino does not accept Node package-target v2 authority."
@@ -920,7 +922,8 @@ internal class R2ProjectSnapshot private constructor(
                 nodePackageTargetV2Inventory,
             )
             when (profileAuthority) {
-                R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1,
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2,
                 R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_1 -> require(
                     nodePackageFormatCatalog == null,
                 ) {

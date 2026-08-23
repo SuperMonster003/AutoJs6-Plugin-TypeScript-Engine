@@ -522,6 +522,28 @@ internal class R2ProjectInputFramer(
                     "workerSpinPhase" to
                         (workerSpinPhase?.protocolValue ?: WORKER_SPIN_PHASE_NONE),
                 )
+            } ?: profileAuthority.takeIf { authority ->
+                authority == R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2
+            }?.let { authority ->
+                R2FramedJson.objectValue(
+                    *inputAuthorityFields,
+                    "kind" to "projectInputStart",
+                    "requestId" to requestId,
+                    "sequence" to sequence,
+                    "targetProfile" to targetProfile,
+                    "profileSchemaRevision" to authority.profileSchemaRevision,
+                    "profileRevision" to authority.profileRevision,
+                    "configSchemaRevision" to authority.configSchemaRevision,
+                    "configKind" to authority.configKind,
+                    "entryPath" to entryPath,
+                    "runtimeCapabilitiesFingerprint" to
+                        authority.runtimeCapabilitiesFingerprint,
+                    "fileCount" to transportedFileCount,
+                    "totalBytes" to declaredTotalBytes,
+                    "workerSpinMilliseconds" to workerSpinMilliseconds,
+                    "workerSpinPhase" to
+                        (workerSpinPhase?.protocolValue ?: WORKER_SPIN_PHASE_NONE),
+                )
             } ?: R2FramedJson.objectValue(
                 *inputAuthorityFields,
                 "kind" to "projectInputStart",

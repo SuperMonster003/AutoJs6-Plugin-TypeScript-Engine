@@ -39,7 +39,11 @@ internal data class R2ProjectArchiveAuthority(
 ) {
     init {
         val isRhinoRevisionOne =
-            profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO
+            profileAuthority ==
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1
+        val isRhinoRevisionTwo =
+            profileAuthority ==
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2
         val isNodeRevisionOne =
             profileAuthority ==
                 R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_1
@@ -62,7 +66,7 @@ internal data class R2ProjectArchiveAuthority(
         }
         require(
             when {
-                isRhinoRevisionOne -> true
+                isRhinoRevisionOne || isRhinoRevisionTwo -> true
                 isNodeRevisionOne ->
                     rawConfigAuthority == null &&
                         packageMetadataAuthority == null &&

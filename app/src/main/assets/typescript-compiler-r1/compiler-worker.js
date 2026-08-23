@@ -146,7 +146,7 @@ const deriveInputInventoryFingerprint = async (records) => {
 };
 const isExecutableProjectSourcePath = (path) =>
     path.startsWith("/sources/") &&
-    path.endsWith(".ts") &&
+    (path.endsWith(".ts") || path.endsWith(".tsx")) &&
     !path.endsWith(".d.ts");
 const isNodeRevisionTwoExecutableSourcePath = (path) =>
     path.startsWith("/sources/") &&
@@ -177,7 +177,9 @@ const expectedGeneratedModulePath = (sourcePath, nodeRevisionTwo) => {
         ? ".mts"
         : nodeRevisionTwo && sourcePath.endsWith(".cts")
           ? ".cts"
-          : ".ts";
+          : sourcePath.endsWith(".tsx")
+            ? ".tsx"
+            : ".ts";
     const outputExtension = sourceExtension === ".mts"
         ? ".mjs"
         : sourceExtension === ".cts"
@@ -203,6 +205,15 @@ const provisionalRhinoProfileAuthority = Object.freeze({
     configSchemaRevision: 1,
     profileRevision: 1,
     profileSchemaRevision: 1,
+    targetProfile: "rhino",
+});
+const provisionalRhinoRevision2ProfileAuthority = Object.freeze({
+    configKind: "none",
+    configSchemaRevision: 1,
+    profileRevision: 2,
+    profileSchemaRevision: 1,
+    runtimeCapabilitiesFingerprint:
+        "49374b84060ce634472aa2db34d960892501adebb7a6b7ba3a767018a81b3d25",
     targetProfile: "rhino",
 });
 const provisionalNodeNextProfileAuthority = Object.freeze({
@@ -274,7 +285,7 @@ const controlledTsConfigAuthority = Object.freeze({
     maximumJsonNodes: 4 * 1024,
     maximumSelectorBytes: 4 * 1024,
     maximumSelectors: 512,
-    profileRevision: 1,
+    profileRevision: 2,
     profileSchemaRevision: 1,
     targetProfile: "rhino",
 });
@@ -447,7 +458,7 @@ const compilerEscapeSourcePathRejectionCodes = Object.freeze({
 const controlledTsConfigKnownOptions = new Set(
     ts.optionDeclarations.map((option) => option.name),
 );
-const controlledTsConfigEffectiveOptionsRevision = 1;
+const controlledTsConfigEffectiveOptionsRevision = 2;
 const controlledTsConfigStrictDependentOptions = new Set([
     "noImplicitAny",
     "noImplicitThis",
@@ -493,6 +504,9 @@ const controlledTsConfigCanonicalOptionKeys = Object.freeze([
     "incremental",
     "inlineSourceMap",
     "inlineSources",
+    "jsx",
+    "jsxFactory",
+    "jsxFragmentFactory",
     "module",
     "moduleDetection",
     "moduleResolution",
@@ -545,6 +559,18 @@ const matchesProvisionalRhinoProfileAuthority = (value) =>
     value.configSchemaRevision ===
         provisionalRhinoProfileAuthority.configSchemaRevision &&
     value.configKind === provisionalRhinoProfileAuthority.configKind;
+const matchesProvisionalRhinoRevision2ProfileAuthority = (value) =>
+    value.targetProfile ===
+        provisionalRhinoRevision2ProfileAuthority.targetProfile &&
+    value.profileSchemaRevision ===
+        provisionalRhinoRevision2ProfileAuthority.profileSchemaRevision &&
+    value.profileRevision ===
+        provisionalRhinoRevision2ProfileAuthority.profileRevision &&
+    value.configSchemaRevision ===
+        provisionalRhinoRevision2ProfileAuthority.configSchemaRevision &&
+    value.configKind === provisionalRhinoRevision2ProfileAuthority.configKind &&
+    value.runtimeCapabilitiesFingerprint ===
+        provisionalRhinoRevision2ProfileAuthority.runtimeCapabilitiesFingerprint;
 const matchesProvisionalNodeNextProfileAuthority = (value) =>
     value.targetProfile ===
         provisionalNodeNextProfileAuthority.targetProfile &&
@@ -570,6 +596,7 @@ const matchesProvisionalNodeNextRevision2ProfileAuthority = (value) =>
         provisionalNodeNextRevision2ProfileAuthority.runtimeCapabilitiesFingerprint;
 const matchesProvisionalConfigNoneProfileAuthority = (value) =>
     matchesProvisionalRhinoProfileAuthority(value) ||
+    matchesProvisionalRhinoRevision2ProfileAuthority(value) ||
     matchesProvisionalNodeNextProfileAuthority(value);
 const matchesControlledTsConfigAuthority = (value) =>
     value.targetProfile === controlledTsConfigAuthority.targetProfile &&
@@ -780,7 +807,7 @@ const isNodeRevisionTwoCanonicalTargetPath = (path) => {
 
 const hasControlledNodeSupportedTargetKind = (target) => {
     if (target.kind === controlledNodeResolutionTargetKinds.projectSource) {
-        return target.path.endsWith(".ts") &&
+        return (target.path.endsWith(".ts") || target.path.endsWith(".tsx")) &&
             !target.path.endsWith(".d.ts") &&
             !target.path.endsWith(".mts") &&
             !target.path.endsWith(".cts") &&
@@ -836,6 +863,7 @@ const createControlledNodeTargetIndex = (targets) => {
         const candidates = candidate.endsWith(".js")
             ? [
                   `${candidate.slice(0, -3)}.ts`,
+                  `${candidate.slice(0, -3)}.tsx`,
                   `${candidate.slice(0, -3)}.d.ts`,
               ]
             : [candidate];
@@ -3333,7 +3361,8 @@ const createReadonlyProjectVfs = (project) => {
     const isProvisionalRhinoProject =
         project !== null &&
         typeof project === "object" &&
-        matchesProvisionalRhinoProfileAuthority(project);
+        (matchesProvisionalRhinoProfileAuthority(project) ||
+            matchesProvisionalRhinoRevision2ProfileAuthority(project));
     const isProvisionalNodeNextProject =
         project !== null &&
         typeof project === "object" &&
@@ -3572,8 +3601,7 @@ const createReadonlyProjectVfs = (project) => {
             (
                 isNodeRevisionTwoProject
                     ? !isNodeRevisionTwoExecutableSourcePath(rootName)
-                    : !rootName.endsWith(".ts") ||
-                      (isConfigNoneProject && rootName.endsWith(".d.ts"))
+                    : !isExecutableProjectSourcePath(rootName)
             ) ||
             !files.has(rootName) ||
             foldedRoots.has(foldedRoot)
@@ -3629,9 +3657,7 @@ const createReadonlyProjectVfs = (project) => {
     const sourcePaths = Array.from(files.keys()).filter((path) =>
         isNodeRevisionTwoProject
             ? isNodeRevisionTwoExecutableSourcePath(path)
-            : path.startsWith("/sources/") &&
-              path.endsWith(".ts") &&
-              !path.endsWith(".d.ts"),
+            : isExecutableProjectSourcePath(path),
     );
     if (
         isConfigNoneProject &&
@@ -3672,7 +3698,10 @@ const createReadonlyProjectVfs = (project) => {
           : Object.freeze(
               [
                   ...Array.from(files.keys())
-                      .filter((path) => path.endsWith(".ts"))
+                      .filter(
+                          (path) =>
+                              path.endsWith(".ts") || path.endsWith(".tsx"),
+                      )
                       .sort(compareCodeUnits)
                       .map((path) =>
                           Object.freeze({
@@ -4011,7 +4040,9 @@ const createControlledNodeResolutionSession = (vfs, options) => {
                         target.kind ===
                         controlledNodeResolutionTargetKinds.declaration
                             ? ts.Extension.Dts
-                            : ts.Extension.Ts,
+                            : target.path.endsWith(".tsx")
+                              ? ts.Extension.Tsx
+                              : ts.Extension.Ts,
                     isExternalLibraryImport: target.path.startsWith("/packages/"),
                     resolvedFileName: target.path,
                 }),
@@ -5036,6 +5067,33 @@ const createProvisionalRhinoCompilerOptions = () => {
     return options;
 };
 
+const createProvisionalRhinoRevision2CompilerOptions = () => {
+    const options = Object.freeze({
+        allowJs: false,
+        checkJs: false,
+        ignoreDeprecations: "6.0",
+        incremental: false,
+        inlineSourceMap: false,
+        inlineSources: false,
+        jsx: ts.JsxEmit.React,
+        jsxFactory: "__autojs6Tsx",
+        jsxFragmentFactory: "__autojs6TsxFragment",
+        module: ts.ModuleKind.CommonJS,
+        moduleResolution: ts.ModuleResolutionKind.Node10,
+        newLine: ts.NewLineKind.LineFeed,
+        noEmitOnError: true,
+        noLib: false,
+        outDir: "/outputs",
+        rootDir: "/sources",
+        skipLibCheck: false,
+        sourceMap: true,
+        strict: true,
+        target: ts.ScriptTarget.ES2018,
+        types: [],
+    });
+    return options;
+};
+
 const createProvisionalNodeNextCompilerOptions = () => {
     const options = Object.freeze({
         allowJs: false,
@@ -5065,6 +5123,9 @@ const compileProject = async (project, frameToken = null) => {
     const outputBudget = { bytes: 0 };
     const sourceFileCache = new Map();
     const isControlledProject = matchesControlledTsConfigAuthority(project);
+    const isRhinoRevisionTwoProject =
+        matchesProvisionalRhinoRevision2ProfileAuthority(project) ||
+        isControlledProject;
     const isNodeRevisionTwoProject =
         project.nodeRevisionTwoProgram === true &&
         matchesProvisionalNodeNextRevision2ProfileAuthority(project);
@@ -5108,7 +5169,9 @@ const compileProject = async (project, frameToken = null) => {
             : matchesProvisionalNodeNextProfileAuthority(project) ||
                 isNodeRevisionTwoProject
               ? createProvisionalNodeNextCompilerOptions()
-              : createProvisionalRhinoCompilerOptions();
+              : isRhinoRevisionTwoProject
+                ? createProvisionalRhinoRevision2CompilerOptions()
+                : createProvisionalRhinoCompilerOptions();
         resolutionSession = isNodeRevisionTwoProject
             ? createNodeRevisionTwoResolutionSession(vfs, options)
             : isControlledProject
@@ -5390,6 +5453,13 @@ const compileProject = async (project, frameToken = null) => {
                       incremental: options.incremental,
                       inlineSourceMap: options.inlineSourceMap,
                       inlineSources: options.inlineSources,
+                      ...(isRhinoRevisionTwoProject
+                          ? {
+                                jsx: options.jsx,
+                                jsxFactory: options.jsxFactory,
+                                jsxFragmentFactory: options.jsxFragmentFactory,
+                            }
+                          : {}),
                       module: options.module,
                       moduleResolution: options.moduleResolution,
                       newLine: options.newLine,
@@ -6320,6 +6390,9 @@ const resolveControlledTsConfigEffectiveOptions = async (parsedConfig) => {
         incremental: false,
         inlineSourceMap: false,
         inlineSources: false,
+        jsx: ts.JsxEmit.React,
+        jsxFactory: "__autojs6Tsx",
+        jsxFragmentFactory: "__autojs6TsxFragment",
         module: ts.ModuleKind.CommonJS,
         moduleDetection:
             controlledTsConfigExplicitProfileDefaults.moduleDetection,
@@ -6410,7 +6483,7 @@ const resolveControlledTsConfigEffectiveOptions = async (parsedConfig) => {
 
 const controlledRootSelectionAuthority = Object.freeze({
     defaultInclude: "**/*",
-    extensions: Object.freeze([".ts"]),
+    extensions: Object.freeze([".ts", ".tsx"]),
     typeScriptVersion: "6.0.3",
 });
 
@@ -6472,7 +6545,8 @@ const selectControlledRootNames = (parsedConfig, files, entryPath) => {
         .map((file) => file.path)
         .filter(
             (path) =>
-                path.startsWith("/sources/") && path.endsWith(".ts"),
+                path.startsWith("/sources/") &&
+                (path.endsWith(".ts") || path.endsWith(".tsx")),
         )
         .map((path) => path.normalize("NFC"))
         .sort(compareCodeUnits);
@@ -6694,6 +6768,7 @@ const acceptProjectInputStart = async (message, frameToken) => {
         "entryPath",
         "runtimeCapabilitiesFingerprint",
     ]);
+    const rhinoRevision2Keys = nodeRevision2Keys;
     const nodeRevisionTwoProgramKeys = nodeRevision2Keys.concat([
         "nodeModuleOutputPolicySchemaRevision",
         "nodeModuleOutputPolicyRevision",
@@ -6759,6 +6834,10 @@ const acceptProjectInputStart = async (message, frameToken) => {
     const isConfigNoneStart =
         hasExactKeys(message, legacyKeys) &&
         matchesProvisionalConfigNoneProfileAuthority(message);
+    const isRhinoRevision2Start =
+        hasExactKeys(message, rhinoRevision2Keys) &&
+        matchesProvisionalRhinoRevision2ProfileAuthority(message) &&
+        typeof message.entryPath === "string";
     const isNodeRevision2Start =
         hasExactKeys(message, nodeRevision2Keys) &&
         matchesProvisionalNodeNextRevision2ProfileAuthority(message) &&
@@ -6922,6 +7001,7 @@ const acceptProjectInputStart = async (message, frameToken) => {
     if (
         projectOperationActive(frameToken) ||
         (!isConfigNoneStart &&
+            !isRhinoRevision2Start &&
             !hasControlledConfig &&
             !isAnyNodeRevisionTwoTransport) ||
         message.sequence !== 0 ||
@@ -6969,7 +7049,8 @@ const acceptProjectInputStart = async (message, frameToken) => {
     ) {
         throw new Error("Project input start frame is malformed or busy.");
     }
-    const entryPath = hasControlledConfig || isAnyNodeRevisionTwoTransport
+    const entryPath =
+        hasControlledConfig || isRhinoRevision2Start || isAnyNodeRevisionTwoTransport
         ? validateCanonicalVfsPath(
               message.entryPath,
               ["/sources/"],
@@ -7121,7 +7202,8 @@ const acceptProjectInputStart = async (message, frameToken) => {
         retainedFileCount: message.retainedFileCount,
         retainedInventoryFingerprint: message.retainedInventoryFingerprint,
         largestFileBytes: message.largestFileBytes,
-        runtimeCapabilitiesFingerprint: isAnyNodeRevisionTwoTransport
+        runtimeCapabilitiesFingerprint:
+            isRhinoRevision2Start || isAnyNodeRevisionTwoTransport
             ? message.runtimeCapabilitiesFingerprint
             : null,
         targetProfile: message.targetProfile,
@@ -7881,12 +7963,7 @@ const acceptProjectInputEnd = async (message, frameToken) => {
     } else {
         rootNames = state.files
             .map((file) => file.path)
-            .filter(
-                (path) =>
-                    path.startsWith("/sources/") &&
-                    path.endsWith(".ts") &&
-                    !path.endsWith(".d.ts"),
-            )
+            .filter((path) => isExecutableProjectSourcePath(path))
             .sort(compareCodeUnits);
     }
     const packageTargetAuthority =
@@ -7991,14 +8068,16 @@ const acceptProjectInputEnd = async (message, frameToken) => {
             workerSpinPhase: state.workerSpinPhase,
         },
     };
+    if (runtimeCapabilitiesFingerprint !== null) {
+        compilerProject.runtimeCapabilitiesFingerprint =
+            runtimeCapabilitiesFingerprint;
+    }
     if (isNodeRevisionTwoProgram) {
         compilerProject.nodePackageFormatCatalog = nodePackageFormatCatalog;
         compilerProject.nodeResolutionAuthority = nodeResolutionAuthority;
         compilerProject.nodeRevisionTwoProgram = true;
         compilerProject.nodeRevisionTwoProgramMode =
             nodeRevisionTwoProgramMode;
-        compilerProject.runtimeCapabilitiesFingerprint =
-            runtimeCapabilitiesFingerprint;
         compilerProject.packageMetadataCatalog = packageMetadataCatalog;
     }
     if (packageTargetAuthority !== null) {

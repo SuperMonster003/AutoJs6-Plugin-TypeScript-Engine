@@ -20,6 +20,10 @@ object TypeScriptPluginMetadata {
     internal const val ADVERTISED_CONFIG_SCHEMA_REVISION =
         TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION
     internal const val ADVERTISED_CONFIG_KIND = TypeScriptR2Contract.CONFIG_KIND_TSCONFIG
+    internal val ADVERTISED_RHINO_SUPPORTED_EXTENSIONS
+        get() = arrayOf(".ts", ".tsx")
+    internal val ADVERTISED_SUPPORTED_EXTENSIONS
+        get() = arrayOf(".ts", ".tsx", ".mts", ".cts")
     internal val ADVERTISED_NODE_PROFILE_AUTHORITY: R2CompilationProfileAuthority
         get() = R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
 
@@ -218,11 +222,11 @@ object TypeScriptPluginMetadata {
         )
         putStringArray(
             TypeScriptPluginCapabilityKeys.RHINO_SUPPORTED_EXTENSIONS,
-            TypeScriptCompilerContract.RHINO_SUPPORTED_EXTENSIONS,
+            ADVERTISED_RHINO_SUPPORTED_EXTENSIONS,
         )
         putStringArray(
             TypeScriptPluginCapabilityKeys.SUPPORTED_EXTENSIONS,
-            TypeScriptCompilerContract.SUPPORTED_EXTENSIONS,
+            ADVERTISED_SUPPORTED_EXTENSIONS,
         )
         putStringArray(
             TypeScriptPluginCapabilityKeys.TARGET_PROFILES,

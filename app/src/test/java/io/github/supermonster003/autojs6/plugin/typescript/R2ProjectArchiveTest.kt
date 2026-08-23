@@ -775,7 +775,7 @@ class R2ProjectArchiveTest {
             "\"targetProfile\":\"rhino\"" to "\"targetProfile\":\"node\"",
             "\"compilationMode\":\"development\"" to "\"compilationMode\":\"release\"",
             "\"compilerVersion\":\"6.0.3\"" to "\"compilerVersion\":\"6.0.2\"",
-            "\"profileRevision\":1" to "\"profileRevision\":2",
+            "\"profileRevision\":2" to "\"profileRevision\":3",
             "\"configSchemaRevision\":1" to "\"configSchemaRevision\":2",
             "\"configKind\":\"none\"" to "\"configKind\":\"tsconfig\"",
         )
@@ -1543,7 +1543,10 @@ class R2ProjectArchiveTest {
 
     @Test
     fun nodeProfileRequiresItsExactTrustedDeclarationLayer() {
-        val fixture = validFixture()
+        val fixture = validFixture(
+            profileAuthority =
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1,
+        )
         val nodeRuntimeFingerprint =
             R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_1
                 .runtimeCapabilitiesFingerprint
@@ -1582,7 +1585,10 @@ class R2ProjectArchiveTest {
             .getValue(R2InputArchiveSchemaV1.REQUEST_MANIFEST_PATH)
             .toString(StandardCharsets.UTF_8)
             .replace("\"targetProfile\":\"rhino\"", "\"targetProfile\":\"node\"")
-            .replace(RUNTIME_FINGERPRINT, nodeRuntimeFingerprint)
+            .replace(
+                fixture.authority.runtimeCapabilitiesFingerprint,
+                nodeRuntimeFingerprint,
+            )
             .replace(
                 "\"declarationProfileFingerprint\":\"" +
                     fixture.trustedDeclarations.profileFingerprint + "\"",

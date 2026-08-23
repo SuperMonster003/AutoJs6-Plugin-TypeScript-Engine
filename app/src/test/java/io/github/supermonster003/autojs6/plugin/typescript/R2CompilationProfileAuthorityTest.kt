@@ -19,7 +19,7 @@ class R2CompilationProfileAuthorityTest {
 
         assertEquals(R2ProjectProfile.PROVISIONAL_RHINO, authority.profile)
         assertEquals(TypeScriptCompilerContract.PROFILE_SCHEMA_REVISION, authority.profileSchemaRevision)
-        assertEquals(1, authority.profileRevision)
+        assertEquals(2, authority.profileRevision)
         assertEquals(1, authority.configSchemaRevision)
         assertEquals("none", authority.configKind)
         assertEquals(
@@ -30,6 +30,9 @@ class R2CompilationProfileAuthorityTest {
                 "incremental",
                 "inlineSourceMap",
                 "inlineSources",
+                "jsx",
+                "jsxFactory",
+                "jsxFragmentFactory",
                 "module",
                 "moduleResolution",
                 "newLine",
@@ -51,6 +54,9 @@ class R2CompilationProfileAuthorityTest {
         assertEquals(false, options.getValue("incremental"))
         assertEquals(false, options.getValue("inlineSourceMap"))
         assertEquals(false, options.getValue("inlineSources"))
+        assertNumber(2, options.getValue("jsx"))
+        assertEquals("__autojs6Tsx", options.getValue("jsxFactory"))
+        assertEquals("__autojs6TsxFragment", options.getValue("jsxFragmentFactory"))
         assertNumber(1, options.getValue("module"))
         assertNumber(2, options.getValue("moduleResolution"))
         assertNumber(1, options.getValue("newLine"))
@@ -73,6 +79,9 @@ class R2CompilationProfileAuthorityTest {
                 incremental = options.getValue("incremental") as Boolean,
                 inlineSourceMap = options.getValue("inlineSourceMap") as Boolean,
                 inlineSources = options.getValue("inlineSources") as Boolean,
+                jsx = options.requireInt("jsx"),
+                jsxFactory = options.getValue("jsxFactory") as String,
+                jsxFragmentFactory = options.getValue("jsxFragmentFactory") as String,
                 module = options.requireInt("module"),
                 moduleResolution = options.requireInt("moduleResolution"),
                 newLine = options.requireInt("newLine"),
@@ -172,6 +181,7 @@ class R2CompilationProfileAuthorityTest {
         assertSame(revisionOne, R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT)
         assertEquals(
             listOf(
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1,
                 R2CompilationProfileRegistry.PROVISIONAL_RHINO,
                 revisionOne,
                 revisionTwo,

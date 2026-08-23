@@ -181,8 +181,13 @@ object R0CompilationGate {
         ) {
             return false
         }
-        return TypeScriptCompilerContract.supportedExtensions(targetProfile)
-            .any(path::endsWith)
+        val supportedExtensions =
+            if (targetProfile == TypeScriptCompilerContract.PROFILE_RHINO) {
+                TypeScriptPluginMetadata.ADVERTISED_RHINO_SUPPORTED_EXTENSIONS
+            } else {
+                TypeScriptCompilerContract.supportedExtensions(targetProfile)
+            }
+        return supportedExtensions.any(path::endsWith)
     }
 
     private fun rejected(

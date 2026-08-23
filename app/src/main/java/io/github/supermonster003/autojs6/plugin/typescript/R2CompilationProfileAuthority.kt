@@ -66,16 +66,28 @@ internal object R2CompilationProfileRegistry {
     const val CONFIG_SCHEMA_REVISION = 1
     const val CONFIG_KIND_NONE = TypeScriptR2Contract.CONFIG_KIND_NONE
 
-    private const val PROVISIONAL_RHINO_PROFILE_REVISION =
+    private const val PROVISIONAL_RHINO_REVISION_1_PROFILE_REVISION =
         R2NodeModuleOutputPolicy.RHINO_PROFILE_REVISION
+    private const val PROVISIONAL_RHINO_REVISION_2_PROFILE_REVISION =
+        R2NodeModuleOutputPolicy.RHINO_TSX_PROFILE_REVISION
     private const val PROVISIONAL_NODE_NEXT_REVISION_1_PROFILE_REVISION =
         R2NodeModuleOutputPolicy.NODE_LEGACY_PROFILE_REVISION
     private const val PROVISIONAL_NODE_NEXT_REVISION_2_PROFILE_REVISION =
         R2NodeModuleOutputPolicy.NODE_PROFILE_REVISION
 
-    private const val PROVISIONAL_RHINO_FIXED_OPTIONS_JSON =
+    private const val PROVISIONAL_RHINO_REVISION_1_FIXED_OPTIONS_JSON =
         "{\"allowJs\":false,\"checkJs\":false,\"ignoreDeprecations\":\"6.0\"," +
             "\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false," +
+            "\"module\":1,\"moduleResolution\":2,\"newLine\":1," +
+            "\"noEmitOnError\":true,\"noLib\":false,\"outDir\":\"/outputs\"," +
+            "\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true," +
+            "\"strict\":true,\"target\":5,\"types\":[]}"
+
+    private const val PROVISIONAL_RHINO_REVISION_2_FIXED_OPTIONS_JSON =
+        "{\"allowJs\":false,\"checkJs\":false,\"ignoreDeprecations\":\"6.0\"," +
+            "\"incremental\":false,\"inlineSourceMap\":false,\"inlineSources\":false," +
+            "\"jsx\":2,\"jsxFactory\":\"__autojs6Tsx\"," +
+            "\"jsxFragmentFactory\":\"__autojs6TsxFragment\"," +
             "\"module\":1,\"moduleResolution\":2,\"newLine\":1," +
             "\"noEmitOnError\":true,\"noLib\":false,\"outDir\":\"/outputs\"," +
             "\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true," +
@@ -89,9 +101,11 @@ internal object R2CompilationProfileRegistry {
             "\"rootDir\":\"/sources\",\"skipLibCheck\":false,\"sourceMap\":true," +
             "\"strict\":true,\"target\":5,\"types\":[]}"
 
-    val PROVISIONAL_RHINO: R2CompilationProfileAuthority = run {
+    val PROVISIONAL_RHINO_REVISION_1: R2CompilationProfileAuthority = run {
         val effectiveOptionsFingerprint = R2Digests.sha256(
-            PROVISIONAL_RHINO_FIXED_OPTIONS_JSON.toByteArray(StandardCharsets.US_ASCII),
+            PROVISIONAL_RHINO_REVISION_1_FIXED_OPTIONS_JSON.toByteArray(
+                StandardCharsets.US_ASCII,
+            ),
         )
         val runtimeCapabilitiesCanonicalInput = buildString {
             append("autojs6.typescript.runtime-capabilities.provisional")
@@ -100,7 +114,7 @@ internal object R2CompilationProfileRegistry {
             append("|profileSchemaRevision=")
             append(TypeScriptCompilerContract.PROFILE_SCHEMA_REVISION)
             append("|profileRevision=")
-            append(PROVISIONAL_RHINO_PROFILE_REVISION)
+            append(PROVISIONAL_RHINO_REVISION_1_PROFILE_REVISION)
             append("|configSchemaRevision=")
             append(CONFIG_SCHEMA_REVISION)
             append("|configKind=")
@@ -132,11 +146,11 @@ internal object R2CompilationProfileRegistry {
         R2CompilationProfileAuthority(
             profile = R2ProjectProfile.PROVISIONAL_RHINO,
             profileSchemaRevision = TypeScriptCompilerContract.PROFILE_SCHEMA_REVISION,
-            profileRevision = PROVISIONAL_RHINO_PROFILE_REVISION,
+            profileRevision = PROVISIONAL_RHINO_REVISION_1_PROFILE_REVISION,
             configSchemaRevision = CONFIG_SCHEMA_REVISION,
             configKind = CONFIG_KIND_NONE,
             effectiveOptions = R2ProjectEffectiveOptions.PROVISIONAL_RHINO,
-            canonicalEffectiveOptionsJson = PROVISIONAL_RHINO_FIXED_OPTIONS_JSON,
+            canonicalEffectiveOptionsJson = PROVISIONAL_RHINO_REVISION_1_FIXED_OPTIONS_JSON,
             effectiveOptionsFingerprint = effectiveOptionsFingerprint,
             runtimeCapabilitiesCanonicalInput = runtimeCapabilitiesCanonicalInput,
             runtimeCapabilitiesFingerprint = R2Digests.sha256(
@@ -144,6 +158,76 @@ internal object R2CompilationProfileRegistry {
             ),
         )
     }
+
+    /**
+     * Rhino revision 2 keeps the revision-1 runtime target and adds controlled classic JSX
+     * lowering for `.tsx` sources. The private factory names are implemented by the AutoJs6 UI
+     * runtime and are not caller-controlled compiler options.
+     */
+    val PROVISIONAL_RHINO_REVISION_2: R2CompilationProfileAuthority = run {
+        val effectiveOptionsFingerprint = R2Digests.sha256(
+            PROVISIONAL_RHINO_REVISION_2_FIXED_OPTIONS_JSON.toByteArray(
+                StandardCharsets.US_ASCII,
+            ),
+        )
+        val runtimeCapabilitiesCanonicalInput = buildString {
+            append("autojs6.typescript.runtime-capabilities.provisional")
+            append("|runtimeCapabilitySchemaRevision=")
+            append(TypeScriptCompilerContract.RUNTIME_CAPABILITY_SCHEMA_REVISION)
+            append("|profileSchemaRevision=")
+            append(TypeScriptCompilerContract.PROFILE_SCHEMA_REVISION)
+            append("|profileRevision=")
+            append(PROVISIONAL_RHINO_REVISION_2_PROFILE_REVISION)
+            append("|configSchemaRevision=")
+            append(CONFIG_SCHEMA_REVISION)
+            append("|configKind=")
+            append(CONFIG_KIND_NONE)
+            append("|profile=")
+            append(TypeScriptCompilerContract.PROFILE_RHINO)
+            append("|extensions=.ts,.tsx")
+            append("|defaultLibrary=/declarations/lib.es2018.d.ts")
+            append("|compilerApi=createIncrementalProgram")
+            append("|allowJs=false")
+            append("|checkJs=false")
+            append("|ignoreDeprecations=6.0")
+            append("|incremental=false")
+            append("|inlineSourceMap=false")
+            append("|inlineSources=false")
+            append("|jsx=React")
+            append("|jsxFactory=__autojs6Tsx")
+            append("|jsxFragmentFactory=__autojs6TsxFragment")
+            append("|module=CommonJS")
+            append("|moduleResolution=Node10")
+            append("|newLine=LF")
+            append("|noEmitOnError=true")
+            append("|noLib=false")
+            append("|outDir=/outputs")
+            append("|rootDir=/sources")
+            append("|skipLibCheck=false")
+            append("|sourceMap=true")
+            append("|strict=true")
+            append("|target=ES2018")
+            append("|types=[]")
+        }
+        R2CompilationProfileAuthority(
+            profile = R2ProjectProfile.PROVISIONAL_RHINO,
+            profileSchemaRevision = TypeScriptCompilerContract.PROFILE_SCHEMA_REVISION,
+            profileRevision = PROVISIONAL_RHINO_REVISION_2_PROFILE_REVISION,
+            configSchemaRevision = CONFIG_SCHEMA_REVISION,
+            configKind = CONFIG_KIND_NONE,
+            effectiveOptions = R2ProjectEffectiveOptions.PROVISIONAL_RHINO_TSX,
+            canonicalEffectiveOptionsJson = PROVISIONAL_RHINO_REVISION_2_FIXED_OPTIONS_JSON,
+            effectiveOptionsFingerprint = effectiveOptionsFingerprint,
+            runtimeCapabilitiesCanonicalInput = runtimeCapabilitiesCanonicalInput,
+            runtimeCapabilitiesFingerprint = R2Digests.sha256(
+                runtimeCapabilitiesCanonicalInput.toByteArray(StandardCharsets.US_ASCII),
+            ),
+        )
+    }
+
+    /** Current Rhino authority advertised to hosts; revision 1 remains exact and admitted. */
+    val PROVISIONAL_RHINO: R2CompilationProfileAuthority
+        get() = PROVISIONAL_RHINO_REVISION_2
 
     /**
      * P1 config-none NodeNext authority. P2 deliberately owns .mts/.cts admission and generated
@@ -284,13 +368,21 @@ internal object R2CompilationProfileRegistry {
     )
 
     val registeredAuthorities: List<R2CompilationProfileAuthority> = listOf(
+        PROVISIONAL_RHINO_REVISION_1,
         PROVISIONAL_RHINO,
         PROVISIONAL_NODE_NEXT_REVISION_1,
         PROVISIONAL_NODE_NEXT_REVISION_2,
     )
 
     init {
-        check(PROVISIONAL_RHINO.profileRevision == R2NodeModuleOutputPolicy.RHINO_PROFILE_REVISION)
+        check(
+            PROVISIONAL_RHINO_REVISION_1.profileRevision ==
+                R2NodeModuleOutputPolicy.RHINO_PROFILE_REVISION,
+        )
+        check(
+            PROVISIONAL_RHINO.profileRevision ==
+                R2NodeModuleOutputPolicy.RHINO_TSX_PROFILE_REVISION,
+        )
         check(
             PROVISIONAL_NODE_NEXT_REVISION_1.profileRevision ==
                 R2NodeModuleOutputPolicy.NODE_LEGACY_PROFILE_REVISION,
@@ -317,6 +409,7 @@ internal object R2CompilationProfileRegistry {
         }
 
     private val endToEndAdmittedAuthorities: Set<R2CompilationProfileAuthority> = setOf(
+        PROVISIONAL_RHINO_REVISION_1,
         PROVISIONAL_RHINO,
         PROVISIONAL_NODE_NEXT_REVISION_1,
         PROVISIONAL_NODE_NEXT_REVISION_2,

@@ -37,7 +37,8 @@ internal data class R2ControlledTsConfigExplicitProfileDefaults(
  * The historical config-none authority keeps its exact 18-key canonical JSON. This type is a
  * separate schema-2 overlay: it combines those fixed Rhino profile values with all 18 C1
  * user-controllable booleans, makes every strict-family value explicit, freezes seven previously
- * computed TypeScript 6.0.3 profile defaults, and owns the resulting 41-key canonical JSON and
+ * computed TypeScript 6.0.3 profile defaults plus the private TSX lowering contract, and owns the
+ * resulting 44-key canonical JSON and
  * SHA-256.
  */
 internal class R2ControlledTsConfigEffectiveOptions private constructor(
@@ -112,7 +113,7 @@ internal class R2ControlledTsConfigEffectiveOptions private constructor(
 
     companion object {
 
-        const val REVISION = 1
+        const val REVISION = 2
 
         val canonicalOptionKeys: List<String> = Collections.unmodifiableList(
             listOf(
@@ -127,6 +128,9 @@ internal class R2ControlledTsConfigEffectiveOptions private constructor(
                 "incremental",
                 "inlineSourceMap",
                 "inlineSources",
+                "jsx",
+                "jsxFactory",
+                "jsxFragmentFactory",
                 "module",
                 "moduleDetection",
                 "moduleResolution",
@@ -241,6 +245,9 @@ internal class R2ControlledTsConfigEffectiveOptions private constructor(
                 "incremental" to compilerOptions.incremental,
                 "inlineSourceMap" to compilerOptions.inlineSourceMap,
                 "inlineSources" to compilerOptions.inlineSources,
+                "jsx" to requireNotNull(compilerOptions.jsx),
+                "jsxFactory" to requireNotNull(compilerOptions.jsxFactory),
+                "jsxFragmentFactory" to requireNotNull(compilerOptions.jsxFragmentFactory),
                 "module" to compilerOptions.module,
                 "moduleDetection" to explicitProfileDefaults.moduleDetection,
                 "moduleResolution" to compilerOptions.moduleResolution,

@@ -316,12 +316,14 @@ class R2CompilationProbeProtocolTest {
         val expected =
                 "autojs6.typescript.runtime-capabilities.provisional|" +
                 "runtimeCapabilitySchemaRevision=1|profileSchemaRevision=1|" +
-                "profileRevision=1|configSchemaRevision=1|configKind=none|" +
-                "profile=rhino|extensions=.ts|" +
+                "profileRevision=2|configSchemaRevision=1|configKind=none|" +
+                "profile=rhino|extensions=.ts,.tsx|" +
                 "defaultLibrary=/declarations/lib.es2018.d.ts|" +
                 "compilerApi=createIncrementalProgram|allowJs=false|checkJs=false|" +
                 "ignoreDeprecations=6.0|incremental=false|inlineSourceMap=false|" +
-                "inlineSources=false|module=CommonJS|moduleResolution=Node10|" +
+                "inlineSources=false|jsx=React|jsxFactory=__autojs6Tsx|" +
+                "jsxFragmentFactory=__autojs6TsxFragment|module=CommonJS|" +
+                "moduleResolution=Node10|" +
                 "newLine=LF|noEmitOnError=true|noLib=false|outDir=/outputs|" +
                 "rootDir=/sources|skipLibCheck=false|sourceMap=true|strict=true|" +
                 "target=ES2018|types=[]"
