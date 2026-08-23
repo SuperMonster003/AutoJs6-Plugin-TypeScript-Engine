@@ -322,9 +322,21 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
       - [x] 宿主可静态发现的 Node `.ts` 项目已全部先编译再执行，不再经过
         stripping；编译器缺失、package authority 不匹配或项目快照变化均直接
         失败，不静默执行原 TypeScript。
-      - [ ] `NodeTypeScriptStripper` 及 Node Runtime 插件面向显式 raw `.ts`/
-        动态入口的兼容路径尚未挂 feature flag 或删除。需要先盘点这些非宿主
-        静态项目入口，再完成一个版本的迁移观察，因此 S4-2 整项仍不勾选。
+      - [x] Node Runtime 的 entry、预装 `moduleSources`、
+        `runtimeModuleSources` 与动态 provider 四条 raw TypeScript 边界已统一受
+        请求级临时开关 `legacyTypeScriptStrippingEnabled` 控制；缺省值为
+        `false`，旧调用方省略该键也会 fail closed。AutoJs6 宿主始终显式发送
+        `false`，生产链不会进入旧 stripping。原始 `.ts/.mts/.cts` 稳定返回
+        `ERR_AUTOJS6_TYPESCRIPT_COMPILER_REQUIRED`，`.tsx` 则继续保持既有
+        `ERR_AUTOJS6_TYPESCRIPT_UNSUPPORTED_EXTENSION` 语义；结果诊断会明确记录
+        `legacy_stripping_enabled=false` 与 `precompiled_only`。
+      - [x] Node Runtime 提交 `8e08b3b`，AutoJs6 宿主提交 `d282ff3e0`。
+        Node 单元测试、API 镜像门禁、宿主聚焦构建均通过；最新 APK 上的完整
+        Node 一致性套件在 API 35 / 31 / 37 分别通过 7/7，宿主
+        `.mts/.cts -> compiler -> Node` 聚焦用例在同三台设备分别通过 1/1。
+      - [ ] 为覆盖一个已发布版本的迁移观察期，旧 erasure 实现暂时只保留在
+        显式 opt-in 后；当前生产宿主没有任何 `true` 调用点。观察期结束后删除
+        兼容键、正则 erasure 实现及其专属兼容测试，再勾选 S4-2 整项。
 - [x] **S4-3 多文件项目**: 宿主项目 (project.json + tsconfig.json)
       按目录打包进 input archive; 插件内已有的受控模块解析
       (C6/C7 成果) 直接消费; import 图、循环依赖、JSON 导入按
