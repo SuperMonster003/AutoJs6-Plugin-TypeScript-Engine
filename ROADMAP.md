@@ -27,7 +27,7 @@
 - **进程隔离成熟**: `:typescript_compiler` 独立进程、Binder/FD 传输、
   超时/取消/进程死亡恢复均已在 API 24–35 真机验证过。
 
-当前真实缺口 (本路线要解决的):
+重写时的真实缺口 (本路线要解决的):
 
 1. **宿主一行消费代码都没有**: AutoJs6 主仓库没有 compiler client、
    没有 `.ts` 路由、没有引擎适配。插件编译得再好, 用户脚本也跑不起来。
@@ -49,7 +49,7 @@
 | 阶段 | 主题 | 用户可感知结果 | 状态 |
 |---|---|---|---|
 | S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 已完成 (6/6 必需；S1-7 可选) |
-| S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 未开始 |
+| S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 进行中 (5/6；核心执行链已通) |
 | S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 未开始 |
 | S4 | Node profile 与项目级能力 | `.mts/.cts`、多文件项目、tsconfig 常用项 | 未开始 |
 | S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 未开始 |
@@ -136,30 +136,52 @@ AutoJs6 主仓库**, 本插件仓库只配合联调与修 bug。
 完成标志 = 用户在 AutoJs6 里点击运行一个单文件 `hello.ts`,
 Rhino 执行并输出 toast。
 
-- [ ] **S2-1 同步 typescript-api**: `plugin-api/typescript-api` 以
+- [x] **S2-1 同步 typescript-api**: `plugin-api/typescript-api` 以
       源码或 AAR 进入 AutoJs6 主仓库; 主 APK manifest 加 compiler
       service 的 package visibility query。
-- [ ] **S2-2 薄 compiler client**: 基于既有 AidlPluginHost 绑定
+      宿主提交 `240083c00` 已按插件源码同步 API module、Gradle 依赖与
+      manifest query，并通过 API 单测及宿主 Kotlin 编译。
+- [x] **S2-2 薄 compiler client**: 基于既有 AidlPluginHost 绑定
       `org.autojs.plugin.typescript.COMPILER`, 实现 contract
       version/hash 校验、prewarm、startCompilation + ack、进度/完成
       回调、超时与错误透传。错误映射为可本地化的用户消息
       ("未安装 TypeScript 插件" 等)。
-- [ ] **S2-3 输入归档构造器**: 宿主把单个 `.ts` 文件 (虚拟单文件项目)
+      宿主提交 `0938deed2` 已实现独占 binding lease、完整握手、取消/超时、
+      严格 terminal/output 解析与 capability 门禁；`1f986545d` 为编译器
+      缺失/停用场景提供本地化的插件中心安装/启用指引。停用插件的 API 37
+      负向探针已精确观察到中文指引并确认无引擎执行。
+- [x] **S2-3 输入归档构造器**: 宿主把单个 `.ts` 文件 (虚拟单文件项目)
       打成 input-archive v1 ZIP + request-manifest.json, 计算所需
       SHA-256。多文件项目此阶段不做。
-- [ ] **S2-4 路由改造**: `.ts` 从 Node 文件判断中移除, 成为独立
+      宿主提交 `0938deed2` 已实现确定性 ZIP、严格 JSON、逐项 SHA-256、
+      有界 output archive/diagnostics 解析；中文文件名经真实 Public Binder
+      编译并保留 UTF-8 source identity。
+- [x] **S2-4 路由改造**: `.ts` 从 Node 文件判断中移除, 成为独立
       TypeScript source kind; 默认引擎 Rhino; `.d.ts` 不可执行;
-      `.tsx` 明确报错。路由优先级 directive > project type >
-      TS default > Rhino。
-- [ ] **S2-5 执行前编译挂接**: 在 RunnableScriptExecution 创建引擎前
+      `.tsx` 明确报错。当前路由优先级为显式 Node project > 普通单文件
+      TypeScript > Rhino fallback；普通 `.ts` 中尚未支持的 Node/UI directive
+      明确失败，不静默改走其他引擎。
+      宿主提交 `6d6450315` 引入 `TypeScriptFileSource` 并覆盖普通文件、编辑器
+      cache/semantic path 路由；`1f986545d` 对普通 TSX 与声明文件返回本地化
+      明确错误。显式 Node project 保留既有行为，Node profile 统一留到 S4。
+- [x] **S2-5 执行前编译挂接**: 在 RunnableScriptExecution 创建引擎前
       调用编译; 编译产物 (JS 字符串) 直接喂给 RhinoJavaScriptEngine;
       编译失败不创建引擎, 诊断以现有 console 错误格式展示 (文件/行/列
       文本即可, 精确映射留给 S3)。主线程不同步等待。
+      宿主提交 `6c1a893af` 将编译前移到脚本工作线程、引擎创建之前；成功
+      产物封装为只读 compiled source，Source Map/diagnostics 随源进入 Rhino，
+      loop 执行只编译一次。TS2322 负向测试确认 marker 未执行且
+      `execution.engine == null`。
 - [ ] **S2-6 冒烟脚本集**: 5–10 个真实脚本 (toast、ui 布局、
       click/swipe、http、images 截图) 的 `.ts` 版本手工跑通。
       **跑不通的直接修** (插件或宿主), 每修一个记 CHANGELOG。
+      当前已完成 `hello.ts` 的 toast + 后续 Java marker 端到端 smoke，以及
+      UTF-8 emit、类型错误 fail-closed、TSX 明确拒绝；API 31/35/37 各 5 项
+      共 15/15 通过。API 37 上停用 Node Runtime 插件后 `hello.ts` 仍 1/1
+      通过，且测试后已恢复插件原状态。其余真实 API 脚本仍待补齐，故本项
+      保持未勾选。
 
-退出标准: Node Runtime 插件未安装的设备上, 上述冒烟脚本全部可运行;
+退出标准: Node Runtime 插件未安装或停用的设备上, 上述冒烟脚本全部可运行;
 TypeScript 插件未安装时给出明确安装提示而非崩溃。
 
 ## S3 体验补齐: 诊断、声明、栈映射
