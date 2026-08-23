@@ -243,6 +243,18 @@ object TypeScriptPluginMetadata {
             TypeScriptR2Contract.KEY_NODE_RUNTIME_CAPABILITIES_FINGERPRINT,
             authority.runtimeCapabilitiesFingerprint,
         )
+        putInt(
+            TypeScriptR2Contract.KEY_PACKAGE_METADATA_SCHEMA_REVISION,
+            R2PackageMetadataPolicy.SCHEMA_REVISION,
+        )
+        putInt(
+            TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_REVISION,
+            R2PackageMetadataPolicy.POLICY_REVISION,
+        )
+        putString(
+            TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_FINGERPRINT,
+            R2PackageMetadataPolicy.fingerprint,
+        )
     }
 
     private fun nodeDeclarationProfileFingerprint(context: Context): String? = runCatching {

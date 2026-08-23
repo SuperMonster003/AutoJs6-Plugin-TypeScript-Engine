@@ -98,7 +98,7 @@ class R2CompilationProbeProtocolTest {
     }
 
     @Test
-    fun publicMetadataDetectionCoversEveryAdditiveConfigIdentityKey() {
+    fun publicMetadataDetectionCoversEveryAdditiveAuthorityKey() {
         assertEquals(
             setOf(
                 TypeScriptR2Contract.KEY_INPUT_ARCHIVE_SCHEMA_REVISION,
@@ -112,6 +112,10 @@ class R2CompilationProbeProtocolTest {
                 TypeScriptR2Contract.KEY_CONFIG_SHA256,
                 TypeScriptR2Contract.KEY_CONFIG_POLICY_REVISION,
                 TypeScriptR2Contract.KEY_CONFIG_POLICY_FINGERPRINT,
+                TypeScriptR2Contract.KEY_PACKAGE_METADATA_SCHEMA_REVISION,
+                TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_REVISION,
+                TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_FINGERPRINT,
+                TypeScriptR2Contract.KEY_PACKAGE_METADATA_INVENTORY_FINGERPRINT,
             ),
             R2PublicCompilationProtocol.PUBLIC_METADATA_KEYS,
         )
@@ -378,6 +382,53 @@ class R2CompilationProbeProtocolTest {
             R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
                 .runtimeCapabilitiesFingerprint,
             controls.runtimeCapabilitiesFingerprint,
+        )
+    }
+
+    @Test
+    fun completeNodePackageMetadataCreatesBoundPublicAuthority() {
+        val metadata = validNodePackageMetadata()
+        val classification = classifyPublic(metadata)
+        val controls = requireNotNull(classification.controls)
+        val packageAuthority = requireNotNull(controls.packageMetadataAuthority)
+
+        assertEquals(
+            R2PublicCompilationDisposition.ACCEPTED_CONFIG_NONE,
+            classification.disposition,
+        )
+        assertEquals(SHA_F, packageAuthority.fingerprint)
+        assertEquals(R2PackageMetadataPolicy.POLICY_REVISION, packageAuthority.policyRevision)
+        assertEquals(R2PackageMetadataPolicy.fingerprint, packageAuthority.policyFingerprint)
+    }
+
+    @Test
+    fun packageMetadataAuthorityIsAllOrNothingAndNodeRevisionTwoOnly() {
+        assertEquals(
+            TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+            classifyPublic(
+                validNodePublicMetadata().copy(
+                    packageMetadataSchemaRevision = R2PackageMetadataPolicy.SCHEMA_REVISION,
+                ),
+            ).errorCode,
+        )
+        assertEquals(
+            TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
+            classifyPublic(
+                validPublicMetadata().copy(
+                    packageMetadataSchemaRevision = R2PackageMetadataPolicy.SCHEMA_REVISION,
+                    packageMetadataPolicyRevision = R2PackageMetadataPolicy.POLICY_REVISION,
+                    packageMetadataPolicyFingerprint = R2PackageMetadataPolicy.fingerprint,
+                    packageMetadataInventoryFingerprint = SHA_F,
+                ),
+            ).errorCode,
+        )
+        assertEquals(
+            TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
+            classifyPublic(
+                validNodePackageMetadata().copy(
+                    packageMetadataPolicyRevision = R2PackageMetadataPolicy.POLICY_REVISION + 1,
+                ),
+            ).errorCode,
         )
     }
 
@@ -696,6 +747,13 @@ class R2CompilationProbeProtocolTest {
             runtimeCapabilitiesFingerprint = authority.runtimeCapabilitiesFingerprint,
         )
     }
+
+    private fun validNodePackageMetadata() = validNodePublicMetadata().copy(
+        packageMetadataSchemaRevision = R2PackageMetadataPolicy.SCHEMA_REVISION,
+        packageMetadataPolicyRevision = R2PackageMetadataPolicy.POLICY_REVISION,
+        packageMetadataPolicyFingerprint = R2PackageMetadataPolicy.fingerprint,
+        packageMetadataInventoryFingerprint = SHA_F,
+    )
 
     private fun validControlledTsConfigMetadata() = validPublicMetadata().copy(
         configSchemaRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION,

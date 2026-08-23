@@ -159,6 +159,22 @@
       "targetFiles": null,
       "sourceFiles": [
         {
+          "path": "/sources/config.json",
+          "text": "{\"answer\":42}\n"
+        },
+        {
+          "path": "/sources/legacy.cjs",
+          "text": "module.exports = 42;\n"
+        },
+        {
+          "path": "/sources/legacy.js",
+          "text": "export const legacy = 42;\n"
+        },
+        {
+          "path": "/sources/legacy.mjs",
+          "text": "export const legacy = 42;\n"
+        },
+        {
           "path": "/sources/main.ts",
           "text": "import { util } from \"#util\";\nexport const answer = util;\n"
         },

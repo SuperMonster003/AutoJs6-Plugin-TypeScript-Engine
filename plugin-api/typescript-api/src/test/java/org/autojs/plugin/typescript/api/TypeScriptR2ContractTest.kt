@@ -202,6 +202,22 @@ class TypeScriptR2ContractTest {
             TypeScriptR2Contract.KEY_CONFIG_POLICY_FINGERPRINT,
         )
         assertEquals(
+            "packageMetadataSchemaRevision",
+            TypeScriptR2Contract.KEY_PACKAGE_METADATA_SCHEMA_REVISION,
+        )
+        assertEquals(
+            "packageMetadataPolicyRevision",
+            TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_REVISION,
+        )
+        assertEquals(
+            "packageMetadataPolicyFingerprint",
+            TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_FINGERPRINT,
+        )
+        assertEquals(
+            "packageMetadataInventoryFingerprint",
+            TypeScriptR2Contract.KEY_PACKAGE_METADATA_INVENTORY_FINGERPRINT,
+        )
+        assertEquals(
             "outputArchiveSchemaRevision",
             TypeScriptR2Contract.KEY_OUTPUT_ARCHIVE_SCHEMA_REVISION,
         )

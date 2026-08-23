@@ -154,6 +154,14 @@ const isNodeRevisionTwoExecutableSourcePath = (path) =>
     !path.endsWith(".d.ts") &&
     !path.endsWith(".d.mts") &&
     !path.endsWith(".d.cts");
+const isNodeRevisionTwoRuntimeSupportSourcePath = (path) =>
+    path.startsWith("/sources/") &&
+    (
+        path.endsWith(".js") ||
+        path.endsWith(".mjs") ||
+        path.endsWith(".cjs") ||
+        path.endsWith(".json")
+    );
 const expectedGeneratedModulePath = (sourcePath, nodeRevisionTwo) => {
     if (
         typeof sourcePath !== "string" ||
@@ -3498,6 +3506,7 @@ const createReadonlyProjectVfs = (project) => {
             isNodeRevisionTwoProject &&
             path.startsWith("/sources/") &&
             !isNodeRevisionTwoExecutableSourcePath(path) &&
+            !isNodeRevisionTwoRuntimeSupportSourcePath(path) &&
             !path.endsWith(".d.ts")
         ) {
             throw new Error(
@@ -4112,6 +4121,12 @@ const createControlledNodeResolutionSession = (vfs, options) => {
 const nodeRevisionTwoImpliedModuleFormat = (path, packageFormatCatalog) => {
     if (!isNodeRevisionTwoCanonicalTargetPath(path)) {
         throw new Error("Node revision 2 implied-format path is not canonical.");
+    }
+    if (
+        path.startsWith(declarationLayerAuthority.nodePathPrefix) &&
+        path.endsWith(".d.ts")
+    ) {
+        return "commonjs";
     }
     if (path.endsWith(".d.mts") || path.endsWith(".mts")) return "esm";
     if (path.endsWith(".d.cts") || path.endsWith(".cts")) return "commonjs";
@@ -7325,6 +7340,7 @@ const acceptProjectInputFileStart = (message) => {
         (
             (path.startsWith("/sources/") &&
                 !isNodeRevisionTwoExecutableSourcePath(path) &&
+                !isNodeRevisionTwoRuntimeSupportSourcePath(path) &&
                 !path.endsWith(".d.ts")) ||
             (path.startsWith("/declarations/") && !path.endsWith(".d.ts"))
         )

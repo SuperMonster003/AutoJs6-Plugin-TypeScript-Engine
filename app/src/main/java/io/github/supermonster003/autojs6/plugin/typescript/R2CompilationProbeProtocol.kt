@@ -117,6 +117,7 @@ internal data class R2CompilationControls(
     val profileAuthority: R2CompilationProfileAuthority =
         R2CompilationProfileRegistry.PROVISIONAL_RHINO,
     val rawConfigAuthority: R2RawProjectConfigAuthority? = null,
+    val packageMetadataAuthority: R2PackageMetadataAuthority? = null,
     val workerSpinMilliseconds: Int = 0,
     val workerSpinPhase: R2ProjectExecutionPhase? = null,
     val expandedWorkerCapacity: Boolean = false,
@@ -151,6 +152,17 @@ internal data class R2CompilationControls(
             rawConfigAuthority == null || origin != R2CompilationControlOrigin.DEBUG_PROBE,
         ) {
             "The private debug control plane cannot synthesize public raw-config authority."
+        }
+        require(
+            packageMetadataAuthority == null ||
+                (
+                    origin == R2CompilationControlOrigin.PUBLIC_PREVIEW &&
+                        profileAuthority ==
+                        R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2 &&
+                        rawConfigAuthority == null
+                    ),
+        ) {
+            "Public package metadata requires the exact Node revision-2 config-none authority."
         }
         require(
             when (origin) {
@@ -223,6 +235,7 @@ internal data class R2CompilationControls(
             requestManifestSha256 = requestManifestSha256,
             compilerOptionsJson = request.compilerOptionsJson,
             rawConfigAuthority = rawConfigAuthority,
+            packageMetadataAuthority = packageMetadataAuthority,
         )
     }
 }
@@ -245,6 +258,10 @@ internal data class R2PublicCompilationMetadata(
     val configSha256: String? = null,
     val configPolicyRevision: Int? = null,
     val configPolicyFingerprint: String? = null,
+    val packageMetadataSchemaRevision: Int? = null,
+    val packageMetadataPolicyRevision: Int? = null,
+    val packageMetadataPolicyFingerprint: String? = null,
+    val packageMetadataInventoryFingerprint: String? = null,
 )
 
 internal enum class R2PublicCompilationDisposition {
@@ -289,6 +306,10 @@ internal object R2PublicCompilationProtocol {
         TypeScriptR2Contract.KEY_CONFIG_SHA256,
         TypeScriptR2Contract.KEY_CONFIG_POLICY_REVISION,
         TypeScriptR2Contract.KEY_CONFIG_POLICY_FINGERPRINT,
+        TypeScriptR2Contract.KEY_PACKAGE_METADATA_SCHEMA_REVISION,
+        TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_REVISION,
+        TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_FINGERPRINT,
+        TypeScriptR2Contract.KEY_PACKAGE_METADATA_INVENTORY_FINGERPRINT,
     )
 
     /** Formal authority shared by the public and same-UID debug control planes. */
@@ -372,6 +393,19 @@ internal object R2PublicCompilationProtocol {
         val hasAnyConfigIdentity = configFieldPresence.any { present -> present }
         val hasCompleteConfigIdentity = configFieldPresence.all { present -> present }
         if (hasAnyConfigIdentity && !hasCompleteConfigIdentity) return malformed()
+        val packageMetadataFieldPresence = listOf(
+            metadata.packageMetadataSchemaRevision != null,
+            metadata.packageMetadataPolicyRevision != null,
+            metadata.packageMetadataPolicyFingerprint != null,
+            metadata.packageMetadataInventoryFingerprint != null,
+        )
+        val hasAnyPackageMetadataIdentity =
+            packageMetadataFieldPresence.any { present -> present }
+        val hasCompletePackageMetadataIdentity =
+            packageMetadataFieldPresence.all { present -> present }
+        if (hasAnyPackageMetadataIdentity && !hasCompletePackageMetadataIdentity) {
+            return malformed()
+        }
 
         val baseDigestsValid = runCatching {
             R2Digests.requireLowerSha256(
@@ -421,6 +455,19 @@ internal object R2PublicCompilationProtocol {
             }.isSuccess
             if (!configIdentityValid) return malformed()
         }
+        if (hasCompletePackageMetadataIdentity) {
+            val packageIdentityValid = runCatching {
+                R2Digests.requireLowerSha256(
+                    requireNotNull(metadata.packageMetadataPolicyFingerprint),
+                    "R2 package metadata policy fingerprint",
+                )
+                R2Digests.requireLowerSha256(
+                    requireNotNull(metadata.packageMetadataInventoryFingerprint),
+                    "R2 package metadata inventory fingerprint",
+                )
+            }.isSuccess
+            if (!packageIdentityValid) return malformed()
+        }
 
         val profileAuthority = runCatching {
             R2CompilationProfileRegistry.requireExactContractValue(
@@ -460,6 +507,23 @@ internal object R2PublicCompilationProtocol {
                 if (configSchemaRevision != profileAuthority.configSchemaRevision) {
                     return unsupportedAuthority()
                 }
+                if (
+                    hasCompletePackageMetadataIdentity &&
+                    (
+                        profileAuthority !=
+                            R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2 ||
+                            metadata.packageMetadataSchemaRevision !=
+                            R2PackageMetadataPolicy.SCHEMA_REVISION ||
+                            metadata.packageMetadataPolicyRevision !=
+                            R2PackageMetadataPolicy.POLICY_REVISION ||
+                            !R2Digests.equal(
+                                requireNotNull(metadata.packageMetadataPolicyFingerprint),
+                                R2PackageMetadataPolicy.fingerprint,
+                            )
+                        )
+                ) {
+                    return unsupportedAuthority()
+                }
                 R2PublicCompilationClassification(
                     disposition = R2PublicCompilationDisposition.ACCEPTED_CONFIG_NONE,
                     controls = R2CompilationControls(
@@ -475,12 +539,29 @@ internal object R2PublicCompilationProtocol {
                             runtimeCapabilitiesFingerprint,
                         origin = R2CompilationControlOrigin.PUBLIC_PREVIEW,
                         profileAuthority = profileAuthority,
+                        packageMetadataAuthority =
+                            if (hasCompletePackageMetadataIdentity) {
+                                R2PackageMetadataAuthority(
+                                    fingerprint = requireNotNull(
+                                        metadata.packageMetadataInventoryFingerprint,
+                                    ),
+                                    policyRevision = requireNotNull(
+                                        metadata.packageMetadataPolicyRevision,
+                                    ),
+                                    policyFingerprint = requireNotNull(
+                                        metadata.packageMetadataPolicyFingerprint,
+                                    ),
+                                )
+                            } else {
+                                null
+                            },
                     ),
                 )
             }
 
             TypeScriptR2Contract.CONFIG_KIND_TSCONFIG -> {
                 if (!hasCompleteConfigIdentity) return malformed()
+                if (hasAnyPackageMetadataIdentity) return unsupportedAuthority()
                 if (
                     profileAuthority != R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
                     configSchemaRevision !=

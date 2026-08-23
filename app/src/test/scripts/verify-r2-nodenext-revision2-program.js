@@ -767,7 +767,10 @@ const minimalLibrary =
     "interface String {}\n";
 const compilerOnlyFiles = Object.freeze([
     Object.freeze({ path: "/declarations/lib.d.ts", text: minimalLibrary }),
-    Object.freeze({ path: "/declarations/node/index.d.ts", text: "export {};\n" }),
+    Object.freeze({
+        path: "/declarations/node/index.d.ts",
+        text: "declare const nodeApi: {};\nexport = nodeApi;\n",
+    }),
 ]);
 
 let requestCounter = 0;

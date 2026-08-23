@@ -1533,6 +1533,18 @@ class TypeScriptCompilerPluginService : Service() {
                     configPolicyFingerprint = optionalPublicR2Value<String>(
                         TypeScriptR2Contract.KEY_CONFIG_POLICY_FINGERPRINT,
                     ),
+                    packageMetadataSchemaRevision = optionalPublicR2Value<Int>(
+                        TypeScriptR2Contract.KEY_PACKAGE_METADATA_SCHEMA_REVISION,
+                    ),
+                    packageMetadataPolicyRevision = optionalPublicR2Value<Int>(
+                        TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_REVISION,
+                    ),
+                    packageMetadataPolicyFingerprint = optionalPublicR2Value<String>(
+                        TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_FINGERPRINT,
+                    ),
+                    packageMetadataInventoryFingerprint = optionalPublicR2Value<String>(
+                        TypeScriptR2Contract.KEY_PACKAGE_METADATA_INVENTORY_FINGERPRINT,
+                    ),
                 ),
                 expectedDeclarationProfileFingerprint =
                     supportedDeclarationProfileFingerprint,
