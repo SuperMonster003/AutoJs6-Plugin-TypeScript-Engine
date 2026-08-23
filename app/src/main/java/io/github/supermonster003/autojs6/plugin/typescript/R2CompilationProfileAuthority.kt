@@ -108,6 +108,7 @@ internal object R2CompilationProfileRegistry {
             append("|profile=")
             append(TypeScriptCompilerContract.PROFILE_RHINO)
             append("|extensions=.ts")
+            append("|defaultLibrary=/declarations/lib.es2018.d.ts")
             append("|compilerApi=createIncrementalProgram")
             append("|allowJs=false")
             append("|checkJs=false")

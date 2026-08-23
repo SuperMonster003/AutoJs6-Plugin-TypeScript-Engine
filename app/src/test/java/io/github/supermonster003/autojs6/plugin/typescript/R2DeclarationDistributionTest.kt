@@ -163,7 +163,7 @@ class R2DeclarationDistributionTest {
                 "\"version\":\"2.1.3\",\"source\":\"$EXPECTED_RHINO_SOURCE\"," +
                 "\"sha1\":\"$EXPECTED_RHINO_SHA1\",\"sha256\":\"$EXPECTED_RHINO_SHA256\"," +
                 "\"integrity\":\"$EXPECTED_RHINO_INTEGRITY\"," +
-                "\"conversion\":\"autojs6-rhino-surface-v1\",\"license\":\"MPL-2.0\"," +
+                "\"conversion\":\"autojs6-rhino-modules-v2\",\"license\":\"MPL-2.0\"," +
                 "\"licenseFile\":\"licenses/rhino/MPL-2.0.txt\"," +
                 "\"noticeFile\":\"notices/rhino-source.txt\"}"
         const val COMPILER_DISTRIBUTION_FINGERPRINT =

@@ -85,7 +85,7 @@ const generatorCanonical =
     `version\0${manifest.generator.version}\n`;
 assert(
     manifest.generator.id === "autojs6-plugin-typescript-engine" &&
-        manifest.generator.version === 1 &&
+        manifest.generator.version === 2 &&
         manifest.generator.fingerprint === sha256(generatorCanonical),
     "Declaration generator identity drifted.",
 );
@@ -408,7 +408,7 @@ const compilerOptions = Object.freeze({
     target: ts.ScriptTarget.ES2018,
     types: [],
 });
-const createVfsCompilerHost = (entries, outputs) => {
+const createVfsCompilerHost = (entries, outputs, defaultLibraryPath) => {
     const files = new Map(
         entries.map(([fileName, text]) => [normalizeVfsPath(fileName), text]),
     );
@@ -427,7 +427,7 @@ const createVfsCompilerHost = (entries, outputs) => {
         fileExists: (fileName) => files.has(normalizeVfsPath(fileName)),
         getCanonicalFileName: (fileName) => fileName,
         getCurrentDirectory: () => "/",
-        getDefaultLibFileName: () => "/declarations/lib.d.ts",
+        getDefaultLibFileName: () => defaultLibraryPath,
         getDefaultLibLocation: () => "/declarations",
         getDirectories: (directoryName) => {
             const directory = normalizeVfsPath(directoryName);
@@ -534,6 +534,9 @@ const runCase = (profileName, sourceText, expectedDiagnosticCodes, label) => {
                 [userRootNames[0], sourceText],
             ],
             outputs,
+            profileName === "rhino"
+                ? "/declarations/lib.es2018.d.ts"
+                : "/declarations/lib.d.ts",
         );
         const compilation = constructor.create(compilerRootNames, host);
         const program = compilation.program;
@@ -552,9 +555,37 @@ const runCase = (profileName, sourceText, expectedDiagnosticCodes, label) => {
         const actualCodes = diagnostics
             .map((diagnostic) => diagnostic.code)
             .sort((left, right) => left - right);
+        const expectedCodes = expectedDiagnosticCodes
+            .slice()
+            .sort((left, right) => left - right);
+        if (JSON.stringify(actualCodes) !== JSON.stringify(expectedCodes)) {
+            console.error(
+                diagnostics.map((diagnostic) => {
+                    const location =
+                        diagnostic.file && Number.isInteger(diagnostic.start)
+                            ? diagnostic.file.fileName +
+                              ":" +
+                              (diagnostic.file.getLineAndCharacterOfPosition(
+                                  diagnostic.start,
+                              ).line +
+                                  1)
+                            : "<global>";
+                    return (
+                        diagnostic.code +
+                        "@" +
+                        location +
+                        ": " +
+                        ts.flattenDiagnosticMessageText(
+                            diagnostic.messageText,
+                            " ",
+                        )
+                    );
+                }),
+            );
+        }
         assert(
             JSON.stringify(actualCodes) ===
-                JSON.stringify(expectedDiagnosticCodes.slice().sort((a, b) => a - b)),
+                JSON.stringify(expectedCodes),
             `${label}/${constructor.name} diagnostics were ${JSON.stringify(
                 actualCodes,
             )}, expected ${JSON.stringify(expectedDiagnosticCodes)}.`,
@@ -628,6 +659,26 @@ const runCase = (profileName, sourceText, expectedDiagnosticCodes, label) => {
 runCase("rhino", 'toast("ready");\nsleep(1);\n', [], "Rhino globals");
 runCase(
     "rhino",
+    'const snapshotWidth: number = device.width;\n' +
+        'const resolvedPath: string = files.path(".");\n' +
+        'const storage: Internal.LocalStorage = storages.create("typescript-audit");\n' +
+        'storage.put("width", snapshotWidth);\n' +
+        'const containsWidth: boolean = storage.contains("width");\n' +
+        'const colorText: string = colors.toString(0xff336699);\n' +
+        'const topSelector: Internal.Selector = top(0);\n' +
+        'Text(colorText);\n' +
+        'console.log(resolvedPath, containsWidth, topSelector);\n',
+    [],
+    "Rhino modular API surface",
+);
+runCase(
+    "rhino",
+    "const invalidWidth: string = device.width;\n",
+    [2322],
+    "Rhino user-source strictness",
+);
+runCase(
+    "rhino",
     'import profile = require("autojs6:profile");\nvoid profile;\n',
     [2307],
     "Rhino Node-profile import",
@@ -653,5 +704,5 @@ console.log(
         `TypeScript=${ts.version}, APIs=${constructors.length}, ` +
         `Rhino d.ts=${profileCompilerEntries("rhino").length}, ` +
         `Node d.ts=${profileCompilerEntries("node").length}, ` +
-        "profile isolation=4/4",
+        "profile isolation=6/6",
 );

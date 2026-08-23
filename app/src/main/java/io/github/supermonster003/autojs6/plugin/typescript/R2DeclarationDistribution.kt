@@ -557,7 +557,7 @@ private data class DeclarationGenerator(
         }
 
         private const val EXPECTED_ID = "autojs6-plugin-typescript-engine"
-        private const val EXPECTED_VERSION = 1
+        private const val EXPECTED_VERSION = 2
         private const val FINGERPRINT_DOMAIN =
             "autojs6.typescript.declarations.generator.v1\n"
         private val KEYS = setOf("id", "version", "fingerprint")
@@ -685,7 +685,7 @@ private data class RhinoDeclarationSource(
             val sha1 = value.requireString("sha1")
             val sha256 = value.requireLowerSha256("sha256")
             val integrity = value.requireString("integrity")
-            require(value.requireString("conversion") == "autojs6-rhino-surface-v1")
+            require(value.requireString("conversion") == "autojs6-rhino-modules-v2")
             require(value.requireString("license") == "MPL-2.0")
             val licenseFile = value.requireString("licenseFile")
             val noticeFile = value.requireString("noticeFile")
@@ -869,7 +869,7 @@ private data class DeclarationLayerDescriptor(
                     "Declaration layer $id does not match its fingerprint."
                 }
                 require(
-                    (id == "rhino" && fileCount == 1) ||
+                    (id == "rhino" && fileCount == 51) ||
                         (id == "node" && fileCount == 59),
                 ) { "Declaration layer $id has an unexpected frozen file count." }
             }

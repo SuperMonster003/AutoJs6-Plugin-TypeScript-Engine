@@ -107,6 +107,12 @@ class R2CompilationProfileAuthorityTest {
             ),
             authority.runtimeCapabilitiesFingerprint,
         )
+        assertEquals(
+            true,
+            authority.runtimeCapabilitiesCanonicalInput.contains(
+                "|defaultLibrary=/declarations/lib.es2018.d.ts|",
+            ),
+        )
         assertSame(
             authority,
             R2CompilationProfileRegistry.require(R2ProjectProfile.PROVISIONAL_RHINO),

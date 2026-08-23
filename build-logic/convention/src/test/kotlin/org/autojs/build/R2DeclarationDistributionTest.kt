@@ -55,12 +55,31 @@ class R2DeclarationDistributionTest {
         @Suppress("UNCHECKED_CAST")
         val layers = manifest["layers"] as Map<String, Map<String, Any?>>
         assertEquals(108, (layers.getValue("common").getValue("fileCount") as Number).toInt())
+        assertEquals(51, (layers.getValue("rhino").getValue("fileCount") as Number).toInt())
         assertEquals(59, (layers.getValue("node").getValue("fileCount") as Number).toInt())
         @Suppress("UNCHECKED_CAST")
         val nodeFiles = layers.getValue("node").getValue("files") as List<String>
         assertTrue("layers/node/input_observer.d.ts" in nodeFiles)
-        val projection = firstSnapshot.getValue("layers/rhino/index.d.ts")
+        val rhinoFiles = firstSnapshot.filterKeys { path ->
+            path.startsWith("layers/rhino/") && path.endsWith(".d.ts")
+        }
+        assertEquals(51, rhinoFiles.size)
+        listOf(
+            "layers/rhino/app.d.ts",
+            "layers/rhino/console.d.ts",
+            "layers/rhino/dialogs.d.ts",
+            "layers/rhino/files.d.ts",
+            "layers/rhino/storages.d.ts",
+            "layers/rhino/threads.d.ts",
+            "layers/rhino/ui.d.ts",
+        ).forEach { path -> assertTrue("projection must contain $path", path in rhinoFiles) }
+        val index = rhinoFiles.getValue("layers/rhino/index.d.ts")
             .toString(StandardCharsets.UTF_8)
+        assertTrue(index.contains("/// <reference path=\"./app.d.ts\" />"))
+        assertTrue(index.contains("/// <reference path=\"./ui.d.ts\" />"))
+        val projection = rhinoFiles.values.joinToString("\n") { bytes ->
+            bytes.toString(StandardCharsets.UTF_8)
+        }
         listOf(
             "HEIGHT",
             "WIDTH",
@@ -81,6 +100,11 @@ class R2DeclarationDistributionTest {
             assertTrue("projection must contain $it", it in projection)
         }
         assertFalse(projection.contains("canary", ignoreCase = true))
+        assertTrue(
+            rhinoFiles.getValue("layers/rhino/device.d.ts")
+                .toString(StandardCharsets.UTF_8)
+                .startsWith("// @ts-nocheck\n"),
+        )
 
         File(first, "layers/rhino/index.d.ts").appendText("tamper")
         assertThrows(R2DeclarationDistributionException::class.java) {
@@ -221,7 +245,7 @@ class R2DeclarationDistributionTest {
                 "sha1" to digest("SHA-1", tarballBytes),
                 "sha256" to digest("SHA-256", tarballBytes),
                 "integrity" to "sha512-${Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-512").digest(tarballBytes))}",
-                "conversion" to "autojs6-rhino-surface-v1",
+                "conversion" to "autojs6-rhino-modules-v2",
                 "license" to "MPL-2.0",
                 "licenseEntry" to "package/LICENSE",
                 "files" to rhinoFiles,
@@ -241,7 +265,8 @@ class R2DeclarationDistributionTest {
         target.writeBytes(CanonicalJson.encode(lock))
     }
 
-    private fun validArchiveEntries(): List<ArchiveSpec> = listOf(
+    private fun validArchiveEntries(): List<ArchiveSpec> {
+        val explicit = listOf(
         ArchiveSpec.file("package/LICENSE", "Mozilla Public License Version 2.0\n"),
         ArchiveSpec.file(
             "package/declarations/autojs6/aj6-int-automator.d.ts",
@@ -306,6 +331,7 @@ declare class ImageWrapper {
   public width: number;
   public height: number;
 }
+declare function requestScreenCapture(landscape?: boolean): boolean;
 """,
         ),
         ArchiveSpec.file(
@@ -345,8 +371,51 @@ declare namespace Toast {
 }
 """,
         ),
+        ArchiveSpec.file(
+            "package/declarations/autojs6/aj6-int-array-observe.d.ts",
+            """declare interface Array {
+  observe(object: object, handler: object): object;
+}
+""",
+        ),
+        ArchiveSpec.file(
+            "package/declarations/autojs6/aj6-int-rhino.d.ts",
+            """declare class ArrayBuffer extends Fixture.ArrayBuffer {
+}
+declare class Int8Array extends Fixture.Int8Array {
+}
+declare class Uint8Array extends Fixture.Uint8Array {
+}
+declare class Uint8ClampedArray extends Fixture.Uint8ClampedArray {
+}
+declare class Int16Array extends Fixture.Int16Array {
+}
+declare class Uint16Array extends Fixture.Uint16Array {
+}
+declare class Int32Array extends Fixture.Int32Array {
+}
+declare class Uint32Array extends Fixture.Uint32Array {
+}
+declare class Float32Array extends Fixture.Float32Array {
+}
+declare class Float64Array extends Fixture.Float64Array {
+}
+declare class DataView extends Fixture.DataView {
+}
+// @ts-ignore
+declare let Error: AutoJsError;
+interface AutoJsError extends ErrorConstructor {}
+""",
+        ),
         ArchiveSpec.file("package/unselected.txt", "not selected"),
-    )
+        )
+        val explicitPaths = explicit.mapTo(HashSet()) { entry -> entry.name }
+        return explicit + RHINO_PROJECTION_PATHS
+            .filterNot(explicitPaths::contains)
+            .map { path ->
+                ArchiveSpec.file(path, "declare namespace Internal {}\n")
+            }
+    }
 
     private fun createTarball(target: File, entries: List<ArchiveSpec>): File {
         Files.newOutputStream(target.toPath()).use { fileOutput ->
@@ -475,6 +544,59 @@ declare namespace Toast {
             "package/declarations/autojs6/aj6-int-init.d.ts",
             "package/declarations/autojs6/aj6-int-toast.d.ts",
             "package/declarations/autojs6/aj6-int-ui.d.ts",
+        )
+
+        private val RHINO_PROJECTION_PATHS = listOf(
+            "package/declarations/autojs6/aj6-declarations.d.ts",
+            "package/declarations/autojs6/aj6-int-app.d.ts",
+            "package/declarations/autojs6/aj6-int-array-observe.d.ts",
+            "package/declarations/autojs6/aj6-int-arrayx.d.ts",
+            "package/declarations/autojs6/aj6-int-autojs.d.ts",
+            "package/declarations/autojs6/aj6-int-automator.d.ts",
+            "package/declarations/autojs6/aj6-int-barcode.d.ts",
+            "package/declarations/autojs6/aj6-int-base64.d.ts",
+            "package/declarations/autojs6/aj6-int-colors.d.ts",
+            "package/declarations/autojs6/aj6-int-console.d.ts",
+            "package/declarations/autojs6/aj6-int-continuation.d.ts",
+            "package/declarations/autojs6/aj6-int-crypto.d.ts",
+            "package/declarations/autojs6/aj6-int-device.d.ts",
+            "package/declarations/autojs6/aj6-int-dialogs.d.ts",
+            "package/declarations/autojs6/aj6-int-engines.d.ts",
+            "package/declarations/autojs6/aj6-int-events.d.ts",
+            "package/declarations/autojs6/aj6-int-files.d.ts",
+            "package/declarations/autojs6/aj6-int-floaty.d.ts",
+            "package/declarations/autojs6/aj6-int-globals.d.ts",
+            "package/declarations/autojs6/aj6-int-http.d.ts",
+            "package/declarations/autojs6/aj6-int-i18n.d.ts",
+            "package/declarations/autojs6/aj6-int-images.d.ts",
+            "package/declarations/autojs6/aj6-int-init.d.ts",
+            "package/declarations/autojs6/aj6-int-jvm-npm.d.ts",
+            "package/declarations/autojs6/aj6-int-mathx.d.ts",
+            "package/declarations/autojs6/aj6-int-media.d.ts",
+            "package/declarations/autojs6/aj6-int-notice.d.ts",
+            "package/declarations/autojs6/aj6-int-numberx.d.ts",
+            "package/declarations/autojs6/aj6-int-object-observe.d.ts",
+            "package/declarations/autojs6/aj6-int-ocr.d.ts",
+            "package/declarations/autojs6/aj6-int-opencc.d.ts",
+            "package/declarations/autojs6/aj6-int-plugins.d.ts",
+            "package/declarations/autojs6/aj6-int-qrcode.d.ts",
+            "package/declarations/autojs6/aj6-int-recorder.d.ts",
+            "package/declarations/autojs6/aj6-int-result-adapter.d.ts",
+            "package/declarations/autojs6/aj6-int-rhino.d.ts",
+            "package/declarations/autojs6/aj6-int-root-automator.d.ts",
+            "package/declarations/autojs6/aj6-int-s13n.d.ts",
+            "package/declarations/autojs6/aj6-int-selector.d.ts",
+            "package/declarations/autojs6/aj6-int-sensors.d.ts",
+            "package/declarations/autojs6/aj6-int-shell.d.ts",
+            "package/declarations/autojs6/aj6-int-shizuku.d.ts",
+            "package/declarations/autojs6/aj6-int-storages.d.ts",
+            "package/declarations/autojs6/aj6-int-tasks.d.ts",
+            "package/declarations/autojs6/aj6-int-threads.d.ts",
+            "package/declarations/autojs6/aj6-int-timers.d.ts",
+            "package/declarations/autojs6/aj6-int-toast.d.ts",
+            "package/declarations/autojs6/aj6-int-ui.d.ts",
+            "package/declarations/autojs6/aj6-int-util.d.ts",
+            "package/declarations/autojs6/aj6-int-web.d.ts",
         )
     }
 }

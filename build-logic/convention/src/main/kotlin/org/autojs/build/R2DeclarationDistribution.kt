@@ -66,7 +66,7 @@ object R2DeclarationDistribution {
 
     const val MANIFEST_FILE_NAME = "distribution.json"
     const val GENERATOR_ID = "autojs6-plugin-typescript-engine"
-    const val GENERATOR_VERSION = 1
+    const val GENERATOR_VERSION = 2
     const val MANIFEST_SCHEMA_VERSION = 1
 
     const val COMMON_STANDARD_LIBRARIES_FINGERPRINT =
@@ -82,7 +82,7 @@ object R2DeclarationDistribution {
         "typescript/6.0.3/distribution.json"
     private const val RHINO_PACKAGE = "@sm003/autojs6-dts"
     private const val RHINO_VERSION = "2.1.3"
-    private const val RHINO_CONVERSION = "autojs6-rhino-surface-v1"
+    private const val RHINO_CONVERSION = "autojs6-rhino-modules-v2"
     private const val NODE_REPOSITORY = "AutoJs6-Private"
     private const val NODE_COMMIT =
         "1d74c57aee7d4f6e300acedee395da6110fc8954"
@@ -91,6 +91,66 @@ object R2DeclarationDistribution {
     private const val NODE_PACKAGE_NAME = "@autojs6/node-types"
     private const val NODE_PACKAGE_VERSION = "1.0.0"
     private const val LICENSE = "MPL-2.0"
+
+    private const val RHINO_DECLARATION_SOURCE_ROOT =
+        "package/declarations/autojs6/"
+    private val RHINO_DECLARATION_SOURCE_NAMES = listOf(
+        "aj6-declarations.d.ts",
+        "aj6-int-app.d.ts",
+        "aj6-int-array-observe.d.ts",
+        "aj6-int-arrayx.d.ts",
+        "aj6-int-autojs.d.ts",
+        "aj6-int-automator.d.ts",
+        "aj6-int-barcode.d.ts",
+        "aj6-int-base64.d.ts",
+        "aj6-int-colors.d.ts",
+        "aj6-int-console.d.ts",
+        "aj6-int-continuation.d.ts",
+        "aj6-int-crypto.d.ts",
+        "aj6-int-device.d.ts",
+        "aj6-int-dialogs.d.ts",
+        "aj6-int-engines.d.ts",
+        "aj6-int-events.d.ts",
+        "aj6-int-files.d.ts",
+        "aj6-int-floaty.d.ts",
+        "aj6-int-globals.d.ts",
+        "aj6-int-http.d.ts",
+        "aj6-int-i18n.d.ts",
+        "aj6-int-images.d.ts",
+        "aj6-int-init.d.ts",
+        "aj6-int-jvm-npm.d.ts",
+        "aj6-int-mathx.d.ts",
+        "aj6-int-media.d.ts",
+        "aj6-int-notice.d.ts",
+        "aj6-int-numberx.d.ts",
+        "aj6-int-object-observe.d.ts",
+        "aj6-int-ocr.d.ts",
+        "aj6-int-opencc.d.ts",
+        "aj6-int-plugins.d.ts",
+        "aj6-int-qrcode.d.ts",
+        "aj6-int-recorder.d.ts",
+        "aj6-int-result-adapter.d.ts",
+        "aj6-int-rhino.d.ts",
+        "aj6-int-root-automator.d.ts",
+        "aj6-int-s13n.d.ts",
+        "aj6-int-selector.d.ts",
+        "aj6-int-sensors.d.ts",
+        "aj6-int-shell.d.ts",
+        "aj6-int-shizuku.d.ts",
+        "aj6-int-storages.d.ts",
+        "aj6-int-tasks.d.ts",
+        "aj6-int-threads.d.ts",
+        "aj6-int-timers.d.ts",
+        "aj6-int-toast.d.ts",
+        "aj6-int-ui.d.ts",
+        "aj6-int-util.d.ts",
+        "aj6-int-web.d.ts",
+    )
+    private val RHINO_REQUIRED_ARCHIVE_PATHS = (
+        RHINO_DECLARATION_SOURCE_NAMES.map { name ->
+            "$RHINO_DECLARATION_SOURCE_ROOT$name"
+        } + "package/LICENSE"
+        ).sorted()
 
     private const val GENERATOR_DOMAIN =
         "autojs6.typescript.declarations.generator.v1\n"
@@ -230,7 +290,10 @@ object R2DeclarationDistribution {
 
         val binding = commonBinding(lock.common)
         add("layers/common/binding.json", CanonicalJson.encode(binding))
-        add("layers/rhino/index.d.ts", createRhinoProjection(rhinoInputs))
+        val rhinoProjectionFiles = createRhinoProjection(rhinoInputs)
+        rhinoProjectionFiles.forEach { (name, bytes) ->
+            add("layers/rhino/$name", bytes)
+        }
 
         val nodeDeclarationPaths = lock.node.files
             .filter { it.path.endsWith(".d.ts") }
@@ -258,7 +321,9 @@ object R2DeclarationDistribution {
         val fileRecords = files.map { (path, bytes) -> fileRecord(path, bytes) }
         ensureOrdinalPaths(fileRecords.map(TypeScriptDistributionFile::path), "generated files")
         val byPath = fileRecords.associateBy(TypeScriptDistributionFile::path)
-        val rhinoDeclarationPaths = listOf("layers/rhino/index.d.ts")
+        val rhinoDeclarationPaths = rhinoProjectionFiles.keys
+            .map { name -> "layers/rhino/$name" }
+            .sorted()
 
         val commonLayer = linkedMapOf<String, Any?>(
             "sourceId" to "common",
@@ -398,7 +463,7 @@ object R2DeclarationDistribution {
         ),
     )
 
-    private fun createRhinoProjection(inputs: Map<String, ByteArray>): ByteArray {
+    private fun createRhinoProjection(inputs: Map<String, ByteArray>): Map<String, ByteArray> {
         val automator = inputs
             .getValue("package/declarations/autojs6/aj6-int-automator.d.ts")
             .decodeUtf8("Rhino automator declarations")
@@ -444,6 +509,7 @@ object R2DeclarationDistribution {
             "recycle(...images: ImageWrapper[]): boolean;",
             "public width: number;",
             "public height: number;",
+            "declare function requestScreenCapture(landscape?: boolean): boolean;",
         ).forEach { marker -> requireMarker(images, marker, "images") }
         listOf(
             "class UI extends org.autojs.autojs.runtime.api.UI {",
@@ -477,7 +543,154 @@ object R2DeclarationDistribution {
             "declare let \$toast: Internal.Toast;",
         ).forEach { marker -> requireMarker(init, marker, "init") }
 
-        return RHINO_PROJECTION.toByteArray(StandardCharsets.UTF_8)
+        val projected = TreeMap<String, ByteArray>()
+        RHINO_DECLARATION_SOURCE_NAMES.forEach { sourceName ->
+            val sourcePath = "$RHINO_DECLARATION_SOURCE_ROOT$sourceName"
+            val targetName = when (sourceName) {
+                "aj6-declarations.d.ts" -> "shared.d.ts"
+                else -> sourceName.removePrefix("aj6-int-")
+            }
+            val source = inputs.getValue(sourcePath)
+                .decodeUtf8("Rhino declaration $sourceName")
+            val transformed = transformRhinoDeclaration(sourceName, source)
+            if (projected.put(targetName, transformed.toByteArray(StandardCharsets.UTF_8)) != null) {
+                fail("Projected Rhino declaration path is duplicated: $targetName")
+            }
+        }
+        val index = createRhinoProjectionIndex(projected.keys)
+        if (
+            projected.put(
+                "index.d.ts",
+                index.toByteArray(StandardCharsets.UTF_8),
+            ) != null
+        ) {
+            fail("Projected Rhino declaration index collides with a source module")
+        }
+        return projected
+    }
+
+    private fun transformRhinoDeclaration(sourceName: String, source: String): String {
+        val normalized = source
+            .replace("\r\n", "\n")
+            .replace('\r', '\n')
+        val withoutReferences = normalized.lineSequence()
+            .filterNot { line -> line.trimStart().startsWith("/// <reference") }
+            .joinToString("\n")
+            .trimEnd() + "\n"
+        val compatible = when (sourceName) {
+            "aj6-int-array-observe.d.ts" -> withoutReferences.replaceExactly(
+                oldValue = "declare interface Array {",
+                newValue = "declare interface Array<T> {",
+                description = "Rhino Array.observe generic compatibility",
+            )
+            "aj6-int-rhino.d.ts" -> stripConflictingRhinoBuiltins(withoutReferences)
+            else -> withoutReferences
+        }
+        return buildString {
+            // The public package targets TypeScript 4.3 and references Android/JVM declaration
+            // graphs that are intentionally outside this bounded compiler profile. Suppressing
+            // diagnostics inside the trusted .d.ts files does not disable strict checking for
+            // user source files; skipLibCheck remains false in the compiler authority.
+            append("// @ts-nocheck\n")
+            append("// Generated from @sm003/autojs6-dts@2.1.3: ")
+            append(sourceName)
+            append(".\n")
+            append(compatible)
+        }
+    }
+
+    private fun stripConflictingRhinoBuiltins(source: String): String {
+        var result = source
+        listOf(
+            "ArrayBuffer",
+            "Int8Array",
+            "Uint8Array",
+            "Uint8ClampedArray",
+            "Int16Array",
+            "Uint16Array",
+            "Int32Array",
+            "Uint32Array",
+            "Float32Array",
+            "Float64Array",
+            "DataView",
+        ).forEach { typeName ->
+            val declaration = Regex(
+                "(?m)^declare class ${Regex.escape(typeName)} extends [^\\n]+ \\{\\n}\\n?",
+            )
+            val matches = declaration.findAll(result).toList()
+            if (matches.size != 1) {
+                fail(
+                    "Pinned Rhino declaration must contain exactly one conflicting " +
+                        "$typeName declaration; found ${matches.size}",
+                )
+            }
+            result = declaration.replaceFirst(result, "")
+        }
+        return result.replaceExactly(
+            oldValue = "// @ts-ignore\ndeclare let Error: AutoJsError;\n",
+            newValue = "",
+            description = "Rhino Error constructor compatibility",
+        )
+    }
+
+    private fun createRhinoProjectionIndex(moduleNames: Collection<String>): String = buildString {
+        append("/**\n")
+        append(" * AutoJs6 Rhino declaration profile.\n")
+        append(" * Generated from the public @sm003/autojs6-dts@2.1.3 package.\n")
+        append(" */\n")
+        moduleNames.sorted().forEach { name ->
+            append("/// <reference path=\"./")
+            append(name)
+            append("\" />\n")
+        }
+        append("\n")
+        append("// Strict refinements for APIs exercised by the host runtime contract.\n")
+        append("declare namespace Internal {\n")
+        append("  interface Http {\n")
+        append("    get(url: string, options?: Http.RequestBuilderOptions): Http.WrappedResponse;\n")
+        append("    get(\n")
+        append("      url: string,\n")
+        append("      options: Http.RequestBuilderOptions,\n")
+        append("      callback: Http.Callback,\n")
+        append("    ): void;\n")
+        append("  }\n")
+        append("\n")
+        append("  interface Images {\n")
+        append("    read(path: string, isStrict?: boolean): ImageWrapper | null;\n")
+        append("  }\n")
+        append("\n")
+        append("  interface UI {\n")
+        append("    layout(layout: string): void;\n")
+        append("    findView(stringId: string): UI.View | null;\n")
+        append("  }\n")
+        append("}\n")
+        append("\n")
+        append("declare namespace UI {\n")
+        append("  interface View {\n")
+        append("    click(listener: () => void): void;\n")
+        append("    setText(text: string): void;\n")
+        append("  }\n")
+        append("}\n")
+        append("\n")
+        append("declare namespace android {\n")
+        append("  namespace view {\n")
+        append("    interface View {\n")
+        append("      setText(text: string): void;\n")
+        append("    }\n")
+        append("  }\n")
+        append("}\n")
+    }
+
+    private fun String.replaceExactly(
+        oldValue: String,
+        newValue: String,
+        description: String,
+    ): String {
+        val first = indexOf(oldValue)
+        if (first < 0 || first != lastIndexOf(oldValue)) {
+            fail("Pinned declaration does not contain exactly one $description marker")
+        }
+        return replaceRange(first, first + oldValue.length, newValue)
     }
 
     private fun requireMarker(source: String, marker: String, description: String) {
@@ -553,6 +766,7 @@ object R2DeclarationDistribution {
         limits: R2DeclarationDistributionLimits,
     ): Map<String, ByteArray> {
         val tarBytes = decompressAndPreflightTarball(tarballBytes, limits)
+        val requiredPaths = RHINO_REQUIRED_ARCHIVE_PATHS.toSet()
         val selected = TreeMap<String, ByteArray>()
         try {
             TarArchiveInputStream(
@@ -565,7 +779,7 @@ object R2DeclarationDistribution {
                     if (!entry.isCheckSumOK || !entry.isFile || !tarInput.canReadEntryData(entry)) {
                         fail("Rhino archive entry cannot be read safely: $name")
                     }
-                    val output = if (lock.filesByPath.containsKey(name)) {
+                    val output = if (name in requiredPaths) {
                         ByteArrayOutputStream()
                     } else {
                         null
@@ -584,14 +798,14 @@ object R2DeclarationDistribution {
                 e,
             )
         }
-        if (selected.keys != lock.filesByPath.keys) {
+        if (selected.keys != requiredPaths) {
             fail(
-                "Rhino archive selected inventory differs from lock: " +
-                    "expected=${lock.filesByPath.keys}, actual=${selected.keys}",
+                "Rhino archive selected inventory differs from the modular projection: " +
+                    "expected=$requiredPaths, actual=${selected.keys}",
             )
         }
-        selected.forEach { (path, bytes) ->
-            val expected = lock.filesByPath.getValue(path)
+        lock.filesByPath.forEach { (path, expected) ->
+            val bytes = selected.getValue(path)
             val actual = fileRecord(path, bytes)
             if (actual.size != expected.size || actual.sha256 != expected.sha256) {
                 fail("Rhino archive file does not match lock: $path")
@@ -1703,130 +1917,4 @@ object R2DeclarationDistribution {
 
     private val CANONICAL_NON_NEGATIVE_INTEGER = Regex("0|[1-9][0-9]*")
 
-    private val RHINO_PROJECTION = """
-        |/**
-        | * Deterministic autojs6-rhino-surface-v1 projection.
-        | * Source: @sm003/autojs6-dts@2.1.3 (MPL-2.0).
-        | */
-        |declare namespace Internal {
-        |  interface Automator {
-        |    click(x: number, y: number): boolean;
-        |    swipe(
-        |      x1: number,
-        |      y1: number,
-        |      x2: number,
-        |      y2: number,
-        |      duration: number,
-        |    ): boolean;
-        |  }
-        |
-        |  interface Device {
-        |    readonly width: number;
-        |    readonly height: number;
-        |    readonly model: string;
-        |    readonly sdkInt: number;
-        |  }
-        |
-        |  interface Http {
-        |    get(url: string, options?: Http.RequestBuilderOptions): Http.WrappedResponse;
-        |    get(
-        |      url: string,
-        |      options: Http.RequestBuilderOptions,
-        |      callback: Http.Callback,
-        |    ): void;
-        |  }
-        |
-        |  interface Images {
-        |    captureScreen(): ImageWrapper;
-        |    captureScreen(path: string): boolean;
-        |    read(path: string, isStrict?: boolean): ImageWrapper | null;
-        |    pixel(image: ImageWrapper, x: number, y: number): number;
-        |    recycle(...images: ImageWrapper[]): boolean;
-        |  }
-        |
-        |  interface UI {
-        |    layout(layout: string): void;
-        |    findView(stringId: string): UI.View | null;
-        |    finish(): void;
-        |  }
-        |
-        |  interface Toast {
-        |    (text: string | any, isLong?: Toast.IsLong, isForcible?: Toast.IsForcible): void;
-        |    dismissAll(): void;
-        |  }
-        |}
-        |
-        |declare namespace Http {
-        |  type Callback = (response: WrappedResponse, error?: unknown) => void;
-        |
-        |  interface RequestBuilderOptions {
-        |    headers?: { [name: string]: string | number | readonly string[] };
-        |    timeout?: number;
-        |  }
-        |
-        |  interface ResponseBody {
-        |    string(): string;
-        |    bytes(): number[];
-        |    json(): unknown;
-        |  }
-        |
-        |  interface WrappedResponse {
-        |    readonly statusCode: number;
-        |    readonly statusMessage: string;
-        |    readonly body: ResponseBody;
-        |  }
-        |}
-        |
-        |declare namespace Toast {
-        |  type IsLong = 'long' | 'l' | 'short' | 's' | boolean;
-        |  type IsForcible = 'forcible' | 'f' | boolean;
-        |}
-        |
-        |declare namespace UI {
-        |  interface View {
-        |    click(listener: () => void): void;
-        |    setText(text: string): void;
-        |  }
-        |}
-        |
-        |declare class ImageWrapper {
-        |  private constructor();
-        |  readonly width: number;
-        |  readonly height: number;
-        |}
-        |
-        |declare let HEIGHT: number;
-        |declare let WIDTH: number;
-        |declare let ${'$'}automator: Internal.Automator;
-        |declare let automator: Internal.Automator;
-        |declare let ${'$'}device: Internal.Device;
-        |declare let device: Internal.Device;
-        |declare let ${'$'}http: Internal.Http;
-        |declare let http: Internal.Http;
-        |declare let ${'$'}images: Internal.Images;
-        |declare let images: Internal.Images;
-        |declare let ${'$'}toast: Internal.Toast;
-        |declare let ${'$'}ui: Internal.UI;
-        |declare let ui: Internal.UI;
-        |declare function captureScreen(): ImageWrapper;
-        |declare function captureScreen(path: string): boolean;
-        |declare function click(x: number, y: number): boolean;
-        |declare function requestScreenCapture(landscape?: boolean): boolean;
-        |declare function sleep(millis: number): void;
-        |declare function sleep(millisMin: number, millisMax: number): void;
-        |declare function sleep(millis: number, bounds: string): void;
-        |declare function swipe(
-        |  x1: number,
-        |  y1: number,
-        |  x2: number,
-        |  y2: number,
-        |  duration: number,
-        |): boolean;
-        |declare let toast: Internal.Toast;
-        |declare function toastLog(
-        |  msg: string | any,
-        |  isLong?: Toast.IsLong,
-        |  isForcible?: Toast.IsForcible,
-        |): void;
-        |""".trimMargin()
 }

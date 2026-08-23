@@ -314,6 +314,7 @@ class R2CompilationProbeProtocolTest {
                 "runtimeCapabilitySchemaRevision=1|profileSchemaRevision=1|" +
                 "profileRevision=1|configSchemaRevision=1|configKind=none|" +
                 "profile=rhino|extensions=.ts|" +
+                "defaultLibrary=/declarations/lib.es2018.d.ts|" +
                 "compilerApi=createIncrementalProgram|allowJs=false|checkJs=false|" +
                 "ignoreDeprecations=6.0|incremental=false|inlineSourceMap=false|" +
                 "inlineSources=false|module=CommonJS|moduleResolution=Node10|" +

@@ -1644,8 +1644,8 @@ private fun verifyR2DeclarationDistributionInApk(
     check(expectedFiles.size == manifestFiles.size) {
         "R2 declaration manifest contains duplicate paths."
     }
-    check(expectedFiles.size == 66) {
-        "Expected 66 R2 declaration distribution files, found ${expectedFiles.size}."
+    check(expectedFiles.size == 116) {
+        "Expected 116 R2 declaration distribution files, found ${expectedFiles.size}."
     }
     listOf(
         "layers/common/binding.json",

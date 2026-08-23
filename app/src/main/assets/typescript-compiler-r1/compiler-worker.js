@@ -4489,14 +4489,21 @@ const createProjectCompilerHost = (
     execution,
     resolutionSession = null,
     isNodeRevisionTwoProject = false,
+    defaultLibraryPath = "/declarations/lib.d.ts",
 ) => {
+    if (
+        defaultLibraryPath !== "/declarations/lib.d.ts" &&
+        defaultLibraryPath !== "/declarations/lib.es2018.d.ts"
+    ) {
+        throw new Error("Project compiler host received an invalid default library.");
+    }
     const host = {
     createDirectory: () => {},
     directoryExists: vfs.directoryExists,
     fileExists: vfs.fileExists,
     getCanonicalFileName: (fileName) => fileName,
     getCurrentDirectory: () => "/",
-    getDefaultLibFileName: () => "/declarations/lib.d.ts",
+    getDefaultLibFileName: () => defaultLibraryPath,
     getDefaultLibLocation: () => "/declarations",
     getDirectories: vfs.getDirectories,
     getNewLine: () => "\n",
@@ -5049,6 +5056,9 @@ const compileProject = async (project, frameToken = null) => {
             project.execution,
             resolutionSession,
             isNodeRevisionTwoProject,
+            project.targetProfile === provisionalRhinoProfileAuthority.targetProfile
+                ? "/declarations/lib.es2018.d.ts"
+                : "/declarations/lib.d.ts",
         );
         enterProjectExecutionPhase(
             project.execution,
