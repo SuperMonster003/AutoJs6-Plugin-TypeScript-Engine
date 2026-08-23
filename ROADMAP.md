@@ -50,7 +50,7 @@
 |---|---|---|---|
 | S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 已完成 (6/6 必需；S1-7 可选) |
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 已完成 (6/6) |
-| S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 进行中 (A1 已覆盖真实 API 与最小 UI; B1 已完成) |
+| S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 进行中 (A1 已覆盖真实 API 与最小 UI; B1、C1-C3 已完成) |
 | S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 未开始 |
 | S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 未开始 |
 
@@ -238,15 +238,34 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
 
 **C. 运行时栈映射** (宿主仓库为主)
 
-- [ ] **S3-C1** 宿主注册 compilation-manifest 中的 JS↔map 配对,
+- [x] **S3-C1** 宿主注册 compilation-manifest 中的 JS↔map 配对,
       实现 Source Map v3 解析 (mappings VLQ 解码)。
-- [ ] **S3-C2** Rhino 运行异常栈: 生成 JS 的文件/行 → 原 TS 文件/行
+      宿主提交 `62d8a02a2` 在现有 output manifest/descriptor 配对校验之后，
+      将 entry JavaScript、配对 map、执行期 generated source name 与原 TS
+      source name 注册为类型化 execution binding；新增严格且有界的 Source Map
+      v3 consumer，校验 `version/file/sourceRoot/sources/names/mappings`，按规范
+      跨段累计并解码 base64 VLQ，拒绝畸形、溢出、越界与非 canonical 映射。
+- [x] **S3-C2** Rhino 运行异常栈: 生成 JS 的文件/行 → 原 TS 文件/行
       (Rhino 无列号, `column=null`, UI 不虚构)。
-- [ ] **S3-C3** wrapper/bootstrap 双层 map 组合 (若宿主包了 IIFE/
+      同一宿主提交在 TypeScript Rhino engine tag 中保存上述 binding，并在
+      `RhinoException.scriptStack` 写入 Console 前仅改写匹配当前 generated source
+      的帧；其他 Rhino/bootstrap 帧保持原样。映射后的帧使用 `.ts:line`，刻意
+      不沿用 Rhino 会虚构的 `:0` 列；含空格文件名的 V8 栈也能被日志链接解析。
+      单元测试覆盖 VLQ 增量、列选择、畸形输入、无关栈不改写与无列输出；真实
+      抛错脚本在 API 31/33/35/37 上均映射到原 `.ts` 第 3 行，Console 中不再
+      出现 `.generated.js`，并通过当前文件解析与点击分发回归。
+- [x] **S3-C3** wrapper/bootstrap 双层 map 组合 (若宿主包了 IIFE/
       module wrapper, 先扣 wrapper 偏移再查 compiler map)。
+      当前 Rhino 路径没有 IIFE/module wrapper：compiler emit 原文经过 identity
+      `preprocess` 后，以 `compileReader(..., line=1)` 直接编译，因此 wrapper
+      offset 精确为 0，不需要第二层 map 或人为扣行。上述四设备真实抛错测试
+      已证明 compiler map 可直接命中原 TS 行；未来若引入 wrapper，必须先增加
+      wrapper map/offset 组合，本结论不授权静默偏移。
 
 退出标准: 一个抛异常的 `.ts` 脚本, console 里编译错误与运行错误
-都能点击跳回 `.ts` 源码行。
+都能点击跳回 `.ts` 源码行。**已达成**：编译期 TS2322 与运行期 Rhino
+异常均输出可点击的原 `.ts` 位置；API 31/33/35/37 的三项组合回归
+(编译拒绝、运行映射、实际点击分发) 均为 3/3 通过。
 
 ## S4 Node profile 与项目级能力
 
