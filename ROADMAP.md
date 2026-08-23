@@ -54,7 +54,7 @@
 | S1 | 插件解禁: 让编译能力真正可用 | (对宿主开发者) capability=true, 真实脚本不再被配额/ASCII/固定配置拦下 | 已完成 (6/6 必需；S1-7 可选) |
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 已完成 (6/6) |
 | S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 核心完成 (A1-A2、B1、C1-C3；原生 TSX A3 后置) |
-| S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 进行中 (S4-1、S4-3 已完成；S4-2 主执行路径已迁移, 删除旧实现待办) |
+| S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 进行中 (S4-1、S4-3、S4-4 已完成；S4-2 主执行路径已迁移, 删除旧实现待办) |
 | S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 未开始 |
 
 依赖关系: S1 → S2 → S3 → S4 → S5 严格递进不是必须的 —— S1 与 S2 可
@@ -374,9 +374,26 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
       局部快照，尚不具备标准 ESM cycle 所需的 live binding；因此 S4-3 只宣称并
       验收 CommonJS 循环依赖，ESM 验收保持无环。完整 ESM linker 属于后续 Node
       Runtime 专项，不能用 `NaN` 结果冒充循环依赖已支持。
-- [ ] **S4-4 dynamic specifier 映射**: `.ts/.mts/.cts` 动态 import
+- [x] **S4-4 dynamic specifier 映射**: `.ts/.mts/.cts` 动态 import
       到生成扩展名的映射生效; 未命中给稳定错误码; 运行中出现的
       外部 TS 文件明确拒绝 (维持首个 GA 的 snapshot 边界)。
+      - [x] 宿主从本次真实 emit 的模块建立原始 TypeScript 路径清单，并通过
+        请求级 closed-snapshot 标志与确定排序的清单交给 Node Runtime。运行时
+        求值后的 `import()` specifier 只有在原始 `.ts/.mts/.cts` 路径与对应
+        `.js/.mjs/.cjs` 产物同时存在于初始快照时才允许映射；普通 Node 请求
+        缺省关闭该模式，不改变非 TypeScript 模块解析。
+      - [x] 快照内缺失或运行时新增的 TypeScript 目标稳定返回
+        `ERR_AUTOJS6_TYPESCRIPT_SNAPSHOT_MODULE_NOT_FOUND`；无扩展名目标命中
+        多个 TypeScript 源时返回
+        `ERR_AUTOJS6_TYPESCRIPT_SNAPSHOT_MODULE_AMBIGUOUS`；越出项目根目录继续
+        返回 `ERR_AUTOJS6_FS_PATH_ESCAPE`。三类拒绝均不会查询动态 source
+        provider，也不会回退读取晚到的 TypeScript 文件。
+      - [x] Node Runtime 完整 Android 一致性套件在 API 35 / 31 / 37 上分别
+        以 2.696 s / 3.077 s / 2.208 s 通过 9/9；宿主 Node TypeScript 聚焦
+        回归在同三台设备分别以 128.601 s / 99.919 s / 37.48 s 通过 7/7，
+        覆盖三种扩展名计算式导入总和 `42`、静态 ESM 控制导入、缺失、歧义、
+        越界及 provider 零回退。Node Runtime 提交 `3f1b3b1`，AutoJs6 宿主
+        提交 `ebbf1b8d2`；最终离线构建分别通过 101 与 685 个 Gradle 任务。
 - [ ] **S4-5 输入配额按需上调**: 若真实项目撞到 512 files / 8 MiB,
       直接上调至传输层上限 (4096 files / 64 MiB) 并实测一个大项目。
       不预先做容量证明, 撞到再调。
