@@ -187,7 +187,7 @@ Rhino 执行并输出 toast。
       fail-closed 与 TSX 明确拒绝。MediaProjection 在设备初始未授权状态下，
       由无障碍分别自动完成拒绝与允许分支：拒绝时 `requestScreenCapture()`
       确实返回 `false`；允许时选择整屏、捕获真实帧并检查尺寸、像素、回收与
-      前台服务退出。宿主提交 `4c80410b4` 的 12 项套件在 API 31/35/37
+      前台服务退出。宿主提交 `fdbdf8892` 的 12 项套件在 API 31/35/37
       各 12/12、合计 36/36 通过。API 37 上将 Node Runtime 插件置为
       `disabled-user` 后，完整套件仍 12/12 通过，测试结束后已恢复原始
       `default` 状态。经确认，原生 TSX DSL 不作为 S2 验收条件，独立进入
