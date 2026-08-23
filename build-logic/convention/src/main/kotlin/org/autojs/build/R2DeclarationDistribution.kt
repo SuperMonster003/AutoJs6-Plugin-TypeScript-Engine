@@ -399,12 +399,50 @@ object R2DeclarationDistribution {
     )
 
     private fun createRhinoProjection(inputs: Map<String, ByteArray>): ByteArray {
+        val automator = inputs
+            .getValue("package/declarations/autojs6/aj6-int-automator.d.ts")
+            .decodeUtf8("Rhino automator declarations")
+        val device = inputs.getValue("package/declarations/autojs6/aj6-int-device.d.ts")
+            .decodeUtf8("Rhino device declarations")
         val toast = inputs.getValue("package/declarations/autojs6/aj6-int-toast.d.ts")
             .decodeUtf8("Rhino toast declarations")
+        val http = inputs.getValue("package/declarations/autojs6/aj6-int-http.d.ts")
+            .decodeUtf8("Rhino HTTP declarations")
+        val images = inputs.getValue("package/declarations/autojs6/aj6-int-images.d.ts")
+            .decodeUtf8("Rhino images declarations")
         val globals = inputs.getValue("package/declarations/autojs6/aj6-int-globals.d.ts")
             .decodeUtf8("Rhino global declarations")
         val init = inputs.getValue("package/declarations/autojs6/aj6-int-init.d.ts")
             .decodeUtf8("Rhino initialization declarations")
+        listOf(
+            "interface Automator {",
+            "click(x: number, y: number): boolean;",
+            "swipe(x1: number, y1: number, x2: number, y2: number, duration: number): boolean;",
+            "declare function click(x: number, y: number): boolean;",
+            "declare function swipe(x1: number, y1: number, x2: number, y2: number, duration: number): boolean;",
+        ).forEach { marker -> requireMarker(automator, marker, "automator") }
+        listOf(
+            "get width(): number;",
+            "get height(): number;",
+            "model: string;",
+            "sdkInt: number;",
+        ).forEach { marker -> requireMarker(device, marker, "device") }
+        listOf(
+            "interface Http {",
+            "get(url: string, options?: Http.RequestBuilderOptions, callback?: Http.Callback): Http.WrappedResponse | void;",
+            "interface WrappedResponse {",
+            "statusCode: number;",
+            "string(): string;",
+        ).forEach { marker -> requireMarker(http, marker, "HTTP") }
+        listOf(
+            "interface Images {",
+            "captureScreen(): ImageWrapper;",
+            "read(path: string): ImageWrapper;",
+            "pixel(image: ImageWrapper, x: number, y: number): ColorInt;",
+            "recycle(...images: ImageWrapper[]): boolean;",
+            "public width: number;",
+            "public height: number;",
+        ).forEach { marker -> requireMarker(images, marker, "images") }
         listOf(
             "interface Toast {",
             "(text: string | any, isLong?: Toast.IsLong, isForcible?: Toast.IsForcible): void;",
@@ -421,6 +459,10 @@ object R2DeclarationDistribution {
             "declare function toastLog(msg: string | any, isLong?: Toast.IsLong, isForcible?: Toast.IsForcible): void;",
         ).forEach { marker -> requireMarker(globals, marker, "globals") }
         listOf(
+            "declare let automator: Internal.Automator;",
+            "declare let device: Internal.Device;",
+            "declare let http: Internal.Http;",
+            "declare let images: Internal.Images;",
             "declare let toast: Internal.Toast;",
             "declare let \$toast: Internal.Toast;",
         ).forEach { marker -> requireMarker(init, marker, "init") }
@@ -1347,7 +1389,11 @@ object R2DeclarationDistribution {
         ensureLockedFiles(rhinoFiles, "R2 Rhino lock")
         val expectedRhinoPaths = listOf(
             "package/LICENSE",
+            "package/declarations/autojs6/aj6-int-automator.d.ts",
+            "package/declarations/autojs6/aj6-int-device.d.ts",
             "package/declarations/autojs6/aj6-int-globals.d.ts",
+            "package/declarations/autojs6/aj6-int-http.d.ts",
+            "package/declarations/autojs6/aj6-int-images.d.ts",
             "package/declarations/autojs6/aj6-int-init.d.ts",
             "package/declarations/autojs6/aj6-int-toast.d.ts",
         )
@@ -1652,9 +1698,65 @@ object R2DeclarationDistribution {
         | * Source: @sm003/autojs6-dts@2.1.3 (MPL-2.0).
         | */
         |declare namespace Internal {
+        |  interface Automator {
+        |    click(x: number, y: number): boolean;
+        |    swipe(
+        |      x1: number,
+        |      y1: number,
+        |      x2: number,
+        |      y2: number,
+        |      duration: number,
+        |    ): boolean;
+        |  }
+        |
+        |  interface Device {
+        |    readonly width: number;
+        |    readonly height: number;
+        |    readonly model: string;
+        |    readonly sdkInt: number;
+        |  }
+        |
+        |  interface Http {
+        |    get(url: string, options?: Http.RequestBuilderOptions): Http.WrappedResponse;
+        |    get(
+        |      url: string,
+        |      options: Http.RequestBuilderOptions,
+        |      callback: Http.Callback,
+        |    ): void;
+        |  }
+        |
+        |  interface Images {
+        |    captureScreen(): ImageWrapper;
+        |    captureScreen(path: string): boolean;
+        |    read(path: string, isStrict?: boolean): ImageWrapper | null;
+        |    pixel(image: ImageWrapper, x: number, y: number): number;
+        |    recycle(...images: ImageWrapper[]): boolean;
+        |  }
+        |
         |  interface Toast {
         |    (text: string | any, isLong?: Toast.IsLong, isForcible?: Toast.IsForcible): void;
         |    dismissAll(): void;
+        |  }
+        |}
+        |
+        |declare namespace Http {
+        |  type Callback = (response: WrappedResponse, error?: unknown) => void;
+        |
+        |  interface RequestBuilderOptions {
+        |    headers?: { [name: string]: string | number | readonly string[] };
+        |    timeout?: number;
+        |  }
+        |
+        |  interface ResponseBody {
+        |    string(): string;
+        |    bytes(): number[];
+        |    json(): unknown;
+        |  }
+        |
+        |  interface WrappedResponse {
+        |    readonly statusCode: number;
+        |    readonly statusMessage: string;
+        |    readonly body: ResponseBody;
         |  }
         |}
         |
@@ -1663,12 +1765,37 @@ object R2DeclarationDistribution {
         |  type IsForcible = 'forcible' | 'f' | boolean;
         |}
         |
+        |declare class ImageWrapper {
+        |  private constructor();
+        |  readonly width: number;
+        |  readonly height: number;
+        |}
+        |
         |declare let HEIGHT: number;
         |declare let WIDTH: number;
+        |declare let ${'$'}automator: Internal.Automator;
+        |declare let automator: Internal.Automator;
+        |declare let ${'$'}device: Internal.Device;
+        |declare let device: Internal.Device;
+        |declare let ${'$'}http: Internal.Http;
+        |declare let http: Internal.Http;
+        |declare let ${'$'}images: Internal.Images;
+        |declare let images: Internal.Images;
         |declare let ${'$'}toast: Internal.Toast;
+        |declare function captureScreen(): ImageWrapper;
+        |declare function captureScreen(path: string): boolean;
+        |declare function click(x: number, y: number): boolean;
+        |declare function requestScreenCapture(landscape?: boolean): boolean;
         |declare function sleep(millis: number): void;
         |declare function sleep(millisMin: number, millisMax: number): void;
         |declare function sleep(millis: number, bounds: string): void;
+        |declare function swipe(
+        |  x1: number,
+        |  y1: number,
+        |  x2: number,
+        |  y2: number,
+        |  duration: number,
+        |): boolean;
         |declare let toast: Internal.Toast;
         |declare function toastLog(
         |  msg: string | any,

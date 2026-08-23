@@ -61,7 +61,22 @@ class R2DeclarationDistributionTest {
         assertTrue("layers/node/input_observer.d.ts" in nodeFiles)
         val projection = firstSnapshot.getValue("layers/rhino/index.d.ts")
             .toString(StandardCharsets.UTF_8)
-        listOf("HEIGHT", "WIDTH", "\$toast", "sleep", "toast", "toastLog").forEach {
+        listOf(
+            "HEIGHT",
+            "WIDTH",
+            "\$toast",
+            "automator",
+            "captureScreen",
+            "click",
+            "device",
+            "http",
+            "images",
+            "requestScreenCapture",
+            "sleep",
+            "swipe",
+            "toast",
+            "toastLog",
+        ).forEach {
             assertTrue("projection must contain $it", it in projection)
         }
         assertFalse(projection.contains("canary", ignoreCase = true))
@@ -228,6 +243,30 @@ class R2DeclarationDistributionTest {
     private fun validArchiveEntries(): List<ArchiveSpec> = listOf(
         ArchiveSpec.file("package/LICENSE", "Mozilla Public License Version 2.0\n"),
         ArchiveSpec.file(
+            "package/declarations/autojs6/aj6-int-automator.d.ts",
+            """declare namespace Internal {
+  interface Automator {
+    click(x: number, y: number): boolean;
+    swipe(x1: number, y1: number, x2: number, y2: number, duration: number): boolean;
+  }
+}
+declare function click(x: number, y: number): boolean;
+declare function swipe(x1: number, y1: number, x2: number, y2: number, duration: number): boolean;
+""",
+        ),
+        ArchiveSpec.file(
+            "package/declarations/autojs6/aj6-int-device.d.ts",
+            """declare namespace Internal {
+  class Device {
+    get width(): number;
+    get height(): number;
+    model: string;
+    sdkInt: number;
+  }
+}
+""",
+        ),
+        ArchiveSpec.file(
             "package/declarations/autojs6/aj6-int-globals.d.ts",
             """declare let HEIGHT: number;
 declare let WIDTH: number;
@@ -238,8 +277,45 @@ declare function toastLog(msg: string | any, isLong?: Toast.IsLong, isForcible?:
 """,
         ),
         ArchiveSpec.file(
+            "package/declarations/autojs6/aj6-int-http.d.ts",
+            """declare namespace Internal {
+  interface Http {
+    get(url: string, options?: Http.RequestBuilderOptions, callback?: Http.Callback): Http.WrappedResponse | void;
+  }
+}
+declare namespace Http {
+  interface WrappedResponse {
+    statusCode: number;
+    body: { string(): string; };
+  }
+}
+""",
+        ),
+        ArchiveSpec.file(
+            "package/declarations/autojs6/aj6-int-images.d.ts",
+            """declare namespace Internal {
+  interface Images {
+    captureScreen(): ImageWrapper;
+    read(path: string): ImageWrapper;
+    pixel(image: ImageWrapper, x: number, y: number): ColorInt;
+    recycle(...images: ImageWrapper[]): boolean;
+  }
+}
+declare class ImageWrapper {
+  public width: number;
+  public height: number;
+}
+""",
+        ),
+        ArchiveSpec.file(
             "package/declarations/autojs6/aj6-int-init.d.ts",
-            "declare let toast: Internal.Toast;\ndeclare let \$toast: Internal.Toast;\n",
+            """declare let automator: Internal.Automator;
+declare let device: Internal.Device;
+declare let http: Internal.Http;
+declare let images: Internal.Images;
+declare let toast: Internal.Toast;
+declare let ${'$'}toast: Internal.Toast;
+""",
         ),
         ArchiveSpec.file(
             "package/declarations/autojs6/aj6-int-toast.d.ts",
@@ -377,7 +453,11 @@ declare namespace Toast {
     companion object {
         private val RHINO_PATHS = listOf(
             "package/LICENSE",
+            "package/declarations/autojs6/aj6-int-automator.d.ts",
+            "package/declarations/autojs6/aj6-int-device.d.ts",
             "package/declarations/autojs6/aj6-int-globals.d.ts",
+            "package/declarations/autojs6/aj6-int-http.d.ts",
+            "package/declarations/autojs6/aj6-int-images.d.ts",
             "package/declarations/autojs6/aj6-int-init.d.ts",
             "package/declarations/autojs6/aj6-int-toast.d.ts",
         )
