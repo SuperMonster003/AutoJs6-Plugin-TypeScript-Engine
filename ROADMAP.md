@@ -55,7 +55,7 @@
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 已完成 (6/6) |
 | S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 已完成 (A1-A3、B1、C1-C3) |
 | S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 进行中 (S4-1、S4-3、S4-4、S4-6 已完成；S4-2 主执行路径已迁移, 删除旧实现待办) |
-| S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 进行中 (S5-1、S5-2、S5-3 已完成) |
+| S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 进行中 (S5-1、S5-2、S5-3、S5-4 已完成) |
 
 依赖关系: S1 → S2 → S3 → S4 → S5 严格递进不是必须的 —— S1 与 S2 可
 并行 (S2 的宿主代码先按 same-UID debug 路径联调), S3 各项相互独立,
@@ -505,9 +505,26 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
         arm64、API 35 arm64、API 37 x86_64 三设备各通过 3/3。测试不依赖
         无障碍或 MediaProjection，未调用权限变更命令；测试 APK 验证后已卸载。
       - [x] AutoJs6 宿主提交 `d0d353961`。
-- [ ] **S5-4 Ace 编辑器一致性** (Ace 插件仓库): 编辑器诊断与执行前
+- [x] **S5-4 Ace 编辑器一致性** (Ace 插件仓库): 编辑器诊断与执行前
       诊断使用同版 TypeScript 与同一 profile 选项; 编辑器不可用不
       影响运行 (S2 已保证, 此处只做提示一致性)。
+      - [x] Ace 内置 TypeScript 锁定为与编译插件一致的 `6.0.3`，并按执行端
+        revision 2 固定选项选择 Rhino (`ES2018 + strict + CommonJS/Node10 +
+        classic JSX factory`) 或 Node (`ES2018 + strict + NodeNext`)；版本不匹配
+        时语义服务 fail closed，静态补全回退仍可用且不进入脚本执行链。
+      - [x] profile 路由与宿主一致：独立 `.ts/.tsx` 使用 Rhino，`.mts/.cts`
+        使用 Node，最近 `project.json` 声明 `type/projectType: node` 的项目内
+        `.ts` 也使用 Node。宿主与 Ace 的默认 LSP 后缀同时新增 `.mts/.cts`、
+        `.d.mts/.d.cts`；旧默认集合自动迁移，用户显式自定义集合不被覆盖。
+      - [x] 诊断快照和 JS runtime state 暴露 TypeScript 版本、profile 与 revision；
+        离线 runtime verifier 精确核对固定 compiler options、strict 诊断与版本
+        拒绝。Ace `check`、debug APK、AndroidTest APK 及宿主偏好单测均通过。
+      - [x] API 31 arm64、API 35 arm64、API 37 x86_64 三设备各通过 profile
+        路由与资源封装 2/2 测试；测试包已卸载，三设备保留 Ace
+        `1.1.10 (21)`，无障碍与 MediaProjection 均未改动。
+      - [x] Ace 仍是有界单文档提示层：受控项目 tsconfig override 与跨文件
+        诊断继续以执行前编译器为权威，不把编辑器可用性变成执行前提。Ace
+        插件提交 `1300654b6`，AutoJs6 宿主提交 `d1dbd9533`。
 - [ ] **S5-5 性能观察**: 记录典型脚本的编译耗时与内存 (打点即可,
       不设 p95 门禁); 明显过慢的场景 (如冷启动 WebView) 用 prewarm
       缓解。出现具体性能问题再专项优化。
