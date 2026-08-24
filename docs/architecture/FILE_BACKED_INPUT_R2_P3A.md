@@ -1,5 +1,11 @@
 # R2-P3a File-backed Native Input
 
+> **S5-5 performance amendment（2026-08-24）。** 本页的 logical frame、cursor、digest
+> 与 release ownership 保持有效；production 现由 `R2BatchedProjectInputFramer` 单独发送
+> project start/end，并把最多 4 条中间 config/file frame 封入一个 bounded envelope。
+> Worker 仍顺序执行每条原 handler，全部成功后只 ACK 最后 sequence。下文的 window=1
+> 指当前外层 envelope；逐 inner-frame ACK 的文字保留为 P3a 历史实现边界。
+
 状态：production native input source complete，capability disabled，尚不是
 Public R2。
 
@@ -62,7 +68,9 @@ service-owned caller PFD
        index: immutable spool offset/length
   -> R2ProjectInputFramer
        one cursor + one reusable <=16 KiB byte buffer
-       window=1 frame/ACK
+  -> R2BatchedProjectInputFramer
+       start/end single; <=4 middle frames per bounded envelope
+       window=1 envelope/ACK
        digest recheck before file end
 ```
 
@@ -106,7 +114,8 @@ native framer：
 - P3a 初始每个 data frame 最多读取 16 KiB raw bytes；P3b-b1 当前为 64 KiB，
   再做 canonical padded Base64；
 - native ↔ page JSON envelope 从 P3a 的 32 KiB 调整为当前 128 KiB；
-- window=1，ACK 前不读取下一 chunk；
+- 外层 envelope window=1；一个 batch 内最多顺序读取 4 条 middle frame，外层 ACK 前
+  不构造下一 envelope；
 - 对实际 framed bytes 重新计算 SHA-256；
 - 只有 cursor 精确耗尽且 digest 等于 metadata 才发送 file-end frame；
 - complete、failure、cancel、timeout 或 host release 都关闭 cursor，并清零
@@ -129,7 +138,7 @@ production host 在创建/发送 frame 前仍执行更小的 Worker eligibility 
 | caller source inventory | 最多 4095 source files；每文件 8 MiB；仍受 ZIP 64 MiB aggregate 约束 | source 可按 offset 留在 spool |
 | trusted declarations | 最多 512 files；8 MiB total；8 MiB/file | plugin-owned payload 可追加到 spool |
 | native VFS snapshot/index | configured 4607 files、72 MiB source + declarations | 4095 caller sources + 512 trusted declarations |
-| native input frame | P3a: 16/32 KiB；P3b-b1 current: 64/128 KiB raw/envelope；window=1 | 单次 native framing allocation/backpressure |
+| native input frame/envelope | P3a: 16/32 KiB；logical current: 64/128 KiB raw/frame；batch 最多 4 frames、576 KiB envelope；window=1 envelope | 单次 native framing allocation/backpressure |
 | Android production admission | 512 files、8 MiB/file、8 MiB total | 当前实际 production compile admission |
 | P3b-a Worker 内部 envelope | 4607 files、8 MiB/file、72 MiB total | desktop direct-framing capacity，不绕过上一行 |
 

@@ -31,7 +31,8 @@ const bytesToSha256 = async (bytes) => {
 const sha256 = async (text) =>
     bytesToSha256(new TextEncoder().encode(text));
 
-// R2-S3 transfers project input and result bytes with stop-and-wait framing.
+// R2-S3 transfers project input through bounded, ACK-backpressured envelopes and keeps result
+// bytes on stop-and-wait framing. Middle input envelopes may contain at most four exact frames.
 // The Worker still owns an independent materialization bound: transport
 // framing must never turn the frozen archive limits into an allocation limit.
 const projectFrameBytes = 64 * 1024;

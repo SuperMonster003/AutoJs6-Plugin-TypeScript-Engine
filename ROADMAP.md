@@ -528,34 +528,56 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
 - [x] **S5-5 性能观察**: 记录典型脚本的编译耗时与内存 (打点即可,
       不设 p95 门禁); 明显过慢的场景 (如冷启动 WebView) 用 prewarm
       缓解。出现具体性能问题再专项优化。
-      - [x] 宿主每次编译恰好输出一条 `typescript-compile-perf schema=1`
+      - [x] 宿主每次编译恰好输出一条 `typescript-compile-perf schema=2`
         结构化观察，覆盖准备、缓存查找、专用 Binder 绑定 + prewarm、远端往返、
         插件自身编译、输出处理及总耗时，并记录归档字节数、源文件数和宿主 Java
-        heap 起止/变化。成功、diagnostics、失败和协程取消均有稳定 outcome；缓存
-        未检查/不可用/miss/hit 可区分，hit 明确把绑定、远端和 compiler 阶段记为
-        `na`。日志不含源码、路径、requestId 或错误消息，不设置阈值或 release gate。
-      - [x] 单文件 Rhino cache miss → hit 的最终设备观察：API 31 arm64 为
-        `total 13181 / prepare 1126 / bind+prewarm 811 / compiler 11146 /
-        output 66 ms`，命中 46 ms；API 35 arm64 为
-        `17522 / 1430 / 834 / 15182 / 52 ms`，命中 33 ms；API 37 x86_64 为
-        `6869 / 2021 / 1119 / 3639 / 58 ms`，命中 32 ms。三次 host heap
-        delta 分别为 `-5073 / -20654 / +3050 KiB`；该值受 GC 影响，仅作观察。
+        heap 起止/变化。宿主复用冻结的 progress schema revision 1，把 compiler
+        进一步拆成 ingress 前、ingress、阶段间隔、parse、semantic、emit 与 emit 后；
+        无 AIDL/schema 扩展，未知、重复、格式错误或乱序事件 fail-soft 忽略，不影响
+        编译结果。成功、diagnostics、失败和协程取消均有稳定 outcome；cache hit 的
+        Binder/compiler/phase 字段均为 `na`。日志不含源码、路径、requestId 或错误
+        消息，不设置阈值或 release gate。
+      - [x] schema 2 的优化前基线纠正了 schema 1 粗粒度观察的误判：四设备
+        parse + semantic + emit 合计仅 `487–661 ms`，compiler 时间的主要部分实际是
+        约 160 个 declaration/source 文件通过 WebMessage/Worker 的 ingress，而不是
+        TypeScript Program 本身。优化前单文件 Rhino `total/compiler/ingress` 为：
+        API 31 arm64 `12986/10927/9664 ms`，API 33 arm64 `4523/2995/1866 ms`，
+        API 35 arm64 `18503/16483/15103 ms`，API 37 x86_64
+        `9296/4945/3260 ms`。
+      - [x] 针对该具体问题加入 bounded input batching：project start/end 仍各自
+        单独 ACK，中间 config/file logical frame 最多 4 条组成一个 envelope；每条
+        inner frame 的 exact shape、全局 sequence、逐文件 SHA-256、UTF-8/token/quota、
+        cursor ownership 与原 handler 顺序不变，Worker 全部成功后只 ACK 最后一条
+        sequence。AIDL、archive/result schema、profile fingerprint、progress phase 边界及
+        每 job realm teardown 均不变。标准库设备用例的 379 logical frames 降为
+        97 envelopes (-74.4%)，最大 envelope `350201 B`，低于既有 576 KiB 上限。
+      - [x] 同一四设备 cache miss → hit 回归的优化后 `total/compiler/ingress` 为：
+        API 31 `9215/7105/5785 ms` (ingress -40.1%，total -29.0%，hit 63 ms)，
+        API 33 `2537/1471/802 ms` (-57.0%，-43.9%，hit 18 ms)，API 35
+        `11683/9310/7919 ms` (-47.6%，-36.9%，hit 36 ms)，API 37
+        `7145/3490/1836 ms` (-43.7%，-23.1%，hit 44 ms)。这是设备观察而非
+        benchmark 门禁；prepare/bind、GC 与系统负载仍会引入波动。
       - [x] 独立 8 文件 Rhino 项目 (input archive 3798 B) 的公开编译耗时与
         活动态 PSS：API 31 为 compiler 12081 ms、compiler service / renderer /
         combined median `64548 / 97112 / 168054 KiB`；API 35 为 15418 ms、
         `90458 / 95241 / 191542 KiB`；API 37 为 6835 ms、
         `94490 / 130557 / 225047 KiB`。内存采样只用 5 秒 DEBUG pause 保持同一
         模块图存活，pause 不进入前一轮正常耗时；只校验样本有效，不设性能上限。
-      - [x] prewarm 决策：既有按需 prewarm 已覆盖 WebView/Worker readiness，三设备
-        仅占 811–1119 ms，实际 TypeScript Program 编译才是冷路径主体；持久缓存
-        命中已在 32–46 ms 内于绑定前返回。为挪走不足 1.2 秒而主动常驻高内存
-        renderer 得不偿失，因此不新增进程常驻/启动期 prewarm，继续保留项目编译后
-        realm teardown；将来只有真实用户场景证明必要时再做定向优化。
+      - [x] prewarm 决策：schema 1 阶段只能确认按需 prewarm 与持久 cache 有效，
+        不能把剩余 compiler aggregate 直接归因于 Program；schema 2 已纠正这一点。
+        当前 bind + prewarm 观察约 `450–1772 ms`，cache hit 为 `18–63 ms` 且在绑定前
+        返回。为挪走该区间而主动常驻高内存 renderer 仍得不偿失，因此不增加进程
+        常驻/启动期 prewarm；本轮只优化已由 phase 数据证明的 ingress 往返，并继续
+        保留每项目 realm teardown。
       - [x] 宿主 TypeScript 单测全集、AndroidTest Kotlin 编译及 debug/test APK
-        离线构建通过；三设备的宿主 cache 观察与插件 timing/PSS 观察各通过 1/1。
-        验证测试包已卸载，无障碍 secure settings 前后逐值一致，未调用无障碍或
-        MediaProjection 权限变更命令。AutoJs6 宿主提交 `035b01250`，编译插件
-        观察用例提交 `07f8fc9`。
+        离线构建通过；插件 `check --offline` (116 tasks)、桌面 4607-file ingress、
+        64+8 MiB retained-heap、escape closure、debug/test APK 均通过。API 31/33/35
+        arm64 与 API 37 x86_64 的宿主 cache 回归、插件标准库 batch instrumentation
+        各通过 1/1。四台设备上的宿主/插件 instrumentation 测试包均已卸载，主包
+        保留；清理前后无障碍 secure settings 逐值一致。测试未调用无障碍或
+        MediaProjection 权限变更命令。初始观察提交仍为宿主 `035b01250` / 插件
+        `07f8fc9`；phase 分解提交为宿主 `441d480d4`，bounded batching 提交为插件
+        `0e1e2fc`。
 
 ## 长期不变约束 (从旧路线继承, 仍然成立)
 

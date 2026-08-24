@@ -1,5 +1,13 @@
 # R2 Provisional Framed Project Transport
 
+> **S5-5 performance amendment（2026-08-24）。** 逻辑 input frame 的 exact shape、
+> 全局 sequence、逐文件 SHA-256/UTF-8/quota 校验与单 cursor ownership 不变；native
+> 仍单独发送 `projectInputStart`/`projectInputEnd`，中间 config/file frame 以最多 4 条
+> 封入一个 `projectInputBatch`。外层 envelope 保持 window=1，只 ACK 最后一条 inner
+> sequence；Worker 按原顺序逐条执行原 handler，全部成功后才发送这一条 ACK。result
+> transport 仍是逐 frame stop-and-wait。该改动不修改 AIDL、public progress schema、
+> profile fingerprint 或 archive/result schema。
+
 > **S1-3 amendment（2026-08-23）。** ordinary input revision 2 将 caller
 > `512 files / 8 MiB` 与 plugin declarations 分账；完整 retained input 仍由 trusted
 > 4607-files/72-MiB guardrail 约束。ordinary output revision 2 为 512 artifacts、单 JS/map
@@ -12,7 +20,8 @@
 > **R2-M3-S1 supersession（2026-08-14）。** 本页中的旧 projectInputStart shapes 只保留为
 > pre-S1 transport provenance，不是当前 accepted frame。Formal input revision 1 的 Worker
 > exact counts 为 24/37 与 30/40/47，见
-> [S1 Input Archive Schema v1](INPUT_ARCHIVE_SCHEMA_V1_R2_M3_S1.md)。stop-and-wait/ownership 结论继续保留。
+> [S1 Input Archive Schema v1](INPUT_ARCHIVE_SCHEMA_V1_R2_M3_S1.md)。exact inner-frame 与
+> ownership 结论继续保留；当前外层 input envelope batching 以上述 S5-5 amendment 为准。
 
 状态: R2-S3/P3a/P3b-a/P3b-b1/P3b-b2a/P3b-b2b/P3b-b2k/R2-M2-C2/C3/C4
 内部协议，未冻结为 public contract。
@@ -48,13 +57,15 @@ API 24/35 × evidence Debug/Release-equivalent 四行通过 external-UID Binder
 ## 边界与配额
 
 - Android API 24 基线的 native ↔ page 边界只使用 String `WebMessage`，不依赖
-  binary WebMessage；P3b-b1 当前每个 JSON envelope 最多 128 KiB UTF-8。
+  binary WebMessage；普通 inner frame 最多 128 KiB UTF-8，受控 Node start 与
+  `projectInputBatch` 外层 envelope 最多 576 KiB UTF-8。
 - page ↔ Worker 使用同一 frame schema 的 structured-clone object，不把对象
   再序列化成 String `WebMessage`。
 - data 使用 canonical padded Base64；每帧最多 64 KiB decoded bytes。
-- 逻辑上的 native → page → Worker 和 Worker → page → native 流均使用
-  window=1 stop-and-wait。接收方完成 shape、sequence、quota 和 payload 校验后
-  才 ACK。
+- native → page → Worker 的 input 外层 envelope 使用 window=1：start/end 单独发送，
+  中间最多 4 条 exact inner frame 组成一个 batch；Worker 串行完成每条 inner frame
+  的 shape、sequence、quota、payload 与 commit 校验后才 ACK batch 的最后 sequence。
+  Worker → page → native 的 result 流继续逐 frame window=1 stop-and-wait。
 - P3a native snapshot 是 metadata + offsets + read-only inode；framer 用一个
   64 KiB buffer 从当前 file cursor 随机读取并在 file end 重新计算 SHA-256，
   不在 native heap 保留 source-sized `ByteArray` 或 UTF-16 text map。
@@ -70,6 +81,11 @@ API 24/35 × evidence Debug/Release-equivalent 四行通过 external-UID Binder
   uncompressed 只是 ZIP/transport ceiling，不是 ordinary capacity。
 
 ## 输入状态机
+
+下图描述逻辑 inner-frame 状态机。S5-5 后，任意连续 1–4 条 config/file middle frame
+可以作为一个 `projectInputBatch` 外层消息发送；图中的每条 ACK 仍表示该 inner frame
+必须成功通过原校验/commit，只有 batch 全部成功后才向 native 发出最后 sequence 的
+单一外层 ACK。start/end 不进入 batch。
 
 ```text
 projectInputStart
@@ -144,10 +160,10 @@ same-UID `BuildConfig.DEBUG` private control 才能同时启用非零 millisecon
 一个 exact phase。二者不能单独启用，public control 构造 invariant 和 release
 parser/host 都禁止该 seam。
 
-每个 input frame 带 host-generated opaque `requestId` 和全局单调 `sequence`；file
+每个逻辑 input frame 带 host-generated opaque `requestId` 和全局单调 `sequence`；file
 frames 另带连续 `fileIndex`/`chunkIndex`。file header 声明 canonical path、
 decoded byte length 和 SHA-256。P3a framer 只在该文件收到 start ACK 后打开
-cursor；每次 ACK 前最多有一个 decoded chunk，在 file end frame 发布前要求
+cursor；每个 batch 最多读取 4 条 middle frame 所需的有界 chunk，在 file end frame 发布前要求
 cursor 精确耗尽且重新计算的 digest 与 accepted metadata 相同。cancel、timeout、
 host release 或 framing failure 都关闭当前 cursor 并清零 reusable chunk buffer。
 ACK、cursor read、`nextFrame()` 与 release 全部在 dedicated single-thread input

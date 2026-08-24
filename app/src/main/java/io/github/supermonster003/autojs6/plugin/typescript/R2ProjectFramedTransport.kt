@@ -35,7 +35,8 @@ internal enum class R2WorkerInputQuotaAuthority(
  * Native input stays file-backed and frames are produced through bounded cursor reads. The
  * current Worker still reconstructs a heap-backed VFS, so ordinary production dispatch keeps its
  * provisional 8 MiB admission limit. A DEBUG-only device gate can exercise the larger file-backed
- * envelope. Frames are sent stop-and-wait and every encoded envelope is independently bounded.
+ * envelope. Logical frames remain independently bounded; production sends start/end singly and
+ * groups at most four middle frames into one bounded, acknowledgement-backpressured envelope.
  */
 internal interface R2ProjectInputTransport {
 
@@ -1500,8 +1501,8 @@ private object R2FramedJson {
 
 internal const val R2_PROJECT_MAXIMUM_FRAME_BYTES = 128 * 1024
 // A maximum legal C5 inventory can exceed the ordinary envelope only in the
-// metadata-bearing projectInputStart frame; every later stop-and-wait frame
-// remains constrained by R2_PROJECT_MAXIMUM_FRAME_BYTES.
+// metadata-bearing projectInputStart frame and the bounded middle-frame batch envelope; every
+// logical inner frame remains constrained by R2_PROJECT_MAXIMUM_FRAME_BYTES.
 internal const val R2_PROJECT_MAXIMUM_START_FRAME_BYTES = 576 * 1024
 internal const val R2_PROJECT_MAXIMUM_BATCH_ENVELOPE_BYTES =
     R2_PROJECT_MAXIMUM_START_FRAME_BYTES
