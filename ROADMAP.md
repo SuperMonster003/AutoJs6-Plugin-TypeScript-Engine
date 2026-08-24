@@ -430,11 +430,29 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
 
 目标: 日常使用体验与发布链路。各项独立, 按用户反馈排优先级。
 
-- [ ] **S5-1 编译缓存** (宿主): cache key = 源码图 hash + compiler
+- [x] **S5-1 编译缓存** (宿主): cache key = 源码图 hash + compiler
       fingerprint + profile revision + declarations fingerprint;
       命中则跳过编译; loop 执行天然复用 (S2-5 已保证单次执行内不
       重复编译, 此项做跨执行缓存)。
       验收: 未修改脚本二次运行不出现编译等待。
+      - [x] 宿主使用带版本、长度分隔的二进制语义键，覆盖完整源码图、入口与
+        project identity、受控配置、Node package metadata、编译器 distribution、
+        声明/profile/runtime capability 指纹及全部 profile/policy revision；
+        每次 Binder 请求才变化的 request id 与传输归档认证指纹不进入缓存键。
+      - [x] 编译输出以宿主私有、崩溃可恢复的 generation + commit-manifest
+        形式持久化；ZIP 与索引均为 owner-read-only，命中时仍经现有严格 output
+        reader 复核 ZIP hash、manifest hash、逐文件 hash、路径与当前源码绑定。
+        篡改、残缺、超额或权限异常条目会失效并回退正常编译；缓存故障不会使
+        原本有效的编译失败。缓存上限为 32 项 / 256 MiB，按最近使用时间淘汰。
+      - [x] 命中发生在 dedicated binding 与 prewarm 之前。API 31、API 35 实机
+        与 API 37 x86_64 模拟器分别完成独立 client 的连续两次真实执行：首次
+        13,260 / 12,570 / 5,253 ms，第二次 38 / 38 / 28 ms；第二次均无专用
+        Binder 连接或 Worker 编译，缓存 generation 未变化，设备侧归档与索引
+        权限均验证为 `0400`。
+      - [x] AutoJs6 宿主提交 `8333c180f`。语义键失效矩阵、持久化恢复/篡改/
+        配额/陈旧 handle 单测、跨 request 严格 replay 单测、聚焦 TypeScript
+        单测、AndroidTest 编译及 debug/test APK 构建均通过；三设备聚焦
+        instrumentation 各通过 1/1。
 - [ ] **S5-2 APK Builder**: 打包时 build-time 编译, APK 内只含 JS
       (+可选 map), 不含 TS 源码与 compiler; 加密项目在内存/加密
       staging 中解密-编译-清理。
