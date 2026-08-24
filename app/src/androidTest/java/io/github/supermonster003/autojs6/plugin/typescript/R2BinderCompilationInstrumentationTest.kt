@@ -55,6 +55,117 @@ class R2BinderCompilationInstrumentationTest {
         get() = context.getSystemService(ActivityManager::class.java)
 
     @Test
+    fun recordsTypicalCompilationTimingAndActivePssWithoutPerformanceThreshold() {
+        bindCompilerService().use { session ->
+            val sources = LinkedHashMap(
+                linkedMapOf(
+                    "sources/main.ts" to
+                        "import { total } from './total';\n" +
+                        "export const message: string = `total=${'$'}{total}`;\n",
+                    "sources/total.ts" to
+                        "import { one } from './values/one';\n" +
+                        "import { two } from './values/two';\n" +
+                        "import { three } from './values/three';\n" +
+                        "export const total: number = one + two + three;\n",
+                    "sources/values/one.ts" to "export const one: number = 1;\n",
+                    "sources/values/two.ts" to "export const two: number = 2;\n",
+                    "sources/values/three.ts" to "export const three: number = 3;\n",
+                    "sources/model.ts" to
+                        "export interface Result { readonly value: number }\n",
+                    "sources/result.ts" to
+                        "import type { Result } from './model';\n" +
+                        "export const result: Result = { value: 6 };\n",
+                    "sources/unused.ts" to "export const unused: boolean = true;\n",
+                ).toSortedMap(),
+            )
+            val rootPaths = sources.keys.sorted()
+            val timingFixture = createFixture(
+                requestId = newRequestId("performance-timing"),
+                sources = sources,
+                rootPaths = rootPaths,
+            )
+            val inputArchiveBytes = timingFixture.input.length()
+            val startedAt = SystemClock.elapsedRealtime()
+            val timingTerminal = try {
+                val callback = RecordingCallback()
+                val ticket = startPublicCompilationWhenSupervisorReady(
+                    compiler = session.compiler,
+                    fixture = timingFixture,
+                    callback = callback,
+                )
+                callback.markStartReturned()
+                val token = assertAccepted(ticket, timingFixture.requestId)
+                assertTrue(
+                    session.compiler.cancelCompilation(
+                        publicAcknowledgement(timingFixture.requestId, token),
+                    ),
+                )
+                callback.awaitTerminal()
+            } finally {
+                timingFixture.delete()
+            }
+            val hostRoundTripMs = SystemClock.elapsedRealtime() - startedAt
+            assertEmittedTerminal(timingTerminal)
+            val compilerElapsedMs = timingTerminal.getLong(
+                TypeScriptCompilerContract.KEY_ELAPSED_MS,
+                -1L,
+            )
+            assertTrue(compilerElapsedMs >= 0L)
+
+            val memoryFixture = createFixture(
+                requestId = newRequestId("performance-memory"),
+                sources = sources,
+                rootPaths = rootPaths,
+                workerSpinMilliseconds = PERFORMANCE_MEMORY_HOLD_MILLIS,
+                timeoutMs = DEFAULT_TIMEOUT_MILLIS,
+            )
+            val pss = try {
+                val callback = RecordingCallback()
+                val ticket = startCompilation(
+                    compiler = session.compiler,
+                    fixture = memoryFixture,
+                    callback = callback,
+                )
+                callback.markStartReturned()
+                val token = assertAccepted(ticket, memoryFixture.requestId)
+                assertTrue(
+                    session.compiler.cancelCompilation(
+                        acknowledgement(memoryFixture.requestId, token),
+                    ),
+                )
+                val processProbe = R1WebViewProcessMemoryProbe(context)
+                val processes = processProbe.awaitCompilerAndRenderer(
+                    session.serviceProcessName,
+                )
+                processProbe.samplePss(
+                    processes = processes,
+                    sampleCount = PERFORMANCE_PSS_SAMPLE_COUNT,
+                    sampleIntervalMillis = PERFORMANCE_PSS_SAMPLE_INTERVAL_MILLIS,
+                ).also {
+                    assertEmittedTerminal(callback.awaitTerminal())
+                }
+            } finally {
+                memoryFixture.delete()
+            }
+            assertTrue(pss.compilerServiceMedianPssKiB > 0)
+            assertTrue(pss.sandboxRendererMedianPssKiB > 0)
+            assertTrue(pss.combinedMedianPssKiB > 0)
+            Log.i(
+                PERFORMANCE_LOG_TAG,
+                "typescript-compiler-perf schema=1 api=${Build.VERSION.SDK_INT} " +
+                    "profile=rhino sourceFiles=${sources.size} " +
+                    "inputBytes=$inputArchiveBytes " +
+                    "hostRoundTripMs=$hostRoundTripMs " +
+                    "compilerMs=$compilerElapsedMs " +
+                    "serviceMedianPssKiB=${pss.compilerServiceMedianPssKiB} " +
+                    "rendererMedianPssKiB=${pss.sandboxRendererMedianPssKiB} " +
+                    "combinedMedianPssKiB=${pss.combinedMedianPssKiB} " +
+                    "activeMemoryHoldMs=$PERFORMANCE_MEMORY_HOLD_MILLIS gate=none",
+            )
+        }
+    }
+
+    @Test
     fun publicPreviewRequiresAdditiveMetadataAndPostReturnAcknowledgement() {
         bindCompilerService().use { session ->
             val fixture = createFixture(
@@ -3503,6 +3614,10 @@ class R2BinderCompilationInstrumentationTest {
         const val CAPACITY_LOG_TAG = "R2P3bBinderCapacity"
         const val RESOURCE_LOG_TAG = "R2P3bResource"
         const val NATURAL_TIMEOUT_LOG_TAG = "R2P3bNaturalTimeout"
+        const val PERFORMANCE_LOG_TAG = "TypeScriptPerf"
+        const val PERFORMANCE_MEMORY_HOLD_MILLIS = 5_000
+        const val PERFORMANCE_PSS_SAMPLE_COUNT = 3
+        const val PERFORMANCE_PSS_SAMPLE_INTERVAL_MILLIS = 50L
         const val NATURAL_INGRESS_BINDER_TIMEOUT_MILLIS = 10_000L
         const val REPEATED_RESOURCE_CYCLE_COUNT = 3
         const val RESOURCE_PSS_SAMPLE_COUNT = 5
