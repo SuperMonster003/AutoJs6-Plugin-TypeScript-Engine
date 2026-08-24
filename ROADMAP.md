@@ -55,7 +55,7 @@
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 已完成 (6/6) |
 | S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 已完成 (A1-A3、B1、C1-C3) |
 | S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 进行中 (S4-1、S4-3、S4-4、S4-6 已完成；S4-2 主执行路径已迁移, 删除旧实现待办) |
-| S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 未开始 |
+| S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 进行中 (S5-1、S5-2 已完成) |
 
 依赖关系: S1 → S2 → S3 → S4 → S5 严格递进不是必须的 —— S1 与 S2 可
 并行 (S2 的宿主代码先按 same-UID debug 路径联调), S3 各项相互独立,
@@ -453,9 +453,37 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
         配额/陈旧 handle 单测、跨 request 严格 replay 单测、聚焦 TypeScript
         单测、AndroidTest 编译及 debug/test APK 构建均通过；三设备聚焦
         instrumentation 各通过 1/1。
-- [ ] **S5-2 APK Builder**: 打包时 build-time 编译, APK 内只含 JS
+- [x] **S5-2 APK Builder**: 打包时 build-time 编译, APK 内只含 JS
       (+可选 map), 不含 TS 源码与 compiler; 加密项目在内存/加密
       staging 中解密-编译-清理。
+      - [x] 宿主在归档前扫描目录或单文件 Rhino `.ts/.tsx` 项目，经真实
+        TypeScript 插件完成项目级 type-check/emit；Node `.mts/.cts` 与 Node
+        项目在打包端明确拒绝，不回退 stripping 或把原始 TypeScript 装入 APK。
+        生成的 CommonJS 模块由专用 Rhino launcher 启动，原始 `project.json`
+        会替换为指向 launcher 的净化配置。
+      - [x] Builder 请求及最终 APK 均剔除 `.ts/.tsx/.d.ts`、`tsconfig.json`
+        与编译器；仅叠加 JS、外部 Source Map 和不含源代码的编译清单。
+        Source Map 强制移除 `sourcesContent`，并重写为最终 APK 内的生成路径。
+      - [x] 加密 TypeScript 的解密操作在宿主内存中完成；APK 打包绕过跨执行
+        明文编译缓存。冻结的 seekable-FD 编译协议所需输入/输出归档使用宿主
+        私有的一次性文件，并在正常、失败和下次进程启动的 orphan 路径上 fail-closed
+        清理。宿主到 Builder 的生成 JS 使用一次性 AES-256-GCM staging；Builder
+        校验版本、完整路径清单与 GCM tag，仅在内存中恢复明文并立即转为最终
+        APK 脚本加密，随后清零源码、生成 JS、密钥、nonce 与中间密文缓冲区。
+      - [x] 宿主单测覆盖 emit 规划、源码/config 快照漂移、Node fail-closed、
+        staging 往返/篡改拒绝、临时归档并发/orphan 清理及异常分支内存清零；
+        APK Builder Template Kotlin 编译、宿主 debug/androidTest APK 构建和
+        Runtime Kit 协议 v3 生成均通过。普通 JavaScript 项目回归也在三设备
+        各通过 1/1，证明无 TypeScript staging metadata 时的既有打包路径不变。
+      - [x] API 31、API 35 arm64 实机与 API 37 x86_64 模拟器均完成加密多文件
+        TypeScript 项目真实远程打包及冷启动，输出标记均为
+        `AUTOJS6_S5_TYPESCRIPT_APK_OK_42`。离线逐项审计三个 APK：无 TS/config/
+        compiler，三个生成 JS 均为最终加密文件，map 均为 v3 且无
+        `sourcesContent`；原项目与持久编译缓存未变化，临时归档无残留。
+      - [x] 编译插件提交 `238d573`，APK Builder Template 提交 `e7f4918`，
+        AutoJs6 宿主提交 `a495af8ec`。验证用临时 Builder 已在三设备恢复为原
+        `versionCode=5244`，生成测试应用与测试包已卸载；无障碍服务和
+        MediaProjection 权限均未改动。
 - [ ] **S5-3 后台/定时/Tasker 入口**: 所有非前台执行入口共用
       S2-5 的 preparation 管线 (验证一遍, 缺口就修)。
 - [ ] **S5-4 Ace 编辑器一致性** (Ace 插件仓库): 编辑器诊断与执行前
