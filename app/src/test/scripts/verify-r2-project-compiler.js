@@ -5066,11 +5066,53 @@ const verifyCompilerPageStateMachine = () => {
         requestId: "page-a",
         sequence: 0,
     });
+    const inputBatch = {
+        frames: [
+            {
+                byteLength: 1,
+                fileIndex: 0,
+                kind: "projectInputFileStart",
+                path: "/declarations/page.d.ts",
+                requestId: "page-a",
+                sequence: 1,
+                sha256: sha256(Buffer.from([0])),
+            },
+            {
+                chunkIndex: 0,
+                data: "AA==",
+                fileIndex: 0,
+                kind: "projectInputFileChunk",
+                requestId: "page-a",
+                sequence: 2,
+            },
+            {
+                chunkCount: 1,
+                fileIndex: 0,
+                kind: "projectInputFileEnd",
+                requestId: "page-a",
+                sequence: 3,
+            },
+        ],
+        kind: "projectInputBatch",
+        requestId: "page-a",
+        sequence: 3,
+    };
+    deliver(inputBatch);
+    assert(
+        first.posted.at(-1).kind === "projectInputBatch" &&
+            first.posted.at(-1).frames.length === 3,
+        "Compiler page did not forward the bounded project-input batch.",
+    );
+    first.emit({
+        kind: "projectInputAck",
+        requestId: "page-a",
+        sequence: 3,
+    });
     deliver({
         fileCount: 1,
         kind: "projectInputEnd",
         requestId: "page-a",
-        sequence: 1,
+        sequence: 4,
         totalBytes: 1,
     });
     first.emit({
@@ -5082,7 +5124,7 @@ const verifyCompilerPageStateMachine = () => {
     first.emit({
         kind: "projectInputAck",
         requestId: "page-a",
-        sequence: 1,
+        sequence: 4,
     });
     first.emit({
         kind: "projectPhase",

@@ -178,6 +178,31 @@ class R2ProjectCompilerInstrumentationTest {
             assertTrue(compilation.diagnostics.isEmpty())
             assertEquals(1, compilation.executableModules.size)
             assertEquals(1, compilation.sourceMaps.size)
+            val inputTelemetry = requireNotNull(
+                host.lastProjectInputTransportTelemetryForTesting(),
+            )
+            assertTrue(inputTelemetry.complete)
+            assertTrue(inputTelemetry.sentFrameCount > inputTelemetry.sentEnvelopeCount)
+            assertEquals(
+                2 + (
+                    inputTelemetry.sentFrameCount - 2 +
+                        R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES - 1
+                    ) / R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES,
+                inputTelemetry.sentEnvelopeCount,
+            )
+            assertTrue(
+                inputTelemetry.maximumEncodedEnvelopeBytes <=
+                    R2_PROJECT_MAXIMUM_BATCH_ENVELOPE_BYTES,
+            )
+            Log.i(
+                CAPACITY_LOG_TAG,
+                "PROJECT_INPUT_BATCH_PASS " +
+                    "frames=${inputTelemetry.sentFrameCount} " +
+                    "envelopes=${inputTelemetry.sentEnvelopeCount} " +
+                    "maximumEncodedEnvelopeBytes=" +
+                    "${inputTelemetry.maximumEncodedEnvelopeBytes} " +
+                    "elapsedMs=${outcome.elapsedMs}",
+            )
         }
     }
 

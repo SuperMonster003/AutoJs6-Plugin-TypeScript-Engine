@@ -72,6 +72,7 @@ const expectedExactFrameInjectionKinds = Object.freeze([
     "projectInputConfigStart",
     "projectInputConfigChunk",
     "projectInputConfigEnd",
+    "projectInputBatch",
     "projectInputFileStart",
     "projectInputFileChunk",
     "projectInputFileEnd",
@@ -586,8 +587,9 @@ const totalPoisonAccesses = () =>
 
 const makeProject = (sourceText) => {
     const files = [
+        { path: "/declarations/lib.d.ts", text: "" },
         {
-            path: "/declarations/lib.d.ts",
+            path: "/declarations/lib.es2018.d.ts",
             text:
                 "interface Array<T>{length:number;[n:number]:T}" +
                 "interface Boolean{} interface Function{} " +
@@ -623,6 +625,9 @@ const makeProject = (sourceText) => {
         profileRevision: 2,
         profileSchemaRevision: 1,
         rootNames: ["/sources/main.ts"],
+        runtimeCapabilitiesFingerprint: workerBinding(
+            "provisionalRhinoRevision2ProfileAuthority.runtimeCapabilitiesFingerprint",
+        ),
         targetProfile: "rhino",
         tokenCount: files.reduce((sum, file) => sum + file.tokenCount, 0),
         totalBytes: files.reduce((sum, file) => sum + file.byteLength, 0),
@@ -685,6 +690,31 @@ const makeProject = (sourceText) => {
         assertWorkerProjectStateCleared("config-chunk injection");
         recordExactFrameInjection("projectInputConfigChunk");
         await assertControlledSuccessorReusable("config-chunk injection");
+    }
+    {
+        const operation = await beginControlledStart("{}");
+        const messages = await dispatch({
+            frames: [{
+                byteLength: operation.bytes.length,
+                kind: "projectInputConfigStart",
+                path: "tsconfig.json",
+                requestId: operation.requestId,
+                sequence: operation.sequence,
+                sha256: operation.digest,
+            }],
+            kind: "projectInputBatch",
+            plugins: true,
+            requestId: operation.requestId,
+            sequence: operation.sequence,
+        });
+        expectProjectErrorWithoutAck(
+            messages,
+            operation.requestId,
+            "project-input-batch injection",
+        );
+        assertWorkerProjectStateCleared("project-input-batch injection");
+        recordExactFrameInjection("projectInputBatch");
+        await assertControlledSuccessorReusable("project-input-batch injection");
     }
     {
         const operation = await beginControlledConfig("{}");

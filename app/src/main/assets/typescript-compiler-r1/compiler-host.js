@@ -3,6 +3,15 @@
 (() => {
     const nativeMessage = "__autojs_typescript_compiler_port_v1__";
     const maximumJsonBytes = 128 * 1024;
+    const maximumProjectInputBatchFrames = 4;
+    const batchedProjectInputKinds = new Set([
+        "projectInputConfigStart",
+        "projectInputConfigChunk",
+        "projectInputConfigEnd",
+        "projectInputFileStart",
+        "projectInputFileChunk",
+        "projectInputFileEnd",
+    ]);
     // A maximum legal C5 inventory can make the exact Node revision-2 start
     // envelope larger than an ordinary frame. The classifier below is the
     // only path allowed to consume this separate native-to-page budget.
@@ -649,6 +658,71 @@
         }
     };
 
+    const forwardProjectInputBatch = (message) => {
+        const active = activeProject;
+        if (
+            active === null ||
+            message.requestId !== active.requestId
+        ) {
+            return;
+        }
+        if (
+            active.generation !== generation ||
+            active.phase !== "input" ||
+            active.awaitingInputAck !== null ||
+            worker === null ||
+            !hasExactKeys(message, [
+                "frames",
+                "kind",
+                "requestId",
+                "sequence",
+            ]) ||
+            !Array.isArray(message.frames) ||
+            message.frames.length < 1 ||
+            message.frames.length > maximumProjectInputBatchFrames
+        ) {
+            failActiveProjectAndReplaceWorker(
+                "Project input batch shape is invalid.",
+            );
+            return;
+        }
+        let expectedSequence = active.nextInputSequence;
+        for (const frame of message.frames) {
+            if (
+                !isRecord(frame) ||
+                !batchedProjectInputKinds.has(frame.kind) ||
+                frame.requestId !== active.requestId ||
+                !Number.isSafeInteger(frame.sequence) ||
+                frame.sequence !== expectedSequence
+            ) {
+                failActiveProjectAndReplaceWorker(
+                    "Project input batch is out of sequence.",
+                );
+                return;
+            }
+            expectedSequence += 1;
+        }
+        const lastFrame = message.frames[message.frames.length - 1];
+        if (
+            !Number.isSafeInteger(message.sequence) ||
+            message.sequence !== lastFrame.sequence
+        ) {
+            failActiveProjectAndReplaceWorker(
+                "Project input batch acknowledgement boundary is invalid.",
+            );
+            return;
+        }
+        active.awaitingInputAck = message.sequence;
+        active.lastInputKind = lastFrame.kind;
+        try {
+            worker.postMessage(message);
+        } catch (error) {
+            failActiveProjectAndReplaceWorker(
+                boundedError(error, "Project input batch could not reach the Worker."),
+            );
+        }
+    };
+
     const forwardProjectResultAck = (message) => {
         const active = activeProject;
         if (
@@ -745,9 +819,21 @@
             message.targetProfile === "node" &&
             message.profileRevision === 2 &&
             typeof message.packageMetadataCanonical === "string";
+        const usesExtendedProjectInputBatchEnvelope =
+            message.kind === "projectInputBatch" &&
+            hasExactKeys(message, [
+                "frames",
+                "kind",
+                "requestId",
+                "sequence",
+            ]) &&
+            Array.isArray(message.frames) &&
+            message.frames.length >= 1 &&
+            message.frames.length <= maximumProjectInputBatchFrames;
         if (
             exceedsOrdinaryJsonLimit &&
-            !usesExtendedProjectInputStartEnvelope
+            !usesExtendedProjectInputStartEnvelope &&
+            !usesExtendedProjectInputBatchEnvelope
         ) {
             if (activeProject !== null) {
                 failActiveProjectAndReplaceWorker(
@@ -789,6 +875,9 @@
             case "projectInputFileEnd":
             case "projectInputEnd":
                 forwardProjectInputFrame(message);
+                break;
+            case "projectInputBatch":
+                forwardProjectInputBatch(message);
                 break;
             case "projectResultAck":
                 forwardProjectResultAck(message);

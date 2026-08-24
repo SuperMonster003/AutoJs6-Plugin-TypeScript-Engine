@@ -837,12 +837,14 @@ class TypeScriptWebViewCompilerHost(
             )
         }
         val inputFramer = runCatching {
-            R2ProjectInputFramer(
-                requestId = handle.requestId,
-                snapshot = snapshot,
-                workerSpinMilliseconds = workerSpinMilliseconds,
-                workerSpinPhase = workerSpinPhase,
-                workerInputQuotaAuthority = workerInputQuotaAuthority,
+            R2BatchedProjectInputFramer(
+                R2ProjectInputFramer(
+                    requestId = handle.requestId,
+                    snapshot = snapshot,
+                    workerSpinMilliseconds = workerSpinMilliseconds,
+                    workerSpinPhase = workerSpinPhase,
+                    workerInputQuotaAuthority = workerInputQuotaAuthority,
+                ),
             )
         }.getOrElse { error ->
             return completeUnregisteredProject(
@@ -1378,7 +1380,7 @@ class TypeScriptWebViewCompilerHost(
     }
 
     private fun releaseProjectInputFramerBlocking(
-        framer: R2ProjectInputFramer?,
+        framer: R2ProjectInputTransport?,
     ): Boolean {
         framer ?: return true
         val release: Future<*> = try {
@@ -1417,7 +1419,7 @@ class TypeScriptWebViewCompilerHost(
         }
     }
 
-    private fun releaseProjectInputOrPoison(framer: R2ProjectInputFramer?): Boolean {
+    private fun releaseProjectInputOrPoison(framer: R2ProjectInputTransport?): Boolean {
         val released = releaseProjectInputFramerBlocking(framer)
         if (!released) {
             markExternalTeardownRequired()
@@ -3929,7 +3931,7 @@ class TypeScriptWebViewCompilerHost(
         val encodedRequest: String?,
         val projectSnapshot: R2ProjectInputSnapshot? = null,
         val operationHandle: R2HostProjectOperationHandle? = null,
-        val projectInputFramer: R2ProjectInputFramer? = null,
+        val projectInputFramer: R2ProjectInputTransport? = null,
         val deadlineAt: Long? = null,
         val deadlineAtElapsedRealtimeNanos: Long? = null,
         val projectExecutionObserver:

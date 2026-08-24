@@ -6620,7 +6620,17 @@ let framedCompilationRequestId = null;
 let framedResult = null;
 let frameHandlerBusy = false;
 let pendingProjectInputFrame = null;
+let batchedProjectInputAcknowledgement = null;
 let projectInputFrameGeneration = 0;
+const maximumProjectInputBatchFrames = 4;
+const batchedProjectInputKinds = new Set([
+    "projectInputConfigStart",
+    "projectInputConfigChunk",
+    "projectInputConfigEnd",
+    "projectInputFileStart",
+    "projectInputFileChunk",
+    "projectInputFileEnd",
+]);
 
 class CancelledProjectInputFrameError extends Error {
     constructor(frameToken) {
@@ -6723,6 +6733,18 @@ const postProjectConfigError = (requestId, error) => {
 };
 
 const acknowledgeProjectInput = (requestId, sequence) => {
+    const batch = batchedProjectInputAcknowledgement;
+    if (batch !== null) {
+        if (
+            requestId !== batch.requestId ||
+            sequence !== batch.nextSequence ||
+            sequence > batch.lastSequence
+        ) {
+            throw new Error("Project input batch acknowledgement is out of sequence.");
+        }
+        batch.nextSequence += 1;
+        return;
+    }
     self.postMessage({
         kind: "projectInputAck",
         requestId,
@@ -8134,17 +8156,7 @@ const acceptProjectResultAck = (message) => {
     });
 };
 
-const handleProjectInputFrame = async (message) => {
-    if (frameHandlerBusy) {
-        if (
-            pendingProjectInputFrame !== null &&
-            pendingProjectInputFrame.requestId === message.requestId
-        ) {
-            pendingProjectInputFrame.cancelled = true;
-        }
-        throw new Error("Project input violated stop-and-wait backpressure.");
-    }
-    frameHandlerBusy = true;
+const dispatchProjectInputFrame = async (message) => {
     const frameToken = createProjectInputFrameToken(message);
     pendingProjectInputFrame = frameToken;
     try {
@@ -8185,6 +8197,93 @@ const handleProjectInputFrame = async (message) => {
         if (pendingProjectInputFrame === frameToken) {
             pendingProjectInputFrame = null;
         }
+    }
+};
+
+const rejectConcurrentProjectInput = (message) => {
+    if (
+        pendingProjectInputFrame !== null &&
+        pendingProjectInputFrame.requestId === message.requestId
+    ) {
+        pendingProjectInputFrame.cancelled = true;
+    }
+    throw new Error("Project input violated stop-and-wait backpressure.");
+};
+
+const handleProjectInputFrame = async (message) => {
+    if (frameHandlerBusy) {
+        rejectConcurrentProjectInput(message);
+    }
+    frameHandlerBusy = true;
+    try {
+        await dispatchProjectInputFrame(message);
+    } finally {
+        frameHandlerBusy = false;
+    }
+};
+
+const handleProjectInputBatch = async (message) => {
+    if (frameHandlerBusy) {
+        rejectConcurrentProjectInput(message);
+    }
+    if (
+        !hasExactKeys(message, [
+            "frames",
+            "kind",
+            "requestId",
+            "sequence",
+        ]) ||
+        !Array.isArray(message.frames) ||
+        message.frames.length < 1 ||
+        message.frames.length > maximumProjectInputBatchFrames
+    ) {
+        throw new Error("Project input batch shape is invalid.");
+    }
+    const firstSequence = message.frames[0]?.sequence;
+    if (!Number.isSafeInteger(firstSequence)) {
+        throw new Error("Project input batch has no valid first sequence.");
+    }
+    let expectedSequence = firstSequence;
+    for (const frame of message.frames) {
+        if (
+            !isRecord(frame) ||
+            !batchedProjectInputKinds.has(frame.kind) ||
+            frame.requestId !== message.requestId ||
+            !Number.isSafeInteger(frame.sequence) ||
+            frame.sequence !== expectedSequence
+        ) {
+            throw new Error("Project input batch is out of sequence.");
+        }
+        expectedSequence += 1;
+    }
+    const lastSequence = expectedSequence - 1;
+    if (
+        !Number.isSafeInteger(message.sequence) ||
+        message.sequence !== lastSequence
+    ) {
+        throw new Error("Project input batch boundary is invalid.");
+    }
+
+    frameHandlerBusy = true;
+    batchedProjectInputAcknowledgement = {
+        lastSequence,
+        nextSequence: firstSequence,
+        requestId: message.requestId,
+    };
+    try {
+        for (const frame of message.frames) {
+            await dispatchProjectInputFrame(frame);
+        }
+        if (
+            batchedProjectInputAcknowledgement.nextSequence !==
+            lastSequence + 1
+        ) {
+            throw new Error("Project input batch was not fully acknowledged.");
+        }
+        batchedProjectInputAcknowledgement = null;
+        acknowledgeProjectInput(message.requestId, lastSequence);
+    } finally {
+        batchedProjectInputAcknowledgement = null;
         frameHandlerBusy = false;
     }
 };
@@ -8209,6 +8308,8 @@ self.onmessage = async (event) => {
                 requestId: request.requestId,
                 result: await runProbe(request),
             });
+        } else if (request.kind === "projectInputBatch") {
+            await handleProjectInputBatch(request);
         } else if (request.kind.startsWith("projectInput")) {
             await handleProjectInputFrame(request);
         } else if (request.kind === "projectResultAck") {

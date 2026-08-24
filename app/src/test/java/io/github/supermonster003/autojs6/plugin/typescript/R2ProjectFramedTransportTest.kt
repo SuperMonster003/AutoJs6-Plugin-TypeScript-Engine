@@ -1267,6 +1267,180 @@ class R2ProjectFramedTransportTest {
     }
 
     @Test
+    fun batchedInputKeepsExactInnerSequenceAndCommitsOnlyAfterEnvelopeAck() {
+        val declarationText = buildString(180 * 1024) {
+            append("/// <reference no-default-lib=\"true\"/>\n")
+            while (length < 180 * 1024) {
+                append("interface BatchedDeclaration { value: string; }\n")
+            }
+        }
+        val sourceText = buildString(90 * 1024) {
+            while (length < 90 * 1024) {
+                append("export const value = \"批量传输\";\n")
+            }
+        }
+        val snapshot = R2ProjectSnapshot.create(
+            files = listOf(
+                R2ProjectTextFile("/declarations/lib.d.ts", declarationText),
+                R2ProjectTextFile("/sources/main.ts", sourceText),
+            ),
+            rootNames = listOf("/sources/main.ts"),
+            limits = R2ProjectSnapshotLimits.PROVISIONAL_WORKER,
+        )
+        val framer = R2BatchedProjectInputFramer(
+            R2ProjectInputFramer("batched-input", snapshot),
+        )
+        var expectedSequence = 0
+        var innerFrameCount = 0
+        var envelopeCount = 0
+        var decodedChunkBytes = 0L
+        var sawStart = false
+        var sawEnd = false
+        var checkedUncommittedBatch = false
+
+        while (!framer.isComplete) {
+            val before = framer.telemetryForTesting()
+            val encoded = framer.nextFrame()
+            envelopeCount++
+            assertTrue(
+                encoded.toByteArray(StandardCharsets.UTF_8).size <=
+                    R2_PROJECT_MAXIMUM_BATCH_ENVELOPE_BYTES,
+            )
+            assertFails { framer.nextFrame() }
+            val envelope = parseFrame(encoded)
+            val acknowledgedSequence = envelope.intValue("sequence")
+            assertEquals("batched-input", envelope["requestId"])
+            when (envelope["kind"]) {
+                "projectInputStart" -> {
+                    assertEquals(0, envelope.intValue("sequence"))
+                    assertFalse(sawStart)
+                    sawStart = true
+                    expectedSequence++
+                    innerFrameCount++
+                }
+                "projectInputBatch" -> {
+                    assertTrue(sawStart)
+                    assertFalse(sawEnd)
+                    @Suppress("UNCHECKED_CAST")
+                    val frames = envelope["frames"] as List<Map<String, Any?>>
+                    assertTrue(frames.isNotEmpty())
+                    assertTrue(frames.size <= R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES)
+                    frames.forEach { frame ->
+                        assertEquals("batched-input", frame["requestId"])
+                        assertEquals(expectedSequence, frame.intValue("sequence"))
+                        assertTrue(
+                            frame["kind"] in setOf(
+                                "projectInputConfigStart",
+                                "projectInputConfigChunk",
+                                "projectInputConfigEnd",
+                                "projectInputFileStart",
+                                "projectInputFileChunk",
+                                "projectInputFileEnd",
+                            ),
+                        )
+                        if (frame["kind"] == "projectInputFileChunk") {
+                            decodedChunkBytes += R2FramedBase64.decode(
+                                frame["data"] as String,
+                            ).size
+                        }
+                        expectedSequence++
+                        innerFrameCount++
+                    }
+                    assertEquals(expectedSequence - 1, acknowledgedSequence)
+                    if (!checkedUncommittedBatch) {
+                        val whileOutstanding = framer.telemetryForTesting()
+                        assertEquals(
+                            before.acceptedPayloadBytes,
+                            whileOutstanding.acceptedPayloadBytes,
+                        )
+                        assertEquals(before.fileIndex, whileOutstanding.fileIndex)
+                        assertTrue(whileOutstanding.sentFrameCount > before.sentFrameCount)
+                        assertFails { framer.acknowledge(acknowledgedSequence + 1) }
+                        assertEquals(
+                            acknowledgedSequence,
+                            framer.outstandingSequence,
+                        )
+                        framer.acknowledge(acknowledgedSequence)
+                        assertTrue(
+                            framer.telemetryForTesting().acceptedPayloadBytes >
+                                before.acceptedPayloadBytes,
+                        )
+                        checkedUncommittedBatch = true
+                        continue
+                    }
+                }
+                "projectInputEnd" -> {
+                    assertTrue(sawStart)
+                    assertFalse(sawEnd)
+                    assertTrue(framer.outstandingCompletesTransport)
+                    sawEnd = true
+                    assertEquals(expectedSequence, acknowledgedSequence)
+                    expectedSequence++
+                    innerFrameCount++
+                }
+                else -> fail("Unexpected project input envelope kind: ${envelope["kind"]}")
+            }
+            framer.acknowledge(acknowledgedSequence)
+        }
+
+        val telemetry = framer.telemetryForTesting()
+        assertTrue(sawStart)
+        assertTrue(sawEnd)
+        assertTrue(checkedUncommittedBatch)
+        assertEquals(snapshot.totalUtf8Bytes, decodedChunkBytes)
+        assertEquals(innerFrameCount, telemetry.sentFrameCount)
+        assertEquals(envelopeCount, telemetry.sentEnvelopeCount)
+        assertEquals(
+            2 + (innerFrameCount - 2 + R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES - 1) /
+                R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES,
+            envelopeCount,
+        )
+        assertTrue(telemetry.maximumEncodedFrameBytes <= R2_PROJECT_MAXIMUM_FRAME_BYTES)
+        assertTrue(
+            telemetry.maximumEncodedEnvelopeBytes <=
+                R2_PROJECT_MAXIMUM_BATCH_ENVELOPE_BYTES,
+        )
+        assertEquals(telemetry.totalPayloadBytes, telemetry.acceptedPayloadBytes)
+    }
+
+    @Test
+    fun releasingOutstandingBatchClosesItsActiveCursorExactlyOnce() {
+        val snapshot = GeneratedProjectInputSnapshot(
+            generatedFiles = listOf(
+                GeneratedFile(
+                    path = "/declarations/lib.d.ts",
+                    byteLength = 4 * R2_PROJECT_FRAME_RAW_CHUNK_BYTES,
+                    value = 'd'.code.toByte(),
+                ),
+                GeneratedFile("/sources/main.ts", 1, '\n'.code.toByte()),
+            ),
+        )
+        val framer = R2BatchedProjectInputFramer(
+            R2ProjectInputFramer(
+                requestId = "batched-release",
+                snapshot = snapshot,
+            ),
+        )
+
+        assertEquals("projectInputStart", parseFrame(framer.nextFrame())["kind"])
+        framer.acknowledge(0)
+        assertEquals("projectInputBatch", parseFrame(framer.nextFrame())["kind"])
+        assertTrue(framer.telemetryForTesting().activeCursor)
+
+        framer.release()
+        framer.release()
+
+        val telemetry = framer.telemetryForTesting()
+        assertTrue(telemetry.released)
+        assertFalse(telemetry.activeCursor)
+        assertEquals(1, telemetry.openedCursorCount)
+        assertEquals(1, telemetry.closedCursorCount)
+        assertEquals(1, snapshot.cursorCloseAttemptCount)
+        assertEquals(1, snapshot.closedCursorCount)
+        assertFails { framer.acknowledge(requireNotNull(framer.outstandingSequence)) }
+    }
+
+    @Test
     fun fileBackedFramerReadsAtMostOneChunkAndStreamsBeyondWorkerBudget() {
         val snapshot = GeneratedProjectInputSnapshot(
             generatedFiles = listOf(

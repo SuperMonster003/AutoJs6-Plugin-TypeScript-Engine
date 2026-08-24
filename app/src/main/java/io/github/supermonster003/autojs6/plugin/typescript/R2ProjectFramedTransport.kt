@@ -37,6 +37,22 @@ internal enum class R2WorkerInputQuotaAuthority(
  * provisional 8 MiB admission limit. A DEBUG-only device gate can exercise the larger file-backed
  * envelope. Frames are sent stop-and-wait and every encoded envelope is independently bounded.
  */
+internal interface R2ProjectInputTransport {
+
+    val isComplete: Boolean
+    val outstandingSequence: Int?
+    val outstandingCompletesTransport: Boolean
+    val nextFrameCompletesTransport: Boolean
+
+    fun nextFrame(): String
+
+    fun acknowledge(acknowledgedSequence: Int)
+
+    fun release()
+
+    fun telemetryForTesting(): R2ProjectInputTransportTelemetry
+}
+
 internal class R2ProjectInputFramer(
     val requestId: String,
     private val snapshot: R2ProjectInputSnapshot,
@@ -44,7 +60,7 @@ internal class R2ProjectInputFramer(
     private val workerSpinPhase: R2ProjectExecutionPhase? = null,
     private val workerInputQuotaAuthority: R2WorkerInputQuotaAuthority =
         R2WorkerInputQuotaAuthority.ORDINARY,
-) {
+) : R2ProjectInputTransport {
 
     private val files = snapshot.fileInventory.toList()
     private val rootNames = snapshot.rootNames.toList()
@@ -177,16 +193,19 @@ internal class R2ProjectInputFramer(
     var sentFrameCount: Int = 0
         private set
 
-    val isComplete: Boolean
+    override val isComplete: Boolean
         get() = stage == Stage.COMPLETE
 
-    val outstandingSequence: Int?
+    override val outstandingSequence: Int?
         get() = sequence.takeIf { awaitingAcknowledgement }
 
-    val outstandingCompletesTransport: Boolean
+    override val outstandingCompletesTransport: Boolean
         get() = awaitingAcknowledgement && stage == Stage.PROJECT_END
 
-    fun telemetryForTesting(): R2ProjectInputTransportTelemetry {
+    override val nextFrameCompletesTransport: Boolean
+        get() = !awaitingAcknowledgement && stage == Stage.PROJECT_END
+
+    override fun telemetryForTesting(): R2ProjectInputTransportTelemetry {
         val acceptedConfigBytes = when (stage) {
             Stage.PROJECT_START,
             Stage.CONFIG_START -> 0L
@@ -199,7 +218,9 @@ internal class R2ProjectInputFramer(
         return R2ProjectInputTransportTelemetry(
             requestId = requestId,
             sentFrameCount = sentFrameCount,
+            sentEnvelopeCount = sentFrameCount,
             maximumEncodedFrameBytes = maximumEncodedFrameBytes,
+            maximumEncodedEnvelopeBytes = maximumEncodedFrameBytes,
             acceptedPayloadBytes = acceptedConfigBytes + completedFileBytes + fileOffset,
             totalPayloadBytes = declaredTotalBytes,
             fileIndex = fileIndex,
@@ -311,7 +332,7 @@ internal class R2ProjectInputFramer(
         }
     }
 
-    fun nextFrame(): String {
+    override fun nextFrame(): String {
         check(!released) { "Project input transport is released." }
         check(!isComplete) { "Project input transport is already complete." }
         check(!awaitingAcknowledgement) {
@@ -662,7 +683,7 @@ internal class R2ProjectInputFramer(
         return frame
     }
 
-    fun acknowledge(acknowledgedSequence: Int) {
+    override fun acknowledge(acknowledgedSequence: Int) {
         check(!released) { "Project input transport is released." }
         check(awaitingAcknowledgement && acknowledgedSequence == sequence) {
             "Project input acknowledgement does not match the outstanding frame."
@@ -734,7 +755,7 @@ internal class R2ProjectInputFramer(
         }
     }
 
-    fun release() {
+    override fun release() {
         released = true
         chunkBuffer.fill(0)
         currentConfigDigest = null
@@ -1065,10 +1086,136 @@ internal class R2ProjectInputFramer(
     }
 }
 
+/**
+ * Batches only the already bounded middle frames of one project input.
+ *
+ * Project start and end retain their individual acknowledgements so the Worker ingress boundary
+ * and the "end ACK before synchronous TypeScript" guarantee stay unchanged. Each inner frame is
+ * still generated, hashed, sequenced, and validated exactly as before. A batch contains at most
+ * four ordinary frames, which keeps its encoded size below the existing 576 KiB extended-envelope
+ * ceiling even when every inner frame reaches the 128 KiB ordinary limit.
+ */
+internal class R2BatchedProjectInputFramer(
+    private val delegate: R2ProjectInputFramer,
+) : R2ProjectInputTransport {
+
+    private var firstEnvelope = true
+    private var outstanding: Outstanding? = null
+    private var sentEnvelopeCount = 0
+    private var maximumEncodedEnvelopeBytes = 0
+    private var committedTelemetry = delegate.telemetryForTesting()
+    private var released = false
+
+    override val isComplete: Boolean
+        get() = delegate.isComplete && outstanding == null
+
+    override val outstandingSequence: Int?
+        get() = outstanding?.sequence
+
+    override val outstandingCompletesTransport: Boolean
+        get() = (outstanding as? Outstanding.Single)?.completesTransport == true
+
+    override val nextFrameCompletesTransport: Boolean
+        get() = outstanding == null && delegate.nextFrameCompletesTransport
+
+    override fun nextFrame(): String {
+        check(!released) { "Project input transport is released." }
+        check(outstanding == null) {
+            "Project input transport cannot advance before its acknowledgement."
+        }
+        val encoded = if (firstEnvelope || delegate.nextFrameCompletesTransport) {
+            firstEnvelope = false
+            delegate.nextFrame().also {
+                outstanding = Outstanding.Single(
+                    sequence = requireNotNull(delegate.outstandingSequence),
+                    completesTransport = delegate.outstandingCompletesTransport,
+                )
+            }
+        } else {
+            val frames = ArrayList<String>(R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES)
+            var lastSequence = -1
+            while (
+                frames.size < R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES &&
+                !delegate.nextFrameCompletesTransport
+            ) {
+                frames += delegate.nextFrame()
+                lastSequence = requireNotNull(delegate.outstandingSequence)
+                delegate.acknowledge(lastSequence)
+            }
+            check(frames.isNotEmpty()) { "Project input batch has no ordinary frames." }
+            R2FramedJson.projectInputBatch(
+                requestId = committedTelemetry.requestId,
+                lastSequence = lastSequence,
+                frames = frames,
+            ).also {
+                outstanding = Outstanding.Batch(lastSequence)
+            }
+        }
+        val encodedBytes = R2Utf8.encode(encoded, "Project input envelope").size
+        check(encodedBytes <= R2_PROJECT_MAXIMUM_BATCH_ENVELOPE_BYTES) {
+            "Project input envelope exceeds $R2_PROJECT_MAXIMUM_BATCH_ENVELOPE_BYTES bytes."
+        }
+        sentEnvelopeCount = Math.addExact(sentEnvelopeCount, 1)
+        maximumEncodedEnvelopeBytes = maxOf(maximumEncodedEnvelopeBytes, encodedBytes)
+        return encoded
+    }
+
+    override fun acknowledge(acknowledgedSequence: Int) {
+        check(!released) { "Project input transport is released." }
+        val current = requireNotNull(outstanding) {
+            "Project input acknowledgement has no outstanding envelope."
+        }
+        check(acknowledgedSequence == current.sequence) {
+            "Project input acknowledgement does not match the outstanding envelope."
+        }
+        if (current is Outstanding.Single) {
+            delegate.acknowledge(acknowledgedSequence)
+        }
+        outstanding = null
+        committedTelemetry = delegate.telemetryForTesting()
+    }
+
+    override fun release() {
+        released = true
+        delegate.release()
+    }
+
+    override fun telemetryForTesting(): R2ProjectInputTransportTelemetry {
+        val live = delegate.telemetryForTesting()
+        val accepted = if (outstanding is Outstanding.Batch) committedTelemetry else live
+        return accepted.copy(
+            sentFrameCount = live.sentFrameCount,
+            sentEnvelopeCount = sentEnvelopeCount,
+            maximumEncodedFrameBytes = live.maximumEncodedFrameBytes,
+            maximumEncodedEnvelopeBytes = maximumEncodedEnvelopeBytes,
+            openedCursorCount = live.openedCursorCount,
+            closedCursorCount = live.closedCursorCount,
+            activeCursor = live.activeCursor,
+            released = live.released,
+        )
+    }
+
+    private sealed interface Outstanding {
+
+        val sequence: Int
+
+        data class Single(
+            override val sequence: Int,
+            val completesTransport: Boolean,
+        ) : Outstanding
+
+        data class Batch(
+            override val sequence: Int,
+        ) : Outstanding
+    }
+}
+
 internal data class R2ProjectInputTransportTelemetry(
     val requestId: String,
     val sentFrameCount: Int,
+    val sentEnvelopeCount: Int = sentFrameCount,
     val maximumEncodedFrameBytes: Int,
+    val maximumEncodedEnvelopeBytes: Int = maximumEncodedFrameBytes,
     val acceptedPayloadBytes: Long,
     val totalPayloadBytes: Long,
     val fileIndex: Int,
@@ -1297,6 +1444,35 @@ private object R2FramedJson {
         append('}')
     }
 
+    fun projectInputBatch(
+        requestId: String,
+        lastSequence: Int,
+        frames: List<String>,
+    ): String = buildString {
+        append('{')
+        appendString("kind")
+        append(':')
+        appendString("projectInputBatch")
+        append(',')
+        appendString("requestId")
+        append(':')
+        appendString(requestId)
+        append(',')
+        appendString("sequence")
+        append(':')
+        append(lastSequence)
+        append(',')
+        appendString("frames")
+        append(':')
+        append('[')
+        frames.forEachIndexed { index, frame ->
+            if (index > 0) append(',')
+            append(frame)
+        }
+        append(']')
+        append('}')
+    }
+
     private fun StringBuilder.appendString(value: String) {
         append('"')
         value.forEach { character ->
@@ -1327,4 +1503,7 @@ internal const val R2_PROJECT_MAXIMUM_FRAME_BYTES = 128 * 1024
 // metadata-bearing projectInputStart frame; every later stop-and-wait frame
 // remains constrained by R2_PROJECT_MAXIMUM_FRAME_BYTES.
 internal const val R2_PROJECT_MAXIMUM_START_FRAME_BYTES = 576 * 1024
+internal const val R2_PROJECT_MAXIMUM_BATCH_ENVELOPE_BYTES =
+    R2_PROJECT_MAXIMUM_START_FRAME_BYTES
+internal const val R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES = 4
 internal const val R2_PROJECT_FRAME_RAW_CHUNK_BYTES = 64 * 1024
