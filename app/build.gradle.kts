@@ -3988,7 +3988,7 @@ val verifyR2M2C7ControlledTsConfigRootSelection =
                 "CONFIG_ENTRY_NOT_SELECTED",
                 "Program-reachable executable output inventory drifted.",
                 "5 selector semantics, 3 pre-Program failures",
-                "41 controlled options",
+                "44 controlled options",
                 "18 legacy options, compiler host I/O=0",
             ).forEach { marker ->
                 check(marker in harnessSource) {
@@ -4029,7 +4029,7 @@ val verifyR2M2C7ControlledTsConfigRootSelection =
             logger.lifecycle(
                 "R2-M2-C7 controlled root selection verified: selectors=5, " +
                     "pre-Program failures=3, reachable executable sources=3, " +
-                    "controlled/legacy options=41/18, compiler host I/O=0",
+                    "controlled/legacy options=44/18, compiler host I/O=0",
             )
         }
     }

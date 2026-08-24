@@ -148,6 +148,9 @@ const isExecutableProjectSourcePath = (path) =>
     path.startsWith("/sources/") &&
     (path.endsWith(".ts") || path.endsWith(".tsx")) &&
     !path.endsWith(".d.ts");
+const isControlledProjectRootSourcePath = (path) =>
+    path.startsWith("/sources/") &&
+    (path.endsWith(".ts") || path.endsWith(".tsx"));
 const isNodeRevisionTwoExecutableSourcePath = (path) =>
     path.startsWith("/sources/") &&
     (path.endsWith(".ts") || path.endsWith(".mts") || path.endsWith(".cts")) &&
@@ -3601,7 +3604,9 @@ const createReadonlyProjectVfs = (project) => {
             (
                 isNodeRevisionTwoProject
                     ? !isNodeRevisionTwoExecutableSourcePath(rootName)
-                    : !isExecutableProjectSourcePath(rootName)
+                    : isControlledProject
+                      ? !isControlledProjectRootSourcePath(rootName)
+                      : !isExecutableProjectSourcePath(rootName)
             ) ||
             !files.has(rootName) ||
             foldedRoots.has(foldedRoot)

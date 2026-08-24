@@ -150,6 +150,7 @@ const minimalLibrary =
     "interface String {}\n";
 const projectFiles = Object.freeze([
     Object.freeze({ path: "/declarations/lib.d.ts", text: minimalLibrary }),
+    Object.freeze({ path: "/declarations/lib.es2018.d.ts", text: minimalLibrary }),
     Object.freeze({
         path: "/sources/src/contracts.d.ts",
         text: "export interface Contract { readonly value: number; }\n",
@@ -564,20 +565,20 @@ const verifyControlledProgramAndResult = async () => {
         ]) &&
             result.configKind === "tsconfig" &&
             result.configSchemaRevision === 2 &&
-            result.effectiveOptionsRevision === 1 &&
+            result.effectiveOptionsRevision === 2 &&
             /^[0-9a-f]{64}$/.test(result.effectiveOptionsFingerprint) &&
             result.diagnostics.length === 0 &&
             result.emitSkipped === false,
-        "Controlled result authority shape drifted.",
+        `Controlled result authority shape drifted: ${JSON.stringify(result)}.`,
     );
     const canonicalOptionKeys = workerBinding("controlledTsConfigCanonicalOptionKeys");
     assert(
-        Object.keys(result.options).length === 41 &&
+        Object.keys(result.options).length === 44 &&
             JSON.stringify(Object.keys(result.options)) ===
                 JSON.stringify(canonicalOptionKeys) &&
             result.options.strict === false &&
             result.options.noImplicitAny === false,
-        "Controlled result did not expose the exact C3 41-key effective map.",
+        "Controlled result did not expose the exact C3 44-key effective map.",
     );
     const expectedRoots = [
         "/sources/src/contracts.d.ts",
@@ -618,7 +619,7 @@ const verifyControlledProgramAndResult = async () => {
     const call = programConstructionCalls.at(-1);
     assert(
         JSON.stringify(call.rootNames) === JSON.stringify(expectedRoots) &&
-            call.optionKeys.length === 41 &&
+            call.optionKeys.length === 44 &&
             JSON.stringify(call.options) === JSON.stringify(result.options),
         "Program construction did not consume the selected roots/C3 options.",
     );
@@ -627,6 +628,7 @@ const verifyControlledProgramAndResult = async () => {
 const verifyLegacyRegression = async () => {
     const legacyFiles = [
         projectFiles[0],
+        projectFiles[1],
         {
             path: "/sources/main.ts",
             text: "export const legacyValue: number = 1;\n",
@@ -671,7 +673,7 @@ const verifyLegacyRegression = async () => {
             ]) &&
             result.diagnostics.length === 0 &&
             result.outputs.length === 2,
-        "Legacy config-none result/options shape drifted.",
+        `Legacy config-none result/options shape drifted: ${JSON.stringify(result)}.`,
     );
 };
 
@@ -702,7 +704,7 @@ const verifyLegacyRegression = async () => {
     process.stdout.write(
         "R2-M2-C7 controlled root selection verified: " +
             "5 selector semantics, 3 pre-Program failures, " +
-            "3 reachable executable sources, 41 controlled options, " +
+            "3 reachable executable sources, 44 controlled options, " +
             "18 legacy options, compiler host I/O=0\n",
     );
 })().catch((error) => {
