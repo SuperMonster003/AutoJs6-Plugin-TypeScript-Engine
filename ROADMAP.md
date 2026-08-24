@@ -55,7 +55,7 @@
 | S2 | 宿主最小集成: `.ts` 在 Rhino 上跑起来 | 用户点击运行 `.ts`, 脚本执行 | 已完成 (6/6) |
 | S3 | 体验补齐: 诊断、声明、栈映射 | 编译错误/运行错误定位到 TS 源码; AutoJs6 API 有类型 | 已完成 (A1-A3、B1、C1-C3) |
 | S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 进行中 (S4-1、S4-3、S4-4、S4-6 已完成；S4-2 主执行路径已迁移, 删除旧实现待办) |
-| S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 进行中 (S5-1、S5-2 已完成) |
+| S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 进行中 (S5-1、S5-2、S5-3 已完成) |
 
 依赖关系: S1 → S2 → S3 → S4 → S5 严格递进不是必须的 —— S1 与 S2 可
 并行 (S2 的宿主代码先按 same-UID debug 路径联调), S3 各项相互独立,
@@ -484,8 +484,27 @@ Node Runtime 停用矩阵为 12/12，TypeScript 插件缺失/停用负向探针�
         AutoJs6 宿主提交 `a495af8ec`。验证用临时 Builder 已在三设备恢复为原
         `versionCode=5244`，生成测试应用与测试包已卸载；无障碍服务和
         MediaProjection 权限均未改动。
-- [ ] **S5-3 后台/定时/Tasker 入口**: 所有非前台执行入口共用
+- [x] **S5-3 后台/定时/Tasker 入口**: 所有非前台执行入口共用
       S2-5 的 preparation 管线 (验证一遍, 缺口就修)。
+      - [x] 宿主执行链审计确认 Alarm/WorkManager/JobService 定时任务、广播
+        `IntentTask`、Tasker/本地 Run Intent 及快捷方式最终都进入
+        `ScriptEngineService`，非 UI 执行统一由 `RunnableScriptExecution` 在创建
+        引擎前调用 `TypeScriptExecutionCompiler.prepare`；UI Activity 使用同一
+        preparation 判定。
+      - [x] 修复 Tasker `preExecuteScript + .ts/.tsx/.mts/.cts` 被包装为
+        `SequenceScriptSource` 后绕过编译的缺口：preparation 现在从序列中提取
+        compiler-backed 文件源，按真实文件源选择 Rhino/Node profile，并把前置
+        JavaScript 以稳定换行重新接到已编译入口之前；旧 `.js` 序列行为不变。
+      - [x] Rhino 单文件/多文件 materialization 与 Node 单文件/项目请求均计入
+        前置脚本的 generated-line offset；只给项目入口加前缀，导入模块保持原
+        Source Map 坐标，运行栈不会因 Tasker 前缀错位。
+      - [x] 新增路由/引擎选择/Source Map offset 单测及设备 instrumentation：
+        同一 strict `.ts` 经 Tasker、定时任务、广播任务、快捷方式四种适配器执行，
+        另覆盖 Tasker 前缀 + Rhino 多文件项目与 Tasker 前缀 + Node `.mts`。
+        聚焦单测、AndroidTest 编译及 debug/test APK 离线构建通过；API 31
+        arm64、API 35 arm64、API 37 x86_64 三设备各通过 3/3。测试不依赖
+        无障碍或 MediaProjection，未调用权限变更命令；测试 APK 验证后已卸载。
+      - [x] AutoJs6 宿主提交 `d0d353961`。
 - [ ] **S5-4 Ace 编辑器一致性** (Ace 插件仓库): 编辑器诊断与执行前
       诊断使用同版 TypeScript 与同一 profile 选项; 编辑器不可用不
       影响运行 (S2 已保证, 此处只做提示一致性)。
