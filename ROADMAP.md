@@ -492,9 +492,21 @@ install/lifecycle script (本来也不存在执行路径)。原 S9 的"可否决
       `[2307, 2322]`，API 35 真机经真实宿主跨 APK 路径确认错误 import 精确产生
       `[2307]`。契约、兼容矩阵、安全边界与验收证据见
       [T4-1 项目级诊断](docs/architecture/PROJECT_DIAGNOSTICS_T4_1.md)。
-- [ ] **T4-2 跨文件智能**: 补全、hover、签名帮助、定义跳转覆盖项目内
+- [x] **T4-2 跨文件智能**: 补全、hover、签名帮助、定义跳转覆盖项目内
       文件与 T2 依赖层类型。
       验收: 跨文件符号补全命中; 定义跳转打开目标文件并定位。
+      完成 (2026-08-28): Ace 的 TypeScript 6 Language Service 已在 Rhino/Node
+      profile 中统一覆盖项目源码与冻结依赖声明的 completion、hover、signature help
+      和 definition location，并提供 F12、Ctrl/Command+点击及移动端“转到定义”。
+      editor ABI contract 3 只传递绑定项目根、规范相对路径、源码/依赖 inventory
+      fingerprint、内容 SHA-256 与零基范围的类型化目标；宿主在后台重新捕获当前
+      snapshot，拒绝 symlink、越界、过期 inventory、内容变化及不匹配的未保存
+      buffer，再对当前文件精确 jump，或以 `EditActivity.editFileAt` 打开目标文件并
+      定位。桌面 verifier 在两个 profile 均命中项目补全/hover/双参数签名、项目
+      definition 与 dayjs 声明 definition；Xiaomi 23046RP50C / API 35 最终产物通过
+      Ace `6/6` 与真实宿主跨 APK `2/2`，其中 `shared.ts` 精确定位到 `(0, 16)`。
+      契约、安全边界、兼容矩阵与完整验收见
+      [T4-2 跨文件智能](docs/architecture/CROSS_FILE_INTELLIGENCE_T4_2.md)。
 - [ ] **T4-3 auto-import 与 quick fix**: 缺失 import 自动补全建议、
       拼写纠正等 TS codefix 子集。
       验收: 引用未导入符号时一键补 import。

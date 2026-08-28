@@ -11,8 +11,9 @@
 
 该能力通过 editor ABI contract 2 追加，不替换既有单文档编辑接口。snapshot 是可选提示
 输入：宿主不能安全捕获、项目超过预算、内容校验失败或插件无法完整读取时，Ace 清除项目
-源码层并回到原有单文档语义，不把半份项目当成权威。T4-1 不开放定义跳转、跨文件补全、
-auto-import、quick fix 或 rename；这些仍分别属于 T4-2 至 T4-4。
+源码层并回到原有单文档语义，不把半份项目当成权威。T4-1 自身不开放定义跳转、跨文件
+补全、auto-import、quick fix 或 rename；其中跨文件智能与受约束定义跳转已由
+[T4-2](CROSS_FILE_INTELLIGENCE_T4_2.md) 完成，写入类能力仍属于 T4-3 至 T4-4。
 
 ## 数据流与所有权
 
@@ -146,12 +147,14 @@ provider 是可选输入，不改变 contract 1 插件必须实现的入口和�
 
 AutoJs6 全量 `:app:testAppDebugUnitTest` 仍有一个在本项之前已存在、与编辑器无关的
 Explorer action-catalog policy 失败；T4-1 的定向单元、API、Android 编译与上述真机门禁
-全部通过，该基线失败未混入本项提交。
+全部通过，该基线失败未混入本项提交。T4-2 收口时已把该断言同步到 Explorer protocol
+v18 的当前边界；宿主全量回归现为 1716 tests、0 failed、4 skipped。
 
 ## 后续边界
 
-- T4-2 在同一只读源码层上增加跨文件 completion、hover、signature help 与 definition
-  location，并由宿主负责打开目标文件及定位。
+- T4-2 已在同一只读源码层上增加跨文件 completion、hover、signature help 与 definition
+  location，并由宿主复验后负责打开目标文件及定位；完整设计与证据见
+  [T4-2 跨文件智能](CROSS_FILE_INTELLIGENCE_T4_2.md)。
 - T4-3 才开放 TypeScript codefix / auto-import 子集；T4-1 不执行源码写入。
 - T4-4 的 project rename 必须新增可审核的多文件变更事务，不能把当前只读 bridge 扩成
   任意路径写接口。
