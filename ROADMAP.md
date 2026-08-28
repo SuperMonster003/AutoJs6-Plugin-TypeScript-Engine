@@ -478,10 +478,20 @@ install/lifecycle script (本来也不存在执行路径)。原 S9 的"可否决
 目标: Ace 从"有界单文档提示层"升级为项目级智能 (原 S8-5 整体扩容)。
 工作主体在 Ace 插件仓库, 宿主提供 project snapshot 与依赖层。
 
-- [ ] **T4-1 项目级诊断**: 消费宿主 project snapshot 的跨文件诊断;
+- [x] **T4-1 项目级诊断**: 消费宿主 project snapshot 的跨文件诊断;
       停止屏蔽 TS2307/TS2792 类模块解析错误; 与执行前编译 diagnostics
       golden 对齐。
       验收: import 路径写错实时标红, 且与运行前编译报错一致。
+      完成 (2026-08-28): AutoJs6 editor ABI v2 以可选 provider 发布与执行前
+      编译相同的有界源码 inventory（512 文件、单文件 512 KiB、总计 8 MiB），
+      Ace 在后台逐文件复验 UTF-8 长度、SHA-256 与完整 inventory fingerprint 后，
+      将源码和 T2 依赖类型层原子投影到只读虚拟项目；当前未保存 buffer 始终覆盖
+      snapshot 中的主文件。只有完整且经验证的 project snapshot 才解除
+      TS2307/TS2792/TS7016 屏蔽，缺失、损坏或超额输入继续安全降级为单文档语义，
+      同时宿主仍兼容 editor ABI v1 插件。Rhino/Node 桌面 golden 均为
+      `[2307, 2322]`，API 35 真机经真实宿主跨 APK 路径确认错误 import 精确产生
+      `[2307]`。契约、兼容矩阵、安全边界与验收证据见
+      [T4-1 项目级诊断](docs/architecture/PROJECT_DIAGNOSTICS_T4_1.md)。
 - [ ] **T4-2 跨文件智能**: 补全、hover、签名帮助、定义跳转覆盖项目内
       文件与 T2 依赖层类型。
       验收: 跨文件符号补全命中; 定义跳转打开目标文件并定位。

@@ -87,8 +87,10 @@ project metadata 提供。Android bridge 只按 URI 返回当前 snapshot 中的
 fingerprint 与 resolver policy identity 一起交给 TypeScript service；任一 identity 或
 inventory 改变都会重建 service，而不是把新旧声明混用。
 
-当项目类型层存在时，Ace 不再隐藏 TS2307、TS2792 与 TS7016。T2-4 只承诺依赖声明与当前
-文档一致；完整项目源码的跨文件诊断、定义跳转、auto-import 与 rename 仍由 T4 实现。
+T2-4 完成时，只要项目类型层存在，Ace 就不再隐藏 TS2307、TS2792 与 TS7016；该阶段只
+承诺依赖声明与当前文档一致。T4-1 后此策略已收紧：只有完整且经验证的项目源码 snapshot
+才解除上述模块解析诊断屏蔽，单独存在依赖类型层时仍采用单文档降级，避免把未进入语言
+服务的相邻源码误报为缺失模块。定义跳转、auto-import 与 rename 继续由后续 T4 项实现。
 
 ## 一致性验收
 
