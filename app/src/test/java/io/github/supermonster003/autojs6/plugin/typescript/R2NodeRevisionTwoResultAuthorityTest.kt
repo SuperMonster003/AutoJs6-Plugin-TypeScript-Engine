@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class R2NodeRevisionTwoResultAuthorityTest {
@@ -104,6 +105,66 @@ class R2NodeRevisionTwoResultAuthorityTest {
             first.close()
             second.close()
             packageBytes.fill(0)
+        }
+    }
+
+    @Test
+    fun nearestWorkspacePackageBoundariesDriveEsmAndCommonJsMappings() {
+        val packageBodies = listOf(
+            "{}\n".toByteArray(StandardCharsets.UTF_8),
+            "{\"type\":\"commonjs\"}\n".toByteArray(StandardCharsets.UTF_8),
+            "{\"type\":\"module\"}\n".toByteArray(StandardCharsets.UTF_8),
+        )
+        val packagePaths = listOf(
+            "package.json",
+            "packages/cjs/package.json",
+            "packages/esm/package.json",
+        )
+        val packageInventory = R2PackageMetadataInventory.create(
+            dependencyRoots = listOf("packages/cjs", "packages/esm"),
+            files = packagePaths.zip(packageBodies) { path, bytes ->
+                R2PackageMetadataFileDescriptor(
+                    path = path,
+                    size = bytes.size.toLong(),
+                    sha256 = R2Digests.sha256(bytes),
+                )
+            },
+        )
+        val cjsSource = "/sources/packages/cjs/value.ts"
+        val esmSource = "/sources/packages/esm/value.ts"
+        val snapshot = snapshot(
+            projectId = "workspace-package-boundaries",
+            sources = listOf(cjsSource, esmSource),
+            rootNames = listOf(cjsSource, esmSource),
+            packageInventory = packageInventory,
+            packageBytes = packageBodies,
+        )
+        try {
+            val authority = R2NodeRevisionTwoResultAuthority.derive(
+                snapshot = snapshot,
+                outputs = outputs(
+                    cjsSource to "/outputs/packages/cjs/value.js",
+                    esmSource to "/outputs/packages/esm/value.js",
+                ),
+            )
+            val mappings = authority.generatedModuleMappings.associateBy { mapping ->
+                mapping.sourcePath
+            }
+            assertEquals(R2ModuleFormat.COMMONJS, mappings.getValue(cjsSource).moduleFormat)
+            assertEquals(R2ModuleFormat.ESM, mappings.getValue(esmSource).moduleFormat)
+            assertTrue(
+                mappings.getValue(cjsSource).canonicalEvidence.contains(
+                    "packageBoundary=%2Fpackages%2Fcjs",
+                ),
+            )
+            assertTrue(
+                mappings.getValue(esmSource).canonicalEvidence.contains(
+                    "packageBoundary=%2Fpackages%2Fesm",
+                ),
+            )
+        } finally {
+            snapshot.close()
+            packageBodies.forEach { bytes -> bytes.fill(0) }
         }
     }
 

@@ -98,6 +98,7 @@ class R2InputArchiveSchemaV1FixtureTest {
         assertEquals(CONFIG_KEYS, shape.stringList("configKeys"))
         assertEquals(PACKAGE_METADATA_KEYS, shape.stringList("packageMetadataKeys"))
         assertEquals(PACKAGE_TARGET_KEYS, shape.stringList("packageTargetKeys"))
+        assertEquals(DEPENDENCY_LAYER_KEYS, shape.stringList("dependencyLayerKeys"))
         assertEquals(CONDITIONAL_KEYS, shape.stringList("conditionalKeys"))
         assertEquals("key-absent", shape.string("absentConditionalEncoding"))
         assertEquals("fail-closed", shape.string("unknownFieldPolicy"))
@@ -388,10 +389,34 @@ class R2InputArchiveSchemaV1FixtureTest {
             source.bytes.size.toLong() + declaration.bytes.size.toLong(),
             accepted.capacity.totalUtf8Bytes,
         )
+
+        val legacyAccepted = R2InputArchiveSchemaV1.acceptedAuthority(
+            callerInventoryFingerprint = callerFingerprint,
+            inputQuotaRevision =
+                TypeScriptR2Contract.LEGACY_ORDINARY_COMPILATION_INPUT_QUOTA_REVISION,
+            sources = listOf(
+                R2ProjectArchiveFile(
+                    path = "sources/main.ts",
+                    size = source.bytes.size.toLong(),
+                    sha256 = sha256(source.bytes),
+                ),
+            ),
+            trustedDeclarations = trusted,
+            rawConfig = null,
+            packageMetadata = null,
+            packageTargets = null,
+            nodePackageTargetsV2 = null,
+        )
+        assertEquals(
+            TypeScriptR2Contract.LEGACY_ORDINARY_COMPILATION_INPUT_QUOTA_REVISION,
+            legacyAccepted.inputQuotaRevision,
+        )
+        assertEquals(accepted.callerCapacity, legacyAccepted.callerCapacity)
+        assertEquals(accepted.capacity, legacyAccepted.capacity)
     }
 
     @Test
-    fun legacyZipTransportCeilingDoesNotPromoteOrdinaryInputQuota() {
+    fun transportCeilingIsPromotedToOrdinaryInputQuotaRevisionThree() {
         val quota = fixture().objectValue("ordinaryQuota")
         assertEquals(ORDINARY_QUOTA_KEYS, quota.keys.toList())
         assertEquals(
@@ -420,16 +445,19 @@ class R2InputArchiveSchemaV1FixtureTest {
         val transport = fixture().objectValue("transportCeiling")
         assertEquals(TRANSPORT_KEYS, transport.keys.toList())
         assertEquals(
-            "legacy-zip-validation-and-private-staging-only",
+            "zip-validation-with-independent-dependency-layer-ceiling",
             transport.string("authority"),
         )
-        assertEquals(TypeScriptCompilerContract.MAX_INPUT_FILES, transport.int("maximumArchiveFiles"))
         assertEquals(
-            TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+            R2_INPUT_ARCHIVE_MAXIMUM_FILES,
+            transport.int("maximumArchiveFiles"),
+        )
+        assertEquals(
+            R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
             transport.long("maximumArchiveContainerBytes"),
         )
         assertEquals(
-            TypeScriptCompilerContract.MAX_INPUT_BYTES,
+            R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES,
             transport.long("maximumArchiveExpandedBytes"),
         )
         assertEquals(
@@ -447,8 +475,19 @@ class R2InputArchiveSchemaV1FixtureTest {
             transport.string("testOnlySelectionAuthority"),
         )
         assertFalse(transport.boolean("promotesFormalSchema"))
-        assertFalse(transport.boolean("promotesOrdinaryQuota"))
-        assertTrue(transport.int("maximumArchiveFiles") > quota.int("maximumFiles"))
+        assertTrue(transport.boolean("promotesOrdinaryQuota"))
+        assertEquals(
+            quota.int("maximumFiles") +
+                TypeScriptR2Contract.MAX_DEPENDENCY_LAYER_FILES +
+                R2_INPUT_MANIFEST_MAXIMUM_FILES,
+            transport.int("maximumArchiveFiles"),
+        )
+        assertEquals(
+            quota.long("maximumTotalBytes") +
+                TypeScriptR2Contract.MAX_DEPENDENCY_LAYER_BYTES +
+                R2_INPUT_MANIFEST_MAXIMUM_BYTES,
+            transport.long("maximumArchiveExpandedBytes"),
+        )
         assertTrue(
             transport.long("privateFileBackedMaximumTotalBytes") > quota.long("maximumTotalBytes"),
         )
@@ -603,6 +642,7 @@ class R2InputArchiveSchemaV1FixtureTest {
             "configKeys",
             "packageMetadataKeys",
             "packageTargetKeys",
+            "dependencyLayerKeys",
             "conditionalKeys",
             "absentConditionalEncoding",
             "unknownFieldPolicy",
@@ -653,7 +693,22 @@ class R2InputArchiveSchemaV1FixtureTest {
             "inventoryFingerprint",
             "files",
         )
-        val CONDITIONAL_KEYS = listOf("config", "packageMetadata", "packageTargets")
+        val DEPENDENCY_LAYER_KEYS = listOf(
+            "schemaRevision",
+            "policyRevision",
+            "policyFingerprint",
+            "identityKind",
+            "identityPath",
+            "identityFingerprint",
+            "inventoryFingerprint",
+            "fingerprint",
+            "fileCount",
+            "totalBytes",
+            "totalPathBytes",
+            "files",
+        )
+        val CONDITIONAL_KEYS =
+            listOf("config", "packageMetadata", "packageTargets", "dependencyLayer")
         val CONDITIONAL_MATRIX_KEYS = listOf(
             "id",
             "profile",

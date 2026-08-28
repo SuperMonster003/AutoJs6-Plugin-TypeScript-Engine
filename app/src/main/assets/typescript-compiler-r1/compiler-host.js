@@ -3,7 +3,8 @@
 (() => {
     const nativeMessage = "__autojs_typescript_compiler_port_v1__";
     const maximumJsonBytes = 128 * 1024;
-    const maximumProjectInputBatchFrames = 4;
+    const maximumProjectInputBatchFrames = 6;
+    const maximumProjectInputBatchPayloadChunkFrames = 4;
     const batchedProjectInputKinds = new Set([
         "projectInputConfigStart",
         "projectInputConfigChunk",
@@ -11,6 +12,10 @@
         "projectInputFileStart",
         "projectInputFileChunk",
         "projectInputFileEnd",
+    ]);
+    const batchedProjectInputPayloadChunkKinds = new Set([
+        "projectInputConfigChunk",
+        "projectInputFileChunk",
     ]);
     // A maximum legal C5 inventory can make the exact Node revision-2 start
     // envelope larger than an ordinary frame. The classifier below is the
@@ -73,7 +78,7 @@
             "nodePackageTargetSchemaRevision",
         ]),
     );
-    const maximumProjectExecutionProgressUnits = 2 * 4_607;
+    const maximumProjectExecutionProgressUnits = 2 * 4_608;
     const projectExecutionPhases = Object.freeze([
         "ingress",
         "parse",
@@ -687,6 +692,7 @@
             return;
         }
         let expectedSequence = active.nextInputSequence;
+        let payloadChunkFrames = 0;
         for (const frame of message.frames) {
             if (
                 !isRecord(frame) ||
@@ -699,6 +705,18 @@
                     "Project input batch is out of sequence.",
                 );
                 return;
+            }
+            if (batchedProjectInputPayloadChunkKinds.has(frame.kind)) {
+                payloadChunkFrames += 1;
+                if (
+                    payloadChunkFrames >
+                    maximumProjectInputBatchPayloadChunkFrames
+                ) {
+                    failActiveProjectAndReplaceWorker(
+                        "Project input batch has too many payload chunks.",
+                    );
+                    return;
+                }
             }
             expectedSequence += 1;
         }

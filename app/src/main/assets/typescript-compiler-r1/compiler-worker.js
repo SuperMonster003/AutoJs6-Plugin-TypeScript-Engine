@@ -32,20 +32,29 @@ const sha256 = async (text) =>
     bytesToSha256(new TextEncoder().encode(text));
 
 // R2-S3 transfers project input through bounded, ACK-backpressured envelopes and keeps result
-// bytes on stop-and-wait framing. Middle input envelopes may contain at most four exact frames.
+// bytes on stop-and-wait framing. Middle input envelopes may contain at most six exact frames,
+// of which no more than four may be Base64 payload chunks.
 // The Worker still owns an independent materialization bound: transport
 // framing must never turn the frozen archive limits into an allocation limit.
 const projectFrameBytes = 64 * 1024;
-const maximumProjectFiles = 4_607;
+const maximumProjectFiles = 4_608;
 const maximumProjectFileBytes = 8 * 1024 * 1024;
 const maximumProjectBytes = 72 * 1024 * 1024;
 const inputArchiveAuthority = Object.freeze({
     inventoryCanonicalPrefix: "autojs6.typescript.input-inventory.v1\n",
+    maximumFiles: 4_096,
+    maximumSingleFileBytes: 8 * 1024 * 1024,
+    maximumTotalBytes: 64 * 1024 * 1024,
+    quotaRevision: 3,
+    schemaRevision: 1,
+});
+// Hosts compiled before T1-1 inline revision 2 into their request manifest.
+// Keep its smaller caller domain exact while allowing new hosts to select revision 3.
+const legacyCallerInputQuotaAuthority = Object.freeze({
     maximumFiles: 512,
     maximumSingleFileBytes: 8 * 1024 * 1024,
     maximumTotalBytes: 8 * 1024 * 1024,
     quotaRevision: 2,
-    schemaRevision: 1,
 });
 // Direct historical Worker fixtures may still replay revision 1, whose quota
 // covered the complete retained inventory including declarations.
@@ -60,8 +69,38 @@ const ordinaryRetainedInputGuardrail = Object.freeze({
     maximumSingleFileBytes: maximumProjectFileBytes,
     maximumTotalBytes: maximumProjectBytes,
 });
+const dependencyLayerAuthority = Object.freeze({
+    fingerprintCanonicalPrefix:
+        "autojs6.typescript.dependency-layer.fingerprint.v1",
+    inventoryCanonicalPrefix:
+        "autojs6.typescript.dependency-layer.inventory.v1\n",
+    maximumFiles: 8_192,
+    maximumLockfileBytes: 8 * 1024 * 1024,
+    maximumSingleFileBytes: 8 * 1024 * 1024,
+    maximumTotalBytes: 64 * 1024 * 1024,
+    maximumPathBytes: 1536 * 1024,
+    policyFingerprint:
+        "c159ae179de24307c456c69ae4e456ed9d7dba71dc965c22e6114f632af3834a",
+    policyRevision: 2,
+    schemaRevision: 1,
+});
+const dependencyResolverAuthority = Object.freeze({
+    lockfilesVfsPrefix: "/dependency-lockfiles/",
+    nodeModulesVfsPrefix: "/node_modules/",
+    policyFingerprint:
+        "d8207539237d2a08a6b97b530c5e6215f4b73311fdd6954ce9f8004717ebd635",
+    policyRevision: 4,
+    readMode: "immutable-file-backed-framed-readonly-t2-2",
+});
+const dependencyBoundaryAuthority = Object.freeze({
+    installLifecycleKeys: Object.freeze(["install", "postinstall", "preinstall"]),
+    installLifecycleErrorCode:
+        "ERR_AUTOJS6_TYPESCRIPT_DEPENDENCY_INSTALL_SCRIPT_UNSUPPORTED",
+    nativeDependencyErrorCode:
+        "ERR_AUTOJS6_TYPESCRIPT_NATIVE_DEPENDENCY_UNSUPPORTED",
+});
 // This sentinel can only be emitted by the guarded native test/evidence path.
-// Public request manifests are pinned to ordinary caller-input quota revision 2.
+// Public request manifests are pinned to the current ordinary caller-input quota revision.
 const testOnlyExpandedInputQuotaAuthority = Object.freeze({
     maximumFiles: maximumProjectFiles,
     maximumSingleFileBytes: maximumProjectFileBytes,
@@ -71,6 +110,8 @@ const testOnlyExpandedInputQuotaAuthority = Object.freeze({
 const maximumVfsPathChars = 4096;
 const maximumVfsPathDepth = 64;
 const maximumProjectPathChars = 8 * 1024 * 1024;
+const maximumDirectoryIndexPathChars =
+    maximumProjectPathChars + dependencyLayerAuthority.maximumPathBytes;
 const maximumProjectDirectoryNodes = 65_536;
 const maximumProjectDirectoryChars = 4 * 1024 * 1024;
 const maximumTokensPerFile = 65_536;
@@ -145,6 +186,114 @@ const deriveInputInventoryFingerprint = async (records) => {
     }
     return sha256(canonical);
 };
+const dependencyArchivePathForVfsPath = (path) => {
+    if (path.startsWith(dependencyResolverAuthority.nodeModulesVfsPrefix)) {
+        return `dependencies/node_modules/${path.slice(
+            dependencyResolverAuthority.nodeModulesVfsPrefix.length,
+        )}`;
+    }
+    if (path.startsWith(dependencyResolverAuthority.lockfilesVfsPrefix)) {
+        return `dependencies/lockfiles/${path.slice(
+            dependencyResolverAuthority.lockfilesVfsPrefix.length,
+        )}`;
+    }
+    return null;
+};
+const isCanonicalDependencyVfsPath = (path) => {
+    if (
+        typeof path !== "string" ||
+        path.length < 2 ||
+        path.length > maximumVfsPathChars ||
+        !path.startsWith("/") ||
+        path.includes("\\") ||
+        !isSafeUnicodePathText(path)
+    ) {
+        return false;
+    }
+    const segments = path.slice(1).split("/");
+    if (
+        segments.length > maximumVfsPathDepth ||
+        segments.some(
+            (segment) =>
+                segment.length === 0 || segment === "." || segment === "..",
+        )
+    ) {
+        return false;
+    }
+    if (path.startsWith(dependencyResolverAuthority.nodeModulesVfsPrefix)) {
+        return segments.length >= 3 && segments[0] === "node_modules";
+    }
+    return path === "/dependency-lockfiles/package-lock.json" ||
+        path === "/dependency-lockfiles/pnpm-lock.yaml";
+};
+const validateDependencyBoundaryRecord = (path, text) => {
+    const foldedPath = path.toLowerCase();
+    const foldedName = foldedPath.slice(foldedPath.lastIndexOf("/") + 1);
+    if (foldedName.endsWith(".node") || foldedName === "binding.gyp") {
+        throw new Error(
+            `${dependencyBoundaryAuthority.nativeDependencyErrorCode}: ` +
+                `dependency snapshot contains ${JSON.stringify(path)}.`,
+        );
+    }
+    if (
+        !path.startsWith(dependencyResolverAuthority.nodeModulesVfsPrefix) ||
+        foldedName !== "package.json"
+    ) {
+        return;
+    }
+    let root;
+    try {
+        root = JSON.parse(text);
+    } catch (_) {
+        return;
+    }
+    if (root === null || typeof root !== "object" || Array.isArray(root)) return;
+    if (root.gypfile === true) {
+        throw new Error(
+            `${dependencyBoundaryAuthority.nativeDependencyErrorCode}: ` +
+                `dependency package metadata declares gypfile at ${JSON.stringify(path)}.`,
+        );
+    }
+    const scripts = root.scripts;
+    if (scripts === null || typeof scripts !== "object" || Array.isArray(scripts)) return;
+    const lifecycle = dependencyBoundaryAuthority.installLifecycleKeys.find((key) =>
+        Object.prototype.hasOwnProperty.call(scripts, key),
+    );
+    if (lifecycle !== undefined) {
+        throw new Error(
+            `${dependencyBoundaryAuthority.installLifecycleErrorCode}: ` +
+                `dependency package metadata declares scripts.${lifecycle} at ` +
+                `${JSON.stringify(path)}.`,
+        );
+    }
+};
+const deriveDependencyLayerInventoryFingerprint = async (files) => {
+    let canonical = dependencyLayerAuthority.inventoryCanonicalPrefix;
+    for (const file of files) {
+        const archivePath = dependencyArchivePathForVfsPath(file.path);
+        if (archivePath === null) {
+            throw new Error("Dependency-layer VFS path has no archive identity.");
+        }
+        canonical +=
+            `${archivePath}\u0000${file.byteLength}\u0000${file.sha256}\n`;
+    }
+    return sha256(canonical);
+};
+const deriveDependencyLayerFingerprint = async (
+    identityKind,
+    identityPath,
+    identityFingerprint,
+    inventoryFingerprint,
+) => sha256(
+    dependencyLayerAuthority.fingerprintCanonicalPrefix +
+        `|schemaRevision=${dependencyLayerAuthority.schemaRevision}` +
+        `|policyRevision=${dependencyLayerAuthority.policyRevision}` +
+        `|policyFingerprint=${dependencyLayerAuthority.policyFingerprint}` +
+        `|identityKind=${identityKind}` +
+        `|identityPath=${identityPath}` +
+        `|identityFingerprint=${identityFingerprint}` +
+        `|inventoryFingerprint=${inventoryFingerprint}`,
+);
 const isExecutableProjectSourcePath = (path) =>
     path.startsWith("/sources/") &&
     (path.endsWith(".ts") || path.endsWith(".tsx")) &&
@@ -152,6 +301,9 @@ const isExecutableProjectSourcePath = (path) =>
 const isControlledProjectRootSourcePath = (path) =>
     path.startsWith("/sources/") &&
     (path.endsWith(".ts") || path.endsWith(".tsx"));
+const isNodeRevisionTwoProjectRootSourcePath = (path) =>
+    path.startsWith("/sources/") &&
+    (path.endsWith(".ts") || path.endsWith(".mts") || path.endsWith(".cts"));
 const isNodeRevisionTwoExecutableSourcePath = (path) =>
     path.startsWith("/sources/") &&
     (path.endsWith(".ts") || path.endsWith(".mts") || path.endsWith(".cts")) &&
@@ -293,6 +445,38 @@ const controlledTsConfigAuthority = Object.freeze({
     profileSchemaRevision: 1,
     targetProfile: "rhino",
 });
+const controlledTsConfigRevision3Authority = Object.freeze({
+    configKind: "tsconfig",
+    configPath: "tsconfig.json",
+    // Updated together with R2ControlledTsConfigPolicy.revision3CanonicalInput.
+    configPolicyFingerprint:
+        "1f77d37080466f2752176fb5aa1b96e9a3f3dbdc89b853f30b4a0fed4313e90a",
+    configPolicyRevision: 3,
+    configSchemaRevision: 2,
+    maximumBytes: 48 * 1024,
+    maximumJsonDepth: 16,
+    maximumJsonNodes: 4 * 1024,
+    maximumSelectorBytes: 4 * 1024,
+    maximumSelectors: 512,
+});
+const controlledTsConfigRevision4Authority = Object.freeze({
+    configKind: "tsconfig",
+    configPath: "tsconfig.json",
+    // Updated together with R2ControlledTsConfigPolicy.revision4CanonicalInput.
+    configPolicyFingerprint:
+        "4a9a5e70150f81e1ec9a5e2f749cc081f93f207f092300c96a79abfdcc152dab",
+    configPolicyRevision: 4,
+    configSchemaRevision: 2,
+    maximumBytes: 48 * 1024,
+    maximumJsonDepth: 16,
+    maximumJsonNodes: 4 * 1024,
+    maximumPathAliases: 128,
+    maximumPathPatternBytes: 4 * 1024,
+    maximumPathTargets: 512,
+    maximumPathTargetsPerAlias: 8,
+    maximumSelectorBytes: 4 * 1024,
+    maximumSelectors: 512,
+});
 const controlledPackageMetadataAuthority = Object.freeze({
     canonicalPrefix: "autojs6.typescript.package-metadata.inventory.v1",
     maximumBytes: 1024 * 1024,
@@ -391,6 +575,21 @@ const controlledTsConfigAllowedBooleanOptions = new Set([
     "strictPropertyInitialization",
     "useUnknownInCatchVariables",
 ]);
+const controlledTsConfigRevision3AllowedBooleanOptions = new Set([
+    ...controlledTsConfigAllowedBooleanOptions,
+    "preserveConstEnums",
+    "removeComments",
+]);
+const controlledTsConfigRevision3AllowedValueOptions = new Set([
+    "lib",
+    "target",
+]);
+const controlledTsConfigRevision4AllowedValueOptions = new Set([
+    "baseUrl",
+    "lib",
+    "paths",
+    "target",
+]);
 const controlledTsConfigProfileManagedOptions = new Set([
     "allowJs",
     "allowSyntheticDefaultImports",
@@ -411,6 +610,11 @@ const controlledTsConfigProfileManagedOptions = new Set([
     "target",
     "useDefineForClassFields",
 ]);
+const controlledTsConfigRevision3ProfileManagedOptions = new Set(
+    Array.from(controlledTsConfigProfileManagedOptions).filter(
+        (name) => name !== "target",
+    ),
+);
 // R2-M2-C4 keeps every option that could delegate resolution or compiler
 // execution outside the frozen profile on an explicit fail-closed branch.
 // Do not rely only on TypeScript's version-specific optionDeclarations list:
@@ -427,6 +631,16 @@ const controlledTsConfigEscapeForbiddenOptions = new Set([
     "typeRoots",
     "types",
 ]);
+const controlledTsConfigRevision3EscapeForbiddenOptions = new Set(
+    Array.from(controlledTsConfigEscapeForbiddenOptions).filter(
+        (name) => name !== "lib",
+    ),
+);
+const controlledTsConfigRevision4EscapeForbiddenOptions = new Set(
+    Array.from(controlledTsConfigEscapeForbiddenOptions).filter(
+        (name) => name !== "baseUrl" && name !== "lib" && name !== "paths",
+    ),
+);
 const controlledTsConfigOutputForbiddenOptions = new Set([
     "declaration",
     "declarationDir",
@@ -445,6 +659,11 @@ const controlledTsConfigOutputForbiddenOptions = new Set([
     "sourceRoot",
     "tsBuildInfoFile",
 ]);
+const controlledTsConfigRevision3OutputForbiddenOptions = new Set(
+    Array.from(controlledTsConfigOutputForbiddenOptions).filter(
+        (name) => name !== "removeComments",
+    ),
+);
 const controlledTsConfigCustomTransformerOptions = new Set([
     "customTransformer",
     "customTransformers",
@@ -463,6 +682,8 @@ const controlledTsConfigKnownOptions = new Set(
     ts.optionDeclarations.map((option) => option.name),
 );
 const controlledTsConfigEffectiveOptionsRevision = 2;
+const controlledTsConfigRevision3EffectiveOptionsRevision = 3;
+const controlledTsConfigRevision4EffectiveOptionsRevision = 4;
 const controlledTsConfigStrictDependentOptions = new Set([
     "noImplicitAny",
     "noImplicitThis",
@@ -484,6 +705,22 @@ const controlledTsConfigFalseDefaultOptions = new Set([
     "noUnusedParameters",
     "skipLibCheck",
 ]);
+const controlledTsConfigRevision3FalseDefaultOptions = new Set([
+    ...controlledTsConfigFalseDefaultOptions,
+    "preserveConstEnums",
+    "removeComments",
+]);
+const controlledTsConfigRevision3Targets = Object.freeze({
+    ES2018: Object.freeze({ lib: "lib.es2018.d.ts", value: ts.ScriptTarget.ES2018 }),
+    ES2019: Object.freeze({ lib: "lib.es2019.d.ts", value: ts.ScriptTarget.ES2019 }),
+    ES2020: Object.freeze({ lib: "lib.es2020.d.ts", value: ts.ScriptTarget.ES2020 }),
+    ES2021: Object.freeze({ lib: "lib.es2021.d.ts", value: ts.ScriptTarget.ES2021 }),
+    ES2022: Object.freeze({ lib: "lib.es2022.d.ts", value: ts.ScriptTarget.ES2022 }),
+});
+const controlledTsConfigRevision3RhinoTargets = new Set(["ES2018"]);
+const controlledTsConfigRevision3NodeTargets = new Set(
+    Object.keys(controlledTsConfigRevision3Targets),
+);
 // TypeScript 6.0.3 computes these values when they are omitted. C3 makes
 // them explicit so a future compiler-default change cannot silently alter
 // the immutable Rhino profile.
@@ -542,6 +779,42 @@ const controlledTsConfigCanonicalOptionKeys = Object.freeze([
     "useDefineForClassFields",
     "useUnknownInCatchVariables",
 ]);
+const controlledTsConfigRevision3RhinoCanonicalOptionKeys = Object.freeze(
+    Array.from(
+        new Set([
+            ...controlledTsConfigCanonicalOptionKeys,
+            "lib",
+            "preserveConstEnums",
+            "removeComments",
+        ]),
+    ).sort(compareCodeUnits),
+);
+const controlledTsConfigRevision3NodeCanonicalOptionKeys = Object.freeze(
+    controlledTsConfigRevision3RhinoCanonicalOptionKeys.filter(
+        (name) =>
+            name !== "jsx" &&
+            name !== "jsxFactory" &&
+            name !== "jsxFragmentFactory",
+    ),
+);
+const controlledTsConfigRevision4RhinoCanonicalOptionKeys = Object.freeze(
+    Array.from(
+        new Set([
+            ...controlledTsConfigRevision3RhinoCanonicalOptionKeys,
+            "baseUrl",
+            "paths",
+        ]),
+    ).sort(compareCodeUnits),
+);
+const controlledTsConfigRevision4NodeCanonicalOptionKeys = Object.freeze(
+    Array.from(
+        new Set([
+            ...controlledTsConfigRevision3NodeCanonicalOptionKeys,
+            "baseUrl",
+            "paths",
+        ]),
+    ).sort(compareCodeUnits),
+);
 const projectExecutionPhases = Object.freeze([
     "ingress",
     "parse",
@@ -598,22 +871,79 @@ const matchesProvisionalNodeNextRevision2ProfileAuthority = (value) =>
         provisionalNodeNextRevision2ProfileAuthority.configKind &&
     value.runtimeCapabilitiesFingerprint ===
         provisionalNodeNextRevision2ProfileAuthority.runtimeCapabilitiesFingerprint;
+const matchesCurrentRhinoProfileIdentity = (value) =>
+    value.targetProfile ===
+        provisionalRhinoRevision2ProfileAuthority.targetProfile &&
+    value.profileSchemaRevision ===
+        provisionalRhinoRevision2ProfileAuthority.profileSchemaRevision &&
+    value.profileRevision ===
+        provisionalRhinoRevision2ProfileAuthority.profileRevision;
+const matchesCurrentNodeProfileIdentity = (value) =>
+    value.targetProfile ===
+        provisionalNodeNextRevision2ProfileAuthority.targetProfile &&
+    value.profileSchemaRevision ===
+        provisionalNodeNextRevision2ProfileAuthority.profileSchemaRevision &&
+    value.profileRevision ===
+        provisionalNodeNextRevision2ProfileAuthority.profileRevision &&
+    value.runtimeCapabilitiesFingerprint ===
+        provisionalNodeNextRevision2ProfileAuthority.runtimeCapabilitiesFingerprint;
 const matchesProvisionalConfigNoneProfileAuthority = (value) =>
     matchesProvisionalRhinoProfileAuthority(value) ||
     matchesProvisionalRhinoRevision2ProfileAuthority(value) ||
     matchesProvisionalNodeNextProfileAuthority(value);
 const matchesControlledTsConfigAuthority = (value) =>
-    value.targetProfile === controlledTsConfigAuthority.targetProfile &&
-    value.profileSchemaRevision ===
-        controlledTsConfigAuthority.profileSchemaRevision &&
-    value.profileRevision === controlledTsConfigAuthority.profileRevision &&
-    value.configSchemaRevision ===
-        controlledTsConfigAuthority.configSchemaRevision &&
+    value.configSchemaRevision === controlledTsConfigAuthority.configSchemaRevision &&
     value.configKind === controlledTsConfigAuthority.configKind &&
-    value.configPolicyRevision ===
-        controlledTsConfigAuthority.configPolicyRevision &&
-    value.configPolicyFingerprint ===
-        controlledTsConfigAuthority.configPolicyFingerprint;
+    (
+        value.configPolicyRevision ===
+            controlledTsConfigAuthority.configPolicyRevision &&
+        value.configPolicyFingerprint ===
+            controlledTsConfigAuthority.configPolicyFingerprint &&
+        matchesCurrentRhinoProfileIdentity(value) ||
+        value.configPolicyRevision ===
+            controlledTsConfigRevision3Authority.configPolicyRevision &&
+        value.configPolicyFingerprint ===
+            controlledTsConfigRevision3Authority.configPolicyFingerprint &&
+        (
+            matchesCurrentRhinoProfileIdentity(value) ||
+            matchesCurrentNodeProfileIdentity(value)
+        )
+        ||
+        value.configPolicyRevision ===
+            controlledTsConfigRevision4Authority.configPolicyRevision &&
+        value.configPolicyFingerprint ===
+            controlledTsConfigRevision4Authority.configPolicyFingerprint &&
+        (
+            matchesCurrentRhinoProfileIdentity(value) ||
+            matchesCurrentNodeProfileIdentity(value)
+        )
+    );
+const controlledTsConfigPolicyAuthorityFor = (value) => {
+    if (
+        value.configPolicyRevision === controlledTsConfigAuthority.configPolicyRevision &&
+        value.configPolicyFingerprint ===
+            controlledTsConfigAuthority.configPolicyFingerprint
+    ) {
+        return controlledTsConfigAuthority;
+    }
+    if (
+        value.configPolicyRevision ===
+            controlledTsConfigRevision3Authority.configPolicyRevision &&
+        value.configPolicyFingerprint ===
+            controlledTsConfigRevision3Authority.configPolicyFingerprint
+    ) {
+        return controlledTsConfigRevision3Authority;
+    }
+    if (
+        value.configPolicyRevision ===
+            controlledTsConfigRevision4Authority.configPolicyRevision &&
+        value.configPolicyFingerprint ===
+            controlledTsConfigRevision4Authority.configPolicyFingerprint
+    ) {
+        return controlledTsConfigRevision4Authority;
+    }
+    return null;
+};
 
 const compareStrictlySortedUnique = (values) =>
     values.every(
@@ -1198,7 +1528,9 @@ const resolveControlledNodeSnapshot = (request, packageMetadata, targets) => {
         .filter(
             (record) =>
                 record.boundaryPath === "/" ||
-                containingPath.startsWith(`${record.boundaryPath}/`),
+                nodePackageBoundaryLookupPath(containingPath).startsWith(
+                    `${record.boundaryPath}/`,
+                ),
         )
         .sort(
             (left, right) =>
@@ -1729,7 +2061,9 @@ const resolveNodeRevisionTwoSnapshot = (
         .filter(
             (record) =>
                 record.boundaryPath === "/" ||
-                containingPath.startsWith(`${record.boundaryPath}/`),
+                nodePackageBoundaryLookupPath(containingPath).startsWith(
+                    `${record.boundaryPath}/`,
+                ),
         )
         .sort(
             (left, right) =>
@@ -3249,7 +3583,17 @@ const createNodeRevisionTwoRetainedPackageTargetVfs = (
     );
 };
 
-const createDirectoryIndex = (initialPaths = []) => {
+const createDirectoryIndex = (
+    initialPaths = [],
+    pathCharacterLimit = maximumProjectPathChars,
+) => {
+    if (
+        !Number.isSafeInteger(pathCharacterLimit) ||
+        pathCharacterLimit < maximumProjectPathChars ||
+        pathCharacterLimit > maximumDirectoryIndexPathChars
+    ) {
+        throw new Error("Project directory-index path limit is invalid.");
+    }
     const createNode = () => ({
         children: new Map(),
     });
@@ -3283,7 +3627,7 @@ const createDirectoryIndex = (initialPaths = []) => {
         if (released) {
             throw new Error("Project directory index is released.");
         }
-        if (pathChars + path.length > maximumProjectPathChars) {
+        if (pathChars + path.length > pathCharacterLimit) {
             throw new Error(
                 "Project aggregate paths exceed the character limit.",
             );
@@ -3375,15 +3719,34 @@ const createReadonlyProjectVfs = (project) => {
         project !== null &&
         typeof project === "object" &&
         project.nodeRevisionTwoProgram === true &&
-        matchesProvisionalNodeNextRevision2ProfileAuthority(project);
-    const isConfigNoneProject =
-        isProvisionalRhinoProject ||
-        isProvisionalNodeNextProject ||
-        isNodeRevisionTwoProject;
+        (
+            matchesProvisionalNodeNextRevision2ProfileAuthority(project) ||
+            (
+                matchesControlledTsConfigAuthority(project) &&
+                matchesCurrentNodeProfileIdentity(project)
+            )
+        );
     const isControlledProject =
         project !== null &&
         typeof project === "object" &&
         matchesControlledTsConfigAuthority(project);
+    const isRhinoRevisionTwoProject =
+        project !== null &&
+        typeof project === "object" &&
+        (
+            matchesProvisionalRhinoRevision2ProfileAuthority(project) ||
+            (
+                isControlledProject &&
+                matchesCurrentRhinoProfileIdentity(project)
+            )
+        );
+    const isConfigNoneProject =
+        !isControlledProject &&
+        (
+            isProvisionalRhinoProject ||
+            isProvisionalNodeNextProject ||
+            isNodeRevisionTwoProject
+        );
     const packageTargetFiles =
         project !== null &&
         typeof project === "object" &&
@@ -3435,6 +3798,25 @@ const createReadonlyProjectVfs = (project) => {
         Object.prototype.hasOwnProperty.call(project, "packageTargetTokenCount")
             ? project.packageTargetTokenCount
             : 0;
+    const dependencyFiles =
+        project !== null &&
+        typeof project === "object" &&
+        Object.prototype.hasOwnProperty.call(project, "dependencyFiles")
+            ? project.dependencyFiles
+            : [];
+    let dependencyLayer =
+        project !== null &&
+        typeof project === "object" &&
+        Object.prototype.hasOwnProperty.call(project, "dependencyLayer")
+            ? project.dependencyLayer
+            : null;
+    const dependencyVfsPathChars =
+        project !== null &&
+        typeof project === "object" &&
+        Object.prototype.hasOwnProperty.call(project, "dependencyVfsPathChars")
+            ? project.dependencyVfsPathChars
+            : 0;
+    const hasDependencyLayer = dependencyLayer !== null;
     if (
         project === null ||
         typeof project !== "object" ||
@@ -3444,10 +3826,36 @@ const createReadonlyProjectVfs = (project) => {
         !Array.isArray(packageTargetFiles) ||
         !Array.isArray(packageTargetTextHolders) ||
         !Array.isArray(packageTargetTokenCounts) ||
+        !Array.isArray(dependencyFiles) ||
         packageTargetFiles.length !== packageTargetTextHolders.length ||
         packageTargetFiles.length !== packageTargetTokenCounts.length ||
         !Number.isSafeInteger(packageTargetTokenCount) ||
         packageTargetTokenCount < 0 ||
+        !Number.isSafeInteger(dependencyVfsPathChars) ||
+        dependencyVfsPathChars < 0 ||
+        (hasDependencyLayer
+            ? (!isRhinoRevisionTwoProject && !isNodeRevisionTwoProject) ||
+              !Object.isFrozen(dependencyLayer) ||
+              dependencyLayer.resolverPolicyRevision !==
+                  dependencyResolverAuthority.policyRevision ||
+              dependencyLayer.resolverPolicyFingerprint !==
+                  dependencyResolverAuthority.policyFingerprint ||
+              !Number.isSafeInteger(dependencyLayer.fileCount) ||
+              dependencyLayer.fileCount < 1 ||
+              dependencyLayer.fileCount > dependencyLayerAuthority.maximumFiles ||
+              dependencyFiles.length !== dependencyLayer.fileCount ||
+              !Number.isSafeInteger(dependencyLayer.byteLength) ||
+              dependencyLayer.byteLength < 0 ||
+              dependencyLayer.byteLength >
+                  dependencyLayerAuthority.maximumTotalBytes ||
+              !Number.isSafeInteger(dependencyLayer.pathByteLength) ||
+              dependencyLayer.pathByteLength < 1 ||
+              dependencyLayer.pathByteLength >
+                  dependencyLayerAuthority.maximumPathBytes ||
+              !sha256Pattern.test(dependencyLayer.fingerprint) ||
+              !sha256Pattern.test(dependencyLayer.identityFingerprint) ||
+              !sha256Pattern.test(dependencyLayer.inventoryFingerprint)
+            : dependencyFiles.length !== 0 || dependencyVfsPathChars !== 0) ||
         (
             isNodeRevisionTwoProject
                 ? nodeResolutionAuthority === null ||
@@ -3513,7 +3921,8 @@ const createReadonlyProjectVfs = (project) => {
             isNodeRevisionTwoProject,
         );
         if (
-            (isProvisionalRhinoProject || isControlledProject) &&
+            (isProvisionalRhinoProject ||
+                (isControlledProject && project.targetProfile === "rhino")) &&
             path.toLowerCase().startsWith(
                 declarationLayerAuthority.nodePathPrefix,
             )
@@ -3568,6 +3977,48 @@ const createReadonlyProjectVfs = (project) => {
         files.set(path, file);
         foldedPaths.add(foldedPath);
     }
+    let dependencyBytes = 0;
+    let observedDependencyVfsPathChars = 0;
+    let previousDependencyArchivePath = null;
+    for (const file of dependencyFiles) {
+        if (
+            file === null ||
+            typeof file !== "object" ||
+            typeof file.text !== "string" ||
+            !Number.isSafeInteger(file.byteLength) ||
+            file.byteLength < 0 ||
+            file.byteLength > dependencyLayerAuthority.maximumSingleFileBytes ||
+            file.tokenCount !== 0 ||
+            typeof file.sha256 !== "string" ||
+            !sha256Pattern.test(file.sha256) ||
+            !isCanonicalDependencyVfsPath(file.path)
+        ) {
+            throw new Error("Dependency-layer VFS contains a malformed text file.");
+        }
+        const archivePath = dependencyArchivePathForVfsPath(file.path);
+        const foldedPath = asciiCaseFold(file.path);
+        if (
+            archivePath === null ||
+            (previousDependencyArchivePath !== null &&
+                previousDependencyArchivePath >= archivePath) ||
+            files.has(file.path) ||
+            foldedPaths.has(foldedPath)
+        ) {
+            throw new Error("Dependency-layer VFS contains a canonical path collision.");
+        }
+        dependencyBytes += file.byteLength;
+        observedDependencyVfsPathChars += file.path.length;
+        if (
+            dependencyBytes > dependencyLayerAuthority.maximumTotalBytes ||
+            observedDependencyVfsPathChars >
+                dependencyLayerAuthority.maximumPathBytes
+        ) {
+            throw new Error("Dependency-layer VFS exceeds its independent limits.");
+        }
+        files.set(file.path, file);
+        foldedPaths.add(foldedPath);
+        previousDependencyArchivePath = archivePath;
+    }
     if (
         totalBytes !== project.totalBytes ||
         totalPathChars !== project.pathChars ||
@@ -3582,10 +4033,24 @@ const createReadonlyProjectVfs = (project) => {
             (total, tokenCount) => total + tokenCount,
             0,
         ) !== packageTargetTokenCount ||
-        totalTokens + packageTargetTokenCount > maximumProjectTokens
+        totalTokens + packageTargetTokenCount > maximumProjectTokens ||
+        (hasDependencyLayer &&
+            (dependencyBytes !== dependencyLayer.byteLength ||
+                observedDependencyVfsPathChars !== dependencyVfsPathChars))
     ) {
         throw new Error("Project snapshot accounting does not match its input.");
     }
+    const dependencyTypeNames = Object.freeze(
+        Array.from(
+            new Set(
+                dependencyFiles
+                    .map((file) =>
+                        /^\/node_modules\/@types\/([^/]+)\//.exec(file.path)?.[1],
+                    )
+                    .filter((name) => typeof name === "string"),
+            ),
+        ).sort(compareCodeUnits),
+    );
 
     if (!files.has("/declarations/lib.d.ts")) {
         throw new Error("Project snapshot does not contain the controlled standard library.");
@@ -3680,7 +4145,8 @@ const createReadonlyProjectVfs = (project) => {
         typeof directoryIndex.directoryExists !== "function" ||
         typeof directoryIndex.getDirectories !== "function" ||
         typeof directoryIndex.pathChars !== "function" ||
-        directoryIndex.pathChars() !== totalPathChars ||
+        directoryIndex.pathChars() !==
+            totalPathChars + observedDependencyVfsPathChars ||
         typeof directoryIndex.release !== "function"
     ) {
         throw new Error("Project snapshot directory index is unavailable.");
@@ -3758,6 +4224,7 @@ const createReadonlyProjectVfs = (project) => {
         packageMetadataCatalog = null;
         nodePackageFormatCatalog = null;
         nodeResolutionAuthority = null;
+        dependencyLayer = null;
         resolutionTargets = null;
         directoryIndex.release();
         retainedPackageTargets.release();
@@ -3771,6 +4238,8 @@ const createReadonlyProjectVfs = (project) => {
         getPackageMetadataCatalog: () => packageMetadataCatalog,
         getNodePackageFormatCatalog: () => nodePackageFormatCatalog,
         getNodeResolutionAuthority: () => nodeResolutionAuthority,
+        getDependencyLayer: () => dependencyLayer,
+        getDependencyTypeNames: () => dependencyTypeNames,
         getResolutionTargets: () => resolutionTargets,
         readFile: (path) => files.get(path)?.text,
         readRecord: (path) => files.get(path),
@@ -3785,6 +4254,7 @@ const createControlledNodeResolutionSession = (vfs, options) => {
     let packageMetadata = vfs.getPackageMetadataCatalog();
     let targets = vfs.getResolutionTargets();
     if (packageMetadata === null || targets === null) return null;
+    let dependencyResolution = createDependencyLayerResolution(vfs, options);
 
     const exactTargets = new Map(targets.map((target) => [target.path, target]));
     const foldedTargets = new Map(
@@ -3860,6 +4330,7 @@ const createControlledNodeResolutionSession = (vfs, options) => {
         const key = JSON.stringify([
             packageMetadata.inventoryFingerprint,
             vfs.retainedPackageTargets.fingerprint,
+            dependencyResolution?.fingerprint ?? null,
             request.containingPath,
             request.mode,
             request.conditions,
@@ -4009,11 +4480,20 @@ const createControlledNodeResolutionSession = (vfs, options) => {
                 mode ?? controlledNodeResolutionModes.require,
                 specifier,
             );
+            const dependencyResult = failure === null
+                ? dependencyResolution?.resolveModule(
+                      specifier,
+                      containingFile,
+                      mode,
+                  ) ?? Object.freeze({ kind: "absent" })
+                : null;
             const result = failure ?? (
-                isExtensionlessRelativeSpecifier(specifier) &&
-                vfs.readRecord(containingFile) !== undefined
-                    ? resolveOrdinaryExtensionlessRelative(request)
-                    : memoizedResolve(request)
+                dependencyResult !== null && dependencyResult.kind !== "absent"
+                    ? dependencyResult
+                    : isExtensionlessRelativeSpecifier(specifier) &&
+                        vfs.readRecord(containingFile) !== undefined
+                      ? resolveOrdinaryExtensionlessRelative(request)
+                      : memoizedResolve(request)
             );
             if (result.kind === "failure") {
                 rememberFailure(
@@ -4025,8 +4505,16 @@ const createControlledNodeResolutionSession = (vfs, options) => {
                 return unresolvedModule;
             }
             const target = result.target;
-            if (target.path.startsWith("/packages/")) {
-                if (!vfs.retainedPackageTargets.fileExists(target.path)) {
+            if (
+                target.path.startsWith("/packages/") ||
+                target.path.startsWith(
+                    dependencyResolverAuthority.nodeModulesVfsPrefix,
+                )
+            ) {
+                const targetExists = target.path.startsWith("/packages/")
+                    ? vfs.retainedPackageTargets.fileExists(target.path)
+                    : vfs.fileExists(target.path);
+                if (!targetExists) {
                     const missing = controlledNodeResolutionFailure(
                         controlledNodeResolutionFailureCodes.targetNotInSnapshot,
                     );
@@ -4042,14 +4530,12 @@ const createControlledNodeResolutionSession = (vfs, options) => {
             }
             return Object.freeze({
                 resolvedModule: Object.freeze({
-                    extension:
-                        target.kind ===
-                        controlledNodeResolutionTargetKinds.declaration
-                            ? ts.Extension.Dts
-                            : target.path.endsWith(".tsx")
-                              ? ts.Extension.Tsx
-                              : ts.Extension.Ts,
-                    isExternalLibraryImport: target.path.startsWith("/packages/"),
+                    extension: nodeRevisionTwoTypeScriptExtension(target.path),
+                    isExternalLibraryImport:
+                        target.path.startsWith("/packages/") ||
+                        target.path.startsWith(
+                            dependencyResolverAuthority.nodeModulesVfsPrefix,
+                        ),
                     resolvedFileName: target.path,
                 }),
             });
@@ -4069,22 +4555,38 @@ const createControlledNodeResolutionSession = (vfs, options) => {
             const specifier =
                 typeof reference === "string" ? reference : reference?.fileName;
             let result;
+            const inferredTypesContainingPath = "/__inferred type names__.ts";
             if (
                 redirectedReference !== undefined ||
                 callbackOptions !== options ||
-                !hasKnownContainingPath(containingFile)
+                (!hasKnownContainingPath(containingFile) &&
+                    !(
+                        containingFile === inferredTypesContainingPath &&
+                        dependencyResolution !== null
+                    ))
             ) {
                 result = controlledNodeResolutionFailure(
                     controlledNodeResolutionFailureCodes.invalidContainingPath,
                 );
             } else {
-                result = memoizedResolve(
-                    requestFor(
-                        containingFile,
-                        controlledNodeResolutionModes.types,
+                const dependencyResult =
+                    dependencyResolution?.resolveTypeReference(
                         specifier,
-                    ),
-                );
+                        containingFile,
+                    ) ?? Object.freeze({ kind: "absent" });
+                result = dependencyResult.kind !== "absent"
+                    ? dependencyResult
+                    : containingFile === inferredTypesContainingPath
+                      ? controlledNodeResolutionFailure(
+                            controlledNodeResolutionFailureCodes.targetNotInSnapshot,
+                        )
+                      : memoizedResolve(
+                            requestFor(
+                                containingFile,
+                                controlledNodeResolutionModes.types,
+                                specifier,
+                            ),
+                        );
             }
             if (
                 result.kind === "resolved" &&
@@ -4104,7 +4606,12 @@ const createControlledNodeResolutionSession = (vfs, options) => {
                 );
                 return unresolvedTypeReference;
             }
-            if (!vfs.retainedPackageTargets.fileExists(result.target.path)) {
+            const targetExists = result.target.path.startsWith(
+                dependencyResolverAuthority.nodeModulesVfsPrefix,
+            )
+                ? vfs.fileExists(result.target.path)
+                : vfs.retainedPackageTargets.fileExists(result.target.path);
+            if (!targetExists) {
                 const missing = controlledNodeResolutionFailure(
                     controlledNodeResolutionFailureCodes.targetNotInSnapshot,
                 );
@@ -4136,6 +4643,8 @@ const createControlledNodeResolutionSession = (vfs, options) => {
         memo.clear();
         resolutionDiagnostics.length = 0;
         resolutionDiagnosticIdentities.clear();
+        dependencyResolution?.release();
+        dependencyResolution = null;
         packageMetadata = null;
         targets = null;
     };
@@ -4146,7 +4655,11 @@ const createControlledNodeResolutionSession = (vfs, options) => {
         isGrantedPackageTarget: (path) => authorizedPackageTargets.has(path),
         readGrantedPackageTarget: (path) =>
             authorizedPackageTargets.has(path)
-                ? vfs.retainedPackageTargets.readRecord(path)
+                ? path.startsWith(
+                      dependencyResolverAuthority.nodeModulesVfsPrefix,
+                  )
+                    ? vfs.readRecord(path)
+                    : vfs.retainedPackageTargets.readRecord(path)
                 : undefined,
         release,
         resolveLibrary: () => unresolvedLibrary,
@@ -4154,6 +4667,9 @@ const createControlledNodeResolutionSession = (vfs, options) => {
         resolveTypeReferenceDirectiveReferences,
     });
 };
+
+const nodePackageBoundaryLookupPath = (path) =>
+    path.startsWith("/sources/") ? path.slice("/sources".length) : path;
 
 const nodeRevisionTwoImpliedModuleFormat = (path, packageFormatCatalog) => {
     if (!isNodeRevisionTwoCanonicalTargetPath(path)) {
@@ -4179,11 +4695,12 @@ const nodeRevisionTwoImpliedModuleFormat = (path, packageFormatCatalog) => {
     ) {
         throw new Error("Node revision 2 package-format authority is malformed.");
     }
+    const packageLookupPath = nodePackageBoundaryLookupPath(path);
     const nearest = packageFormatCatalog.records
         .filter(
             (record) =>
                 record.packageBoundaryPath === "/" ||
-                path.startsWith(`${record.packageBoundaryPath}/`),
+                packageLookupPath.startsWith(`${record.packageBoundaryPath}/`),
         )
         .sort(
             (left, right) =>
@@ -4199,7 +4716,438 @@ const nodeRevisionTwoTypeScriptExtension = (path) => {
     if (path.endsWith(".mts")) return ts.Extension.Mts;
     if (path.endsWith(".cts")) return ts.Extension.Cts;
     if (path.endsWith(".ts")) return ts.Extension.Ts;
+    if (path.endsWith(".mjs")) return ts.Extension.Mjs;
+    if (path.endsWith(".cjs")) return ts.Extension.Cjs;
+    if (path.endsWith(".js")) return ts.Extension.Js;
+    if (path.endsWith(".jsx")) return ts.Extension.Jsx;
+    if (path.endsWith(".json")) return ts.Extension.Json;
     throw new Error("Node revision 2 resolved an unsupported source kind.");
+};
+
+const dependencyPackageSpecifier = (specifier) => {
+    if (
+        typeof specifier !== "string" ||
+        specifier.length === 0 ||
+        specifier.length > controlledNodeResolutionMaximumSpecifierChars ||
+        specifier.startsWith(".") ||
+        specifier.startsWith("/") ||
+        specifier.startsWith("#") ||
+        specifier.includes("\\")
+    ) {
+        return null;
+    }
+    const segments = specifier.split("/");
+    const packageSegmentCount = specifier.startsWith("@") ? 2 : 1;
+    if (
+        segments.length < packageSegmentCount ||
+        segments.slice(0, packageSegmentCount).some(
+            (segment) =>
+                !controlledNodeResolutionSpecifierSegmentPattern.test(segment),
+        ) ||
+        segments.slice(packageSegmentCount).some(
+            (segment) =>
+                !controlledNodeResolutionSpecifierSegmentPattern.test(segment),
+        )
+    ) {
+        return null;
+    }
+    const packageName = segments.slice(0, packageSegmentCount).join("/");
+    return Object.freeze({
+        packageName,
+        packageRoot: `${dependencyResolverAuthority.nodeModulesVfsPrefix}${packageName}`,
+        subpath: segments.slice(packageSegmentCount).join("/"),
+    });
+};
+
+const parseDependencyPackageJson = (vfs, packageRoot) => {
+    const path = `${packageRoot}/package.json`;
+    const record = vfs.readRecord(path);
+    if (record === undefined) {
+        return Object.freeze({ path, root: null });
+    }
+    let root;
+    try {
+        root = JSON.parse(record.text);
+    } catch (_) {
+        return controlledNodeResolutionFailure(
+            controlledNodeResolutionFailureCodes.packageMetadataInvalid,
+        );
+    }
+    if (!isRecord(root)) {
+        return controlledNodeResolutionFailure(
+            controlledNodeResolutionFailureCodes.packageMetadataInvalid,
+        );
+    }
+    return Object.freeze({ path, root });
+};
+
+const dependencyTargetCandidates = (packageRoot, relativeTarget) => {
+    if (
+        typeof relativeTarget !== "string" ||
+        relativeTarget.length === 0 ||
+        relativeTarget.startsWith("/") ||
+        relativeTarget.includes("\\")
+    ) {
+        return Object.freeze([]);
+    }
+    const segments = relativeTarget.replace(/^\.\//, "").split("/");
+    if (
+        segments.some(
+            (segment) =>
+                segment.length === 0 || segment === "." || segment === "..",
+        )
+    ) {
+        return Object.freeze([]);
+    }
+    const base = `${packageRoot}/${segments.join("/")}`;
+    const candidates = [base];
+    const substitutions = [
+        [".mjs", ".mts", ".d.mts"],
+        [".cjs", ".cts", ".d.cts"],
+        [".js", ".ts", ".tsx", ".d.ts"],
+        [".jsx", ".tsx", ".d.ts"],
+    ];
+    for (const [runtimeExtension, ...typeExtensions] of substitutions) {
+        if (!base.endsWith(runtimeExtension)) continue;
+        const stem = base.slice(0, -runtimeExtension.length);
+        candidates.unshift(...typeExtensions.map((extension) => stem + extension));
+    }
+    if (!/\.[A-Za-z0-9]+$/.test(segments[segments.length - 1])) {
+        candidates.push(
+            `${base}.ts`,
+            `${base}.tsx`,
+            `${base}.mts`,
+            `${base}.cts`,
+            `${base}.d.ts`,
+            `${base}.d.mts`,
+            `${base}.d.cts`,
+            `${base}.js`,
+            `${base}.mjs`,
+            `${base}.cjs`,
+            `${base}/index.d.ts`,
+            `${base}/index.d.mts`,
+            `${base}/index.d.cts`,
+            `${base}/index.ts`,
+            `${base}/index.mts`,
+            `${base}/index.cts`,
+            `${base}/index.js`,
+            `${base}/index.mjs`,
+            `${base}/index.cjs`,
+        );
+    }
+    return Object.freeze(Array.from(new Set(candidates)));
+};
+
+const dependencyResolvedTarget = (path) => Object.freeze({
+    kind: "resolved",
+    target: Object.freeze({
+        kind: isNodeRevisionTwoDeclarationPath(path)
+            ? controlledNodeResolutionTargetKinds.declaration
+            : controlledNodeResolutionTargetKinds.projectSource,
+        path,
+    }),
+});
+
+const createDependencyLayerResolution = (vfs, options) => {
+    let layer = vfs.getDependencyLayer();
+    if (layer === null) return null;
+    const resolutionOptions =
+        options.moduleResolution === ts.ModuleResolutionKind.Node10
+            ? Object.freeze({
+                  ...options,
+                  module: ts.ModuleKind.NodeNext,
+                  moduleResolution: ts.ModuleResolutionKind.NodeNext,
+                  resolvePackageJsonExports: true,
+                  resolvePackageJsonImports: true,
+              })
+            : options;
+    const host = Object.freeze({
+        directoryExists: vfs.directoryExists,
+        fileExists: vfs.fileExists,
+        getCurrentDirectory: () => "/",
+        getDirectories: vfs.getDirectories,
+        readFile: vfs.readFile,
+        realpath: (path) => path,
+        useCaseSensitiveFileNames: () => true,
+    });
+    const packageJsonCache = new Map();
+    const packageJsonFor = (rootPath) => {
+        const cached = packageJsonCache.get(rootPath);
+        if (cached !== undefined) return cached;
+        const parsed = parseDependencyPackageJson(vfs, rootPath);
+        packageJsonCache.set(rootPath, parsed);
+        return parsed;
+    };
+    const resolveEntryFallback = (
+        descriptor,
+        packageJson,
+        fields,
+        includeIndex,
+    ) => {
+        if (
+            descriptor.subpath.length !== 0 ||
+            packageJson.root?.exports !== undefined ||
+            packageJson.root?.typesVersions !== undefined
+        ) {
+            return null;
+        }
+        for (const field of fields) {
+            const value = packageJson.root?.[field];
+            for (const candidate of dependencyTargetCandidates(
+                descriptor.packageRoot,
+                value,
+            )) {
+                if (vfs.fileExists(candidate)) {
+                    return dependencyResolvedTarget(candidate);
+                }
+            }
+        }
+        if (includeIndex) {
+            for (const candidate of dependencyTargetCandidates(
+                descriptor.packageRoot,
+                "index",
+            )) {
+                if (vfs.fileExists(candidate)) {
+                    return dependencyResolvedTarget(candidate);
+                }
+            }
+        }
+        return null;
+    };
+    const normalizeResolved = (resolved) => {
+        const path = resolved?.resolvedFileName;
+        return typeof path === "string" &&
+            path.startsWith(dependencyResolverAuthority.nodeModulesVfsPrefix) &&
+            isCanonicalDependencyVfsPath(path) &&
+            vfs.fileExists(path)
+            ? dependencyResolvedTarget(path)
+            : null;
+    };
+    const failureForMiss = (packageJson) => controlledNodeResolutionFailure(
+        packageJson.root?.exports === undefined
+            ? controlledNodeResolutionFailureCodes.targetNotInSnapshot
+            : controlledNodeResolutionFailureCodes.exportsNoMatch,
+    );
+    const resolveThroughTypeScript = (
+        specifier,
+        containingPath,
+        resolutionMode,
+    ) => normalizeResolved(
+        ts.resolveModuleName(
+            specifier,
+            containingPath,
+            resolutionOptions,
+            host,
+            undefined,
+            undefined,
+            resolutionMode,
+        ).resolvedModule,
+    );
+    const isRuntimeOnlyResolution = (resolved) =>
+        resolved?.kind === "resolved" &&
+        /\.(?:c|m)?jsx?$|\.json$/.test(resolved.target.path);
+    const resolveDefinitelyTypedFallback = (
+        descriptor,
+        containingPath,
+        resolutionMode,
+    ) => {
+        if (
+            descriptor.subpath.length !== 0 ||
+            descriptor.packageName.startsWith("@types/")
+        ) {
+            return null;
+        }
+        const typePackageName = descriptor.packageName.startsWith("@")
+            ? `@types/${descriptor.packageName.slice(1).replace("/", "__")}`
+            : `@types/${descriptor.packageName}`;
+        const typeDescriptor = dependencyPackageSpecifier(typePackageName);
+        if (
+            typeDescriptor === null ||
+            !vfs.directoryExists(typeDescriptor.packageRoot)
+        ) {
+            return null;
+        }
+        const packageJson = packageJsonFor(typeDescriptor.packageRoot);
+        if (packageJson.kind === "failure") return packageJson;
+        const resolved = normalizeResolved(
+            ts.resolveTypeReferenceDirective(
+                descriptor.packageName,
+                containingPath,
+                resolutionOptions,
+                host,
+                undefined,
+                undefined,
+                resolutionMode,
+            ).resolvedTypeReferenceDirective,
+        );
+        return resolved ?? failureForMiss(packageJson);
+    };
+    const resolveModule = (specifier, containingPath, mode) => {
+        const resolutionMode = mode === controlledNodeResolutionModes.import
+            ? ts.ModuleKind.ESNext
+            : ts.ModuleKind.CommonJS;
+        if (
+            typeof specifier === "string" &&
+            (specifier.startsWith("./") || specifier.startsWith("../"))
+        ) {
+            if (
+                !containingPath.startsWith(
+                    dependencyResolverAuthority.nodeModulesVfsPrefix,
+                ) ||
+                specifier.includes("\\")
+            ) {
+                return Object.freeze({ kind: "absent" });
+            }
+            return resolveThroughTypeScript(
+                specifier,
+                containingPath,
+                resolutionMode,
+            ) ?? controlledNodeResolutionFailure(
+                controlledNodeResolutionFailureCodes.targetNotInSnapshot,
+            );
+        }
+        const descriptor = dependencyPackageSpecifier(specifier);
+        if (descriptor === null) {
+            return Object.freeze({ kind: "absent" });
+        }
+        const hasTopLevelPackage = vfs.directoryExists(descriptor.packageRoot);
+        const packageJson = hasTopLevelPackage
+            ? packageJsonFor(descriptor.packageRoot)
+            : Object.freeze({ path: null, root: null });
+        if (packageJson.kind === "failure") return packageJson;
+        if (hasTopLevelPackage) {
+            const bundledTypes = resolveEntryFallback(
+                descriptor,
+                packageJson,
+                ["types", "typings"],
+                false,
+            );
+            if (bundledTypes !== null) return bundledTypes;
+            const usesPackageMapTypeRules =
+                packageJson.root?.exports !== undefined ||
+                packageJson.root?.typesVersions !== undefined;
+            if (!usesPackageMapTypeRules) {
+                const definitelyTyped = resolveDefinitelyTypedFallback(
+                    descriptor,
+                    containingPath,
+                    resolutionMode,
+                );
+                if (definitelyTyped !== null) return definitelyTyped;
+                const runtimeEntry = resolveEntryFallback(
+                    descriptor,
+                    packageJson,
+                    ["module", "main"],
+                    true,
+                );
+                if (runtimeEntry !== null) return runtimeEntry;
+            }
+        }
+        const resolved = resolveThroughTypeScript(
+            specifier,
+            containingPath,
+            resolutionMode,
+        );
+        if (resolved !== null && !isRuntimeOnlyResolution(resolved)) {
+            return resolved;
+        }
+        if (hasTopLevelPackage) {
+            const definitelyTyped = resolveDefinitelyTypedFallback(
+                descriptor,
+                containingPath,
+                resolutionMode,
+            );
+            if (definitelyTyped !== null) return definitelyTyped;
+            const runtimeEntry = resolveEntryFallback(
+                descriptor,
+                packageJson,
+                ["module", "main"],
+                true,
+            );
+            if (runtimeEntry !== null) return runtimeEntry;
+        }
+        if (resolved !== null) return resolved;
+        return hasTopLevelPackage || containingPath.startsWith(
+            dependencyResolverAuthority.nodeModulesVfsPrefix,
+        )
+            ? failureForMiss(packageJson)
+            : Object.freeze({ kind: "absent" });
+    };
+    const resolveTypeReference = (specifier, containingPath) => {
+        const directiveName = typeof specifier === "string" &&
+            specifier.startsWith("@types/")
+            ? specifier.slice("@types/".length)
+            : specifier;
+        const descriptor = dependencyPackageSpecifier(directiveName);
+        const typePackageName = descriptor === null
+            ? null
+            : descriptor.packageName.startsWith("@")
+              ? `@types/${descriptor.packageName.slice(1).replace("/", "__")}`
+              : `@types/${descriptor.packageName}`;
+        const typeDescriptor = typePackageName === null
+            ? null
+            : dependencyPackageSpecifier(typePackageName);
+        const directPackageExists = descriptor !== null &&
+            vfs.directoryExists(descriptor.packageRoot);
+        const typePackageExists = typeDescriptor !== null &&
+            vfs.directoryExists(typeDescriptor.packageRoot);
+        if (
+            descriptor === null ||
+            descriptor.subpath.length !== 0 ||
+            (!directPackageExists && !typePackageExists)
+        ) {
+            return Object.freeze({ kind: "absent" });
+        }
+        const packageRoot = typePackageExists
+            ? typeDescriptor.packageRoot
+            : descriptor.packageRoot;
+        const packageJson = packageJsonFor(packageRoot);
+        if (packageJson.kind === "failure") return packageJson;
+        const resolved = normalizeResolved(
+            ts.resolveTypeReferenceDirective(
+                directiveName,
+                containingPath,
+                resolutionOptions,
+                host,
+                undefined,
+                undefined,
+                ts.ModuleKind.ESNext,
+            ).resolvedTypeReferenceDirective,
+        );
+        return resolved ?? failureForMiss(packageJson);
+    };
+    const impliedModuleFormatFor = (path) => {
+        if (path.endsWith(".d.mts") || path.endsWith(".mts") || path.endsWith(".mjs")) {
+            return "esm";
+        }
+        if (path.endsWith(".d.cts") || path.endsWith(".cts") || path.endsWith(".cjs")) {
+            return "commonjs";
+        }
+        let directory = path.slice(0, path.lastIndexOf("/"));
+        while (directory.startsWith(dependencyResolverAuthority.nodeModulesVfsPrefix)) {
+            const packageJson = packageJsonFor(directory);
+            if (packageJson.kind === "failure") {
+                throw new Error("Dependency package metadata is malformed.");
+            }
+            if (packageJson.root !== null) {
+                return packageJson.root.type === "module" ? "esm" : "commonjs";
+            }
+            const parent = directory.slice(0, directory.lastIndexOf("/"));
+            if (parent === directory || parent === "/node_modules") break;
+            directory = parent;
+        }
+        return "commonjs";
+    };
+    const release = () => {
+        packageJsonCache.clear();
+        layer = null;
+    };
+    return Object.freeze({
+        fingerprint: layer.fingerprint,
+        impliedModuleFormatFor,
+        release,
+        resolveModule,
+        resolveTypeReference,
+    });
 };
 
 // Trusted Node declarations are plugin-owned, fingerprinted inputs. Their ambient module names
@@ -4263,6 +5211,31 @@ const createNodeRevisionTwoTrustedDeclarationModuleIndex = (vfs, targets) => {
     });
 };
 
+const createControlledStandardLibraryResolver = (vfs, options) =>
+    (libraryName, _resolveFrom, callbackOptions, libFileName) => {
+        if (
+            callbackOptions !== options ||
+            typeof libraryName !== "string" ||
+            typeof libFileName !== "string" ||
+            !/^lib\.(?:es(?:5|2015|2016|2017|2018|2019|2020|2021|2022)(?:\.[a-z0-9]+)*|decorators(?:\.legacy)?)\.d\.ts$/.test(
+                libFileName,
+            )
+        ) {
+            return Object.freeze({ resolvedModule: undefined });
+        }
+        const resolvedFileName = `/declarations/${libFileName}`;
+        if (!vfs.fileExists(resolvedFileName)) {
+            return Object.freeze({ resolvedModule: undefined });
+        }
+        return Object.freeze({
+            resolvedModule: Object.freeze({
+                extension: ts.Extension.Dts,
+                isExternalLibraryImport: true,
+                resolvedFileName,
+            }),
+        });
+    };
+
 const createNodeRevisionTwoResolutionSession = (vfs, options) => {
     let packageMetadata = vfs.getPackageMetadataCatalog();
     let packageFormat = vfs.getNodePackageFormatCatalog();
@@ -4283,6 +5256,7 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
             vfs,
             authority.resolutionTargets,
         );
+    let dependencyResolution = createDependencyLayerResolution(vfs, options);
     const authorizedPackageTargets = new Set();
     const memo = new Map();
     const resolutionDiagnostics = [];
@@ -4346,15 +5320,38 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
         );
         resolutionDiagnosticIdentities.add(identity);
     };
-    const modeFor = (containingPath) =>
-        nodeRevisionTwoImpliedModuleFormat(containingPath, packageFormat) === "esm"
+    const modeFor = (containingPath) => {
+        const implied = containingPath.startsWith(
+            dependencyResolverAuthority.nodeModulesVfsPrefix,
+        )
+            ? dependencyResolution?.impliedModuleFormatFor(containingPath) ??
+                "commonjs"
+            : nodeRevisionTwoImpliedModuleFormat(
+                  containingPath,
+                  packageFormat,
+              );
+        return implied === "esm"
             ? controlledNodeResolutionModes.import
             : controlledNodeResolutionModes.require;
+    };
+    const modeForModuleLiteral = (literal, containingSourceFile) => {
+        const mode = ts.getModeForUsageLocation(
+            containingSourceFile,
+            literal,
+            options,
+        );
+        return mode === ts.ModuleKind.ESNext
+            ? controlledNodeResolutionModes.import
+            : mode === ts.ModuleKind.CommonJS
+              ? controlledNodeResolutionModes.require
+              : modeFor(containingSourceFile.fileName);
+    };
     const memoizedResolve = (containingPath, specifier, mode) => {
         requireActive();
         const key = JSON.stringify([
             authority.targetUniverseFingerprint,
             packageMetadata?.inventoryFingerprint ?? null,
+            dependencyResolution?.fingerprint ?? null,
             containingPath,
             mode,
             specifier,
@@ -4391,8 +5388,16 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
             );
             return null;
         }
-        if (result.target.path.startsWith("/packages/")) {
-            if (!vfs.retainedPackageTargets.fileExists(result.target.path)) {
+        if (
+            result.target.path.startsWith("/packages/") ||
+            result.target.path.startsWith(
+                dependencyResolverAuthority.nodeModulesVfsPrefix,
+            )
+        ) {
+            const targetExists = result.target.path.startsWith("/packages/")
+                ? vfs.retainedPackageTargets.fileExists(result.target.path)
+                : vfs.fileExists(result.target.path);
+            if (!targetExists) {
                 rememberFailure(
                     controlledNodeResolutionFailure(
                         controlledNodeResolutionFailureCodes.targetNotInSnapshot,
@@ -4439,8 +5444,18 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
                 typeof specifier === "string"
                     ? trustedDeclarationModules.resolve(specifier)
                     : null;
+            const mode = modeForModuleLiteral(literal, containingSourceFile);
+            const dependencyResult = trustedDeclarationTarget === null
+                ? dependencyResolution?.resolveModule(
+                      specifier,
+                      containingFile,
+                      mode,
+                  ) ?? Object.freeze({ kind: "absent" })
+                : null;
             const target = trustedDeclarationTarget ?? grantResolvedTarget(
-                memoizedResolve(containingFile, specifier, modeFor(containingFile)),
+                dependencyResult !== null && dependencyResult.kind !== "absent"
+                    ? dependencyResult
+                    : memoizedResolve(containingFile, specifier, mode),
                 containingFile,
                 specifier,
                 containingSourceFile,
@@ -4450,7 +5465,11 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
                 : Object.freeze({
                       resolvedModule: Object.freeze({
                           extension: nodeRevisionTwoTypeScriptExtension(target.path),
-                          isExternalLibraryImport: target.path.startsWith("/packages/"),
+                          isExternalLibraryImport:
+                              target.path.startsWith("/packages/") ||
+                              target.path.startsWith(
+                                  dependencyResolverAuthority.nodeModulesVfsPrefix,
+                              ),
                           resolvedFileName: target.path,
                       }),
                   });
@@ -4468,10 +5487,15 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
         return typeDirectiveReferences.map((reference) => {
             const specifier =
                 typeof reference === "string" ? reference : reference?.fileName;
+            const inferredTypesContainingPath = "/__inferred type names__.ts";
             if (
                 redirectedReference !== undefined ||
                 callbackOptions !== options ||
-                !hasKnownContainingPath(containingFile)
+                (!hasKnownContainingPath(containingFile) &&
+                    !(
+                        containingFile === inferredTypesContainingPath &&
+                        dependencyResolution !== null
+                    ))
             ) {
                 rememberFailure(
                     controlledNodeResolutionFailure(
@@ -4483,11 +5507,17 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
                 );
                 return unresolvedTypeReference;
             }
-            const result = memoizedResolve(
-                containingFile,
+            const dependencyResult = dependencyResolution?.resolveTypeReference(
                 specifier,
-                controlledNodeResolutionModes.types,
-            );
+                containingFile,
+            ) ?? Object.freeze({ kind: "absent" });
+            const result = dependencyResult.kind !== "absent"
+                ? dependencyResult
+                : memoizedResolve(
+                      containingFile,
+                      specifier,
+                      controlledNodeResolutionModes.types,
+                  );
             const target = result.kind === "resolved" &&
                 result.target.kind !== controlledNodeResolutionTargetKinds.declaration
                     ? grantResolvedTarget(
@@ -4508,7 +5538,11 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
                 ? unresolvedTypeReference
                 : Object.freeze({
                       resolvedTypeReferenceDirective: Object.freeze({
-                          isExternalLibraryImport: target.path.startsWith("/packages/"),
+                          isExternalLibraryImport:
+                              target.path.startsWith("/packages/") ||
+                              target.path.startsWith(
+                                  dependencyResolverAuthority.nodeModulesVfsPrefix,
+                              ),
                           primary: true,
                           resolvedFileName: target.path,
                       }),
@@ -4517,10 +5551,16 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
     };
     const applyImpliedModuleFormat = (sourceFile) => {
         requireActive();
-        const implied = nodeRevisionTwoImpliedModuleFormat(
-            sourceFile.fileName,
-            packageFormat,
-        );
+        const implied = sourceFile.fileName.startsWith(
+            dependencyResolverAuthority.nodeModulesVfsPrefix,
+        )
+            ? dependencyResolution?.impliedModuleFormatFor(
+                  sourceFile.fileName,
+              ) ?? "commonjs"
+            : nodeRevisionTwoImpliedModuleFormat(
+                  sourceFile.fileName,
+                  packageFormat,
+              );
         sourceFile.impliedNodeFormat = implied === "esm"
             ? ts.ModuleKind.ESNext
             : ts.ModuleKind.CommonJS;
@@ -4535,6 +5575,8 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
         resolutionDiagnosticIdentities.clear();
         targetIndex.release();
         trustedDeclarationModules.release();
+        dependencyResolution?.release();
+        dependencyResolution = null;
         packageMetadata = null;
         packageFormat = null;
         authority = null;
@@ -4544,14 +5586,20 @@ const createNodeRevisionTwoResolutionSession = (vfs, options) => {
         diagnostics: () => resolutionDiagnostics.slice(),
         hasFailures: () => resolutionDiagnostics.length !== 0,
         impliedModuleFormatFor: (path) =>
-            nodeRevisionTwoImpliedModuleFormat(path, packageFormat),
+            path.startsWith(dependencyResolverAuthority.nodeModulesVfsPrefix)
+                ? dependencyResolution?.impliedModuleFormatFor(path) ?? "commonjs"
+                : nodeRevisionTwoImpliedModuleFormat(path, packageFormat),
         isGrantedPackageTarget: (path) => authorizedPackageTargets.has(path),
         readGrantedPackageTarget: (path) =>
             authorizedPackageTargets.has(path)
-                ? vfs.retainedPackageTargets.readRecord(path)
+                ? path.startsWith(
+                      dependencyResolverAuthority.nodeModulesVfsPrefix,
+                  )
+                    ? vfs.readRecord(path)
+                    : vfs.retainedPackageTargets.readRecord(path)
                 : undefined,
         release,
-        resolveLibrary: () => unresolvedLibrary,
+        resolveLibrary: createControlledStandardLibraryResolver(vfs, options),
         resolveModuleNameLiterals,
         resolveTypeReferenceDirectiveReferences,
     });
@@ -5124,6 +6172,416 @@ const createProvisionalNodeNextCompilerOptions = () => {
     return options;
 };
 
+const createDependencyAwareCompilerOptions = (vfs, baseOptions) => {
+    const dependencyTypeNames = vfs.getDependencyTypeNames();
+    if (
+        !Array.isArray(dependencyTypeNames) ||
+        !Object.isFrozen(dependencyTypeNames) ||
+        dependencyTypeNames.some(
+            (name) =>
+                typeof name !== "string" ||
+                name.length === 0 ||
+                name.includes("/") ||
+                name.startsWith("."),
+        ) ||
+        !compareStrictlySortedUnique(dependencyTypeNames)
+    ) {
+        throw new Error("Dependency type directive inventory is malformed.");
+    }
+    if (dependencyTypeNames.length === 0) return baseOptions;
+    return Object.freeze({
+        ...baseOptions,
+        types: dependencyTypeNames,
+    });
+};
+
+const createReportedProvisionalCompilerOptions = (
+    baseOptions,
+    includeRhinoRevisionTwoOptions,
+) => ({
+    allowJs: baseOptions.allowJs,
+    checkJs: baseOptions.checkJs,
+    ignoreDeprecations: baseOptions.ignoreDeprecations,
+    incremental: baseOptions.incremental,
+    inlineSourceMap: baseOptions.inlineSourceMap,
+    inlineSources: baseOptions.inlineSources,
+    ...(includeRhinoRevisionTwoOptions
+        ? {
+              jsx: baseOptions.jsx,
+              jsxFactory: baseOptions.jsxFactory,
+              jsxFragmentFactory: baseOptions.jsxFragmentFactory,
+          }
+        : {}),
+    module: baseOptions.module,
+    moduleResolution: baseOptions.moduleResolution,
+    newLine: baseOptions.newLine,
+    noEmitOnError: baseOptions.noEmitOnError,
+    noLib: baseOptions.noLib,
+    outDir: baseOptions.outDir,
+    rootDir: baseOptions.rootDir,
+    skipLibCheck: baseOptions.skipLibCheck,
+    sourceMap: baseOptions.sourceMap,
+    strict: baseOptions.strict,
+    target: baseOptions.target,
+    types: baseOptions.types.slice(),
+});
+
+const createControlledRevision4CompilerOptions = (canonicalOptions) => {
+    const values = Object.create(null);
+    for (const [name, value] of Object.entries(canonicalOptions)) {
+        if (name !== "baseUrl" && name !== "paths") {
+            values[name] = value;
+        }
+    }
+    if (canonicalOptions.baseUrl !== null) {
+        const absoluteBaseUrl = canonicalOptions.baseUrl === "."
+            ? "/sources"
+            : `/sources/${canonicalOptions.baseUrl}`;
+        const absolutePaths = Object.create(null);
+        for (const key of Object.keys(canonicalOptions.paths)) {
+            absolutePaths[key] = Object.freeze(
+                canonicalOptions.paths[key].map(
+                    (target) => `${absoluteBaseUrl}/${target}`,
+                ),
+            );
+        }
+        values.baseUrl = absoluteBaseUrl;
+        values.paths = Object.freeze(absolutePaths);
+    }
+    return Object.freeze(values);
+};
+
+const controlledPathAliasTypeScriptExtension = (path) => {
+    if (path.endsWith(".mts")) return ts.Extension.Mts;
+    if (path.endsWith(".cts")) return ts.Extension.Cts;
+    if (path.endsWith(".tsx")) return ts.Extension.Tsx;
+    return ts.Extension.Ts;
+};
+
+const matchControlledPathAlias = (paths, specifier) => {
+    if (
+        paths === undefined ||
+        paths === null ||
+        typeof specifier !== "string" ||
+        specifier.length === 0 ||
+        specifier.startsWith(".") ||
+        specifier.startsWith("/")
+    ) {
+        return null;
+    }
+    const exact = paths[specifier];
+    if (exact !== undefined) {
+        return Object.freeze({ star: "", targets: exact });
+    }
+    let best = null;
+    for (const key of Object.keys(paths)) {
+        const wildcard = key.indexOf("*");
+        if (wildcard < 0) continue;
+        const prefix = key.slice(0, wildcard);
+        const suffix = key.slice(wildcard + 1);
+        if (
+            !specifier.startsWith(prefix) ||
+            !specifier.endsWith(suffix) ||
+            specifier.length < prefix.length + suffix.length
+        ) {
+            continue;
+        }
+        if (
+            best === null ||
+            prefix.length > best.prefix.length ||
+            prefix.length === best.prefix.length && suffix.length > best.suffix.length
+        ) {
+            best = {
+                key,
+                prefix,
+                suffix,
+                targets: paths[key],
+            };
+        }
+    }
+    return best === null
+        ? null
+        : Object.freeze({
+              star: specifier.slice(
+                  best.prefix.length,
+                  specifier.length - best.suffix.length,
+              ),
+              targets: best.targets,
+          });
+};
+
+const controlledPathAliasCandidatePaths = (candidate, nodeRevisionTwo) => {
+    const executableSuffixes = nodeRevisionTwo
+        ? [".ts", ".mts", ".cts"]
+        : [".ts", ".tsx"];
+    if (executableSuffixes.some((suffix) => candidate.endsWith(suffix))) {
+        return [candidate];
+    }
+    return [
+        ...executableSuffixes.map((suffix) => `${candidate}${suffix}`),
+        ...executableSuffixes.map((suffix) => `${candidate}/index${suffix}`),
+    ];
+};
+
+const resolveControlledPathAlias = (
+    vfs,
+    options,
+    specifier,
+    nodeRevisionTwo,
+) => {
+    if (
+        options.baseUrl === undefined ||
+        typeof specifier !== "string" ||
+        specifier.length === 0 ||
+        specifier.startsWith(".") ||
+        specifier.startsWith("/") ||
+        specifier.startsWith("#")
+    ) {
+        return Object.freeze({ kind: "not-alias" });
+    }
+    const matched = matchControlledPathAlias(options.paths, specifier);
+    const substitutions = matched === null
+        ? [`${options.baseUrl}/${specifier}`]
+        : matched.targets.map((target) =>
+              target.includes("*")
+                  ? target.replace("*", matched.star)
+                  : target,
+          );
+    for (const substitution of substitutions) {
+        for (const candidate of controlledPathAliasCandidatePaths(
+            substitution,
+            nodeRevisionTwo,
+        )) {
+            if (candidate.startsWith("/sources/") && vfs.fileExists(candidate)) {
+                return Object.freeze({ kind: "resolved", path: candidate });
+            }
+        }
+    }
+    return Object.freeze({
+        kind: matched === null ? "base-url-miss" : "alias-miss",
+    });
+};
+
+const installControlledPathAliasResolver = (
+    host,
+    vfs,
+    options,
+    nodeRevisionTwo,
+) => {
+    const delegated = host.resolveModuleNameLiterals;
+    host.resolveModuleNameLiterals = (
+        moduleLiterals,
+        containingFile,
+        redirectedReference,
+        callbackOptions,
+        containingSourceFile,
+        reusedNames,
+    ) => moduleLiterals.map((literal) => {
+        if (
+            redirectedReference !== undefined ||
+            callbackOptions !== options ||
+            containingSourceFile === undefined ||
+            containingSourceFile.fileName !== containingFile ||
+            vfs.readRecord(containingFile) === undefined
+        ) {
+            return delegated !== undefined
+                ? delegated(
+                      [literal],
+                      containingFile,
+                      redirectedReference,
+                      callbackOptions,
+                      containingSourceFile,
+                      reusedNames,
+                  )[0]
+                : Object.freeze({ resolvedModule: undefined });
+        }
+        const alias = resolveControlledPathAlias(
+            vfs,
+            options,
+            literal?.text,
+            nodeRevisionTwo,
+        );
+        if (alias.kind === "resolved") {
+            return Object.freeze({
+                resolvedModule: Object.freeze({
+                    extension: controlledPathAliasTypeScriptExtension(alias.path),
+                    isExternalLibraryImport: false,
+                    resolvedFileName: alias.path,
+                }),
+            });
+        }
+        if (alias.kind === "alias-miss") {
+            return Object.freeze({ resolvedModule: undefined });
+        }
+        if (delegated !== undefined) {
+            return delegated(
+                [literal],
+                containingFile,
+                redirectedReference,
+                callbackOptions,
+                containingSourceFile,
+                reusedNames,
+            )[0];
+        }
+        const mode = ts.getModeForUsageLocation(
+            containingSourceFile,
+            literal,
+            options,
+        );
+        return Object.freeze({
+            resolvedModule: ts.resolveModuleName(
+                literal.text,
+                containingFile,
+                options,
+                host,
+                undefined,
+                redirectedReference,
+                mode,
+            ).resolvedModule,
+        });
+    });
+};
+
+const relativeGeneratedModuleSpecifier = (
+    containingSourcePath,
+    targetSourcePath,
+    nodeRevisionTwo,
+) => {
+    const containingOutput = expectedGeneratedModulePath(
+        containingSourcePath,
+        nodeRevisionTwo,
+    );
+    const targetOutput = expectedGeneratedModulePath(
+        targetSourcePath,
+        nodeRevisionTwo,
+    );
+    if (containingOutput === null || targetOutput === null) return null;
+    const from = containingOutput.slice(1).split("/");
+    from.pop();
+    const to = targetOutput.slice(1).split("/");
+    let common = 0;
+    while (
+        common < from.length &&
+        common < to.length &&
+        from[common] === to[common]
+    ) {
+        common += 1;
+    }
+    const relative = [
+        ...Array(from.length - common).fill(".."),
+        ...to.slice(common),
+    ].join("/");
+    return relative.startsWith(".") ? relative : `./${relative}`;
+};
+
+const createControlledPathAliasEmitTransformer = (
+    vfs,
+    options,
+    nodeRevisionTwo,
+) => (context) => {
+    const rewriteLiteral = (literal, sourceFile) => {
+        if (!ts.isStringLiteralLike(literal)) return literal;
+        const resolved = resolveControlledPathAlias(
+            vfs,
+            options,
+            literal.text,
+            nodeRevisionTwo,
+        );
+        if (resolved.kind !== "resolved") return literal;
+        const rewritten = relativeGeneratedModuleSpecifier(
+            sourceFile.fileName,
+            resolved.path,
+            nodeRevisionTwo,
+        );
+        if (rewritten === null) {
+            throw new Error("Controlled path alias resolved to a non-emittable source.");
+        }
+        const replacement = ts.factory.createStringLiteral(rewritten);
+        ts.setOriginalNode(replacement, literal);
+        ts.setTextRange(replacement, literal);
+        return replacement;
+    };
+    return (sourceFile) => {
+        if (
+            nodeRevisionTwo
+                ? !isNodeRevisionTwoExecutableSourcePath(sourceFile.fileName)
+                : !isExecutableProjectSourcePath(sourceFile.fileName)
+        ) {
+            return sourceFile;
+        }
+        const visit = (node) => {
+            if (ts.isImportDeclaration(node) && node.moduleSpecifier !== undefined) {
+                return ts.factory.updateImportDeclaration(
+                    node,
+                    node.modifiers,
+                    node.importClause,
+                    rewriteLiteral(node.moduleSpecifier, sourceFile),
+                    node.attributes,
+                );
+            }
+            if (ts.isExportDeclaration(node) && node.moduleSpecifier !== undefined) {
+                return ts.factory.updateExportDeclaration(
+                    node,
+                    node.modifiers,
+                    node.isTypeOnly,
+                    node.exportClause,
+                    rewriteLiteral(node.moduleSpecifier, sourceFile),
+                    node.attributes,
+                );
+            }
+            if (
+                ts.isImportEqualsDeclaration(node) &&
+                ts.isExternalModuleReference(node.moduleReference) &&
+                node.moduleReference.expression !== undefined
+            ) {
+                return ts.factory.updateImportEqualsDeclaration(
+                    node,
+                    node.modifiers,
+                    node.isTypeOnly,
+                    node.name,
+                    ts.factory.updateExternalModuleReference(
+                        node.moduleReference,
+                        rewriteLiteral(
+                            node.moduleReference.expression,
+                            sourceFile,
+                        ),
+                    ),
+                );
+            }
+            if (
+                ts.isCallExpression(node) &&
+                node.arguments.length === 1 &&
+                ts.isStringLiteralLike(node.arguments[0]) &&
+                (
+                    node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+                    ts.isIdentifier(node.expression) &&
+                    node.expression.text === "require"
+                )
+            ) {
+                return ts.factory.updateCallExpression(
+                    node,
+                    node.expression,
+                    node.typeArguments,
+                    [rewriteLiteral(node.arguments[0], sourceFile)],
+                );
+            }
+            return ts.visitEachChild(node, visit, context);
+        };
+        return ts.visitNode(sourceFile, visit);
+    };
+};
+
+const emitProjectBuilder = (builder, beforeTransformer) =>
+    beforeTransformer === null
+        ? builder.emit()
+        : Reflect.apply(builder.emit, builder, [
+              undefined,
+              undefined,
+              undefined,
+              false,
+              { before: [beforeTransformer] },
+          ]);
+
 const compileProject = async (project, frameToken = null) => {
     const outputs = new Map();
     const outputBudget = { bytes: 0 };
@@ -5131,10 +6589,13 @@ const compileProject = async (project, frameToken = null) => {
     const isControlledProject = matchesControlledTsConfigAuthority(project);
     const isRhinoRevisionTwoProject =
         matchesProvisionalRhinoRevision2ProfileAuthority(project) ||
-        isControlledProject;
+        (isControlledProject && project.targetProfile === "rhino");
     const isNodeRevisionTwoProject =
         project.nodeRevisionTwoProgram === true &&
-        matchesProvisionalNodeNextRevision2ProfileAuthority(project);
+        (
+            matchesProvisionalNodeNextRevision2ProfileAuthority(project) ||
+            (isControlledProject && matchesCurrentNodeProfileIdentity(project))
+        );
     let builder = null;
     let diagnosticCollector = null;
     let host = null;
@@ -5146,6 +6607,28 @@ const compileProject = async (project, frameToken = null) => {
         const controlledEffectiveOptions = project.controlledEffectiveOptions;
         const ignoredConfigProperties =
             project.ignoredConfigProperties ?? Object.freeze([]);
+        const controlledRevision3 =
+            isControlledProject &&
+            project.configPolicyRevision ===
+                controlledTsConfigRevision3Authority.configPolicyRevision;
+        const controlledRevision4 =
+            isControlledProject &&
+            project.configPolicyRevision ===
+                controlledTsConfigRevision4Authority.configPolicyRevision;
+        const expectedControlledRevision = controlledRevision4
+            ? controlledTsConfigRevision4EffectiveOptionsRevision
+            : controlledRevision3
+              ? controlledTsConfigRevision3EffectiveOptionsRevision
+              : controlledTsConfigEffectiveOptionsRevision;
+        const expectedControlledKeys = controlledRevision4
+            ? project.targetProfile === "node"
+                ? controlledTsConfigRevision4NodeCanonicalOptionKeys
+                : controlledTsConfigRevision4RhinoCanonicalOptionKeys
+            : controlledRevision3
+              ? project.targetProfile === "node"
+                  ? controlledTsConfigRevision3NodeCanonicalOptionKeys
+                  : controlledTsConfigRevision3RhinoCanonicalOptionKeys
+              : controlledTsConfigCanonicalOptionKeys;
         if (
             isControlledProject &&
             (
@@ -5153,14 +6636,30 @@ const compileProject = async (project, frameToken = null) => {
                 typeof controlledEffectiveOptions !== "object" ||
                 !Object.isFrozen(controlledEffectiveOptions) ||
                 !Object.isFrozen(controlledEffectiveOptions.compilerOptions) ||
-                controlledEffectiveOptions.revision !==
-                    controlledTsConfigEffectiveOptionsRevision ||
+                controlledEffectiveOptions.revision !== expectedControlledRevision ||
                 typeof controlledEffectiveOptions.fingerprint !== "string" ||
                 !sha256Pattern.test(controlledEffectiveOptions.fingerprint) ||
                 JSON.stringify(controlledEffectiveOptions.compilerOptions) !==
                     controlledEffectiveOptions.canonicalJson ||
                 Object.keys(controlledEffectiveOptions.compilerOptions).join("\n") !==
-                    controlledTsConfigCanonicalOptionKeys.join("\n") ||
+                    expectedControlledKeys.join("\n") ||
+                ((controlledRevision3 || controlledRevision4) &&
+                    (!Array.isArray(controlledEffectiveOptions.compilerOptions.lib) ||
+                        !Object.isFrozen(
+                            controlledEffectiveOptions.compilerOptions.lib,
+                        ))) ||
+                (controlledRevision4 &&
+                    (
+                        !Object.isFrozen(
+                            controlledEffectiveOptions.compilerOptions.paths,
+                        ) ||
+                        Object.values(
+                            controlledEffectiveOptions.compilerOptions.paths,
+                        ).some(
+                            (targets) =>
+                                !Array.isArray(targets) || !Object.isFrozen(targets),
+                        )
+                    )) ||
                 !Array.isArray(ignoredConfigProperties) ||
                 !Object.isFrozen(ignoredConfigProperties)
             )
@@ -5170,14 +6669,19 @@ const compileProject = async (project, frameToken = null) => {
         if (!isControlledProject && ignoredConfigProperties.length !== 0) {
             throw new Error("Config-none project carried ignored config properties.");
         }
-        const options = isControlledProject
-            ? controlledEffectiveOptions.compilerOptions
+        const baseOptions = isControlledProject
+            ? controlledRevision4
+                ? createControlledRevision4CompilerOptions(
+                      controlledEffectiveOptions.compilerOptions,
+                  )
+                : controlledEffectiveOptions.compilerOptions
             : matchesProvisionalNodeNextProfileAuthority(project) ||
                 isNodeRevisionTwoProject
               ? createProvisionalNodeNextCompilerOptions()
               : isRhinoRevisionTwoProject
                 ? createProvisionalRhinoRevision2CompilerOptions()
                 : createProvisionalRhinoCompilerOptions();
+        const options = createDependencyAwareCompilerOptions(vfs, baseOptions);
         resolutionSession = isNodeRevisionTwoProject
             ? createNodeRevisionTwoResolutionSession(vfs, options)
             : isControlledProject
@@ -5195,6 +6699,14 @@ const compileProject = async (project, frameToken = null) => {
                 ? "/declarations/lib.es2018.d.ts"
                 : "/declarations/lib.d.ts",
         );
+        if (controlledRevision4) {
+            installControlledPathAliasResolver(
+                host,
+                vfs,
+                options,
+                isNodeRevisionTwoProject,
+            );
+        }
         enterProjectExecutionPhase(
             project.execution,
             "parse",
@@ -5290,7 +6802,16 @@ const compileProject = async (project, frameToken = null) => {
                 emitSkipped: true,
             };
         } else {
-            emitResult = builder.emit();
+            emitResult = emitProjectBuilder(
+                builder,
+                controlledRevision4
+                    ? createControlledPathAliasEmitTransformer(
+                          vfs,
+                          options,
+                          isNodeRevisionTwoProject,
+                      )
+                    : null,
+            );
             diagnosticCollector.consume(
                 "emit",
                 emitResult.diagnostics || [],
@@ -5311,7 +6832,10 @@ const compileProject = async (project, frameToken = null) => {
             resolutionSession !== null &&
             program.getSourceFiles().some(
                 (sourceFile) =>
-                    sourceFile.fileName.startsWith("/packages/") &&
+                    (sourceFile.fileName.startsWith("/packages/") ||
+                        sourceFile.fileName.startsWith(
+                            dependencyResolverAuthority.nodeModulesVfsPrefix,
+                        )) &&
                     !resolutionSession.isGrantedPackageTarget(
                         sourceFile.fileName,
                     ),
@@ -5452,33 +6976,10 @@ const compileProject = async (project, frameToken = null) => {
             emitSkipped: emitResult.emitSkipped,
             options: isControlledProject
                 ? JSON.parse(controlledEffectiveOptions.canonicalJson)
-                : {
-                      allowJs: options.allowJs,
-                      checkJs: options.checkJs,
-                      ignoreDeprecations: options.ignoreDeprecations,
-                      incremental: options.incremental,
-                      inlineSourceMap: options.inlineSourceMap,
-                      inlineSources: options.inlineSources,
-                      ...(isRhinoRevisionTwoProject
-                          ? {
-                                jsx: options.jsx,
-                                jsxFactory: options.jsxFactory,
-                                jsxFragmentFactory: options.jsxFragmentFactory,
-                            }
-                          : {}),
-                      module: options.module,
-                      moduleResolution: options.moduleResolution,
-                      newLine: options.newLine,
-                      noEmitOnError: options.noEmitOnError,
-                      noLib: options.noLib,
-                      outDir: options.outDir,
-                      rootDir: options.rootDir,
-                      skipLibCheck: options.skipLibCheck,
-                      sourceMap: options.sourceMap,
-                      strict: options.strict,
-                      target: options.target,
-                      types: options.types.slice(),
-                  },
+                : createReportedProvisionalCompilerOptions(
+                      baseOptions,
+                      isRhinoRevisionTwoProject,
+                  ),
             outputs: serializedOutputs,
             profileRevision: project.profileRevision,
             profileSchemaRevision: project.profileSchemaRevision,
@@ -5552,6 +7053,13 @@ const compileProject = async (project, frameToken = null) => {
             record.text = "";
         }
         project.files.length = 0;
+        if (Array.isArray(project.dependencyFiles)) {
+            for (const record of project.dependencyFiles) {
+                record.text = "";
+            }
+            project.dependencyFiles.length = 0;
+        }
+        project.dependencyLayer = null;
         project.rootNames.length = 0;
         project.directoryIndex = null;
     }
@@ -6089,10 +7597,170 @@ const validateControlledTsConfigSelector = (selector, isFilesSelector) => {
     return normalized;
 };
 
-const parseControlledTsConfig = (source) => {
+const controlledPathAliasPatternEncoder = new TextEncoder();
+const isControlledPathAliasPatternSegment = (segment) =>
+    segment.length !== 0 &&
+    segment !== "." &&
+    segment !== ".." &&
+    Array.from(segment).every((character) =>
+        /[A-Za-z0-9@$_\-.~*]/.test(character),
+    );
+const isControlledPathAliasPatternBytes = (value, authority) =>
+    typeof value === "string" &&
+    value.length !== 0 &&
+    controlledPathAliasPatternEncoder.encode(value).byteLength <=
+        authority.maximumPathPatternBytes &&
+    Array.from(value).every((character) => {
+        const code = character.charCodeAt(0);
+        return code >= 0x21 && code <= 0x7e &&
+            character !== "\\" &&
+            character !== ":" &&
+            character !== "?" &&
+            character !== "#";
+    });
+const isControlledPathAliasRelativePattern = (
+    value,
+    authority,
+    allowWildcard,
+) =>
+    isControlledPathAliasPatternBytes(value, authority) &&
+    !value.startsWith("/") &&
+    (allowWildcard || !value.includes("*")) &&
+    Array.from(value).filter((character) => character === "*").length <= 1 &&
+    value.split("/").every(isControlledPathAliasPatternSegment);
+const validateControlledPathAliases = (compilerOptions, authority) => {
+    const hasBaseUrl = Object.prototype.hasOwnProperty.call(
+        compilerOptions,
+        "baseUrl",
+    );
+    const hasPaths = Object.prototype.hasOwnProperty.call(
+        compilerOptions,
+        "paths",
+    );
+    let baseUrl = null;
+    if (hasBaseUrl) {
+        const rawBaseUrl = compilerOptions.baseUrl;
+        if (
+            rawBaseUrl !== "." &&
+            !isControlledPathAliasRelativePattern(
+                rawBaseUrl,
+                authority,
+                false,
+            )
+        ) {
+            rejectControlledTsConfig(
+                controlledTsConfigPolicyCodes.pathInvalid,
+                "Controlled compiler baseUrl must stay inside the project root.",
+            );
+        }
+        baseUrl = rawBaseUrl;
+    }
+
+    const normalizedPaths = Object.create(null);
+    let totalTargets = 0;
+    if (hasPaths) {
+        if (!isRecord(compilerOptions.paths)) {
+            rejectControlledTsConfig(
+                controlledTsConfigPolicyCodes.invalidValue,
+                "Controlled compiler paths must be an object.",
+            );
+        }
+        const keys = Object.keys(compilerOptions.paths).sort(compareCodeUnits);
+        if (keys.length > authority.maximumPathAliases) {
+            rejectControlledTsConfig(
+                controlledTsConfigPolicyCodes.complexityExceeded,
+                "Controlled compiler paths exceed the alias count limit.",
+            );
+        }
+        for (const key of keys) {
+            const keyWildcardCount = Array.from(key).filter(
+                (character) => character === "*",
+            ).length;
+            if (
+                key.startsWith(".") ||
+                key.startsWith("/") ||
+                !isControlledPathAliasPatternBytes(key, authority) ||
+                keyWildcardCount > 1 ||
+                !key.split("/").every(isControlledPathAliasPatternSegment)
+            ) {
+                rejectControlledTsConfig(
+                    controlledTsConfigPolicyCodes.pathInvalid,
+                    "Controlled compiler paths contains an invalid alias key.",
+                );
+            }
+            const rawTargets = compilerOptions.paths[key];
+            if (
+                !Array.isArray(rawTargets) ||
+                rawTargets.length === 0 ||
+                rawTargets.length > authority.maximumPathTargetsPerAlias
+            ) {
+                rejectControlledTsConfig(
+                    controlledTsConfigPolicyCodes.invalidValue,
+                    "Controlled compiler path alias has an invalid target list.",
+                );
+            }
+            totalTargets += rawTargets.length;
+            if (totalTargets > authority.maximumPathTargets) {
+                rejectControlledTsConfig(
+                    controlledTsConfigPolicyCodes.complexityExceeded,
+                    "Controlled compiler paths exceed the target count limit.",
+                );
+            }
+            const targets = [];
+            const seen = new Set();
+            for (const target of rawTargets) {
+                const targetWildcardCount = typeof target === "string"
+                    ? Array.from(target).filter(
+                          (character) => character === "*",
+                      ).length
+                    : -1;
+                if (
+                    !isControlledPathAliasRelativePattern(
+                        target,
+                        authority,
+                        true,
+                    ) ||
+                    targetWildcardCount !== keyWildcardCount
+                ) {
+                    rejectControlledTsConfig(
+                        controlledTsConfigPolicyCodes.pathInvalid,
+                        "Controlled compiler path target escapes the project root.",
+                    );
+                }
+                if (!seen.has(target)) {
+                    seen.add(target);
+                    targets.push(target);
+                }
+            }
+            normalizedPaths[key] = Object.freeze(targets);
+        }
+    }
+    const frozenPaths = Object.freeze(normalizedPaths);
+    if (baseUrl === null && Object.keys(frozenPaths).length !== 0) {
+        baseUrl = ".";
+    }
+    return Object.freeze({ baseUrl, paths: frozenPaths });
+};
+
+const parseControlledTsConfig = (
+    source,
+    authority = controlledTsConfigAuthority,
+    targetProfile = controlledTsConfigAuthority.targetProfile,
+) => {
+    const revision3 = authority === controlledTsConfigRevision3Authority;
+    const revision4 = authority === controlledTsConfigRevision4Authority;
+    const modernRevision = revision3 || revision4;
+    if (
+        (authority !== controlledTsConfigAuthority && !modernRevision) ||
+        (authority === controlledTsConfigAuthority &&
+            targetProfile !== controlledTsConfigAuthority.targetProfile) ||
+        (modernRevision && targetProfile !== "rhino" && targetProfile !== "node")
+    ) {
+        throw new Error("Controlled tsconfig parser authority is not supported.");
+    }
     const value = parseControlledJsonc(source);
     const parsedByTypeScript = ts.parseJsonText(
-        controlledTsConfigAuthority.configPath,
+        authority.configPath,
         source,
     );
     if ((parsedByTypeScript.parseDiagnostics || []).length !== 0) {
@@ -6136,6 +7804,29 @@ const parseControlledTsConfig = (source) => {
     }
 
     const explicitBooleanOptions = Object.create(null);
+    let explicitTarget = null;
+    let explicitLibraries = null;
+    let pathAliases = Object.freeze({
+        baseUrl: null,
+        paths: Object.freeze(Object.create(null)),
+    });
+    const allowedBooleanOptions = modernRevision
+        ? controlledTsConfigRevision3AllowedBooleanOptions
+        : controlledTsConfigAllowedBooleanOptions;
+    const profileManagedOptions = modernRevision
+        ? controlledTsConfigRevision3ProfileManagedOptions
+        : controlledTsConfigProfileManagedOptions;
+    const escapeForbiddenOptions = revision4
+        ? controlledTsConfigRevision4EscapeForbiddenOptions
+        : revision3
+          ? controlledTsConfigRevision3EscapeForbiddenOptions
+          : controlledTsConfigEscapeForbiddenOptions;
+    const outputForbiddenOptions = modernRevision
+        ? controlledTsConfigRevision3OutputForbiddenOptions
+        : controlledTsConfigOutputForbiddenOptions;
+    const allowedTargets = targetProfile === "node"
+        ? controlledTsConfigRevision3NodeTargets
+        : controlledTsConfigRevision3RhinoTargets;
     if (Object.prototype.hasOwnProperty.call(value, "compilerOptions")) {
         if (!isRecord(value.compilerOptions)) {
             rejectControlledTsConfig(
@@ -6143,10 +7834,16 @@ const parseControlledTsConfig = (source) => {
                 "Controlled tsconfig compilerOptions must be an object.",
             );
         }
+        if (revision4) {
+            pathAliases = validateControlledPathAliases(
+                value.compilerOptions,
+                authority,
+            );
+        }
         for (
             const name of Object.keys(value.compilerOptions).sort(compareCodeUnits)
         ) {
-            if (controlledTsConfigAllowedBooleanOptions.has(name)) {
+            if (allowedBooleanOptions.has(name)) {
                 if (typeof value.compilerOptions[name] !== "boolean") {
                     rejectControlledTsConfig(
                         controlledTsConfigPolicyCodes.invalidValue,
@@ -6156,19 +7853,68 @@ const parseControlledTsConfig = (source) => {
                 explicitBooleanOptions[name] = value.compilerOptions[name];
                 continue;
             }
-            if (controlledTsConfigProfileManagedOptions.has(name)) {
+            if (modernRevision && name === "target") {
+                const rawTarget = value.compilerOptions[name];
+                const normalizedTarget =
+                    typeof rawTarget === "string" ? rawTarget.toUpperCase() : "";
+                if (!allowedTargets.has(normalizedTarget)) {
+                    rejectControlledTsConfig(
+                        controlledTsConfigPolicyCodes.invalidValue,
+                        "Controlled compiler target is outside the selected profile range.",
+                    );
+                }
+                explicitTarget = normalizedTarget;
+                continue;
+            }
+            if (modernRevision && name === "lib") {
+                const rawLibraries = value.compilerOptions[name];
+                if (!Array.isArray(rawLibraries) || rawLibraries.length === 0) {
+                    rejectControlledTsConfig(
+                        controlledTsConfigPolicyCodes.invalidValue,
+                        "Controlled compiler lib must be a non-empty array.",
+                    );
+                }
+                const normalizedLibraries = [];
+                const seenLibraries = new Set();
+                for (const rawLibrary of rawLibraries) {
+                    const normalizedLibrary =
+                        typeof rawLibrary === "string"
+                            ? rawLibrary.toUpperCase()
+                            : "";
+                    if (!allowedTargets.has(normalizedLibrary)) {
+                        rejectControlledTsConfig(
+                            controlledTsConfigPolicyCodes.invalidValue,
+                            "Controlled compiler lib contains an unsupported library.",
+                        );
+                    }
+                    const library =
+                        controlledTsConfigRevision3Targets[normalizedLibrary].lib;
+                    if (!seenLibraries.has(library)) {
+                        seenLibraries.add(library);
+                        normalizedLibraries.push(library);
+                    }
+                }
+                explicitLibraries = Object.freeze(
+                    normalizedLibraries.sort(compareCodeUnits),
+                );
+                continue;
+            }
+            if (revision4 && (name === "baseUrl" || name === "paths")) {
+                continue;
+            }
+            if (profileManagedOptions.has(name)) {
                 rejectControlledTsConfig(
                     controlledTsConfigPolicyCodes.profileConflict,
                     "Controlled tsconfig attempts to override a profile-managed option.",
                 );
             }
-            if (controlledTsConfigEscapeForbiddenOptions.has(name)) {
+            if (escapeForbiddenOptions.has(name)) {
                 rejectControlledTsConfig(
                     controlledTsConfigPolicyCodes.unsupportedFeature,
                     "Controlled tsconfig attempts to enable a host or resolution escape.",
                 );
             }
-            if (controlledTsConfigOutputForbiddenOptions.has(name)) {
+            if (outputForbiddenOptions.has(name)) {
                 rejectControlledTsConfig(
                     controlledTsConfigPolicyCodes.unsupportedFeature,
                     "Controlled tsconfig attempts to change the frozen output topology.",
@@ -6231,19 +7977,20 @@ const parseControlledTsConfig = (source) => {
     }
 
     return Object.freeze({
-        configKind: controlledTsConfigAuthority.configKind,
-        configPolicyFingerprint:
-            controlledTsConfigAuthority.configPolicyFingerprint,
-        configPolicyRevision:
-            controlledTsConfigAuthority.configPolicyRevision,
-        configSchemaRevision:
-            controlledTsConfigAuthority.configSchemaRevision,
+        configKind: authority.configKind,
+        configPolicyFingerprint: authority.configPolicyFingerprint,
+        configPolicyRevision: authority.configPolicyRevision,
+        configSchemaRevision: authority.configSchemaRevision,
         explicitBooleanOptions: Object.freeze(explicitBooleanOptions),
+        explicitLibraries,
+        explicitTarget,
         ignoredProperties: Object.freeze(ignoredProperties),
+        pathAliases,
         presentTopLevelKeys: Object.freeze(
             Object.keys(value).sort(compareCodeUnits),
         ),
         selectors: Object.freeze(selectors),
+        targetProfile,
     });
 };
 
@@ -6297,7 +8044,7 @@ const validateControlledPackageMetadataJson = (source) => {
     return deepFreezeControlledNodeJson(value);
 };
 
-const resolveControlledTsConfigEffectiveOptions = async (parsedConfig) => {
+const resolveControlledTsConfigRevision2EffectiveOptions = async (parsedConfig) => {
     const explicit = parsedConfig.explicitBooleanOptions;
     const explicitNames = Object.keys(explicit);
     const allowedNames = Array.from(
@@ -6487,9 +8234,243 @@ const resolveControlledTsConfigEffectiveOptions = async (parsedConfig) => {
     });
 };
 
+const resolveControlledTsConfigModernEffectiveOptions = async (
+    parsedConfig,
+    revision4,
+) => {
+    const authority = revision4
+        ? controlledTsConfigRevision4Authority
+        : controlledTsConfigRevision3Authority;
+    const explicit = parsedConfig.explicitBooleanOptions;
+    const explicitNames = Object.keys(explicit);
+    const allowedNames = Array.from(
+        controlledTsConfigRevision3AllowedBooleanOptions,
+    ).sort(compareCodeUnits);
+    const targetProfile = parsedConfig.targetProfile;
+    const allowedTargets = targetProfile === "node"
+        ? controlledTsConfigRevision3NodeTargets
+        : controlledTsConfigRevision3RhinoTargets;
+    if (
+        !Object.isFrozen(parsedConfig) ||
+        !Object.isFrozen(explicit) ||
+        parsedConfig.configKind !== authority.configKind ||
+        parsedConfig.configSchemaRevision !==
+            authority.configSchemaRevision ||
+        parsedConfig.configPolicyRevision !==
+            authority.configPolicyRevision ||
+        parsedConfig.configPolicyFingerprint !==
+            authority.configPolicyFingerprint ||
+        (targetProfile !== "rhino" && targetProfile !== "node") ||
+        explicitNames.some(
+            (name) =>
+                !controlledTsConfigRevision3AllowedBooleanOptions.has(name) ||
+                typeof explicit[name] !== "boolean",
+        ) ||
+        allowedNames.length !== 20 ||
+        controlledTsConfigStrictDependentOptions.size !== 8 ||
+        controlledTsConfigRevision3FalseDefaultOptions.size !== 11 ||
+        allowedNames.some(
+            (name) =>
+                name !== "strict" &&
+                !controlledTsConfigStrictDependentOptions.has(name) &&
+                !controlledTsConfigRevision3FalseDefaultOptions.has(name),
+        )
+    ) {
+        throw new Error("Controlled tsconfig modern option policy drifted.");
+    }
+
+    const targetName = parsedConfig.explicitTarget ?? "ES2018";
+    if (!allowedTargets.has(targetName)) {
+        rejectControlledTsConfig(
+            controlledTsConfigPolicyCodes.invalidValue,
+            "Controlled compiler target is outside the selected profile range.",
+        );
+    }
+    const targetAuthority = controlledTsConfigRevision3Targets[targetName];
+    const libraries = parsedConfig.explicitLibraries ??
+        Object.freeze([targetAuthority.lib]);
+    if (
+        !Object.isFrozen(libraries) ||
+        libraries.length === 0 ||
+        libraries.some(
+            (library) =>
+                typeof library !== "string" ||
+                !Array.from(allowedTargets).some(
+                    (name) => controlledTsConfigRevision3Targets[name].lib === library,
+                ),
+        ) ||
+        libraries.join("\n") !==
+            Array.from(new Set(libraries)).sort(compareCodeUnits).join("\n")
+    ) {
+        throw new Error("Controlled tsconfig revision-3 lib authority drifted.");
+    }
+
+    const hasExplicit = (name) =>
+        Object.prototype.hasOwnProperty.call(explicit, name);
+    const strict = hasExplicit("strict") ? explicit.strict : true;
+    const strictCarrier = Object.freeze({ strict });
+    const resolved = Object.create(null);
+    for (const name of allowedNames) {
+        if (hasExplicit(name)) {
+            resolved[name] = explicit[name];
+        } else if (name === "strict") {
+            resolved[name] = strict;
+        } else if (controlledTsConfigStrictDependentOptions.has(name)) {
+            resolved[name] = ts.getStrictOptionValue(strictCarrier, name);
+        } else if (controlledTsConfigRevision3FalseDefaultOptions.has(name)) {
+            resolved[name] = false;
+        } else {
+            throw new Error("Controlled revision-3 option has no explicit default.");
+        }
+    }
+    if (
+        !resolved.strictNullChecks &&
+        (resolved.exactOptionalPropertyTypes ||
+            resolved.strictPropertyInitialization)
+    ) {
+        rejectControlledTsConfig(
+            controlledTsConfigPolicyCodes.invalidValue,
+            "Controlled tsconfig contains an invalid strict-null option combination.",
+        );
+    }
+
+    const frozenResolved = Object.freeze(resolved);
+    const explicitProfileDefaults = Object.freeze({
+        allowSyntheticDefaultImports: true,
+        alwaysStrict: true,
+        esModuleInterop: true,
+        forceConsistentCasingInFileNames: true,
+        moduleDetection:
+            targetProfile === "node"
+                ? ts.ModuleDetectionKind.Force
+                : ts.ModuleDetectionKind.Auto,
+        resolveJsonModule: targetProfile === "node",
+        useDefineForClassFields:
+            targetProfile === "node" &&
+            targetAuthority.value >= ts.ScriptTarget.ES2022,
+    });
+    const values = {
+        allowJs: false,
+        allowSyntheticDefaultImports:
+            explicitProfileDefaults.allowSyntheticDefaultImports,
+        alwaysStrict: explicitProfileDefaults.alwaysStrict,
+        checkJs: false,
+        esModuleInterop: explicitProfileDefaults.esModuleInterop,
+        forceConsistentCasingInFileNames:
+            explicitProfileDefaults.forceConsistentCasingInFileNames,
+        ignoreDeprecations: "6.0",
+        incremental: false,
+        inlineSourceMap: false,
+        inlineSources: false,
+        lib: Object.freeze(libraries.slice()),
+        module:
+            targetProfile === "node"
+                ? ts.ModuleKind.NodeNext
+                : ts.ModuleKind.CommonJS,
+        moduleDetection: explicitProfileDefaults.moduleDetection,
+        moduleResolution:
+            targetProfile === "node"
+                ? ts.ModuleResolutionKind.NodeNext
+                : ts.ModuleResolutionKind.Node10,
+        newLine: ts.NewLineKind.LineFeed,
+        noEmitOnError: true,
+        noLib: false,
+        outDir: "/outputs",
+        resolveJsonModule: explicitProfileDefaults.resolveJsonModule,
+        rootDir: "/sources",
+        skipLibCheck: frozenResolved.skipLibCheck,
+        sourceMap: true,
+        strict: frozenResolved.strict,
+        target: targetAuthority.value,
+        types: Object.freeze([]),
+        useDefineForClassFields:
+            explicitProfileDefaults.useDefineForClassFields,
+    };
+    if (targetProfile === "rhino") {
+        values.jsx = ts.JsxEmit.React;
+        values.jsxFactory = "__autojs6Tsx";
+        values.jsxFragmentFactory = "__autojs6TsxFragment";
+    }
+    for (const [name, value] of Object.entries(frozenResolved)) {
+        values[name] = value;
+    }
+    const pathAliases = parsedConfig.pathAliases;
+    if (
+        pathAliases === null ||
+        typeof pathAliases !== "object" ||
+        !Object.isFrozen(pathAliases) ||
+        !Object.isFrozen(pathAliases.paths) ||
+        Object.values(pathAliases.paths).some(
+            (targets) => !Array.isArray(targets) || !Object.isFrozen(targets),
+        ) ||
+        (!revision4 &&
+            (pathAliases.baseUrl !== null ||
+                Object.keys(pathAliases.paths).length !== 0))
+    ) {
+        throw new Error("Controlled tsconfig path-alias authority drifted.");
+    }
+    if (revision4) {
+        values.baseUrl = pathAliases.baseUrl;
+        values.paths = pathAliases.paths;
+    }
+    const canonicalKeys = targetProfile === "node"
+        ? revision4
+            ? controlledTsConfigRevision4NodeCanonicalOptionKeys
+            : controlledTsConfigRevision3NodeCanonicalOptionKeys
+        : revision4
+          ? controlledTsConfigRevision4RhinoCanonicalOptionKeys
+          : controlledTsConfigRevision3RhinoCanonicalOptionKeys;
+    const compilerOptions = Object.freeze(
+        Object.fromEntries(canonicalKeys.map((name) => [name, values[name]])),
+    );
+    if (
+        Object.keys(compilerOptions).join("\n") !== canonicalKeys.join("\n") ||
+        canonicalKeys.some((name) => compilerOptions[name] === undefined) ||
+        ts.getAllowSyntheticDefaultImports(compilerOptions) !==
+            compilerOptions.allowSyntheticDefaultImports ||
+        ts.getAlwaysStrict(compilerOptions) !== compilerOptions.alwaysStrict ||
+        ts.getESModuleInterop(compilerOptions) !== compilerOptions.esModuleInterop ||
+        ts.getEmitModuleDetectionKind(compilerOptions) !==
+            compilerOptions.moduleDetection ||
+        ts.getResolveJsonModule(compilerOptions) !==
+            compilerOptions.resolveJsonModule ||
+        ts.getUseDefineForClassFields(compilerOptions) !==
+            compilerOptions.useDefineForClassFields
+    ) {
+        throw new Error("Controlled tsconfig modern TypeScript defaults drifted.");
+    }
+    const canonicalJson = JSON.stringify(compilerOptions);
+    const fingerprint = await sha256(canonicalJson);
+    return Object.freeze({
+        canonicalJson,
+        compilerOptions,
+        explicitProfileDefaults,
+        fingerprint,
+        resolvedBooleanOptions: frozenResolved,
+        revision: revision4
+            ? controlledTsConfigRevision4EffectiveOptionsRevision
+            : controlledTsConfigRevision3EffectiveOptionsRevision,
+    });
+};
+
+const resolveControlledTsConfigRevision3EffectiveOptions = async (parsedConfig) =>
+    resolveControlledTsConfigModernEffectiveOptions(parsedConfig, false);
+const resolveControlledTsConfigRevision4EffectiveOptions = async (parsedConfig) =>
+    resolveControlledTsConfigModernEffectiveOptions(parsedConfig, true);
+
+const resolveControlledTsConfigEffectiveOptions = async (parsedConfig) =>
+    parsedConfig.configPolicyRevision ===
+    controlledTsConfigAuthority.configPolicyRevision
+        ? resolveControlledTsConfigRevision2EffectiveOptions(parsedConfig)
+        : parsedConfig.configPolicyRevision ===
+            controlledTsConfigRevision3Authority.configPolicyRevision
+          ? resolveControlledTsConfigRevision3EffectiveOptions(parsedConfig)
+          : resolveControlledTsConfigRevision4EffectiveOptions(parsedConfig);
+
 const controlledRootSelectionAuthority = Object.freeze({
     defaultInclude: "**/*",
-    extensions: Object.freeze([".ts", ".tsx"]),
+    nodeExtensions: Object.freeze([".ts", ".mts", ".cts"]),
+    rhinoExtensions: Object.freeze([".ts", ".tsx"]),
     typeScriptVersion: "6.0.3",
 });
 
@@ -6547,12 +8528,15 @@ const selectControlledRootNames = (parsedConfig, files, entryPath) => {
     ) {
         throw new Error("Controlled root-selection authority drifted.");
     }
+    const nodeProfile = parsedConfig.targetProfile === "node";
     const sourcePaths = files
         .map((file) => file.path)
         .filter(
             (path) =>
                 path.startsWith("/sources/") &&
-                (path.endsWith(".ts") || path.endsWith(".tsx")),
+                (nodeProfile
+                    ? isNodeRevisionTwoProjectRootSourcePath(path)
+                    : isControlledProjectRootSourcePath(path)),
         )
         .map((path) => path.normalize("NFC"))
         .sort(compareCodeUnits);
@@ -6584,7 +8568,9 @@ const selectControlledRootNames = (parsedConfig, files, entryPath) => {
             createControlledSnapshotFileSystemEntries(sourcePaths);
         const includeMatches = ts.matchFiles(
             "/sources",
-            controlledRootSelectionAuthority.extensions,
+            nodeProfile
+                ? controlledRootSelectionAuthority.nodeExtensions
+                : controlledRootSelectionAuthority.rhinoExtensions,
             selectors.exclude === null ? [] : selectors.exclude,
             includes,
             true,
@@ -6623,7 +8609,8 @@ let frameHandlerBusy = false;
 let pendingProjectInputFrame = null;
 let batchedProjectInputAcknowledgement = null;
 let projectInputFrameGeneration = 0;
-const maximumProjectInputBatchFrames = 4;
+const maximumProjectInputBatchFrames = 6;
+const maximumProjectInputBatchPayloadChunkFrames = 4;
 const batchedProjectInputKinds = new Set([
     "projectInputConfigStart",
     "projectInputConfigChunk",
@@ -6631,6 +8618,10 @@ const batchedProjectInputKinds = new Set([
     "projectInputFileStart",
     "projectInputFileChunk",
     "projectInputFileEnd",
+]);
+const batchedProjectInputPayloadChunkKinds = new Set([
+    "projectInputConfigChunk",
+    "projectInputFileChunk",
 ]);
 
 class CancelledProjectInputFrameError extends Error {
@@ -6678,6 +8669,13 @@ const releaseProjectInputState = (state) => {
         record.text = "";
     }
     state.files.length = 0;
+    for (const record of state.dependencyFiles) {
+        record.text = "";
+    }
+    state.dependencyFiles.length = 0;
+    state.dependencyPaths.clear();
+    state.dependencyFoldedPaths.clear();
+    state.dependencyLayer = null;
     state.packageMetadataCatalogRecords.length = 0;
     state.packageMetadataFiles.length = 0;
     state.packageMetadata = null;
@@ -6792,6 +8790,30 @@ const acceptProjectInputStart = async (message, frameToken) => {
         "workerSpinMilliseconds",
         "workerSpinPhase",
     ];
+    const dependencyResolverKeys = [
+        "dependencyLayerSchemaRevision",
+        "dependencyLayerPolicyRevision",
+        "dependencyLayerPolicyFingerprint",
+        "dependencyLayerIdentityKind",
+        "dependencyLayerIdentityPath",
+        "dependencyLayerIdentityFingerprint",
+        "dependencyLayerInventoryFingerprint",
+        "dependencyLayerFingerprint",
+        "dependencyLayerFileCount",
+        "dependencyLayerByteLength",
+        "dependencyLayerPathByteLength",
+        "dependencyResolverPolicyRevision",
+        "dependencyResolverPolicyFingerprint",
+    ];
+    const hasAnyDependencyResolverField = dependencyResolverKeys.some((key) =>
+        Object.prototype.hasOwnProperty.call(message, key),
+    );
+    const hasExactStartKeys = (keys) => hasExactKeys(
+        message,
+        hasAnyDependencyResolverField
+            ? keys.concat(dependencyResolverKeys)
+            : keys,
+    );
     const nodeRevision2Keys = legacyKeys.concat([
         "entryPath",
         "runtimeCapabilitiesFingerprint",
@@ -6859,19 +8881,31 @@ const acceptProjectInputStart = async (message, frameToken) => {
         "packageTargetPolicyRevision",
         "packageTargetSchemaRevision",
     ]);
+    const controlledNodeConfigKeys = [
+        "configByteLength",
+        "configPolicyFingerprint",
+        "configPolicyRevision",
+        "configSha256",
+    ];
+    const controlledNodeRevisionTwoProgramKeys =
+        nodeRevisionTwoProgramKeys.concat(controlledNodeConfigKeys);
+    const controlledNodePackageFormatProgramKeys =
+        nodePackageFormatProgramKeys.concat(controlledNodeConfigKeys);
+    const controlledNodePackageTargetProgramKeys =
+        nodePackageTargetProgramKeys.concat(controlledNodeConfigKeys);
     const isConfigNoneStart =
-        hasExactKeys(message, legacyKeys) &&
+        hasExactStartKeys(legacyKeys) &&
         matchesProvisionalConfigNoneProfileAuthority(message);
     const isRhinoRevision2Start =
-        hasExactKeys(message, rhinoRevision2Keys) &&
+        hasExactStartKeys(rhinoRevision2Keys) &&
         matchesProvisionalRhinoRevision2ProfileAuthority(message) &&
         typeof message.entryPath === "string";
     const isNodeRevision2Start =
-        hasExactKeys(message, nodeRevision2Keys) &&
+        hasExactStartKeys(nodeRevision2Keys) &&
         matchesProvisionalNodeNextRevision2ProfileAuthority(message) &&
         typeof message.entryPath === "string";
     const isNodePackageFormatStart =
-        hasExactKeys(message, nodePackageFormatKeys) &&
+        hasExactStartKeys(nodePackageFormatKeys) &&
         matchesProvisionalNodeNextRevision2ProfileAuthority(message) &&
         typeof message.entryPath === "string" &&
         message.packageMetadataSchemaRevision ===
@@ -6907,13 +8941,13 @@ const acceptProjectInputStart = async (message, frameToken) => {
         typeof message.targetUniverseFingerprint === "string" &&
         sha256Pattern.test(message.targetUniverseFingerprint);
     const isNodeRevisionTwoProgramStart =
-        hasExactKeys(message, nodeRevisionTwoProgramKeys) &&
+        hasExactStartKeys(nodeRevisionTwoProgramKeys) &&
         matchesProvisionalNodeNextRevision2ProfileAuthority(message) &&
         typeof message.entryPath === "string" &&
         hasExactNodeModuleOutputPolicy &&
         hasExactNodeRevisionTwoResolverAuthority;
     const isNodePackageFormatProgramStart =
-        hasExactKeys(message, nodePackageFormatProgramKeys) &&
+        hasExactStartKeys(nodePackageFormatProgramKeys) &&
         matchesProvisionalNodeNextRevision2ProfileAuthority(message) &&
         typeof message.entryPath === "string" &&
         message.packageMetadataSchemaRevision ===
@@ -6931,7 +8965,7 @@ const acceptProjectInputStart = async (message, frameToken) => {
         hasExactNodeModuleOutputPolicy &&
         hasExactNodeRevisionTwoResolverAuthority;
     const isNodePackageTargetProgramStart =
-        hasExactKeys(message, nodePackageTargetProgramKeys) &&
+        hasExactStartKeys(nodePackageTargetProgramKeys) &&
         matchesProvisionalNodeNextRevision2ProfileAuthority(message) &&
         typeof message.entryPath === "string" &&
         message.packageMetadataSchemaRevision ===
@@ -6954,17 +8988,58 @@ const acceptProjectInputStart = async (message, frameToken) => {
             nodeRevisionTwoPackageTargetAuthority.policyRevision &&
         message.nodePackageTargetPolicyFingerprint ===
             nodeRevisionTwoPackageTargetAuthority.policyFingerprint;
-    const isControlledStart =
-        hasExactKeys(message, controlledKeys) &&
-        matchesControlledTsConfigAuthority(message) &&
+    const hasValidControlledConfigDescriptor =
         Number.isSafeInteger(message.configByteLength) &&
         message.configByteLength >= 0 &&
-        message.configByteLength <= controlledTsConfigAuthority.maximumBytes &&
+        message.configByteLength <= controlledTsConfigRevision4Authority.maximumBytes &&
         typeof message.configSha256 === "string" &&
-        sha256Pattern.test(message.configSha256) &&
+        sha256Pattern.test(message.configSha256);
+    const isControlledNodeRevisionTwoProgramStart =
+        hasExactStartKeys(controlledNodeRevisionTwoProgramKeys) &&
+        matchesControlledTsConfigAuthority(message) &&
+        matchesCurrentNodeProfileIdentity(message) &&
+        hasValidControlledConfigDescriptor &&
+        typeof message.entryPath === "string" &&
+        hasExactNodeModuleOutputPolicy &&
+        hasExactNodeRevisionTwoResolverAuthority;
+    const hasControlledNodePackageFormatProgramAuthority =
+        matchesControlledTsConfigAuthority(message) &&
+        matchesCurrentNodeProfileIdentity(message) &&
+        hasValidControlledConfigDescriptor &&
+        typeof message.entryPath === "string" &&
+        message.packageMetadataSchemaRevision ===
+            controlledPackageMetadataAuthority.schemaRevision &&
+        message.packageMetadataPolicyRevision ===
+            controlledPackageMetadataAuthority.policyRevision &&
+        message.packageMetadataPolicyFingerprint ===
+            controlledPackageMetadataAuthority.policyFingerprint &&
+        message.nodePackageFormatSchemaRevision ===
+            nodePackageFormatAuthority.schemaRevision &&
+        message.nodePackageFormatCatalogRevision ===
+            nodePackageFormatAuthority.catalogRevision &&
+        typeof message.nodePackageFormatCatalogFingerprint === "string" &&
+        sha256Pattern.test(message.nodePackageFormatCatalogFingerprint) &&
+        hasExactNodeModuleOutputPolicy &&
+        hasExactNodeRevisionTwoResolverAuthority;
+    const isControlledNodePackageFormatProgramStart =
+        hasExactStartKeys(controlledNodePackageFormatProgramKeys) &&
+        hasControlledNodePackageFormatProgramAuthority;
+    const isControlledNodePackageTargetProgramStart =
+        hasExactStartKeys(controlledNodePackageTargetProgramKeys) &&
+        hasControlledNodePackageFormatProgramAuthority &&
+        message.nodePackageTargetSchemaRevision ===
+            nodeRevisionTwoPackageTargetAuthority.schemaRevision &&
+        message.nodePackageTargetPolicyRevision ===
+            nodeRevisionTwoPackageTargetAuthority.policyRevision &&
+        message.nodePackageTargetPolicyFingerprint ===
+            nodeRevisionTwoPackageTargetAuthority.policyFingerprint;
+    const isControlledStart =
+        hasExactStartKeys(controlledKeys) &&
+        matchesControlledTsConfigAuthority(message) &&
+        hasValidControlledConfigDescriptor &&
         typeof message.entryPath === "string";
     const isPackageMetadataStart =
-        hasExactKeys(message, packageMetadataKeys) &&
+        hasExactStartKeys(packageMetadataKeys) &&
         matchesControlledTsConfigAuthority(message) &&
         Number.isSafeInteger(message.configByteLength) &&
         message.configByteLength >= 0 &&
@@ -6979,7 +9054,7 @@ const acceptProjectInputStart = async (message, frameToken) => {
         message.packageMetadataPolicyFingerprint ===
             controlledPackageMetadataAuthority.policyFingerprint;
     const isPackageTargetStart =
-        hasExactKeys(message, packageTargetKeys) &&
+        hasExactStartKeys(packageTargetKeys) &&
         matchesControlledTsConfigAuthority(message) &&
         Number.isSafeInteger(message.configByteLength) &&
         message.configByteLength >= 0 &&
@@ -7000,25 +9075,74 @@ const acceptProjectInputStart = async (message, frameToken) => {
         message.packageTargetPolicyFingerprint ===
             controlledPackageTargetAuthority.policyFingerprint;
     const hasControlledConfig =
-        isControlledStart || isPackageMetadataStart || isPackageTargetStart;
+        isControlledStart ||
+        isPackageMetadataStart ||
+        isPackageTargetStart ||
+        isControlledNodeRevisionTwoProgramStart ||
+        isControlledNodePackageFormatProgramStart ||
+        isControlledNodePackageTargetProgramStart;
     const isNodeRevision2Transport =
         isNodeRevision2Start || isNodePackageFormatStart;
     const isNodeRevisionTwoProgramTransport =
         isNodeRevisionTwoProgramStart ||
         isNodePackageFormatProgramStart ||
-        isNodePackageTargetProgramStart;
+        isNodePackageTargetProgramStart ||
+        isControlledNodeRevisionTwoProgramStart ||
+        isControlledNodePackageFormatProgramStart ||
+        isControlledNodePackageTargetProgramStart;
     const isAnyNodeRevisionTwoTransport =
         isNodeRevision2Transport || isNodeRevisionTwoProgramTransport;
+    const isDependencyResolverTransport =
+        isNodeRevisionTwoProgramTransport ||
+        isRhinoRevision2Start ||
+        hasControlledConfig;
+    const hasDependencyLayer =
+        hasAnyDependencyResolverField &&
+        isDependencyResolverTransport &&
+        message.dependencyLayerSchemaRevision ===
+            dependencyLayerAuthority.schemaRevision &&
+        message.dependencyLayerPolicyRevision ===
+            dependencyLayerAuthority.policyRevision &&
+        message.dependencyLayerPolicyFingerprint ===
+            dependencyLayerAuthority.policyFingerprint &&
+        message.dependencyResolverPolicyRevision ===
+            dependencyResolverAuthority.policyRevision &&
+        message.dependencyResolverPolicyFingerprint ===
+            dependencyResolverAuthority.policyFingerprint &&
+        (message.dependencyLayerIdentityKind === "package-lock" ||
+            message.dependencyLayerIdentityKind === "pnpm-lock" ||
+            message.dependencyLayerIdentityKind === "content") &&
+        typeof message.dependencyLayerIdentityPath === "string" &&
+        typeof message.dependencyLayerIdentityFingerprint === "string" &&
+        sha256Pattern.test(message.dependencyLayerIdentityFingerprint) &&
+        typeof message.dependencyLayerInventoryFingerprint === "string" &&
+        sha256Pattern.test(message.dependencyLayerInventoryFingerprint) &&
+        typeof message.dependencyLayerFingerprint === "string" &&
+        sha256Pattern.test(message.dependencyLayerFingerprint) &&
+        Number.isSafeInteger(message.dependencyLayerFileCount) &&
+        message.dependencyLayerFileCount >= 1 &&
+        message.dependencyLayerFileCount <= dependencyLayerAuthority.maximumFiles &&
+        Number.isSafeInteger(message.dependencyLayerByteLength) &&
+        message.dependencyLayerByteLength >= 0 &&
+        message.dependencyLayerByteLength <=
+            dependencyLayerAuthority.maximumTotalBytes &&
+        Number.isSafeInteger(message.dependencyLayerPathByteLength) &&
+        message.dependencyLayerPathByteLength >= 1 &&
+        message.dependencyLayerPathByteLength <=
+            dependencyLayerAuthority.maximumPathBytes;
     const callerInputQuotaAuthority =
         message.inputQuotaRevision === inputArchiveAuthority.quotaRevision
             ? inputArchiveAuthority
             : message.inputQuotaRevision ===
+                legacyCallerInputQuotaAuthority.quotaRevision
+              ? legacyCallerInputQuotaAuthority
+              : message.inputQuotaRevision ===
                 legacyRetainedInputQuotaAuthority.quotaRevision
-              ? legacyRetainedInputQuotaAuthority
-            : message.inputQuotaRevision ===
-                testOnlyExpandedInputQuotaAuthority.quotaRevision
-              ? testOnlyExpandedInputQuotaAuthority
-              : null;
+                ? legacyRetainedInputQuotaAuthority
+                : message.inputQuotaRevision ===
+                    testOnlyExpandedInputQuotaAuthority.quotaRevision
+                  ? testOnlyExpandedInputQuotaAuthority
+                  : null;
     const retainedInputQuotaAuthority =
         message.inputQuotaRevision ===
         legacyRetainedInputQuotaAuthority.quotaRevision
@@ -7032,12 +9156,28 @@ const acceptProjectInputStart = async (message, frameToken) => {
             !isRhinoRevision2Start &&
             !hasControlledConfig &&
             !isAnyNodeRevisionTwoTransport) ||
+        (hasAnyDependencyResolverField && !hasDependencyLayer) ||
+        (hasDependencyLayer &&
+            (
+                message.dependencyLayerIdentityKind === "content"
+                    ? message.dependencyLayerIdentityPath !== "" ||
+                      message.dependencyLayerIdentityFingerprint !==
+                          message.dependencyLayerInventoryFingerprint
+                    : message.dependencyLayerIdentityPath !==
+                      (message.dependencyLayerIdentityKind === "package-lock"
+                          ? "dependencies/lockfiles/package-lock.json"
+                          : "dependencies/lockfiles/pnpm-lock.yaml")
+            )) ||
         message.sequence !== 0 ||
         callerInputQuotaAuthority === null ||
         retainedInputQuotaAuthority === null ||
         !Number.isSafeInteger(message.fileCount) ||
         message.fileCount < 1 ||
         message.fileCount > retainedInputQuotaAuthority.maximumFiles ||
+        (hasDependencyLayer &&
+            message.fileCount + message.dependencyLayerFileCount >
+                retainedInputQuotaAuthority.maximumFiles +
+                    dependencyLayerAuthority.maximumFiles) ||
         !Number.isSafeInteger(message.totalBytes) ||
         message.totalBytes < 0 ||
         message.totalBytes > retainedInputQuotaAuthority.maximumTotalBytes ||
@@ -7102,12 +9242,16 @@ const acceptProjectInputStart = async (message, frameToken) => {
         isPackageTargetStart ||
         isNodePackageFormatStart ||
         isNodePackageFormatProgramStart ||
-        isNodePackageTargetProgramStart
+        isNodePackageTargetProgramStart ||
+        isControlledNodePackageFormatProgramStart ||
+        isControlledNodePackageTargetProgramStart
         ? await parseControlledPackageMetadataCanonical(
               message.packageMetadataCanonical,
               isNodePackageFormatStart ||
                   isNodePackageFormatProgramStart ||
-                  isNodePackageTargetProgramStart
+                  isNodePackageTargetProgramStart ||
+                  isControlledNodePackageFormatProgramStart ||
+                  isControlledNodePackageTargetProgramStart
                   ? message.packageMetadataInventoryFingerprint
                   : message.packageMetadataFingerprint,
               message.packageMetadataFileCount,
@@ -7125,7 +9269,9 @@ const acceptProjectInputStart = async (message, frameToken) => {
           )
         : null;
     requireActiveProjectInputFrame(frameToken);
-    const nodePackageTargets = isNodePackageTargetProgramStart
+    const nodePackageTargets =
+        isNodePackageTargetProgramStart ||
+        isControlledNodePackageTargetProgramStart
         ? await parseNodeRevisionTwoPackageTargetCanonical(
               message.nodePackageTargetCanonical,
               message.nodePackageTargetFingerprint,
@@ -7175,7 +9321,36 @@ const acceptProjectInputStart = async (message, frameToken) => {
         declarationInventoryFingerprint: message.declarationInventoryFingerprint,
         declarationProfileFingerprint: message.declarationProfileFingerprint,
         declaredBytes: hasControlledConfig ? message.configByteLength : 0,
-        directoryIndex: createDirectoryIndex(),
+        dependencyDeclaredBytes: 0,
+        dependencyFiles: [],
+        dependencyFoldedPaths: new Set(),
+        dependencyLayer: hasDependencyLayer
+            ? Object.freeze({
+                  byteLength: message.dependencyLayerByteLength,
+                  fileCount: message.dependencyLayerFileCount,
+                  fingerprint: message.dependencyLayerFingerprint,
+                  identityFingerprint:
+                      message.dependencyLayerIdentityFingerprint,
+                  identityKind: message.dependencyLayerIdentityKind,
+                  identityPath: message.dependencyLayerIdentityPath,
+                  inventoryFingerprint:
+                      message.dependencyLayerInventoryFingerprint,
+                  pathByteLength: message.dependencyLayerPathByteLength,
+                  resolverPolicyFingerprint:
+                      message.dependencyResolverPolicyFingerprint,
+                  resolverPolicyRevision:
+                      message.dependencyResolverPolicyRevision,
+              })
+            : null,
+        dependencyPathBytes: 0,
+        dependencyPaths: new Set(),
+        dependencyVfsPathChars: 0,
+        directoryIndex: createDirectoryIndex(
+            [],
+            hasDependencyLayer
+                ? maximumDirectoryIndexPathChars
+                : maximumProjectPathChars,
+        ),
         entryPath,
         fileCount: message.fileCount,
         files: [],
@@ -7185,24 +9360,35 @@ const acceptProjectInputStart = async (message, frameToken) => {
         nodePackageFormatCatalog: null,
         nodePackageFormatDeclaredFingerprint: isNodePackageFormatStart
             ? message.nodePackageFormatCatalogFingerprint
-            : isNodePackageFormatProgramStart || isNodePackageTargetProgramStart
+            : isNodePackageFormatProgramStart ||
+                isNodePackageTargetProgramStart ||
+                isControlledNodePackageFormatProgramStart ||
+                isControlledNodePackageTargetProgramStart
               ? message.nodePackageFormatCatalogFingerprint
             : null,
         nodePackageFormatMode:
             isNodePackageFormatStart ||
             isNodePackageFormatProgramStart ||
-            isNodePackageTargetProgramStart
+            isNodePackageTargetProgramStart ||
+            isControlledNodePackageFormatProgramStart ||
+            isControlledNodePackageTargetProgramStart
             ? "present"
-            : isNodeRevision2Start || isNodeRevisionTwoProgramStart
+            : isNodeRevision2Start ||
+                isNodeRevisionTwoProgramStart ||
+                isControlledNodeRevisionTwoProgramStart
               ? "absent"
               : null,
         nodePackageFormatRecords: [],
         nodePackageTargets,
-        nodeRevisionTwoProgramMode: isNodePackageTargetProgramStart
+        nodeRevisionTwoProgramMode:
+            isNodePackageTargetProgramStart ||
+            isControlledNodePackageTargetProgramStart
             ? "targets"
-            : isNodePackageFormatProgramStart
+            : isNodePackageFormatProgramStart ||
+                isControlledNodePackageFormatProgramStart
               ? "metadata"
-              : isNodeRevisionTwoProgramStart
+              : isNodeRevisionTwoProgramStart ||
+                  isControlledNodeRevisionTwoProgramStart
                 ? "no-metadata"
                 : null,
         nodeResolutionAuthority: null,
@@ -7354,7 +9540,15 @@ const acceptProjectInputConfigEnd = async (message, frameToken) => {
                 "Controlled tsconfig is not valid UTF-8.",
             );
         }
-        const parsedConfig = parseControlledTsConfig(text);
+        const policyAuthority = controlledTsConfigPolicyAuthorityFor(state);
+        if (policyAuthority === null) {
+            throw new Error("Controlled tsconfig policy authority was not retained.");
+        }
+        const parsedConfig = parseControlledTsConfig(
+            text,
+            policyAuthority,
+            state.targetProfile,
+        );
         const effectiveOptions =
             await resolveControlledTsConfigEffectiveOptions(parsedConfig);
         requireActiveProjectInputFrame(frameToken);
@@ -7395,11 +9589,17 @@ const acceptProjectInputFileStart = (message) => {
     ) {
         throw new Error("Project input file start shape is not supported.");
     }
-    const acceptedFileCount =
+    const acceptedOrdinaryFileCount =
         state.packageMetadataFiles.length +
         state.packageTargetFiles.length +
         state.files.length;
+    const acceptedDependencyFileCount = state.dependencyFiles.length;
+    const acceptedFileCount =
+        acceptedOrdinaryFileCount + acceptedDependencyFileCount;
+    const ordinaryFilesComplete =
+        acceptedOrdinaryFileCount === state.fileCount;
     const packageMetadataDescriptor =
+        !ordinaryFilesComplete &&
         state.packageMetadata !== null &&
         state.packageMetadataFiles.length < state.packageMetadata.files.length
             ? state.packageMetadata.files[state.packageMetadataFiles.length]
@@ -7410,6 +9610,7 @@ const acceptProjectInputFileStart = (message) => {
     const activePackageTargets =
         state.nodePackageTargets ?? state.packageTargets;
     const packageTargetDescriptor =
+        !ordinaryFilesComplete &&
         packageMetadataComplete &&
         activePackageTargets !== null &&
         state.packageTargetFiles.length < activePackageTargets.files.length
@@ -7419,20 +9620,38 @@ const acceptProjectInputFileStart = (message) => {
     const isPackageTarget = packageTargetDescriptor !== null;
     const isNodePackageTarget =
         isPackageTarget && state.nodePackageTargets !== null;
-    const path = validateCanonicalVfsPath(
-        message.path,
-        isPackageMetadata || isPackageTarget
-            ? []
-            : ["/sources/", "/declarations/"],
-        isPackageMetadata ? state.packageMetadata.filePaths : null,
-        isPackageTarget ? activePackageTargets.filePaths : null,
-        state.nodeRevisionTwoProgramMode !== null,
-    );
+    const isDependencyFile =
+        ordinaryFilesComplete &&
+        state.dependencyLayer !== null &&
+        acceptedDependencyFileCount < state.dependencyLayer.fileCount;
+    const path = isDependencyFile
+        ? message.path
+        : validateCanonicalVfsPath(
+              message.path,
+              isPackageMetadata || isPackageTarget
+                  ? []
+                  : ["/sources/", "/declarations/"],
+              isPackageMetadata ? state.packageMetadata.filePaths : null,
+              isPackageTarget ? activePackageTargets.filePaths : null,
+              state.nodeRevisionTwoProgramMode !== null,
+          );
+    const dependencyArchivePath = isDependencyFile
+        ? dependencyArchivePathForVfsPath(path)
+        : null;
+    const dependencyPathBytes = isDependencyFile && dependencyArchivePath !== null
+        ? new TextEncoder().encode(dependencyArchivePath).byteLength
+        : 0;
+    const previousDependencyArchivePath = acceptedDependencyFileCount === 0
+        ? null
+        : dependencyArchivePathForVfsPath(
+              state.dependencyFiles[acceptedDependencyFileCount - 1].path,
+          );
     if (
         state.nodePackageFormatMode !== null &&
         state.nodeRevisionTwoProgramMode === null &&
         !isPackageMetadata &&
         !isPackageTarget &&
+        !isDependencyFile &&
         (
             (path.startsWith("/sources/") && !path.endsWith(".ts")) ||
             (path.startsWith("/declarations/") &&
@@ -7447,6 +9666,7 @@ const acceptProjectInputFileStart = (message) => {
         state.nodeRevisionTwoProgramMode !== null &&
         !isPackageMetadata &&
         !isPackageTarget &&
+        !isDependencyFile &&
         (
             (path.startsWith("/sources/") &&
                 !isNodeRevisionTwoExecutableSourcePath(path) &&
@@ -7481,23 +9701,41 @@ const acceptProjectInputFileStart = (message) => {
     }
     if (
         state.currentFile !== null ||
-        acceptedFileCount >= state.fileCount ||
-        (!isPackageMetadata &&
+        acceptedFileCount >=
+            state.fileCount + (state.dependencyLayer?.fileCount ?? 0) ||
+        (isDependencyFile &&
+            (!isCanonicalDependencyVfsPath(path) ||
+                dependencyArchivePath === null ||
+                (previousDependencyArchivePath !== null &&
+                    previousDependencyArchivePath >= dependencyArchivePath) ||
+                state.dependencyPaths.has(path) ||
+                state.dependencyFoldedPaths.has(asciiCaseFold(path)))) ||
+        (!isPackageMetadata && !isPackageTarget && !isDependencyFile &&
             (state.paths.has(path) || state.foldedPaths.has(foldedPath))) ||
         !Number.isSafeInteger(message.fileIndex) ||
         message.fileIndex !== acceptedFileCount ||
         !Number.isSafeInteger(message.byteLength) ||
         message.byteLength < 0 ||
         message.byteLength >
-            (isPackageMetadata
+            (isDependencyFile
+                ? dependencyLayerAuthority.maximumSingleFileBytes
+                : isPackageMetadata
                 ? controlledPackageMetadataAuthority.maximumFileBytes
                 : isPackageTarget
                   ? isNodePackageTarget
                       ? nodeRevisionTwoPackageTargetAuthority.maximumFileBytes
                       : controlledPackageTargetAuthority.maximumFileBytes
                 : maximumProjectFileBytes) ||
-        state.declaredBytes + message.byteLength > state.totalBytes ||
-        (!isPackageMetadata && !isPackageTarget &&
+        (isDependencyFile
+            ? state.dependencyDeclaredBytes + message.byteLength >
+                  state.dependencyLayer.byteLength
+            : state.declaredBytes + message.byteLength > state.totalBytes) ||
+        (isDependencyFile &&
+            (state.dependencyPathBytes + dependencyPathBytes >
+                state.dependencyLayer.pathByteLength ||
+                state.dependencyVfsPathChars + path.length >
+                    dependencyLayerAuthority.maximumPathBytes)) ||
+        (!isPackageMetadata && !isPackageTarget && !isDependencyFile &&
             state.pathChars + path.length > maximumProjectPathChars) ||
         typeof message.sha256 !== "string" ||
         !sha256Pattern.test(message.sha256) ||
@@ -7522,16 +9760,25 @@ const acceptProjectInputFileStart = (message) => {
         isPackageMetadata,
         isPackageTarget,
         isNodePackageTarget,
+        isDependencyFile,
         nextChunkIndex: 0,
         offset: 0,
         path,
         sha256: message.sha256,
     };
-    state.declaredBytes += message.byteLength;
-    if (!isPackageMetadata && !isPackageTarget) {
+    if (isDependencyFile) {
+        state.dependencyDeclaredBytes += message.byteLength;
+        state.dependencyPathBytes += dependencyPathBytes;
+        state.dependencyVfsPathChars += path.length;
+        state.dependencyPaths.add(path);
+        state.dependencyFoldedPaths.add(asciiCaseFold(path));
+    } else {
+        state.declaredBytes += message.byteLength;
+    }
+    if (!isPackageMetadata && !isPackageTarget && !isDependencyFile) {
         state.pathChars += path.length;
     }
-    if (!isPackageMetadata) {
+    if (!isPackageMetadata && !isDependencyFile) {
         state.paths.add(path);
         state.foldedPaths.add(foldedPath);
     }
@@ -7685,6 +9932,19 @@ const acceptProjectInputFileEnd = async (message, frameToken) => {
         acknowledgeProjectInput(message.requestId, message.sequence);
         return;
     }
+    if (file.isDependencyFile) {
+        validateDependencyBoundaryRecord(file.path, text);
+        state.dependencyFiles.push({
+            byteLength: file.byteLength,
+            path: file.path,
+            sha256: file.sha256,
+            text,
+            tokenCount: 0,
+        });
+        state.nextSequence += 1;
+        acknowledgeProjectInput(message.requestId, message.sequence);
+        return;
+    }
     const tokenCount = countSourceTokens(text);
     if (
         state.tokenCount + state.packageTargetTokenCount + tokenCount >
@@ -7767,10 +10027,11 @@ const acceptProjectInputEnd = async (message, frameToken) => {
         state.packageTargets !== null ||
         state.nodeRevisionTwoProgramMode === "metadata" ||
         state.nodeRevisionTwoProgramMode === "targets";
-    const acceptedFileCount =
+    const acceptedOrdinaryFileCount =
         state.packageMetadataFiles.length +
         state.packageTargetFiles.length +
         state.files.length;
+    const acceptedDependencyFileCount = state.dependencyFiles.length;
     if (
         !hasExactKeys(message, [
             "fileCount",
@@ -7780,7 +10041,15 @@ const acceptProjectInputEnd = async (message, frameToken) => {
             "totalBytes",
         ]) ||
         state.currentFile !== null ||
-        acceptedFileCount !== state.fileCount ||
+        acceptedOrdinaryFileCount !== state.fileCount ||
+        (state.dependencyLayer === null
+            ? acceptedDependencyFileCount !== 0 ||
+              state.dependencyDeclaredBytes !== 0 ||
+              state.dependencyPathBytes !== 0 ||
+              state.dependencyVfsPathChars !== 0
+            : acceptedDependencyFileCount !== state.dependencyLayer.fileCount ||
+              state.dependencyDeclaredBytes !== state.dependencyLayer.byteLength ||
+              state.dependencyPathBytes !== state.dependencyLayer.pathByteLength) ||
         (state.packageMetadata !== null &&
             state.packageMetadataFiles.length !==
                 state.packageMetadata.files.length) ||
@@ -7833,6 +10102,54 @@ const acceptProjectInputEnd = async (message, frameToken) => {
         state.declaredBytes !== state.totalBytes
     ) {
         throw new Error("Project input end does not match its file inventory.");
+    }
+    if (state.dependencyLayer !== null) {
+        const dependencyInventoryFingerprint =
+            await deriveDependencyLayerInventoryFingerprint(
+                state.dependencyFiles,
+            );
+        requireActiveProjectInputFrame(frameToken);
+        const dependencyFingerprint = await deriveDependencyLayerFingerprint(
+            state.dependencyLayer.identityKind,
+            state.dependencyLayer.identityPath,
+            state.dependencyLayer.identityFingerprint,
+            dependencyInventoryFingerprint,
+        );
+        requireActiveProjectInputFrame(frameToken);
+        const identityVfsPath = state.dependencyLayer.identityPath.length === 0
+            ? null
+            : state.dependencyLayer.identityPath.startsWith(
+                  "dependencies/lockfiles/",
+              )
+              ? `${dependencyResolverAuthority.lockfilesVfsPrefix}${
+                    state.dependencyLayer.identityPath.slice(
+                        "dependencies/lockfiles/".length,
+                    )
+                }`
+              : null;
+        const identityFile = identityVfsPath === null
+            ? null
+            : state.dependencyFiles.find(
+                  (file) => file.path === identityVfsPath,
+              );
+        if (
+            dependencyInventoryFingerprint !==
+                state.dependencyLayer.inventoryFingerprint ||
+            dependencyFingerprint !== state.dependencyLayer.fingerprint ||
+            (state.dependencyLayer.identityKind === "content"
+                ? state.dependencyLayer.identityPath !== "" ||
+                  state.dependencyLayer.identityFingerprint !==
+                      dependencyInventoryFingerprint
+                : identityFile === null ||
+                  identityFile.sha256 !==
+                      state.dependencyLayer.identityFingerprint ||
+                  identityFile.byteLength >
+                      dependencyLayerAuthority.maximumLockfileBytes)
+        ) {
+            throw new Error(
+                "Dependency-layer authority does not match its exact inventory.",
+            );
+        }
     }
     const sourceRecords = state.files
         .filter((file) => file.path.startsWith("/sources/"))
@@ -7926,7 +10243,11 @@ const acceptProjectInputEnd = async (message, frameToken) => {
         state.nodeRevisionTwoProgramMode !== null;
     if (state.nodePackageFormatMode !== null) {
         if (
-            !matchesProvisionalNodeNextRevision2ProfileAuthority(state) ||
+            (!matchesProvisionalNodeNextRevision2ProfileAuthority(state) &&
+                !(
+                    matchesControlledTsConfigAuthority(state) &&
+                    matchesCurrentNodeProfileIdentity(state)
+                )) ||
             state.entryPath === null ||
             !state.files.some((file) => file.path === state.entryPath) ||
             !state.files.some(
@@ -7961,7 +10282,20 @@ const acceptProjectInputEnd = async (message, frameToken) => {
         }
     }
     let rootNames;
-    if (isNodeRevisionTwoProgram) {
+    if (state.configKind === controlledTsConfigAuthority.configKind) {
+        if (
+            !state.configAccepted ||
+            state.controlledConfig === null ||
+            state.controlledEffectiveOptions === null
+        ) {
+            throw new Error("Project input ended before controlled config was accepted.");
+        }
+        rootNames = selectControlledRootNames(
+            state.controlledConfig,
+            state.files,
+            state.entryPath,
+        );
+    } else if (isNodeRevisionTwoProgram) {
         rootNames = state.files
             .map((file) => file.path)
             .filter(isNodeRevisionTwoExecutableSourcePath)
@@ -7975,19 +10309,6 @@ const acceptProjectInputEnd = async (message, frameToken) => {
                 "Node revision 2 Program roots do not match its source inventory.",
             );
         }
-    } else if (state.configKind === controlledTsConfigAuthority.configKind) {
-        if (
-            !state.configAccepted ||
-            state.controlledConfig === null ||
-            state.controlledEffectiveOptions === null
-        ) {
-            throw new Error("Project input ended before controlled config was accepted.");
-        }
-        rootNames = selectControlledRootNames(
-            state.controlledConfig,
-            state.files,
-            state.entryPath,
-        );
     } else {
         rootNames = state.files
             .map((file) => file.path)
@@ -8030,6 +10351,9 @@ const acceptProjectInputEnd = async (message, frameToken) => {
     const packageTargetTextHolders = state.packageTargetTextHolders.slice();
     const packageTargetTokenCount = state.packageTargetTokenCount;
     const packageTargetTokenCounts = state.packageTargetTokenCounts.slice();
+    const dependencyFiles = state.dependencyFiles.slice();
+    const dependencyLayer = state.dependencyLayer;
+    const dependencyVfsPathChars = state.dependencyVfsPathChars;
     // Complete and detach only after every new rev5 resolver authority has
     // been built and revalidated. A rejection before this point is still able
     // to release the live framed state and all retained target holders.
@@ -8041,6 +10365,10 @@ const acceptProjectInputEnd = async (message, frameToken) => {
     framedCompilationRequestId = message.requestId;
     state.paths.clear();
     state.foldedPaths.clear();
+    state.dependencyFiles.length = 0;
+    state.dependencyPaths.clear();
+    state.dependencyFoldedPaths.clear();
+    state.dependencyLayer = null;
     state.packageMetadataCatalogRecords.length = 0;
     state.packageMetadataFiles.length = 0;
     state.packageMetadata = null;
@@ -8075,6 +10403,9 @@ const acceptProjectInputEnd = async (message, frameToken) => {
         configSchemaRevision: state.configSchemaRevision,
         controlledEffectiveOptions: state.controlledEffectiveOptions,
         directoryIndex: state.directoryIndex,
+        dependencyFiles,
+        dependencyLayer,
+        dependencyVfsPathChars,
         files: state.files,
         ignoredConfigProperties,
         packageTargetAuthority,
@@ -8245,6 +10576,7 @@ const handleProjectInputBatch = async (message) => {
         throw new Error("Project input batch has no valid first sequence.");
     }
     let expectedSequence = firstSequence;
+    let payloadChunkFrames = 0;
     for (const frame of message.frames) {
         if (
             !isRecord(frame) ||
@@ -8254,6 +10586,17 @@ const handleProjectInputBatch = async (message) => {
             frame.sequence !== expectedSequence
         ) {
             throw new Error("Project input batch is out of sequence.");
+        }
+        if (batchedProjectInputPayloadChunkKinds.has(frame.kind)) {
+            payloadChunkFrames += 1;
+            if (
+                payloadChunkFrames >
+                maximumProjectInputBatchPayloadChunkFrames
+            ) {
+                throw new Error(
+                    "Project input batch has too many payload chunks.",
+                );
+            }
         }
         expectedSequence += 1;
     }

@@ -560,6 +560,62 @@ class R2FileBackedProjectSnapshotTest {
     }
 
     @Test
+    fun dependencyLayerUsesIndependentFileBackedReadOnlyCursorsForRhinoAndNode() {
+        val lockBytes = "{\"lockfileVersion\":3}".toByteArray()
+        val packageBytes = "export const value = 42;\n".toByteArray()
+        val descriptors = listOf(
+            R2DependencyLayerFileDescriptor(
+                path = "dependencies/lockfiles/package-lock.json",
+                size = lockBytes.size.toLong(),
+                sha256 = R2Digests.sha256(lockBytes),
+            ),
+            R2DependencyLayerFileDescriptor(
+                path = "dependencies/node_modules/dayjs/index.js",
+                size = packageBytes.size.toLong(),
+                sha256 = R2Digests.sha256(packageBytes),
+            ),
+        )
+        val inventory = R2DependencyLayerInventory.create(
+            identityKind = R2DependencyLayerPolicy.IDENTITY_PACKAGE_LOCK,
+            identityPath = descriptors.first().path,
+            identityFingerprint = descriptors.first().sha256,
+            files = descriptors,
+        )
+        listOf(
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2,
+            R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+        ).forEachIndexed { index, profileAuthority ->
+            val spoolFile = temporaryFolder.newFile("dependency-layer-$index.spool")
+            spoolFile.writeBytes(lockBytes + packageBytes)
+
+            RandomAccessFile(spoolFile, "r").use { reader ->
+                val snapshot = snapshot(
+                    reader = reader,
+                    profileAuthority = profileAuthority,
+                    records = arrayListOf(record(VALID_ROOT)),
+                    rootNames = arrayListOf(VALID_ROOT),
+                    dependencyLayerInventory = inventory,
+                    dependencyLayerRecords = arrayListOf(
+                        R2FileBackedDependencyLayerRecord(descriptors[0], 0L),
+                        R2FileBackedDependencyLayerRecord(
+                            descriptors[1],
+                            lockBytes.size.toLong(),
+                        ),
+                    ),
+                )
+                try {
+                    assertEquals(inventory, snapshot.dependencyLayerInventory)
+                    assertEquals(1, snapshot.fileInventory.size)
+                    assertArrayEquals(lockBytes, readAll(snapshot.openDependencyLayerFile(0)))
+                    assertArrayEquals(packageBytes, readAll(snapshot.openDependencyLayerFile(1)))
+                } finally {
+                    snapshot.close()
+                }
+            }
+        }
+    }
+
+    @Test
     fun sealRejectsCombinedPackageMetadataCapacityAndRetainsCleanupOwnership() {
         val privateDirectory = temporaryFolder.newFolder("package-capacity-spool")
         val packageBytes = "{}".toByteArray()
@@ -687,6 +743,8 @@ class R2FileBackedProjectSnapshotTest {
         rawConfigRecord: R2FileBackedRawProjectConfigRecord? = null,
         packageMetadataInventory: R2PackageMetadataInventory? = null,
         packageMetadataRecords: ArrayList<R2FileBackedPackageMetadataRecord> = arrayListOf(),
+        dependencyLayerInventory: R2DependencyLayerInventory? = null,
+        dependencyLayerRecords: ArrayList<R2FileBackedDependencyLayerRecord> = arrayListOf(),
         nodePackageFormatCatalog: R2NodePackageFormatCatalog? = null,
         nodePackageMetadataCatalog: R2NodePackageMetadataCatalog? = null,
         packageTargetInventory: R2PackageTargetInventory? = null,
@@ -700,6 +758,8 @@ class R2FileBackedProjectSnapshotTest {
         rawConfigRecord = rawConfigRecord,
         packageMetadataInventory = packageMetadataInventory,
         packageMetadataRecords = packageMetadataRecords,
+        dependencyLayerInventory = dependencyLayerInventory,
+        dependencyLayerRecords = dependencyLayerRecords,
         nodePackageFormatCatalog = nodePackageFormatCatalog,
         nodePackageMetadataCatalog = nodePackageMetadataCatalog,
         packageTargetInventory = packageTargetInventory,
@@ -775,7 +835,7 @@ class R2FileBackedProjectSnapshotTest {
                 size = 0L,
                 sha256 = EMPTY_SHA256,
                 policyRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
-                policyFingerprint = R2ControlledTsConfigPolicy.fingerprint,
+                policyFingerprint = R2ControlledTsConfigPolicy.revision4Fingerprint,
             ),
             offset = offset,
         )

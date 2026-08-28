@@ -575,6 +575,24 @@ class R2PrivateOutputArchiveTest {
     }
 
     @Test
+    fun nodeRevisionTwoOutputAuthorityAcceptsRevisionThreeControlledConfig() {
+        val authority = nodeRevisionTwoOutputAuthority().copy(
+            configSchemaRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION,
+            configKind = TypeScriptR2Contract.CONFIG_KIND_TSCONFIG,
+        )
+
+        assertEquals(
+            R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+            authority.profileAuthority,
+        )
+        assertEquals(TypeScriptR2Contract.CONFIG_KIND_TSCONFIG, authority.configKind)
+        assertEquals(
+            TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION,
+            authority.configSchemaRevision,
+        )
+    }
+
+    @Test
     fun controlledOutputCoversSelectedRootsAndSnapshotOnlyReachableImports() {
         val privateDirectory = temporaryFolder.newFolder("controlled")
         val dependencySource = "/sources/dependency.ts"

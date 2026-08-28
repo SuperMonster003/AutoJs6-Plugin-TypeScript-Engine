@@ -34,6 +34,7 @@ internal data class R2ProjectArchiveAuthority(
         R2CompilerEscapePolicy.INLINE_COMPILER_OPTIONS_JSON,
     val rawConfigAuthority: R2RawProjectConfigAuthority? = null,
     val packageMetadataAuthority: R2PackageMetadataAuthority? = null,
+    val dependencyLayerAuthority: R2DependencyLayerAuthority? = null,
     val packageTargetAuthority: R2PackageTargetAuthority? = null,
     val nodePackageTargetV2Authority: R2NodePackageTargetV2Authority? = null,
 ) {
@@ -73,7 +74,7 @@ internal data class R2ProjectArchiveAuthority(
                         packageTargetAuthority == null &&
                         nodePackageTargetV2Authority == null
                 isNodeRevisionTwo ->
-                    rawConfigAuthority == null && packageTargetAuthority == null
+                    packageTargetAuthority == null
                 else -> false
             },
         ) {
@@ -125,6 +126,11 @@ internal data class R2ProjectArchiveAuthority(
         ) {
             "Package metadata authority requires controlled raw project config authority or " +
                 "the exact Node revision 2 config-none authority."
+        }
+        require(
+            dependencyLayerAuthority == null || isRhinoRevisionTwo || isNodeRevisionTwo,
+        ) {
+            "Dependency-layer authority requires the current Rhino or Node revision 2 profile."
         }
         require(packageTargetAuthority == null || rawConfigAuthority != null) {
             "Package target authority requires controlled raw project config authority."
@@ -183,6 +189,7 @@ internal data class R2ProjectArchiveFile(
  * longer accepts or emits the former feature-overloaded manifest revisions 2 through 7.
  */
 internal class R2ProvisionalRequestManifest private constructor(
+    val inputQuotaRevision: Int,
     val requestId: String,
     val projectId: String,
     val entrySourceUri: String,
@@ -197,6 +204,7 @@ internal class R2ProvisionalRequestManifest private constructor(
     val callerInventoryFingerprint: String,
     val rawConfigDescriptor: R2RawProjectConfigDescriptor?,
     val packageMetadataInventory: R2PackageMetadataInventory?,
+    val dependencyLayerInventory: R2DependencyLayerInventory?,
     val packageTargetInventory: R2PackageTargetInventory?,
     val nodePackageTargetV2Inventory: R2NodePackageTargetV2Inventory?,
     rootPaths: List<String>,
@@ -226,10 +234,10 @@ internal class R2ProvisionalRequestManifest private constructor(
             val root = parseJson(bytes)
             val rawConfigAuthority = authority.rawConfigAuthority
             val packageMetadataAuthority = authority.packageMetadataAuthority
+            val dependencyLayerAuthority = authority.dependencyLayerAuthority
             val packageTargetAuthority = authority.packageTargetAuthority
             val nodePackageTargetV2Authority = authority.nodePackageTargetV2Authority
-            root.requireExactKeys(
-                when {
+            val expectedTopLevelKeys = when {
                     packageMetadataAuthority != null &&
                         (packageTargetAuthority != null || nodePackageTargetV2Authority != null) ->
                         if (rawConfigAuthority == null) {
@@ -245,6 +253,12 @@ internal class R2ProvisionalRequestManifest private constructor(
                         }
                     rawConfigAuthority != null -> TOP_LEVEL_KEYS_WITH_CONFIG
                     else -> TOP_LEVEL_KEYS
+                }
+            root.requireExactKeys(
+                if (dependencyLayerAuthority == null) {
+                    expectedTopLevelKeys
+                } else {
+                    expectedTopLevelKeys + "dependencyLayer"
                 },
                 "request manifest",
             )
@@ -259,11 +273,13 @@ internal class R2ProvisionalRequestManifest private constructor(
                 "Request manifest revision is not supported.",
                 TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
             )
-            root.requireNonNegativeInt("inputQuotaRevision").requireEqual(
-                R2InputArchiveSchemaV1.INPUT_QUOTA_REVISION,
-                "Request manifest input quota revision is not supported.",
-                TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
-            )
+            val inputQuotaRevision = root.requireNonNegativeInt("inputQuotaRevision")
+            if (!R2InputArchiveSchemaV1.supportsInputQuotaRevision(inputQuotaRevision)) {
+                fail(
+                    TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
+                    "Request manifest input quota revision is not supported.",
+                )
+            }
             root.requireNonNegativeInt("contractVersion").requireEqual(
                 TypeScriptCompilerContract.VERSION,
                 "Request manifest contract version does not match.",
@@ -364,7 +380,10 @@ internal class R2ProvisionalRequestManifest private constructor(
                 }
                 val policyRevision = config.requireNonNegativeInt("policyRevision")
                 if (
-                    policyRevision != TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION ||
+                    !R2ControlledTsConfigPolicy.isSupportedPolicy(
+                        policyRevision,
+                        expected.policyFingerprint,
+                    ) ||
                     policyRevision != expected.policyRevision
                 ) {
                     fail(
@@ -374,7 +393,10 @@ internal class R2ProvisionalRequestManifest private constructor(
                 }
                 val policyFingerprint = config.requireLowerSha256("policyFingerprint")
                 if (
-                    !R2Digests.equal(policyFingerprint, R2ControlledTsConfigPolicy.fingerprint) ||
+                    !R2ControlledTsConfigPolicy.isSupportedPolicy(
+                        policyRevision,
+                        policyFingerprint,
+                    ) ||
                     !R2Digests.equal(policyFingerprint, expected.policyFingerprint)
                 ) {
                     fail(
@@ -695,6 +717,116 @@ internal class R2ProvisionalRequestManifest private constructor(
                 }
                 inventory
             }
+            val dependencyLayerInventory = dependencyLayerAuthority?.let { expected ->
+                val layerObject = root["dependencyLayer"] as? Map<*, *> ?: fail(
+                    TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+                    "Request manifest field 'dependencyLayer' must be an object.",
+                )
+                val layer = layerObject.toStringKeyMap("dependencyLayer")
+                layer.requireExactKeys(DEPENDENCY_LAYER_KEYS, "dependencyLayer")
+                layer.requireNonNegativeInt("schemaRevision").requireEqual(
+                    R2DependencyLayerPolicy.SCHEMA_REVISION,
+                    "Request manifest dependency-layer schema revision is not supported.",
+                    TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
+                )
+                val policyRevision = layer.requireNonNegativeInt("policyRevision")
+                if (
+                    policyRevision != R2DependencyLayerPolicy.POLICY_REVISION ||
+                    policyRevision != expected.policyRevision
+                ) {
+                    fail(
+                        TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
+                        "Request manifest dependency-layer policy revision is not supported.",
+                    )
+                }
+                val policyFingerprint = layer.requireLowerSha256("policyFingerprint")
+                if (
+                    !R2Digests.equal(policyFingerprint, R2DependencyLayerPolicy.fingerprint) ||
+                    !R2Digests.equal(policyFingerprint, expected.policyFingerprint)
+                ) {
+                    fail(
+                        TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
+                        "Request manifest dependency-layer policy fingerprint is not supported.",
+                    )
+                }
+                val identityKind = layer.requireString("identityKind")
+                val identityPath = layer.requireString("identityPath")
+                val identityFingerprint = layer.requireLowerSha256("identityFingerprint")
+                val declaredInventoryFingerprint =
+                    layer.requireLowerSha256("inventoryFingerprint")
+                val declaredFingerprint = layer.requireLowerSha256("fingerprint")
+                val declaredFileCount = layer.requireNonNegativeInt("fileCount")
+                val declaredTotalBytes = layer.requireNonNegativeLong("totalBytes")
+                val declaredTotalPathBytes = layer.requireNonNegativeLong("totalPathBytes")
+                val dependencyFiles = layer.requireList("files").mapIndexed { index, value ->
+                    val fileObject = value as? Map<*, *> ?: fail(
+                        TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+                        "Request manifest dependencyLayer.files[$index] must be an object.",
+                    )
+                    val file = fileObject.toStringKeyMap("dependencyLayer.files[$index]")
+                    file.requireExactKeys(
+                        DEPENDENCY_LAYER_FILE_KEYS,
+                        "dependencyLayer.files[$index]",
+                    )
+                    try {
+                        R2DependencyLayerFileDescriptor(
+                            path = file.requireString("path"),
+                            size = file.requireNonNegativeLong("size"),
+                            sha256 = file.requireLowerSha256("sha256"),
+                        )
+                    } catch (error: R2DependencyLayerPolicyException) {
+                        failDependencyLayerPolicy(error)
+                    }
+                }
+                requireStrictlySortedUnique(
+                    dependencyFiles.map(R2DependencyLayerFileDescriptor::path),
+                    "Request manifest dependencyLayer.files",
+                )
+                val inventory = try {
+                    R2DependencyLayerInventory.create(
+                        identityKind = identityKind,
+                        identityPath = identityPath,
+                        identityFingerprint = identityFingerprint,
+                        files = dependencyFiles,
+                    )
+                } catch (error: R2DependencyLayerPolicyException) {
+                    failDependencyLayerPolicy(error)
+                }
+                if (
+                    declaredFileCount != inventory.files.size ||
+                    declaredTotalBytes != inventory.totalBytes ||
+                    declaredTotalPathBytes != inventory.totalPathBytes
+                ) {
+                    fail(
+                        TypeScriptCompilerContract.ERROR_ARCHIVE_INTEGRITY,
+                        "Request manifest dependency-layer totals do not match its files.",
+                    )
+                }
+                if (
+                    !R2Digests.equal(
+                        declaredInventoryFingerprint,
+                        inventory.inventoryFingerprint,
+                    ) ||
+                    !R2Digests.equal(declaredInventoryFingerprint, expected.inventoryFingerprint)
+                ) {
+                    fail(
+                        TypeScriptCompilerContract.ERROR_ARCHIVE_INTEGRITY,
+                        "Request manifest dependency-layer inventory does not match its files " +
+                            "or control plane.",
+                    )
+                }
+                if (
+                    !R2Digests.equal(declaredFingerprint, inventory.fingerprint) ||
+                    !R2Digests.equal(declaredFingerprint, expected.fingerprint)
+                ) {
+                    fail(
+                        TypeScriptCompilerContract.ERROR_ARCHIVE_INTEGRITY,
+                        "Request manifest dependency-layer fingerprint does not match its " +
+                            "identity or control plane.",
+                    )
+                }
+                inventory
+            }
 
             requestId.requireEqual(
                 authority.requestId,
@@ -836,20 +968,19 @@ internal class R2ProvisionalRequestManifest private constructor(
                     "Request manifest file inventory must not be empty.",
                 )
             }
-            val reservedArchiveFiles =
-                1 +
-                    (if (rawConfigAuthority == null) 0 else 1) +
+            val reservedCallerFiles =
+                (if (rawConfigAuthority == null) 0 else 1) +
                     (packageMetadataInventory?.files?.size ?: 0) +
                     (packageTargetInventory?.files?.size ?: 0) +
                     (nodePackageTargetV2Inventory?.files?.size ?: 0)
-            if (reservedArchiveFiles > TypeScriptCompilerContract.MAX_INPUT_FILES) {
+            if (reservedCallerFiles > TypeScriptCompilerContract.MAX_INPUT_FILES) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
                     "Request manifest package metadata leaves no source inventory capacity.",
                 )
             }
             val maximumSourceFiles =
-                TypeScriptCompilerContract.MAX_INPUT_FILES - reservedArchiveFiles
+                TypeScriptCompilerContract.MAX_INPUT_FILES - reservedCallerFiles
             if (files.size > maximumSourceFiles) {
                 fail(
                     TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA,
@@ -906,6 +1037,7 @@ internal class R2ProvisionalRequestManifest private constructor(
             }
 
             return R2ProvisionalRequestManifest(
+                inputQuotaRevision = inputQuotaRevision,
                 requestId = requestId,
                 projectId = projectId,
                 entrySourceUri = entrySourceUri,
@@ -920,6 +1052,7 @@ internal class R2ProvisionalRequestManifest private constructor(
                 callerInventoryFingerprint = callerInventoryFingerprint,
                 rawConfigDescriptor = rawConfigDescriptor,
                 packageMetadataInventory = packageMetadataInventory,
+                dependencyLayerInventory = dependencyLayerInventory,
                 packageTargetInventory = packageTargetInventory,
                 nodePackageTargetV2Inventory = nodePackageTargetV2Inventory,
                 rootPaths = rootPaths,
@@ -1145,9 +1278,10 @@ internal class R2ProvisionalRequestManifest private constructor(
             }
         }
 
-        internal const val MAXIMUM_MANIFEST_BYTES = 512L * 1024L
+        internal const val MAXIMUM_MANIFEST_BYTES =
+            R2_INPUT_MANIFEST_MAXIMUM_BYTES
         internal const val MAXIMUM_CONTROLLED_TSCONFIG_SOURCE_FILES =
-            TypeScriptCompilerContract.MAX_INPUT_FILES - 2
+            TypeScriptCompilerContract.MAX_INPUT_FILES - 1
         internal const val MAXIMUM_SOURCE_FILE_BYTES =
             TypeScriptCompilerContract.MAX_SINGLE_FILE_BYTES
         internal const val MAXIMUM_SOURCE_BYTES =
@@ -1166,6 +1300,7 @@ internal class R2ProvisionalRequestManifest private constructor(
         )
         private val PACKAGE_METADATA_FILE_KEYS = setOf("path", "sha256", "size")
         private val PACKAGE_TARGET_FILE_KEYS = setOf("path", "sha256", "size")
+        private val DEPENDENCY_LAYER_FILE_KEYS = setOf("path", "sha256", "size")
         private val PACKAGE_METADATA_KEYS = setOf(
             "schemaRevision",
             "policyRevision",
@@ -1180,6 +1315,20 @@ internal class R2ProvisionalRequestManifest private constructor(
             "policyFingerprint",
             "packageMetadataInventoryFingerprint",
             "inventoryFingerprint",
+            "files",
+        )
+        private val DEPENDENCY_LAYER_KEYS = setOf(
+            "schemaRevision",
+            "policyRevision",
+            "policyFingerprint",
+            "identityKind",
+            "identityPath",
+            "identityFingerprint",
+            "inventoryFingerprint",
+            "fingerprint",
+            "fileCount",
+            "totalBytes",
+            "totalPathBytes",
             "files",
         )
         private val TOP_LEVEL_KEYS = setOf(
@@ -1323,6 +1472,7 @@ internal object R2ProjectArchiveAdapter {
             paths = ownedArchiveEntries.keys,
             profileAuthority = manifest.profileAuthority,
             packageMetadataInventory = manifest.packageMetadataInventory,
+            dependencyLayerInventory = manifest.dependencyLayerInventory,
             packageTargetInventory = manifest.packageTargetInventory,
             nodePackageTargetV2Inventory = manifest.nodePackageTargetV2Inventory,
         )
@@ -1330,6 +1480,7 @@ internal object R2ProjectArchiveAdapter {
             add(R2InputArchiveSchemaV1.REQUEST_MANIFEST_PATH)
             manifest.rawConfigDescriptor?.let { config -> add(config.path) }
             manifest.packageMetadataInventory?.files?.forEach { file -> add(file.path) }
+            manifest.dependencyLayerInventory?.files?.forEach { file -> add(file.path) }
             manifest.packageTargetInventory?.files?.forEach { file -> add(file.path) }
             manifest.nodePackageTargetV2Inventory?.files?.forEach { file -> add(file.path) }
             manifest.files.forEach { file -> add(file.path) }
@@ -1345,7 +1496,11 @@ internal object R2ProjectArchiveAdapter {
             )
         }
 
-        val callerLimits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION
+        val callerLimits = checkNotNull(
+            R2ProjectSnapshotLimits.forInputQuotaRevision(manifest.inputQuotaRevision),
+        ) {
+            "Parsed manifest retained an unsupported input quota revision."
+        }
         val snapshotLimits = R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE
         if (trustedDeclarations.files.size > R2_TRUSTED_DECLARATION_MAXIMUM_FILES) {
             fail(
@@ -1508,6 +1663,34 @@ internal object R2ProjectArchiveAdapter {
             )
             bytes
         }.orEmpty()
+        val dependencyLayerBytes = manifest.dependencyLayerInventory?.files?.map { file ->
+            val bytes = checkNotNull(ownedArchiveEntries[file.path]) {
+                "Exact archive inventory was checked before dependency-layer validation."
+            }
+            if (
+                bytes.size.toLong() != file.size ||
+                !R2Digests.equal(R2Digests.sha256(bytes), file.sha256)
+            ) {
+                fail(
+                    TypeScriptCompilerContract.ERROR_ARCHIVE_INTEGRITY,
+                    "Request manifest dependency-layer descriptor does not match actual bytes: " +
+                        "${file.path}.",
+                )
+            }
+            try {
+                R2Utf8.decode(bytes, "Dependency-layer file ${file.path}")
+                R2DependencyLayerPolicy.validateDependencyFile(file.path, bytes)
+            } catch (error: R2DependencyLayerPolicyException) {
+                failDependencyLayerPolicy(error)
+            } catch (error: IllegalArgumentException) {
+                fail(
+                    TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+                    error.message.orEmpty(),
+                    error,
+                )
+            }
+            bytes
+        }.orEmpty()
         val packageTargetBytes = manifest.packageTargetInventory?.files?.map { file ->
             val bytes = checkNotNull(ownedArchiveEntries[file.path]) {
                 "Exact archive inventory was checked before package target validation."
@@ -1552,6 +1735,7 @@ internal object R2ProjectArchiveAdapter {
         val acceptedInputAuthority = try {
             R2InputArchiveSchemaV1.acceptedAuthority(
                 callerInventoryFingerprint = manifest.callerInventoryFingerprint,
+                inputQuotaRevision = manifest.inputQuotaRevision,
                 sources = manifest.files,
                 trustedDeclarations = trustedDeclarations,
                 rawConfig = manifest.rawConfigDescriptor,
@@ -1579,6 +1763,8 @@ internal object R2ProjectArchiveAdapter {
                 rawConfigBytes = rawConfigBytes,
                 packageMetadataInventory = manifest.packageMetadataInventory,
                 packageMetadataBytes = packageMetadataBytes,
+                dependencyLayerInventory = manifest.dependencyLayerInventory,
+                dependencyLayerBytes = dependencyLayerBytes,
                 packageTargetInventory = manifest.packageTargetInventory,
                 packageTargetBytes = packageTargetBytes,
                 nodePackageTargetV2Inventory = manifest.nodePackageTargetV2Inventory,
@@ -1669,6 +1855,7 @@ internal object R2ProjectArchiveAdapter {
             paths = archiveEntries.keys,
             profileAuthority = manifest.profileAuthority,
             packageMetadataInventory = manifest.packageMetadataInventory,
+            dependencyLayerInventory = manifest.dependencyLayerInventory,
             packageTargetInventory = manifest.packageTargetInventory,
             nodePackageTargetV2Inventory = manifest.nodePackageTargetV2Inventory,
         )
@@ -1676,6 +1863,7 @@ internal object R2ProjectArchiveAdapter {
             add(R2InputArchiveSchemaV1.REQUEST_MANIFEST_PATH)
             manifest.rawConfigDescriptor?.let { config -> add(config.path) }
             manifest.packageMetadataInventory?.files?.forEach { file -> add(file.path) }
+            manifest.dependencyLayerInventory?.files?.forEach { file -> add(file.path) }
             manifest.packageTargetInventory?.files?.forEach { file -> add(file.path) }
             manifest.nodePackageTargetV2Inventory?.files?.forEach { file -> add(file.path) }
             manifest.files.forEach { file -> add(file.path) }
@@ -1793,6 +1981,36 @@ internal object R2ProjectArchiveAdapter {
         val nodePackageFormatCatalog = nodePackageCatalogs.first
         val nodePackageMetadataCatalog = nodePackageCatalogs.second
 
+        val dependencyLayerRecords =
+            manifest.dependencyLayerInventory?.files?.map { file ->
+                val entry = checkNotNull(archiveEntries[file.path]) {
+                    "Exact archive inventory was checked before dependency-layer indexing."
+                }
+                if (
+                    entry.byteLength != file.size ||
+                    !R2Digests.equal(entry.sha256, file.sha256)
+                ) {
+                    fail(
+                        TypeScriptCompilerContract.ERROR_ARCHIVE_INTEGRITY,
+                        "Request manifest dependency-layer descriptor does not match actual " +
+                            "bytes: ${file.path}.",
+                    )
+                }
+                try {
+                    spool.strictUtf16CodeUnits(entry)
+                } catch (error: IllegalArgumentException) {
+                    fail(
+                        TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+                        error.message.orEmpty(),
+                        error,
+                    )
+                }
+                R2FileBackedDependencyLayerRecord(
+                    descriptor = file,
+                    offset = entry.offset,
+                )
+            }.orEmpty()
+
         val packageTargetRecords =
             manifest.packageTargetInventory?.files?.map { file ->
                 val entry = checkNotNull(archiveEntries[file.path]) {
@@ -1857,7 +2075,11 @@ internal object R2ProjectArchiveAdapter {
             )
         }
 
-        val callerLimits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION
+        val callerLimits = checkNotNull(
+            R2ProjectSnapshotLimits.forInputQuotaRevision(manifest.inputQuotaRevision),
+        ) {
+            "Parsed manifest retained an unsupported input quota revision."
+        }
         val snapshotLimits = R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE
         if (trustedDeclarations.files.size > R2_TRUSTED_DECLARATION_MAXIMUM_FILES) {
             fail(
@@ -2054,6 +2276,7 @@ internal object R2ProjectArchiveAdapter {
         val acceptedInputAuthority = try {
             R2InputArchiveSchemaV1.acceptedAuthority(
                 callerInventoryFingerprint = manifest.callerInventoryFingerprint,
+                inputQuotaRevision = manifest.inputQuotaRevision,
                 sources = manifest.files,
                 trustedDeclarations = trustedDeclarations,
                 rawConfig = manifest.rawConfigDescriptor,
@@ -2078,6 +2301,8 @@ internal object R2ProjectArchiveAdapter {
                 rawConfigRecord = rawConfigRecord,
                 packageMetadataInventory = manifest.packageMetadataInventory,
                 packageMetadataRecords = packageMetadataRecords,
+                dependencyLayerInventory = manifest.dependencyLayerInventory,
+                dependencyLayerRecords = dependencyLayerRecords,
                 nodePackageFormatCatalog = nodePackageFormatCatalog,
                 nodePackageMetadataCatalog = nodePackageMetadataCatalog,
                 packageTargetInventory = manifest.packageTargetInventory,
@@ -2369,7 +2594,7 @@ internal object R2ProjectArchiveLoader {
             R2PrivateInputStaging.stage(
                 inputArchive = inputArchive,
                 privateDirectory = privateDirectory,
-                maximumBytes = TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+                maximumBytes = R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
             )
         } catch (error: Throwable) {
             throw mapStagingFailure(error)
@@ -2401,7 +2626,7 @@ internal object R2ProjectArchiveLoader {
             R2PrivateInputStaging.stage(
                 input = input,
                 privateDirectory = privateDirectory,
-                maximumBytes = TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+                maximumBytes = R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
             )
         } catch (error: Throwable) {
             throw mapStagingFailure(error)
@@ -2607,6 +2832,7 @@ private fun validateActualArchiveCompilerEscapePaths(
     paths: Iterable<String>,
     profileAuthority: R2CompilationProfileAuthority,
     packageMetadataInventory: R2PackageMetadataInventory?,
+    dependencyLayerInventory: R2DependencyLayerInventory?,
     packageTargetInventory: R2PackageTargetInventory?,
     nodePackageTargetV2Inventory: R2NodePackageTargetV2Inventory?,
 ) {
@@ -2624,6 +2850,12 @@ private fun validateActualArchiveCompilerEscapePaths(
             if (
                 packageTargetInventory != null &&
                 R2PackageTargetPolicy.isExplicitlyAllowed(path, packageTargetInventory)
+            ) {
+                return@let
+            }
+            if (
+                dependencyLayerInventory != null &&
+                R2DependencyLayerPolicy.isExplicitlyAllowed(path, dependencyLayerInventory)
             ) {
                 return@let
             }
@@ -2687,6 +2919,24 @@ private fun failPackageTargetPolicy(
         R2PackageTargetPolicyCode.INVENTORY_INVALID,
         R2PackageTargetPolicyCode.METADATA_IDENTITY_INVALID,
         -> TypeScriptCompilerContract.ERROR_INVALID_REQUEST
+    }
+    fail(contractErrorCode, error.message.orEmpty(), error)
+}
+
+private fun failDependencyLayerPolicy(
+    error: R2DependencyLayerPolicyException,
+): Nothing {
+    val contractErrorCode = when (error.policyCode) {
+        R2DependencyLayerPolicyCode.PATH_INVALID ->
+            TypeScriptCompilerContract.ERROR_ARCHIVE_PATH
+        R2DependencyLayerPolicyCode.QUOTA_EXCEEDED ->
+            TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA
+        R2DependencyLayerPolicyCode.INVENTORY_INVALID ->
+            TypeScriptCompilerContract.ERROR_INVALID_REQUEST
+        R2DependencyLayerPolicyCode.NATIVE_DEPENDENCY_UNSUPPORTED ->
+            TypeScriptR2Contract.ERROR_NATIVE_DEPENDENCY_UNSUPPORTED
+        R2DependencyLayerPolicyCode.INSTALL_LIFECYCLE_UNSUPPORTED ->
+            TypeScriptR2Contract.ERROR_DEPENDENCY_INSTALL_SCRIPT_UNSUPPORTED
     }
     fail(contractErrorCode, error.message.orEmpty(), error)
 }

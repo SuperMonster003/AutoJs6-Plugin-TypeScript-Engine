@@ -38,6 +38,7 @@ import org.autojs.plugin.typescript.api.TypeScriptPluginActions
 import org.autojs.plugin.typescript.api.TypeScriptPluginCapabilityKeys
 import org.autojs.plugin.typescript.api.TypeScriptPluginIds
 import org.autojs.plugin.typescript.api.TypeScriptR2Contract
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -313,6 +314,60 @@ class R2BinderCompilationInstrumentationTest {
     }
 
     @Test
+    fun revisionThreeCompilesMoreThanOneThousandCallerFilesThroughPublicBinder() {
+        bindCompilerService().use { session ->
+            val declarationCount = 1_024
+            val sources = linkedMapOf<String, String>()
+            val references = StringBuilder(declarationCount * 56)
+            repeat(declarationCount) { index ->
+                val suffix = index.toString().padStart(4, '0')
+                val path = "sources/bulk/$suffix.d.ts"
+                sources[path] = "declare const t1Device$suffix: number;\n"
+                references.append("/// <reference path=\"./bulk/")
+                    .append(suffix)
+                    .append(".d.ts\" />\n")
+            }
+            sources["sources/main.ts"] =
+                references.append(
+                    "export const t1DeviceLargeProject: number = t1Device0000;\n",
+                ).toString()
+            assertEquals(1_025, sources.size)
+            val fixture = createFixture(
+                requestId = newRequestId("t1-large-file-count"),
+                sources = LinkedHashMap(sources),
+                rootPaths = listOf("sources/main.ts"),
+                timeoutMs = TypeScriptCompilerContract.MAX_TIMEOUT_MS,
+            )
+            val startedAt = SystemClock.elapsedRealtime()
+            try {
+                val terminal = compileAndAcknowledge(
+                    compiler = session.compiler,
+                    fixture = fixture,
+                    request = fixture.publicRequest(),
+                    publicShapedAcknowledgement = true,
+                    callbackTimeoutSeconds = CAPACITY_CALLBACK_TIMEOUT_SECONDS,
+                )
+                assertEmittedTerminal(terminal)
+                assertEquals(
+                    1,
+                    terminal.getInt(
+                        TypeScriptCompilerContract.KEY_EMITTED_MODULE_COUNT,
+                        -1,
+                    ),
+                )
+                Log.i(
+                    CAPACITY_LOG_TAG,
+                    "t1-1-public-large-project api=${Build.VERSION.SDK_INT} " +
+                        "callerFiles=${sources.size} inputBytes=${fixture.input.length()} " +
+                        "elapsedMs=${SystemClock.elapsedRealtime() - startedAt}",
+                )
+            } finally {
+                fixture.delete()
+            }
+        }
+    }
+
+    @Test
     fun publicNodeRevisionTwoEmitsMjsAndCjsWithPairedSourceMaps() {
         bindCompilerService().use { session ->
             val nodeAuthority =
@@ -481,8 +536,10 @@ class R2BinderCompilationInstrumentationTest {
                         manifest["configKind"],
                     )
                     assertEquals(
-                        R2ControlledTsConfigEffectiveOptions.resolve(
-                            mapOf("strict" to false),
+                        R2ControlledTsConfigEffectiveOptions.resolveRevision4(
+                            profileAuthority =
+                                R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+                            explicitBooleanOptions = mapOf("strict" to false),
                         ).fingerprint,
                         manifest["effectiveOptionsFingerprint"],
                     )
@@ -521,6 +578,718 @@ class R2BinderCompilationInstrumentationTest {
                 }
             } finally {
                 fixture.delete()
+            }
+        }
+    }
+
+    @Test
+    fun controlledTsConfigRevisionThreeAppliesNodeEs2022ThroughPublicBinder() {
+        bindCompilerService().use { session ->
+            val nodeAuthority =
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+            val fixture = createFixture(
+                requestId = newRequestId("controlled-tsconfig-node-es2022"),
+                sources = linkedMapOf(
+                    "sources/main.cts" to
+                        "/** T1-2 Node comment must survive. */\n" +
+                        "const enum Delta { Value = 2 }\n" +
+                        "class Answer { value = 40 + Delta.Value; }\n" +
+                        "export = new Answer().value;\n",
+                ),
+                rootPaths = listOf("sources/main.cts"),
+                entryPath = "sources/main.cts",
+                profileAuthority = nodeAuthority,
+                tsconfigJson =
+                    "{\"compilerOptions\":{" +
+                        "\"exactOptionalPropertyTypes\":true," +
+                        "\"lib\":[\"ES2022\"]," +
+                        "\"preserveConstEnums\":true," +
+                        "\"target\":\"ES2022\"}," +
+                        "\"files\":[\"main.cts\"]}",
+                configPolicyRevision = R2ControlledTsConfigPolicy.REVISION_3,
+                configPolicyFingerprint = R2ControlledTsConfigPolicy.revision3Fingerprint,
+            )
+            try {
+                val terminal = compileAndAcknowledge(
+                    compiler = session.compiler,
+                    fixture = fixture,
+                    request = fixture.publicRequest(),
+                    publicShapedAcknowledgement = true,
+                )
+                assertEmittedTerminal(terminal)
+                assertEquals(
+                    1,
+                    terminal.getInt(TypeScriptCompilerContract.KEY_EMITTED_MODULE_COUNT, -1),
+                )
+
+                ZipArchiveV1Validator.validate(
+                    fixture.output,
+                    ZipArchiveV1Limits.OUTPUT,
+                )
+                ZipFile(fixture.output).use { archive ->
+                    val javaScript = archive.getInputStream(
+                        archive.getEntry("modules/main.cjs"),
+                    ).use { input -> String(input.readBytes(), StandardCharsets.UTF_8) }
+                    assertTrue(javaScript.contains("T1-2 Node comment must survive."))
+                    assertTrue(javaScript.contains("class Answer"))
+                    assertTrue(javaScript.contains("var Delta"))
+                    assertTrue(javaScript.contains("//# sourceMappingURL=../maps/main.cjs.map"))
+
+                    val manifest = R2StrictJson.parseObject(
+                        archive.getInputStream(
+                            archive.getEntry(R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH),
+                        ).use { input -> input.readBytes() },
+                    )
+                    assertEquals(TypeScriptCompilerContract.PROFILE_NODE, manifest["targetProfile"])
+                    assertEquals(
+                        TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION.toLong(),
+                        (manifest["configSchemaRevision"] as R2StrictJson.NumberToken)
+                            .source.toLong(),
+                    )
+                    assertEquals(TypeScriptR2Contract.CONFIG_KIND_TSCONFIG, manifest["configKind"])
+                    assertEquals(
+                        R2ControlledTsConfigEffectiveOptions.resolveRevision3(
+                            profileAuthority = nodeAuthority,
+                            explicitBooleanOptions = mapOf(
+                                "exactOptionalPropertyTypes" to true,
+                                "preserveConstEnums" to true,
+                            ),
+                            target = R2ControlledTsConfigTarget.ES2022,
+                            libraries = listOf("lib.es2022.d.ts"),
+                        ).fingerprint,
+                        manifest["effectiveOptionsFingerprint"],
+                    )
+                }
+            } finally {
+                fixture.delete()
+            }
+        }
+    }
+
+    @Test
+    fun nodeTopLevelAwaitCompilesMtsAndTypeModuleTsThroughPublicBinder() {
+        bindCompilerService().use { session ->
+            val nodeAuthority =
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+            val sleepSource: (String) -> String = { format ->
+                "const sleep = (milliseconds: number): Promise<void> =>\n" +
+                    "  new Promise((resolve): void => {\n" +
+                    "    setTimeout((): void => resolve(), milliseconds);\n" +
+                    "  });\n" +
+                    "await sleep(4);\n" +
+                    "export const answer: number = 40 + 2;\n" +
+                    "export const format: string = \"$format\";\n"
+            }
+            val fixture = createFixture(
+                requestId = newRequestId("node-top-level-await"),
+                sources = linkedMapOf(
+                    "sources/main.mts" to sleepSource("mts"),
+                    "sources/package-entry.ts" to sleepSource("type-module-ts"),
+                ),
+                rootPaths = listOf(
+                    "sources/main.mts",
+                    "sources/package-entry.ts",
+                ),
+                entryPath = "sources/main.mts",
+                profileAuthority = nodeAuthority,
+                tsconfigJson = JSONObject()
+                    .put(
+                        "compilerOptions",
+                        JSONObject()
+                            .put("lib", org.json.JSONArray().put("ES2022"))
+                            .put("target", "ES2022"),
+                    )
+                    .put(
+                        "files",
+                        org.json.JSONArray()
+                            .put("main.mts")
+                            .put("package-entry.ts"),
+                    )
+                    .toString(),
+                packageJson = "{\"type\":\"module\"}",
+            )
+            try {
+                val terminal = compileAndAcknowledge(
+                    compiler = session.compiler,
+                    fixture = fixture,
+                    request = fixture.publicRequest(),
+                    publicShapedAcknowledgement = true,
+                )
+                assertEmittedTerminal(terminal)
+                assertEquals(
+                    2,
+                    terminal.getInt(TypeScriptCompilerContract.KEY_EMITTED_MODULE_COUNT, -1),
+                )
+
+                ZipArchiveV1Validator.validate(
+                    fixture.output,
+                    ZipArchiveV1Limits.OUTPUT,
+                )
+                ZipFile(fixture.output).use { archive ->
+                    assertEquals(
+                        setOf(
+                            R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH,
+                            R2PrivateOutputArchive.DIAGNOSTICS_PATH,
+                            "modules/main.mjs",
+                            "maps/main.mjs.map",
+                            "modules/package-entry.js",
+                            "maps/package-entry.js.map",
+                        ),
+                        archive.entries().asSequence().map { entry -> entry.name }.toSet(),
+                    )
+                    listOf("modules/main.mjs", "modules/package-entry.js").forEach { path ->
+                        val javaScript = archive.getInputStream(
+                            requireNotNull(archive.getEntry(path)),
+                        ).use { input -> String(input.readBytes(), StandardCharsets.UTF_8) }
+                        assertTrue(javaScript.contains("await sleep(4)"))
+                        assertTrue(javaScript.contains("export const answer"))
+                        assertFalse(javaScript.contains("exports.answer"))
+                    }
+
+                    val manifest = R2StrictJson.parseObject(
+                        archive.getInputStream(
+                            archive.getEntry(R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH),
+                        ).use { input -> input.readBytes() },
+                    )
+                    assertEquals(TypeScriptCompilerContract.PROFILE_NODE, manifest["targetProfile"])
+                    assertEquals("modules/main.mjs", manifest["entryModulePath"])
+                    assertEquals(
+                        "b77bfac45d80ad99a9a65168ecd97a10607f0574189e521e3355eb080b4a97ff",
+                        manifest["effectiveOptionsFingerprint"],
+                    )
+                    assertEquals(
+                        requireNotNull(fixture.packageMetadataAuthority).fingerprint,
+                        manifest["packageMetadataInventoryFingerprint"],
+                    )
+                    assertTrue(
+                        (manifest["packageFormatCatalogFingerprint"] as String)
+                            .matches(Regex("[0-9a-f]{64}")),
+                    )
+                    val mappings = (manifest["generatedModuleMappings"] as List<*>)
+                        .map { mapping -> mapping as Map<*, *> }
+                    assertEquals(2, mappings.size)
+                    assertEquals(
+                        setOf("/outputs/main.mjs", "/outputs/package-entry.js"),
+                        mappings.mapTo(linkedSetOf()) { mapping ->
+                            mapping["generatedPath"] as String
+                        },
+                    )
+                    assertTrue(mappings.all { mapping -> mapping["moduleFormat"] == "esm" })
+                }
+            } finally {
+                fixture.delete()
+            }
+        }
+    }
+
+    @Test
+    fun nodeEsmLiveBindingCycleCompilesThroughPublicBinder() {
+        bindCompilerService().use { session ->
+            val fixture = createFixture(
+                requestId = newRequestId("node-esm-live-binding-cycle"),
+                sources = linkedMapOf(
+                    "sources/live/main.mts" to
+                        "import { snapshot, setValue } from './state.mjs';\n" +
+                        "console.log('t1-7.initial=' + snapshot());\n" +
+                        "setValue(42);\n" +
+                        "console.log('t1-7.updated=' + snapshot());\n",
+                    "sources/live/state.mts" to
+                        "import { readValue } from './reader.mjs';\n" +
+                        "export let value: number = 1;\n" +
+                        "export function setValue(next: number): void { value = next; }\n" +
+                        "export function snapshot(): number { return readValue(); }\n",
+                    "sources/live/reader.mts" to
+                        "import { value } from './barrel.mjs';\n" +
+                        "export function readValue(): number { return value; }\n",
+                    "sources/live/barrel.mts" to
+                        "export { value } from './state.mjs';\n",
+                ),
+                rootPaths = listOf(
+                    "sources/live/barrel.mts",
+                    "sources/live/main.mts",
+                    "sources/live/reader.mts",
+                    "sources/live/state.mts",
+                ),
+                entryPath = "sources/live/main.mts",
+                profileAuthority =
+                    R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+                packageJson = "{\"type\":\"module\"}",
+            )
+            try {
+                val terminal = compileAndAcknowledge(
+                    compiler = session.compiler,
+                    fixture = fixture,
+                    request = fixture.publicRequest(),
+                    publicShapedAcknowledgement = true,
+                )
+                assertEmittedTerminal(terminal)
+                assertEquals(
+                    4,
+                    terminal.getInt(TypeScriptCompilerContract.KEY_EMITTED_MODULE_COUNT, -1),
+                )
+
+                ZipArchiveV1Validator.validate(
+                    fixture.output,
+                    ZipArchiveV1Limits.OUTPUT,
+                )
+                ZipFile(fixture.output).use { archive ->
+                    assertEquals(
+                        setOf(
+                            R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH,
+                            R2PrivateOutputArchive.DIAGNOSTICS_PATH,
+                            "modules/live/main.mjs",
+                            "maps/live/main.mjs.map",
+                            "modules/live/state.mjs",
+                            "maps/live/state.mjs.map",
+                            "modules/live/reader.mjs",
+                            "maps/live/reader.mjs.map",
+                            "modules/live/barrel.mjs",
+                            "maps/live/barrel.mjs.map",
+                        ),
+                        archive.entries().asSequence().map { entry -> entry.name }.toSet(),
+                    )
+                    val javaScriptByPath = listOf(
+                        "modules/live/main.mjs",
+                        "modules/live/state.mjs",
+                        "modules/live/reader.mjs",
+                        "modules/live/barrel.mjs",
+                    ).associateWith { path ->
+                        archive.getInputStream(requireNotNull(archive.getEntry(path))).use { input ->
+                            String(input.readBytes(), StandardCharsets.UTF_8)
+                        }
+                    }
+                    assertTrue(
+                        javaScriptByPath.getValue("modules/live/main.mjs")
+                            .contains("import { snapshot, setValue } from './state.mjs'"),
+                    )
+                    assertTrue(
+                        javaScriptByPath.getValue("modules/live/state.mjs")
+                            .contains("export let value = 1"),
+                    )
+                    assertTrue(
+                        javaScriptByPath.getValue("modules/live/reader.mjs")
+                            .contains("import { value } from './barrel.mjs'"),
+                    )
+                    assertTrue(
+                        javaScriptByPath.getValue("modules/live/barrel.mjs")
+                            .contains("export { value } from './state.mjs'"),
+                    )
+                    assertTrue(javaScriptByPath.values.none { javaScript ->
+                        javaScript.contains("exports.value") ||
+                            javaScript.contains("module.exports")
+                    })
+
+                    val manifest = R2StrictJson.parseObject(
+                        archive.getInputStream(
+                            archive.getEntry(R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH),
+                        ).use { input -> input.readBytes() },
+                    )
+                    assertEquals(TypeScriptCompilerContract.PROFILE_NODE, manifest["targetProfile"])
+                    assertEquals("modules/live/main.mjs", manifest["entryModulePath"])
+                    val mappings = (manifest["generatedModuleMappings"] as List<*>)
+                        .map { mapping -> mapping as Map<*, *> }
+                    assertEquals(4, mappings.size)
+                    assertEquals(
+                        setOf(
+                            "/outputs/live/main.mjs",
+                            "/outputs/live/state.mjs",
+                            "/outputs/live/reader.mjs",
+                            "/outputs/live/barrel.mjs",
+                        ),
+                        mappings.mapTo(linkedSetOf()) { mapping ->
+                            mapping["generatedPath"] as String
+                        },
+                    )
+                    assertTrue(mappings.all { mapping ->
+                        mapping["moduleFormat"] == "esm" &&
+                            (mapping["canonicalEvidence"] as String).contains(
+                                "|moduleFormat=esm|",
+                            )
+                    })
+                }
+            } finally {
+                fixture.delete()
+            }
+        }
+    }
+
+    @Test
+    fun nestedPackageBoundariesCompileEsmAndCommonJsThroughPublicBinder() {
+        bindCompilerService().use { session ->
+            val fixture = createFixture(
+                requestId = newRequestId("nested-package-boundaries"),
+                sources = linkedMapOf(
+                    "sources/main.mts" to
+                        "import { esmValue } from './packages/esm/value.js';\n" +
+                        "import { cjsValue } from './packages/cjs/value.js';\n" +
+                        "export const total: number = esmValue + cjsValue;\n",
+                    "sources/packages/cjs/value.ts" to
+                        "export const cjsValue: number = 22;\n",
+                    "sources/packages/esm/value.ts" to
+                        "export const esmValue: number = 20;\n",
+                ),
+                rootPaths = listOf(
+                    "sources/main.mts",
+                    "sources/packages/cjs/value.ts",
+                    "sources/packages/esm/value.ts",
+                ),
+                entryPath = "sources/main.mts",
+                profileAuthority =
+                    R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+                packageJson = "{}",
+                additionalPackageJson = linkedMapOf(
+                    "packages/cjs/package.json" to "{\"type\":\"commonjs\"}",
+                    "packages/esm/package.json" to "{\"type\":\"module\"}",
+                ),
+            )
+            try {
+                val terminal = compileAndAcknowledge(
+                    compiler = session.compiler,
+                    fixture = fixture,
+                    request = fixture.publicRequest(),
+                    publicShapedAcknowledgement = true,
+                )
+                assertEmittedTerminal(terminal)
+                assertEquals(
+                    3,
+                    terminal.getInt(TypeScriptCompilerContract.KEY_EMITTED_MODULE_COUNT, -1),
+                )
+
+                ZipFile(fixture.output).use { archive ->
+                    assertEquals(
+                        setOf(
+                            R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH,
+                            R2PrivateOutputArchive.DIAGNOSTICS_PATH,
+                            "modules/main.mjs",
+                            "maps/main.mjs.map",
+                            "modules/packages/cjs/value.js",
+                            "maps/packages/cjs/value.js.map",
+                            "modules/packages/esm/value.js",
+                            "maps/packages/esm/value.js.map",
+                        ),
+                        archive.entries().asSequence().map { entry -> entry.name }.toSet(),
+                    )
+                    val cjs = archive.getInputStream(
+                        requireNotNull(archive.getEntry("modules/packages/cjs/value.js")),
+                    ).use { input -> String(input.readBytes(), StandardCharsets.UTF_8) }
+                    val esm = archive.getInputStream(
+                        requireNotNull(archive.getEntry("modules/packages/esm/value.js")),
+                    ).use { input -> String(input.readBytes(), StandardCharsets.UTF_8) }
+                    assertTrue(cjs.contains("exports.cjsValue"))
+                    assertFalse(cjs.contains("export const cjsValue"))
+                    assertTrue(esm.contains("export const esmValue"))
+                    assertFalse(esm.contains("exports.esmValue"))
+
+                    val manifest = R2StrictJson.parseObject(
+                        archive.getInputStream(
+                            archive.getEntry(R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH),
+                        ).use { input -> input.readBytes() },
+                    )
+                    assertEquals(
+                        requireNotNull(fixture.packageMetadataAuthority).fingerprint,
+                        manifest["packageMetadataInventoryFingerprint"],
+                    )
+                    val mappings = (manifest["generatedModuleMappings"] as List<*>)
+                        .map { mapping -> mapping as Map<*, *> }
+                        .associateBy { mapping -> mapping["sourcePath"] as String }
+                    val cjsMapping = mappings.getValue("/sources/packages/cjs/value.ts")
+                    val esmMapping = mappings.getValue("/sources/packages/esm/value.ts")
+                    assertEquals("commonjs", cjsMapping["moduleFormat"])
+                    assertEquals("esm", esmMapping["moduleFormat"])
+                    assertTrue(
+                        (cjsMapping["canonicalEvidence"] as String).contains(
+                            "packageBoundary=%2Fpackages%2Fcjs",
+                        ),
+                    )
+                    assertTrue(
+                        (esmMapping["canonicalEvidence"] as String).contains(
+                            "packageBoundary=%2Fpackages%2Fesm",
+                        ),
+                    )
+                }
+            } finally {
+                fixture.delete()
+            }
+        }
+    }
+
+    @Test
+    fun controlledPathAliasesCompileTwelveFileProjectsInBothPublicProfiles() {
+        bindCompilerService().use { session ->
+            val aliasPaths = linkedMapOf(
+                "@/*" to listOf("src/*"),
+                "@feature/*" to listOf("src/features/*"),
+            )
+            val sources = linkedMapOf<String, String>()
+            val entryImports = buildString {
+                (1..10).forEach { index ->
+                    val number = index.toString().padStart(2, '0')
+                    append("import { value$number } from \"@/value$number\";\n")
+                }
+                append("import { raise } from \"@feature/fault\";\n")
+                append("export const sum = ")
+                append(
+                    (1..10).joinToString(" + ") { index ->
+                        "value${index.toString().padStart(2, '0')}"
+                    },
+                )
+                append(";\nexport const runFault = (): never => raise();\n")
+            }
+            sources["sources/src/index.ts"] = entryImports
+            (1..10).forEach { index ->
+                val number = index.toString().padStart(2, '0')
+                sources["sources/src/value$number.ts"] =
+                    "export const value$number: number = $index;\n"
+            }
+            sources["sources/src/features/fault.ts"] =
+                "export const raise = (): never => {\n" +
+                "  throw new Error(\"alias-runtime-fault\");\n" +
+                "};\n"
+
+            listOf(
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+            ).forEach { profileAuthority ->
+                val targetProfile = profileAuthority.profile.contractValue
+                val node = targetProfile == TypeScriptCompilerContract.PROFILE_NODE
+                val fixture = createFixture(
+                    requestId = newRequestId("controlled-path-alias-$targetProfile"),
+                    sources = LinkedHashMap(sources),
+                    rootPaths = sources.keys.sorted(),
+                    entryPath = "sources/src/index.ts",
+                    profileAuthority = profileAuthority,
+                    tsconfigJson = JSONObject()
+                        .put(
+                            "compilerOptions",
+                            JSONObject()
+                                .put("baseUrl", ".")
+                                .put(
+                                    "lib",
+                                    org.json.JSONArray().put(if (node) "ES2022" else "ES2018"),
+                                )
+                                .put("paths", JSONObject(aliasPaths))
+                                .put("target", if (node) "ES2022" else "ES2018"),
+                        )
+                        .put("files", org.json.JSONArray().put("src/index.ts"))
+                        .toString(),
+                )
+                try {
+                    val terminal = compileAndAcknowledge(
+                        compiler = session.compiler,
+                        fixture = fixture,
+                        request = fixture.publicRequest(),
+                        publicShapedAcknowledgement = true,
+                    )
+                    assertEmittedTerminal(terminal)
+                    assertEquals(
+                        12,
+                        terminal.getInt(
+                            TypeScriptCompilerContract.KEY_EMITTED_MODULE_COUNT,
+                            -1,
+                        ),
+                    )
+
+                    ZipArchiveV1Validator.validate(fixture.output, ZipArchiveV1Limits.OUTPUT)
+                    ZipFile(fixture.output).use { archive ->
+                        val entryJavaScript = archive.getInputStream(
+                            archive.getEntry("modules/src/index.js"),
+                        ).use { input ->
+                            String(input.readBytes(), StandardCharsets.UTF_8)
+                        }
+                        assertFalse(entryJavaScript.contains("\"@/"))
+                        assertFalse(entryJavaScript.contains("\"@feature/"))
+                        assertTrue(entryJavaScript.contains("require(\"./value01.js\")"))
+                        assertTrue(entryJavaScript.contains("require(\"./features/fault.js\")"))
+                        assertNotNull(archive.getEntry("modules/src/value10.js"))
+                        assertNotNull(archive.getEntry("modules/src/features/fault.js"))
+
+                        val sourceMap = R2StrictJson.parseObject(
+                            archive.getInputStream(
+                                archive.getEntry("maps/src/features/fault.js.map"),
+                            ).use { input -> input.readBytes() },
+                        )
+                        assertEquals(
+                            listOf("../../../sources/src/features/fault.ts"),
+                            (sourceMap["sources"] as List<*>).map { value -> value as String },
+                        )
+                        assertTrue((sourceMap["mappings"] as String).isNotEmpty())
+
+                        val manifest = R2StrictJson.parseObject(
+                            archive.getInputStream(
+                                archive.getEntry(R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH),
+                            ).use { input -> input.readBytes() },
+                        )
+                        val expected = R2ControlledTsConfigEffectiveOptions.resolveRevision4(
+                            profileAuthority = profileAuthority,
+                            explicitBooleanOptions = emptyMap(),
+                            target = if (node) {
+                                R2ControlledTsConfigTarget.ES2022
+                            } else {
+                                R2ControlledTsConfigTarget.ES2018
+                            },
+                            libraries = listOf(
+                                if (node) "lib.es2022.d.ts" else "lib.es2018.d.ts",
+                            ),
+                            baseUrl = ".",
+                            paths = aliasPaths,
+                        )
+                        assertEquals(expected.fingerprint, manifest["effectiveOptionsFingerprint"])
+                    }
+                } finally {
+                    fixture.delete()
+                }
+            }
+        }
+    }
+
+    @Test
+    fun standardClassAndMethodDecoratorsCompileThroughBothPublicProfiles() {
+        val decoratorSource =
+            """
+            const events: string[] = [];
+            const record = (event: string): void => { events.push(event); };
+            type Constructor = new (...args: any[]) => object;
+            function markClass<T extends Constructor>(
+              value: T,
+              context: ClassDecoratorContext<T>,
+            ): T {
+              if (context.kind !== "class" || context.name !== "Calculator") {
+                throw new Error("class-context");
+              }
+              record("class:apply");
+              context.addInitializer(function (): void { record("class:init"); });
+              return value;
+            }
+            function traceMethod<This, Args extends unknown[], Return>(
+              value: (this: This, ...args: Args) => Return,
+              context: ClassMethodDecoratorContext<This, (this: This, ...args: Args) => Return>,
+            ): (this: This, ...args: Args) => Return {
+              if (context.kind !== "method" || context.name !== "answer") {
+                throw new Error("method-context");
+              }
+              record("method:apply");
+              context.addInitializer(function (): void { record("method:init"); });
+              return function (this: This, ...args: Args): Return {
+                record("method:call");
+                return value.apply(this, args);
+              };
+            }
+            @markClass
+            class Calculator {
+              private readonly offset: number = 2;
+              @traceMethod
+              answer(value: number): number { return value * 2 + this.offset; }
+            }
+            const calculator = new Calculator();
+            export const decoratedAnswer: number = calculator.answer(20);
+            export const decoratorTrace: string = events.join("|");
+            """.trimIndent() + "\n"
+
+        bindCompilerService().use { session ->
+            listOf(
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+            ).forEach { profileAuthority ->
+                val node =
+                    profileAuthority.profile.contractValue ==
+                        TypeScriptCompilerContract.PROFILE_NODE
+                val sourcePath = if (node) "sources/main.cts" else "sources/main.ts"
+                val outputSuffix = if (node) "cjs" else "js"
+                val target = if (node) "ES2022" else "ES2018"
+                val fixture = createFixture(
+                    requestId = newRequestId(
+                        "standard-decorators-${profileAuthority.profile.contractValue}",
+                    ),
+                    sources = linkedMapOf(sourcePath to decoratorSource),
+                    rootPaths = listOf(sourcePath),
+                    entryPath = sourcePath,
+                    profileAuthority = profileAuthority,
+                    tsconfigJson = JSONObject()
+                        .put(
+                            "compilerOptions",
+                            JSONObject()
+                                .put("lib", org.json.JSONArray().put(target))
+                                .put("target", target),
+                        )
+                        .put(
+                            "files",
+                            org.json.JSONArray().put(sourcePath.substringAfter('/')),
+                        )
+                        .toString(),
+                )
+                try {
+                    val terminal = compileAndAcknowledge(
+                        compiler = session.compiler,
+                        fixture = fixture,
+                        request = fixture.publicRequest(),
+                        publicShapedAcknowledgement = true,
+                    )
+                    assertEmittedTerminal(terminal)
+                    assertEquals(
+                        1,
+                        terminal.getInt(
+                            TypeScriptCompilerContract.KEY_EMITTED_MODULE_COUNT,
+                            -1,
+                        ),
+                    )
+
+                    ZipArchiveV1Validator.validate(fixture.output, ZipArchiveV1Limits.OUTPUT)
+                    ZipFile(fixture.output).use { archive ->
+                        val javaScript = archive.getInputStream(
+                            archive.getEntry("modules/main.$outputSuffix"),
+                        ).use { input ->
+                            String(input.readBytes(), StandardCharsets.UTF_8)
+                        }
+                        assertTrue(javaScript.contains("var __esDecorate"))
+                        assertTrue(javaScript.contains("var __runInitializers"))
+                        assertFalse(javaScript.contains("var __decorate"))
+                        assertFalse(javaScript.contains("__metadata"))
+                        assertFalse(javaScript.contains("Reflect.decorate"))
+                        assertTrue(
+                            javaScript.contains(
+                                "//# sourceMappingURL=../maps/main.$outputSuffix.map",
+                            ),
+                        )
+
+                        val sourceMap = R2StrictJson.parseObject(
+                            archive.getInputStream(
+                                archive.getEntry("maps/main.$outputSuffix.map"),
+                            ).use { input -> input.readBytes() },
+                        )
+                        assertEquals(
+                            listOf("../$sourcePath"),
+                            (sourceMap["sources"] as List<*>).map { value -> value as String },
+                        )
+                        assertTrue((sourceMap["mappings"] as String).isNotEmpty())
+
+                        val manifest = R2StrictJson.parseObject(
+                            archive.getInputStream(
+                                archive.getEntry(R2PrivateOutputArchive.OUTPUT_MANIFEST_PATH),
+                            ).use { input -> input.readBytes() },
+                        )
+                        val expected = R2ControlledTsConfigEffectiveOptions.resolveRevision4(
+                            profileAuthority = profileAuthority,
+                            explicitBooleanOptions = emptyMap(),
+                            target = if (node) {
+                                R2ControlledTsConfigTarget.ES2022
+                            } else {
+                                R2ControlledTsConfigTarget.ES2018
+                            },
+                            libraries = listOf(
+                                if (node) "lib.es2022.d.ts" else "lib.es2018.d.ts",
+                            ),
+                            baseUrl = null,
+                            paths = emptyMap(),
+                        )
+                        assertEquals(expected.fingerprint, manifest["effectiveOptionsFingerprint"])
+                        @Suppress("UNCHECKED_CAST")
+                        val effectiveOptions = manifest["effectiveOptions"] as Map<String, Any?>
+                        assertFalse("experimentalDecorators" in effectiveOptions)
+                        assertFalse("emitDecoratorMetadata" in effectiveOptions)
+                    }
+                } finally {
+                    fixture.delete()
+                }
             }
         }
     }
@@ -705,7 +1474,7 @@ class R2BinderCompilationInstrumentationTest {
                     assertTrue(
                         "The retained snapshot must exceed the legacy shared 8 MiB quota.",
                         retainedBytes >
-                            TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES,
+                            TypeScriptR2Contract.LEGACY_MAX_ORDINARY_COMPILATION_INPUT_BYTES,
                     )
                 }
             } finally {
@@ -1014,7 +1783,7 @@ class R2BinderCompilationInstrumentationTest {
     }
 
     @Test
-    fun storedContainerCapacityAcceptsExact64MiBAndRejectsPlusOne() {
+    fun storedContainerCapacityAcceptsMetadataAwareLimitAndRejectsPlusOne() {
         exerciseCapacityBoundaryPair(
             rejectedBoundary =
                 R2CapacityArchiveBoundary.STORED_CONTAINER_PLUS_ONE,
@@ -1024,7 +1793,7 @@ class R2BinderCompilationInstrumentationTest {
     }
 
     @Test
-    fun deflatedCapacityAcceptsExact64MiBExpandedAndRejectsPlusOne() {
+    fun deflatedCapacityAcceptsMetadataAwareExpandedLimitAndRejectsPlusOne() {
         exerciseCapacityBoundaryPair(
             rejectedBoundary =
                 R2CapacityArchiveBoundary.DEFLATED_UNCOMPRESSED_PLUS_ONE,
@@ -1034,7 +1803,7 @@ class R2BinderCompilationInstrumentationTest {
     }
 
     @Test
-    fun repeatedExact64BinderJobsReachCompilerPssFdAndTransientCleanupPlateau() {
+    fun repeatedCapacityBoundaryBinderJobsReachCompilerPssFdAndTransientCleanupPlateau() {
         bindCompilerService().use { session ->
             val processResourceProbe = RemoteProcessResourceProbe(context)
             val memoryProbe = R1WebViewProcessMemoryProbe(context)
@@ -1121,13 +1890,13 @@ class R2BinderCompilationInstrumentationTest {
                 R2CapacityArchiveFixture.create(
                     context = context,
                     requestId = newRequestId(
-                        "resource-exact64-${cycleIndex + 1}",
+                        "resource-capacity-boundary-${cycleIndex + 1}",
                     ),
                     boundary =
                         R2CapacityArchiveBoundary.STORED_CONTAINER_INCLUSIVE,
                 ).use { fixture ->
                     assertEquals(
-                        TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+                        R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
                         fixture.containerBytes,
                     )
                     val output = createCapacityOutput()
@@ -1171,24 +1940,24 @@ class R2BinderCompilationInstrumentationTest {
                     } finally {
                         deleteTestFile(
                             file = output,
-                            label = "R2 exact64 output fixture",
+                            label = "R2 capacity-boundary output fixture",
                         )
                     }
                 }
 
                 awaitActiveJobCount(session.compiler, 0)
                 assertNoKnownR2TransientNames(
-                    "exact64 cycle ${cycleIndex + 1}",
+                    "capacity-boundary cycle ${cycleIndex + 1}",
                 )
                 assertEquals(
-                    "The compiler service process identity changed across exact64 cycles.",
+                    "The compiler service process identity changed across capacity cycles.",
                     compilerIdentity,
                     processResourceProbe.requireIdentity(compilerPid),
                 )
                 processResourceProbe.awaitR2TransientFileDescriptors(
                     pid = compilerPid,
                     label =
-                        "R2 exact64 cycle ${cycleIndex + 1} transient FD cleanup",
+                        "R2 capacity cycle ${cycleIndex + 1} transient FD cleanup",
                     expectedCount = 0,
                     expectedIdentity = compilerIdentity,
                 )
@@ -1196,7 +1965,7 @@ class R2BinderCompilationInstrumentationTest {
                     processResourceProbe.awaitStableFileDescriptors(
                         pid = compilerPid,
                         label =
-                            "R2 exact64 cycle ${cycleIndex + 1} stable FD state",
+                            "R2 capacity cycle ${cycleIndex + 1} stable FD state",
                         expectedIdentity = compilerIdentity,
                     )
                 val pss = memoryProbe.samplePss(
@@ -1310,7 +2079,7 @@ class R2BinderCompilationInstrumentationTest {
     }
 
     @Test
-    fun exact64NaturalDeadlinePublishesTimeoutCleansBinderStateAndRecovers() {
+    fun capacityBoundaryNaturalDeadlinePublishesTimeoutCleansBinderStateAndRecovers() {
         bindCompilerService().use { session ->
             val processResourceProbe = RemoteProcessResourceProbe(context)
             assertNoKnownR2TransientNames("natural-timeout initial")
@@ -1354,7 +2123,7 @@ class R2BinderCompilationInstrumentationTest {
                     R2CapacityArchiveBoundary.STORED_CONTAINER_INCLUSIVE,
             ).use { fixture ->
                 assertEquals(
-                    TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+                    R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
                     fixture.containerBytes,
                 )
                 val output = createCapacityOutput()
@@ -2042,9 +2811,9 @@ class R2BinderCompilationInstrumentationTest {
             } else {
                 ZipArchiveV1Limits.INPUT.copy(
                     maximumContainerBytes =
-                        TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES + 1L,
+                        R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES + 1L,
                     maximumTotalUncompressedBytes =
-                        TypeScriptCompilerContract.MAX_INPUT_BYTES + 1L,
+                        R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES + 1L,
                 )
             }
         val validation = RandomAccessFile(fixture.input, "r").use { input ->
@@ -2098,19 +2867,19 @@ class R2BinderCompilationInstrumentationTest {
         }
         when (fixture.boundary.compression) {
             R2CapacityZipCompression.STORED -> assertEquals(
-                TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES +
+                R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES +
                     fixture.boundary.quotaDeltaBytes,
                 fixture.containerBytes,
             )
             R2CapacityZipCompression.DEFLATED -> {
                 assertEquals(
-                    TypeScriptCompilerContract.MAX_INPUT_BYTES +
+                    R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES +
                         fixture.boundary.quotaDeltaBytes,
                     fixture.uncompressedBytes,
                 )
                 assertTrue(
                     fixture.containerBytes <=
-                        TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+                        R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
                 )
             }
         }
@@ -2187,6 +2956,10 @@ class R2BinderCompilationInstrumentationTest {
                 workerSpinMilliseconds > 0
             },
         tsconfigJson: String? = null,
+        configPolicyRevision: Int = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
+        configPolicyFingerprint: String = R2ControlledTsConfigPolicy.revision4Fingerprint,
+        packageJson: String? = null,
+        additionalPackageJson: Map<String, String> = emptyMap(),
         timeoutMs: Long = DEFAULT_TIMEOUT_MILLIS,
         terminalCleanupDelayMilliseconds: Int = 0,
     ): CompilationFixture {
@@ -2194,9 +2967,21 @@ class R2BinderCompilationInstrumentationTest {
         require(entryPath in rootPaths)
         require(
             tsconfigJson == null ||
-                profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+                profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
+                profileAuthority ==
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
         ) {
-            "Controlled tsconfig is admitted only for the public Rhino profile."
+            "Controlled tsconfig requires the current public Rhino or Node profile."
+        }
+        require(
+            packageJson == null && additionalPackageJson.isEmpty() ||
+                profileAuthority ==
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+        ) {
+            "Package metadata requires the current public Node profile."
+        }
+        require(additionalPackageJson.isEmpty() || packageJson != null) {
+            "Nested package metadata requires the project package.json."
         }
         val projectId = "binder-project"
         val entrySourceUri = if (
@@ -2211,7 +2996,8 @@ class R2BinderCompilationInstrumentationTest {
             "autojs://source/project/main.ts"
         }
         val metadata = CompilerDistributionMetadata.load(context)
-        val files = sources.map { (path, text) ->
+        val sortedSources = sources.toSortedMap()
+        val files = sortedSources.map { (path, text) ->
             val bytes = text.toByteArray(StandardCharsets.UTF_8)
             R2ProjectArchiveFile(
                 path = path,
@@ -2224,12 +3010,46 @@ class R2BinderCompilationInstrumentationTest {
             R2RawProjectConfigAuthority(
                 size = bytes.size.toLong(),
                 sha256 = R2Digests.sha256(bytes),
+                policyRevision = configPolicyRevision,
+                policyFingerprint = configPolicyFingerprint,
+            )
+        }
+        val packageMetadataBytes = linkedMapOf<String, ByteArray>()
+        packageJson?.let { source ->
+            packageMetadataBytes[R2PackageMetadataPolicy.PROJECT_PACKAGE_PATH] =
+                source.toByteArray(StandardCharsets.UTF_8)
+        }
+        additionalPackageJson.toSortedMap().forEach { (path, source) ->
+            packageMetadataBytes[path] = source.toByteArray(StandardCharsets.UTF_8)
+        }
+        val packageMetadataDependencyRoots = additionalPackageJson.keys.map { path ->
+            val segments = path.split('/')
+            require(
+                segments.firstOrNull() == "packages" &&
+                    segments.lastOrNull() == R2PackageMetadataPolicy.PACKAGE_FILE_NAME,
+            )
+            if (segments.getOrNull(1)?.startsWith('@') == true) {
+                segments.take(3).joinToString("/")
+            } else {
+                segments.take(2).joinToString("/")
+            }
+        }.distinct().sorted()
+        val packageMetadataInventory = packageMetadataBytes.takeIf { it.isNotEmpty() }?.let {
+            R2PackageMetadataInventory.create(
+                dependencyRoots = packageMetadataDependencyRoots,
+                files = packageMetadataBytes.map { (path, bytes) ->
+                    R2PackageMetadataFileDescriptor(
+                        path = path,
+                        size = bytes.size.toLong(),
+                        sha256 = R2Digests.sha256(bytes),
+                    )
+                },
             )
         }
         val inventoryFingerprint = R2InputArchiveSchemaV1.callerInventoryFingerprint(
             sources = files,
             rawConfig = rawConfigAuthority?.descriptor(),
-            packageMetadata = null,
+            packageMetadata = packageMetadataInventory,
             packageTargets = null,
             nodePackageTargetsV2 = null,
         )
@@ -2259,6 +3079,22 @@ class R2BinderCompilationInstrumentationTest {
                 "\"sha256\":\"${authority.sha256}\"," +
                 "\"policyRevision\":${authority.policyRevision}," +
                 "\"policyFingerprint\":\"${authority.policyFingerprint}\"}"
+        }.orEmpty()
+        val packageMetadataJson = packageMetadataInventory?.let { inventory ->
+            val roots = inventory.dependencyRoots.joinToString(",") { root ->
+                "\"$root\""
+            }
+            val descriptors = inventory.files.joinToString(",") { descriptor ->
+                "{\"path\":\"${descriptor.path}\"," +
+                    "\"sha256\":\"${descriptor.sha256}\"," +
+                    "\"size\":${descriptor.size}}"
+            }
+            ",\"packageMetadata\":{" +
+                "\"schemaRevision\":${R2PackageMetadataPolicy.SCHEMA_REVISION}," +
+                "\"policyRevision\":${R2PackageMetadataPolicy.POLICY_REVISION}," +
+                "\"policyFingerprint\":\"${R2PackageMetadataPolicy.fingerprint}\"," +
+                "\"inventoryFingerprint\":\"${inventory.fingerprint}\"," +
+                "\"dependencyRoots\":[$roots],\"files\":[$descriptors]}"
         }.orEmpty()
         val manifest = (
             "{\"schema\":\"${R2InputArchiveSchemaV1.SCHEMA}\"," +
@@ -2290,7 +3126,7 @@ class R2BinderCompilationInstrumentationTest {
                 "\"declarationsFingerprint\":\"${metadata.declarationsFingerprint}\"," +
                 "\"declarationProfileFingerprint\":\"$declarationProfileFingerprint\"," +
                 "\"configKind\":\"$configKind\"" +
-                rawConfigJson + "," +
+                rawConfigJson + packageMetadataJson + "," +
                 "\"callerInventoryFingerprint\":\"$inventoryFingerprint\"," +
                 "\"rootPaths\":[$rootJson],\"files\":[$fileJson]}"
             ).toByteArray(StandardCharsets.UTF_8)
@@ -2301,7 +3137,10 @@ class R2BinderCompilationInstrumentationTest {
         rawConfigBytes?.let { bytes ->
             entries[R2ControlledTsConfigPolicy.CONFIG_PATH] = bytes
         }
-        sources.forEach { (path, text) ->
+        packageMetadataBytes.forEach { (path, bytes) ->
+            entries[path] = bytes
+        }
+        sortedSources.forEach { (path, text) ->
             entries[path] = text.toByteArray(StandardCharsets.UTF_8)
         }
         writeStoredZip(input, entries)
@@ -2321,6 +3160,7 @@ class R2BinderCompilationInstrumentationTest {
             declarationProfileFingerprint = declarationProfileFingerprint,
             profileAuthority = profileAuthority,
             rawConfigAuthority = rawConfigAuthority,
+            packageMetadataAuthority = packageMetadataInventory?.authority,
             workerSpinMilliseconds = workerSpinMilliseconds,
             workerSpinPhase = workerSpinPhase,
             timeoutMs = timeoutMs,
@@ -3169,6 +4009,24 @@ class R2BinderCompilationInstrumentationTest {
                 config.policyFingerprint,
             )
         }
+        packageMetadataAuthority?.let { authority ->
+            putInt(
+                TypeScriptR2Contract.KEY_PACKAGE_METADATA_SCHEMA_REVISION,
+                R2PackageMetadataPolicy.SCHEMA_REVISION,
+            )
+            putInt(
+                TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_REVISION,
+                authority.policyRevision,
+            )
+            putString(
+                TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_FINGERPRINT,
+                authority.policyFingerprint,
+            )
+            putString(
+                TypeScriptR2Contract.KEY_PACKAGE_METADATA_INVENTORY_FINGERPRINT,
+                authority.fingerprint,
+            )
+        }
         putString(
             TypeScriptR2Contract.KEY_INPUT_ARCHIVE_SHA256,
             inputArchiveSha256,
@@ -3469,6 +4327,7 @@ class R2BinderCompilationInstrumentationTest {
         val declarationProfileFingerprint: String,
         val profileAuthority: R2CompilationProfileAuthority,
         val rawConfigAuthority: R2RawProjectConfigAuthority?,
+        val packageMetadataAuthority: R2PackageMetadataAuthority?,
         val workerSpinMilliseconds: Int,
         val workerSpinPhase: R2ProjectExecutionPhase?,
         val timeoutMs: Long,

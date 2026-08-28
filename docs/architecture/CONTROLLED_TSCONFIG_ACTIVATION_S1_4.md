@@ -2,6 +2,10 @@
 
 状态：**完成（2026-08-23）**。
 
+> 本文冻结 S1-4 当时的 Rhino policy revision 2 证据。T1-2/T1-3 已在 2026-08-26
+> append-only 发布双 profile policy revision 3/4，同时保留本文身份作兼容；当前权威见
+> [T1-3 Controlled `baseUrl`/`paths` Revision 4](CONTROLLED_PATH_ALIASES_T1_3_REVISION4.md)。
+
 本切片把 R2-M2-C1–C7 已实现但仅内部可达的受控 `tsconfig.json` 链路接入
 public Rhino 编译路径。AIDL v1、input/output archive schema v1 与 diagnostics schema v1
 均未修改；新增行为只使用 `TypeScriptR2Contract` 中已有的 additive Bundle metadata 和

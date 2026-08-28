@@ -248,7 +248,7 @@ class R2ProjectSnapshotTest {
     }
 
     @Test
-    fun nodeSnapshotRevisionMatrixRejectsUnverifiedPackageCombinations() {
+    fun nodeSnapshotRevisionMatrixAcceptsSupportedConfigsAndRejectsInvalidMetadata() {
         val packageBytes = "{}\n".toByteArray()
         val inventory = packageMetadataInventory(packageBytes)
         assertFails<IllegalArgumentException> {
@@ -263,17 +263,45 @@ class R2ProjectSnapshotTest {
             )
         }
         val rawBytes = "{}".toByteArray()
-        assertFails<IllegalArgumentException> {
-            R2ProjectSnapshot.create(
-                files = validFiles(),
-                rootNames = listOf(MAIN_SOURCE),
-                profileAuthority =
-                    R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
-                limits = R2ProjectSnapshotLimits.PROVISIONAL_WORKER,
-                rawConfigDescriptor = rawConfigDescriptor(rawBytes),
-                rawConfigBytes = rawBytes,
-            )
-        }
+        val revisionThree = R2ProjectSnapshot.create(
+            files = validFiles(),
+            rootNames = listOf(MAIN_SOURCE),
+            profileAuthority =
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+            limits = R2ProjectSnapshotLimits.PROVISIONAL_WORKER,
+            rawConfigDescriptor = rawConfigDescriptor(rawBytes),
+            rawConfigBytes = rawBytes,
+            packageMetadataInventory = inventory,
+            packageMetadataBytes = listOf(packageBytes),
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.LATEST_POLICY_REVISION,
+            revisionThree.rawConfigDescriptor?.policyRevision,
+        )
+        assertEquals(inventory, revisionThree.packageMetadataInventory)
+        revisionThree.close()
+
+        val legacyDescriptor = R2RawProjectConfigDescriptor(
+            path = R2ControlledTsConfigPolicy.CONFIG_PATH,
+            size = rawBytes.size.toLong(),
+            sha256 = R2Digests.sha256(rawBytes),
+            policyRevision = R2ControlledTsConfigPolicy.LEGACY_POLICY_REVISION,
+            policyFingerprint = R2ControlledTsConfigPolicy.fingerprint,
+        )
+        val legacyReplay = R2ProjectSnapshot.create(
+            files = validFiles(),
+            rootNames = listOf(MAIN_SOURCE),
+            profileAuthority =
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+            limits = R2ProjectSnapshotLimits.PROVISIONAL_WORKER,
+            rawConfigDescriptor = legacyDescriptor,
+            rawConfigBytes = rawBytes,
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.LEGACY_POLICY_REVISION,
+            legacyReplay.rawConfigDescriptor?.policyRevision,
+        )
+        legacyReplay.close()
         assertFails<IllegalArgumentException> {
             R2ProjectSnapshot.create(
                 files = validFiles(),
@@ -563,7 +591,7 @@ class R2ProjectSnapshotTest {
             size = rawConfig.size.toLong(),
             sha256 = R2Digests.sha256(rawConfig),
             policyRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
-            policyFingerprint = R2ControlledTsConfigPolicy.fingerprint,
+            policyFingerprint = R2ControlledTsConfigPolicy.revision4Fingerprint,
         )
         val snapshot = R2ProjectSnapshot.create(
             files = validFiles(),
@@ -1015,7 +1043,10 @@ class R2ProjectSnapshotTest {
             rawConfigDescriptor = emptyDescriptor,
             rawConfigBytes = emptyRawConfig,
         )
-        assertEquals(512, exactFileCount.fileInventory.size)
+        assertEquals(
+            TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_FILES,
+            exactFileCount.fileInventory.size,
+        )
         assertTrue(R2ProjectSnapshot.ordinaryCompilationAdmission(exactFileCount).isEligible)
 
         val oneFileTooMany = R2ProjectSnapshot.create(
@@ -1032,8 +1063,9 @@ class R2ProjectSnapshotTest {
         )
 
         val maximumRawConfig = ByteArray(TypeScriptR2Contract.MAX_CONTROLLED_TSCONFIG_BYTES)
+        val legacyLimits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION_REVISION_2
         val exactSourceBytes =
-            TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES.toInt() -
+            legacyLimits.maximumTotalBytes.toInt() -
                 maximumRawConfig.size
         val trustedDeclaration = "declare const pluginOwned: number;\n"
         val exactBytes = R2ProjectSnapshot.create(
@@ -1047,10 +1079,13 @@ class R2ProjectSnapshotTest {
             rawConfigDescriptor = rawConfigDescriptor(maximumRawConfig),
             rawConfigBytes = maximumRawConfig,
         )
-        val exactByteAdmission = R2ProjectSnapshot.ordinaryCompilationAdmission(exactBytes)
+        val exactByteAdmission = R2ProjectSnapshot.ordinaryCompilationAdmission(
+            snapshot = exactBytes,
+            limits = legacyLimits,
+        )
         assertTrue(exactByteAdmission.isEligible)
         assertEquals(
-            TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES,
+            legacyLimits.maximumTotalBytes,
             exactByteAdmission.capacity.totalUtf8Bytes,
         )
         assertEquals(
@@ -1059,7 +1094,7 @@ class R2ProjectSnapshotTest {
         )
         assertTrue(
             exactBytes.totalUtf8Bytes + maximumRawConfig.size >
-                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES,
+                legacyLimits.maximumTotalBytes,
         )
 
         val oneByteTooMany = R2ProjectSnapshot.create(
@@ -1076,12 +1111,42 @@ class R2ProjectSnapshotTest {
         )
         assertEquals(
             R2ProjectInputCapacityDimension.TOTAL_BYTES,
-            R2ProjectSnapshot.ordinaryCompilationAdmission(oneByteTooMany).exceededDimension,
+            R2ProjectSnapshot.ordinaryCompilationAdmission(
+                snapshot = oneByteTooMany,
+                limits = legacyLimits,
+            ).exceededDimension,
         )
         exactFileCount.close()
         oneFileTooMany.close()
         exactBytes.close()
         oneByteTooMany.close()
+    }
+
+    @Test
+    fun revisionThreeAdmitsLargeProjectShapesRejectedByRevisionTwo() {
+        val current = R2ProjectSnapshotLimits.ORDINARY_COMPILATION
+        val legacy = R2ProjectSnapshotLimits.ORDINARY_COMPILATION_REVISION_2
+        val thousandFileProject = R2ProjectInputCapacity(
+            fileCount = 1_025,
+            largestFileUtf8Bytes = 32L * 1024L,
+            totalUtf8Bytes = 32L * 1024L * 1024L,
+        )
+        val thirtyTwoMiBProject = R2ProjectInputCapacity(
+            fileCount = 4,
+            largestFileUtf8Bytes = 8L * 1024L * 1024L,
+            totalUtf8Bytes = 32L * 1024L * 1024L,
+        )
+
+        assertTrue(thousandFileProject.admissionAgainst(current).isEligible)
+        assertEquals(
+            R2ProjectInputCapacityDimension.FILE_COUNT,
+            thousandFileProject.admissionAgainst(legacy).exceededDimension,
+        )
+        assertTrue(thirtyTwoMiBProject.admissionAgainst(current).isEligible)
+        assertEquals(
+            R2ProjectInputCapacityDimension.TOTAL_BYTES,
+            thirtyTwoMiBProject.admissionAgainst(legacy).exceededDimension,
+        )
     }
 
     @Test
@@ -1214,7 +1279,7 @@ class R2ProjectSnapshotTest {
         val ordinary = R2ProjectSnapshotLimits.ORDINARY_COMPILATION
 
         assertEquals(
-            TypeScriptCompilerContract.MAX_INPUT_FILES - 1 +
+            TypeScriptCompilerContract.MAX_INPUT_FILES +
                 R2_TRUSTED_DECLARATION_MAXIMUM_FILES,
             fileBacked.maximumFiles,
         )
@@ -1328,7 +1393,7 @@ class R2ProjectSnapshotTest {
         size = bytes.size.toLong(),
         sha256 = R2Digests.sha256(bytes),
         policyRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
-        policyFingerprint = R2ControlledTsConfigPolicy.fingerprint,
+        policyFingerprint = R2ControlledTsConfigPolicy.revision4Fingerprint,
     )
 
     private fun packageMetadataInventory(bytes: ByteArray) =

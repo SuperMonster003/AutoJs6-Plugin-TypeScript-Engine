@@ -79,10 +79,25 @@
       "inventoryFingerprint",
       "files"
     ],
+    "dependencyLayerKeys": [
+      "schemaRevision",
+      "policyRevision",
+      "policyFingerprint",
+      "identityKind",
+      "identityPath",
+      "identityFingerprint",
+      "inventoryFingerprint",
+      "fingerprint",
+      "fileCount",
+      "totalBytes",
+      "totalPathBytes",
+      "files"
+    ],
     "conditionalKeys": [
       "config",
       "packageMetadata",
-      "packageTargets"
+      "packageTargets",
+      "dependencyLayer"
     ],
     "absentConditionalEncoding": "key-absent",
     "unknownFieldPolicy": "fail-closed",
@@ -305,10 +320,10 @@
     }
   ],
   "ordinaryQuota": {
-    "inputQuotaRevision": 2,
-    "maximumFiles": 512,
+    "inputQuotaRevision": 3,
+    "maximumFiles": 4096,
     "maximumSingleFileBytes": 8388608,
-    "maximumTotalBytes": 8388608,
+    "maximumTotalBytes": 67108864,
     "comparison": "inclusive",
     "countedDomains": [
       "source",
@@ -328,17 +343,17 @@
     "admissionPoint": "before-worker-handle-claim-and-framing"
   },
   "transportCeiling": {
-    "authority": "legacy-zip-validation-and-private-staging-only",
-    "maximumArchiveFiles": 4096,
-    "maximumArchiveContainerBytes": 67108864,
-    "maximumArchiveExpandedBytes": 67108864,
+    "authority": "zip-validation-with-independent-dependency-layer-ceiling",
+    "maximumArchiveFiles": 12289,
+    "maximumArchiveContainerBytes": 146800640,
+    "maximumArchiveExpandedBytes": 138412032,
     "maximumSingleFileBytes": 8388608,
-    "privateFileBackedMaximumFiles": 4607,
+    "privateFileBackedMaximumFiles": 4608,
     "privateFileBackedMaximumTotalBytes": 75497472,
     "testOnlyWorkerQuotaRevision": 2147483647,
     "testOnlySelectionAuthority": "trusted-debug-or-evidence-host-only",
     "promotesFormalSchema": false,
-    "promotesOrdinaryQuota": false
+    "promotesOrdinaryQuota": true
   },
   "failurePolicy": {
     "outerMissingOrWrongType": "ERR_AUTOJS6_TYPESCRIPT_INVALID_REQUEST",

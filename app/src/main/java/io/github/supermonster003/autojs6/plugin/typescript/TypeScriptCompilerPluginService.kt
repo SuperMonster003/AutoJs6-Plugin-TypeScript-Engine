@@ -1545,6 +1545,27 @@ class TypeScriptCompilerPluginService : Service() {
                     packageMetadataInventoryFingerprint = optionalPublicR2Value<String>(
                         TypeScriptR2Contract.KEY_PACKAGE_METADATA_INVENTORY_FINGERPRINT,
                     ),
+                    dependencyLayerSchemaRevision = optionalPublicR2Value<Int>(
+                        TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_SCHEMA_REVISION,
+                    ),
+                    dependencyLayerPolicyRevision = optionalPublicR2Value<Int>(
+                        TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_POLICY_REVISION,
+                    ),
+                    dependencyLayerPolicyFingerprint = optionalPublicR2Value<String>(
+                        TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_POLICY_FINGERPRINT,
+                    ),
+                    dependencyLayerInventoryFingerprint = optionalPublicR2Value<String>(
+                        TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_INVENTORY_FINGERPRINT,
+                    ),
+                    dependencyLayerFingerprint = optionalPublicR2Value<String>(
+                        TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_FINGERPRINT,
+                    ),
+                    dependencyResolverPolicyRevision = optionalPublicR2Value<Int>(
+                        TypeScriptR2Contract.KEY_DEPENDENCY_RESOLVER_POLICY_REVISION,
+                    ),
+                    dependencyResolverPolicyFingerprint = optionalPublicR2Value<String>(
+                        TypeScriptR2Contract.KEY_DEPENDENCY_RESOLVER_POLICY_FINGERPRINT,
+                    ),
                 ),
                 expectedDeclarationProfileFingerprint =
                     supportedDeclarationProfileFingerprint,

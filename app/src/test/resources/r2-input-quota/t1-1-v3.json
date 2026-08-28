@@ -1,0 +1,123 @@
+{
+  "schema": "autojs6.typescript.t1-1.ordinary-input-quota-promotion",
+  "revision": 3,
+  "decision": "promote-4096-caller-files-8mib-single-file-64mib-total-excluding-trusted-declarations",
+  "ordinaryCompilationQuota": {
+    "schemaRevision": 3,
+    "maximumFiles": 4096,
+    "maximumSingleFileBytes": 8388608,
+    "maximumTotalBytes": 67108864,
+    "comparison": "inclusive-when-all-other-dimensions-remain-eligible"
+  },
+  "countingDomain": {
+    "unit": "decoded-utf8-bytes",
+    "fileCountIncludes": [
+      "caller-project-vfs-files-excluding-trusted-declarations",
+      "raw-config-if-present",
+      "package-metadata-files",
+      "package-target-files",
+      "node-package-target-v2-files"
+    ],
+    "byteCountIncludes": [
+      "caller-project-vfs-files-excluding-trusted-declarations",
+      "raw-config-if-present",
+      "package-metadata-files",
+      "package-target-files",
+      "node-package-target-v2-files"
+    ],
+    "excludes": [
+      "plugin-owned-trusted-declarations",
+      "independent-node-modules-dependency-layer",
+      "request-manifest-json",
+      "zip-container-bytes",
+      "framing-and-base64-overhead",
+      "output-archive-bytes"
+    ]
+  },
+  "profileDeclarationOccupancy": [
+    {
+      "profile": "rhino",
+      "commonFiles": 108,
+      "commonBytes": 3784758,
+      "profileFiles": 51,
+      "profileBytes": 882657,
+      "occupiedFiles": 159,
+      "occupiedBytes": 4667415,
+      "maximumCallerFilesBeforeOptionalMetadata": 4096,
+      "maximumCallerBytesBeforeOptionalMetadata": 67108864
+    },
+    {
+      "profile": "node",
+      "commonFiles": 108,
+      "commonBytes": 3784758,
+      "profileFiles": 59,
+      "profileBytes": 246572,
+      "occupiedFiles": 167,
+      "occupiedBytes": 4031330,
+      "maximumCallerFilesBeforeOptionalMetadata": 4096,
+      "maximumCallerBytesBeforeOptionalMetadata": 67108864
+    }
+  ],
+  "boundaryCases": [
+    {
+      "dimension": "file-count",
+      "atLimit": 4096,
+      "atLimitAccepted": true,
+      "plusOne": 4097,
+      "plusOneAccepted": false
+    },
+    {
+      "dimension": "single-file-bytes",
+      "atLimit": 8388608,
+      "atLimitAccepted": true,
+      "plusOne": 8388609,
+      "plusOneAccepted": false
+    },
+    {
+      "dimension": "total-bytes",
+      "atLimit": 67108864,
+      "atLimitAccepted": true,
+      "plusOne": 67108865,
+      "plusOneAccepted": false
+    }
+  ],
+  "retainedInputGuardrail": {
+    "authority": "trusted-host-caller-plus-plugin-declarations",
+    "maximumWorkerFiles": 4608,
+    "maximumWorkerSingleFileBytes": 8388608,
+    "maximumWorkerTotalBytes": 75497472,
+    "callerSelectable": false,
+    "expandsCallerQuota": false
+  },
+  "transportCeiling": {
+    "authority": "ordinary-caller-plus-independent-dependency-layer",
+    "maximumArchiveFiles": 12289,
+    "maximumArchiveContainerBytes": 146800640,
+    "maximumArchiveExpandedBytes": 138412032,
+    "maximumSingleFileBytes": 8388608,
+    "promotesOrdinaryCompilationQuota": true
+  },
+  "testOnlyExpandedCapacity": {
+    "authority": "same-signer-distinct-uid-test-only-evidence",
+    "evidenceBuildRequired": true,
+    "testOnlyCallerRequired": true,
+    "sameSignerRequired": true,
+    "distinctUidRequired": true,
+    "publicRequestAllowed": false,
+    "ordinaryQuotaMutated": false,
+    "maximumWorkerFiles": 4608,
+    "maximumWorkerTotalBytes": 75497472
+  },
+  "quotaRejection": {
+    "errorCode": "ERR_AUTOJS6_TYPESCRIPT_ARCHIVE_QUOTA",
+    "diagnosticCount": 0,
+    "callerOutputBytes": 0,
+    "workerDispatchStarted": false,
+    "automaticRetryAllowed": false
+  },
+  "promotionState": {
+    "publicCapabilityAvailable": true,
+    "runtimeCapabilityAvailable": true,
+    "nodeRevisionTwoEndToEndAvailable": false
+  }
+}

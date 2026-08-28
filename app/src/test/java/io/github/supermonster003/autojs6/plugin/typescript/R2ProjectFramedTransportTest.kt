@@ -68,6 +68,37 @@ class R2ProjectFramedTransportTest {
     }
 
     @Test
+    fun revisionTwoAcceptedAuthoritySelectsTheLegacyWorkerQuotaAutomatically() {
+        val files = listOf(
+            R2ProjectTextFile("/declarations/lib.d.ts", ""),
+            R2ProjectTextFile("/sources/main.ts", "export {};\n"),
+        )
+        val roots = listOf("/sources/main.ts")
+        val legacyAuthority = R2ProjectSnapshot.create(files = files, rootNames = roots).use {
+            R2InputArchiveSchemaV1.compatibilityAuthority(it).copy(
+                inputQuotaRevision =
+                    TypeScriptR2Contract.LEGACY_ORDINARY_COMPILATION_INPUT_QUOTA_REVISION,
+            )
+        }
+        val snapshot = R2ProjectSnapshot.create(
+            files = files,
+            rootNames = roots,
+            limits = R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE,
+            acceptedInputAuthority = legacyAuthority,
+        )
+        val framer = R2ProjectInputFramer("legacy-revision-two", snapshot)
+        try {
+            assertEquals(
+                TypeScriptR2Contract.LEGACY_ORDINARY_COMPILATION_INPUT_QUOTA_REVISION,
+                parseFrame(framer.nextFrame()).intValue("inputQuotaRevision"),
+            )
+        } finally {
+            framer.release()
+            snapshot.close()
+        }
+    }
+
+    @Test
     fun projectScopedFramerRejectsMissingAcceptedInputAuthority() {
         val snapshot = R2ProjectSnapshot.create(
             files = listOf(
@@ -156,6 +187,173 @@ class R2ProjectFramedTransportTest {
             assertEquals(snapshot.fileInventory.size, framer.telemetryForTesting().openedCursorCount)
         } finally {
             snapshot.close()
+        }
+    }
+
+    @Test
+    fun nodeRevisionTwoFramesTheDependencyLayerAfterTheOrdinaryInventory() {
+        val dependencyFiles = listOf(
+            "dependencies/lockfiles/package-lock.json" to
+                "{\"lockfileVersion\":3}".toByteArray(StandardCharsets.UTF_8),
+            "dependencies/node_modules/dayjs/index.d.ts" to
+                "declare function dayjs(): string; export = dayjs;\n"
+                    .toByteArray(StandardCharsets.UTF_8),
+            "dependencies/node_modules/dayjs/package.json" to
+                "{\"name\":\"dayjs\",\"types\":\"index.d.ts\"}"
+                    .toByteArray(StandardCharsets.UTF_8),
+        )
+        val snapshot = nodeRevisionTwoSnapshot(
+            sourcePath = "/sources/main.mts",
+            dependencyLayerFiles = dependencyFiles,
+        )
+        val framer = R2ProjectInputFramer("t2-2-dependency-framing", snapshot)
+        try {
+            val start = parseFrame(framer.nextFrame())
+            assertEquals(
+                R2DependencyResolverPolicy.POLICY_REVISION,
+                start.intValue("dependencyResolverPolicyRevision"),
+            )
+            assertEquals(
+                R2DependencyResolverPolicy.fingerprint,
+                start["dependencyResolverPolicyFingerprint"],
+            )
+            assertEquals(
+                dependencyFiles.size,
+                start.intValue("dependencyLayerFileCount"),
+            )
+            assertEquals(3, start.intValue("fileCount"))
+            framer.acknowledge(0)
+
+            val paths = ArrayList<String>()
+            var endFileCount: Int? = null
+            var sequence = 1
+            while (!framer.isComplete) {
+                val frame = parseFrame(framer.nextFrame())
+                when (frame["kind"]) {
+                    "projectInputFileStart" -> paths += frame["path"] as String
+                    "projectInputEnd" -> endFileCount = frame.intValue("fileCount")
+                }
+                framer.acknowledge(sequence++)
+            }
+            assertEquals(
+                listOf(
+                    "/declarations/lib.d.ts",
+                    "/declarations/node/index.d.ts",
+                    "/sources/main.mts",
+                    "/dependency-lockfiles/package-lock.json",
+                    "/node_modules/dayjs/index.d.ts",
+                    "/node_modules/dayjs/package.json",
+                ),
+                paths,
+            )
+            assertEquals(3, endFileCount)
+        } finally {
+            framer.release()
+            snapshot.close()
+        }
+    }
+
+    @Test
+    fun currentRhinoFramesTheDependencyResolverAuthorityAndLayer() {
+        val dependencyFiles = listOf(
+            "dependencies/lockfiles/package-lock.json" to
+                "{\"lockfileVersion\":3}".toByteArray(StandardCharsets.UTF_8),
+            "dependencies/node_modules/dual-runtime/index.d.ts" to
+                "export declare const value: number;\n"
+                    .toByteArray(StandardCharsets.UTF_8),
+        )
+        val snapshot = rawConfigSnapshot(
+            rawConfig = "{}".toByteArray(StandardCharsets.UTF_8),
+            dependencyLayerFiles = dependencyFiles,
+        )
+        val framer = R2ProjectInputFramer("t2-3-rhino-dependency-framing", snapshot)
+        try {
+            val start = parseFrame(framer.nextFrame())
+            assertEquals(
+                R2DependencyResolverPolicy.POLICY_REVISION,
+                start.intValue("dependencyResolverPolicyRevision"),
+            )
+            assertEquals(
+                R2DependencyResolverPolicy.fingerprint,
+                start["dependencyResolverPolicyFingerprint"],
+            )
+            assertEquals(dependencyFiles.size, start.intValue("dependencyLayerFileCount"))
+        } finally {
+            snapshot.close()
+        }
+    }
+
+    @Test
+    fun nodeRevisionTwoControlledConfigUsesExactThirtyFourFieldStartAndConfigFirst() {
+        val rawConfig =
+            "{\"compilerOptions\":{\"target\":\"ES2022\"}}\n"
+                .toByteArray(StandardCharsets.UTF_8)
+        val snapshot = nodeRevisionTwoSnapshot(rawConfigBytes = rawConfig)
+        val descriptor = requireNotNull(snapshot.rawConfigDescriptor)
+        val framer = R2ProjectInputFramer("node2-controlled-config", snapshot)
+        try {
+            val start = parseFrame(framer.nextFrame())
+            assertEquals(
+                INPUT_AUTHORITY_KEYS + setOf(
+                    "kind",
+                    "requestId",
+                    "sequence",
+                    "targetProfile",
+                    "profileSchemaRevision",
+                    "profileRevision",
+                    "configSchemaRevision",
+                    "configKind",
+                    "entryPath",
+                    "runtimeCapabilitiesFingerprint",
+                    "fileCount",
+                    "totalBytes",
+                    "workerSpinMilliseconds",
+                    "workerSpinPhase",
+                    "nodeModuleOutputPolicySchemaRevision",
+                    "nodeModuleOutputPolicyRevision",
+                    "nodeModuleOutputPolicyFingerprint",
+                    "resolverPolicyRevision",
+                    "snapshotTargetInventoryFingerprint",
+                    "targetUniverseFingerprint",
+                    "configByteLength",
+                    "configSha256",
+                    "configPolicyRevision",
+                    "configPolicyFingerprint",
+                ),
+                start.keys,
+            )
+            assertEquals(34, start.size)
+            assertInputAuthority(start, snapshot)
+            assertEquals(TypeScriptR2Contract.CONFIG_KIND_TSCONFIG, start["configKind"])
+            assertEquals(descriptor.size, start.longValue("configByteLength"))
+            assertEquals(descriptor.sha256, start["configSha256"])
+            assertEquals(descriptor.policyRevision, start.intValue("configPolicyRevision"))
+            assertEquals(descriptor.policyFingerprint, start["configPolicyFingerprint"])
+            assertEquals(
+                snapshot.totalUtf8Bytes + descriptor.size,
+                start.longValue("totalBytes"),
+            )
+            framer.acknowledge(0)
+
+            val configStart = parseFrame(framer.nextFrame())
+            assertEquals("projectInputConfigStart", configStart["kind"])
+            assertEquals(descriptor.path, configStart["path"])
+            framer.acknowledge(1)
+            val configChunk = parseFrame(framer.nextFrame())
+            assertEquals("projectInputConfigChunk", configChunk["kind"])
+            assertArrayEquals(rawConfig, R2FramedBase64.decode(configChunk["data"] as String))
+            framer.acknowledge(2)
+            val configEnd = parseFrame(framer.nextFrame())
+            assertEquals("projectInputConfigEnd", configEnd["kind"])
+            framer.acknowledge(3)
+
+            val firstOrdinaryFile = parseFrame(framer.nextFrame())
+            assertEquals("projectInputFileStart", firstOrdinaryFile["kind"])
+            assertEquals(0, firstOrdinaryFile.intValue("fileIndex"))
+        } finally {
+            framer.release()
+            snapshot.close()
+            rawConfig.fill(0)
         }
     }
 
@@ -1297,6 +1495,7 @@ class R2ProjectFramedTransportTest {
         var sawStart = false
         var sawEnd = false
         var checkedUncommittedBatch = false
+        var maximumPayloadChunkFrames = 0
 
         while (!framer.isComplete) {
             val before = framer.telemetryForTesting()
@@ -1325,6 +1524,18 @@ class R2ProjectFramedTransportTest {
                     val frames = envelope["frames"] as List<Map<String, Any?>>
                     assertTrue(frames.isNotEmpty())
                     assertTrue(frames.size <= R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES)
+                    val payloadChunkFrames = frames.count { frame ->
+                        frame["kind"] == "projectInputConfigChunk" ||
+                            frame["kind"] == "projectInputFileChunk"
+                    }
+                    assertTrue(
+                        payloadChunkFrames <=
+                            R2_PROJECT_INPUT_BATCH_MAXIMUM_PAYLOAD_CHUNK_FRAMES,
+                    )
+                    maximumPayloadChunkFrames = maxOf(
+                        maximumPayloadChunkFrames,
+                        payloadChunkFrames,
+                    )
                     frames.forEach { frame ->
                         assertEquals("batched-input", frame["requestId"])
                         assertEquals(expectedSequence, frame.intValue("sequence"))
@@ -1390,12 +1601,21 @@ class R2ProjectFramedTransportTest {
         assertEquals(snapshot.totalUtf8Bytes, decodedChunkBytes)
         assertEquals(innerFrameCount, telemetry.sentFrameCount)
         assertEquals(envelopeCount, telemetry.sentEnvelopeCount)
-        assertEquals(
+        assertTrue(
+            envelopeCount >=
             2 + (innerFrameCount - 2 + R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES - 1) /
                 R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES,
-            envelopeCount,
+        )
+        assertTrue(envelopeCount < innerFrameCount)
+        assertTrue(
+            maximumPayloadChunkFrames <=
+                R2_PROJECT_INPUT_BATCH_MAXIMUM_PAYLOAD_CHUNK_FRAMES,
         )
         assertTrue(telemetry.maximumEncodedFrameBytes <= R2_PROJECT_MAXIMUM_FRAME_BYTES)
+        assertTrue(
+            telemetry.maximumEncodedFrameBytes <=
+                R2_PROJECT_MAXIMUM_BATCHABLE_FRAME_BYTES,
+        )
         assertTrue(
             telemetry.maximumEncodedEnvelopeBytes <=
                 R2_PROJECT_MAXIMUM_BATCH_ENVELOPE_BYTES,
@@ -1409,7 +1629,9 @@ class R2ProjectFramedTransportTest {
             generatedFiles = listOf(
                 GeneratedFile(
                     path = "/declarations/lib.d.ts",
-                    byteLength = 4 * R2_PROJECT_FRAME_RAW_CHUNK_BYTES,
+                    byteLength =
+                        R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES *
+                            R2_PROJECT_FRAME_RAW_CHUNK_BYTES,
                     value = 'd'.code.toByte(),
                 ),
                 GeneratedFile("/sources/main.ts", 1, '\n'.code.toByte()),
@@ -1424,7 +1646,20 @@ class R2ProjectFramedTransportTest {
 
         assertEquals("projectInputStart", parseFrame(framer.nextFrame())["kind"])
         framer.acknowledge(0)
-        assertEquals("projectInputBatch", parseFrame(framer.nextFrame())["kind"])
+        val outstandingBatch = parseFrame(framer.nextFrame())
+        assertEquals("projectInputBatch", outstandingBatch["kind"])
+        @Suppress("UNCHECKED_CAST")
+        val outstandingFrames = outstandingBatch["frames"] as List<Map<String, Any?>>
+        assertEquals(
+            R2_PROJECT_INPUT_BATCH_MAXIMUM_PAYLOAD_CHUNK_FRAMES + 1,
+            outstandingFrames.size,
+        )
+        assertEquals(
+            R2_PROJECT_INPUT_BATCH_MAXIMUM_PAYLOAD_CHUNK_FRAMES,
+            outstandingFrames.count { frame ->
+                frame["kind"] == "projectInputFileChunk"
+            },
+        )
         assertTrue(framer.telemetryForTesting().activeCursor)
 
         framer.release()
@@ -1441,7 +1676,7 @@ class R2ProjectFramedTransportTest {
     }
 
     @Test
-    fun fileBackedFramerReadsAtMostOneChunkAndStreamsBeyondWorkerBudget() {
+    fun fileBackedFramerReadsAtMostOneChunkAndStreamsBeyondRevisionTwoBudget() {
         val snapshot = GeneratedProjectInputSnapshot(
             generatedFiles = listOf(
                 GeneratedFile("/declarations/lib.d.ts", 1, '/'.code.toByte()),
@@ -1455,9 +1690,12 @@ class R2ProjectFramedTransportTest {
             maximumCursorReturnBytes = 997,
         )
         assertTrue(snapshot.totalUtf8Bytes > 8L * 1024L * 1024L)
-        assertFails {
-            R2ProjectSnapshot.requireProvisionalWorkerEligibility(snapshot)
-        }
+        assertFalse(
+            R2ProjectSnapshot.ordinaryCompilationAdmission(
+                snapshot = snapshot,
+                limits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION_REVISION_2,
+            ).isEligible,
+        )
 
         val framer = R2ProjectInputFramer(
             requestId = "file-backed-input",
@@ -1855,11 +2093,11 @@ class R2ProjectFramedTransportTest {
         val maximumEmitProgress = CompilerHostProtocol.parseMessage(
             """
             {"kind":"projectPhaseProgress","requestId":"strict","phase":"emit",
-             "sequence":2,"completedUnits":2304,"totalUnits":9214,
+             "sequence":2,"completedUnits":2304,"totalUnits":9216,
              "generation":3,"pageHasTypeScript":false}
             """.trimIndent(),
         ) as CompilerHostMessage.ProjectPhaseProgress
-        assertEquals(9_214, maximumEmitProgress.totalUnits)
+        assertEquals(9_216, maximumEmitProgress.totalUnits)
 
         val bytes = byteArrayOf(0, 1, 2, 3, -1)
         val chunk = CompilerHostProtocol.parseMessage(
@@ -1968,7 +2206,7 @@ class R2ProjectFramedTransportTest {
             CompilerHostProtocol.parseMessage(
                 """
                 {"kind":"projectPhaseProgress","requestId":"strict","phase":"emit",
-                 "sequence":2,"completedUnits":2304,"totalUnits":9215,
+                 "sequence":2,"completedUnits":2304,"totalUnits":9217,
                  "generation":3,"pageHasTypeScript":false}
                 """.trimIndent(),
             )
@@ -2607,6 +2845,43 @@ class R2ProjectFramedTransportTest {
         }
     }
 
+    @Test
+    fun framedResultParserBindsRevision4BaseUrlAndPathsWithoutFlattening() {
+        val effective = R2ControlledTsConfigEffectiveOptions.resolveRevision4(
+            profileAuthority = R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+            explicitBooleanOptions = emptyMap(),
+            baseUrl = ".",
+            paths = linkedMapOf(
+                "@/*" to listOf("src/*"),
+                "@feature/*" to listOf("src/features/*"),
+            ),
+        )
+        val valid = strictControlledDiagnosticResultPayload(effective)
+        val parsed = CompilerHostProtocol.parseFramedProjectResult(
+            requestId = "controlled-revision4-result",
+            generation = 4,
+            payload = valid.toByteArray(StandardCharsets.UTF_8),
+        ).compilation
+
+        val parsedEffective = requireNotNull(parsed.controlledEffectiveOptions)
+        assertEquals(R2ControlledTsConfigEffectiveOptions.REVISION_4, parsedEffective.revision)
+        assertEquals(".", parsed.effectiveOptions.baseUrl)
+        assertEquals(effective.compilerOptions.paths, parsed.effectiveOptions.paths)
+        assertEquals(effective.canonicalJson, parsedEffective.canonicalJson)
+        assertEquals(effective.fingerprint, parsedEffective.fingerprint)
+
+        assertFails {
+            CompilerHostProtocol.parseFramedProjectResult(
+                requestId = "controlled-revision4-result",
+                generation = 4,
+                payload = valid.replace(
+                    "\"src/features/*\"",
+                    "\"../outside/*\"",
+                ).toByteArray(StandardCharsets.UTF_8),
+            )
+        }
+    }
+
     private fun strictDiagnosticResultPayload(): String =
         """
         {
@@ -2706,7 +2981,7 @@ class R2ProjectFramedTransportTest {
             "start":null
           }],
           "effectiveOptionsFingerprint":"${effective.fingerprint}",
-          "effectiveOptionsRevision":${R2ControlledTsConfigEffectiveOptions.REVISION},
+          "effectiveOptionsRevision":${effective.revision},
           "emitSkipped":true,
           "options":${effective.canonicalJson},
           "outputs":[],
@@ -2866,7 +3141,7 @@ class R2ProjectFramedTransportTest {
             "start":0
           }],
           "effectiveOptionsFingerprint":"${effective.fingerprint}",
-          "effectiveOptionsRevision":${R2ControlledTsConfigEffectiveOptions.REVISION},
+          "effectiveOptionsRevision":${effective.revision},
           "emitSkipped":true,
           "options":${effective.canonicalJson},
           "outputs":[],
@@ -2914,14 +3189,37 @@ class R2ProjectFramedTransportTest {
         assertEquals(authority.declarationByteLength, start.longValue("declarationByteLength"))
     }
 
-    private fun rawConfigSnapshot(rawConfig: ByteArray): R2ProjectSnapshot {
+    private fun rawConfigSnapshot(
+        rawConfig: ByteArray,
+        dependencyLayerFiles: List<Pair<String, ByteArray>> = emptyList(),
+    ): R2ProjectSnapshot {
         val descriptor = R2RawProjectConfigDescriptor(
             path = R2ControlledTsConfigPolicy.CONFIG_PATH,
             size = rawConfig.size.toLong(),
             sha256 = R2Digests.sha256(rawConfig),
             policyRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
-            policyFingerprint = R2ControlledTsConfigPolicy.fingerprint,
+            policyFingerprint = R2ControlledTsConfigPolicy.revision4Fingerprint,
         )
+        val dependencyInventory = dependencyLayerFiles
+            .takeIf { files -> files.isNotEmpty() }
+            ?.let { files ->
+                val descriptors = files.map { (path, bytes) ->
+                    R2DependencyLayerFileDescriptor(
+                        path = path,
+                        size = bytes.size.toLong(),
+                        sha256 = R2Digests.sha256(bytes),
+                    )
+                }
+                val lockfile = descriptors.first { descriptor ->
+                    descriptor.path == "dependencies/lockfiles/package-lock.json"
+                }
+                R2DependencyLayerInventory.create(
+                    identityKind = R2DependencyLayerPolicy.IDENTITY_PACKAGE_LOCK,
+                    identityPath = lockfile.path,
+                    identityFingerprint = lockfile.sha256,
+                    files = descriptors,
+                )
+            }
         return R2ProjectSnapshot.create(
             files = listOf(
                 R2ProjectTextFile("/declarations/lib.d.ts", "declare interface Array<T> {}\n"),
@@ -2932,6 +3230,8 @@ class R2ProjectFramedTransportTest {
             limits = R2ProjectSnapshotLimits.PROVISIONAL_WORKER,
             rawConfigDescriptor = descriptor,
             rawConfigBytes = rawConfig,
+            dependencyLayerInventory = dependencyInventory,
+            dependencyLayerBytes = dependencyLayerFiles.map { file -> file.second },
         )
     }
 
@@ -2941,6 +3241,8 @@ class R2ProjectFramedTransportTest {
         nodePackageTargetV2Files: List<Pair<String, ByteArray>> = emptyList(),
         sourcePath: String = "/sources/main.ts",
         acceptedProjectId: String? = "node-revision-two-test-project",
+        rawConfigBytes: ByteArray? = null,
+        dependencyLayerFiles: List<Pair<String, ByteArray>> = emptyList(),
     ): R2ProjectSnapshot {
         val inventory = packageFiles
             .takeIf { files -> files.isNotEmpty() }
@@ -2975,6 +3277,26 @@ class R2ProjectFramedTransportTest {
             R2ProjectTextFile("/declarations/node/index.d.ts", "declare const process: {};\n"),
             R2ProjectTextFile(sourcePath, "export const value = 1;\n"),
         )
+        val dependencyInventory = dependencyLayerFiles
+            .takeIf { files -> files.isNotEmpty() }
+            ?.let { files ->
+                val descriptors = files.map { (path, bytes) ->
+                    R2DependencyLayerFileDescriptor(
+                        path = path,
+                        size = bytes.size.toLong(),
+                        sha256 = R2Digests.sha256(bytes),
+                    )
+                }
+                val lockfile = descriptors.first { descriptor ->
+                    descriptor.path == "dependencies/lockfiles/package-lock.json"
+                }
+                R2DependencyLayerInventory.create(
+                    identityKind = R2DependencyLayerPolicy.IDENTITY_PACKAGE_LOCK,
+                    identityPath = lockfile.path,
+                    identityFingerprint = lockfile.sha256,
+                    files = descriptors,
+                )
+            }
         fun createSnapshot(
             projectId: String?,
             inputAuthority: R2AcceptedInputAuthorityV1?,
@@ -2991,6 +3313,18 @@ class R2ProjectFramedTransportTest {
             nodePackageTargetV2Inventory = targetInventory,
             nodePackageTargetV2Bytes =
                 nodePackageTargetV2Files.map { targetFile -> targetFile.second },
+            rawConfigDescriptor = rawConfigBytes?.let { bytes ->
+                R2RawProjectConfigDescriptor(
+                    path = R2ControlledTsConfigPolicy.CONFIG_PATH,
+                    size = bytes.size.toLong(),
+                    sha256 = R2Digests.sha256(bytes),
+                    policyRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
+                    policyFingerprint = R2ControlledTsConfigPolicy.revision4Fingerprint,
+                )
+            },
+            rawConfigBytes = rawConfigBytes,
+            dependencyLayerInventory = dependencyInventory,
+            dependencyLayerBytes = dependencyLayerFiles.map { file -> file.second },
             acceptedInputAuthority = inputAuthority,
         )
         val compatibilitySnapshot = createSnapshot(projectId = null, inputAuthority = null)
@@ -3046,7 +3380,7 @@ class R2ProjectFramedTransportTest {
                 size = rawConfig.size.toLong(),
                 sha256 = R2Digests.sha256(rawConfig),
                 policyRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
-                policyFingerprint = R2ControlledTsConfigPolicy.fingerprint,
+                policyFingerprint = R2ControlledTsConfigPolicy.revision4Fingerprint,
             ),
             rawConfigBytes = rawConfig,
             packageMetadataInventory = inventory,

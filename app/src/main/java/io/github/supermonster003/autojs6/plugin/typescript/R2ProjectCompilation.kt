@@ -182,6 +182,11 @@ internal data class R2ProjectEffectiveOptions(
     val strict: Boolean,
     val target: Int,
     val types: List<String>,
+    val lib: List<String>? = null,
+    val removeComments: Boolean = false,
+    val preserveConstEnums: Boolean = false,
+    val baseUrl: String? = null,
+    val paths: Map<String, List<String>>? = null,
 ) {
 
     companion object {
@@ -289,11 +294,16 @@ internal class R2ProjectCompilation(
             }
             TypeScriptR2Contract.CONFIG_KIND_TSCONFIG -> {
                 require(
-                    exactProfileAuthority ==
-                        R2CompilationProfileRegistry.PROVISIONAL_RHINO &&
+                    (
+                        exactProfileAuthority ==
+                            R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
+                            exactProfileAuthority ==
+                            R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+                        ) &&
                         configSchemaRevision ==
                         TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION &&
                         controlledEffectiveOptions != null &&
+                        controlledEffectiveOptions.profileAuthority == exactProfileAuthority &&
                         effectiveOptions == controlledEffectiveOptions.compilerOptions
                 ) {
                     "Controlled compilation profile/effective-options authority is inconsistent."
@@ -303,7 +313,9 @@ internal class R2ProjectCompilation(
                         this.selectedRootNames.size <= R2_FILE_BACKED_MAXIMUM_FILES &&
                         this.selectedRootNames == this.selectedRootNames.sorted() &&
                         this.selectedRootNames.distinct() == this.selectedRootNames &&
-                        this.selectedRootNames.all(String::isControlledProjectRootPath)
+                        this.selectedRootNames.all { path ->
+                            path.isControlledProjectRootPath(exactProfileAuthority.profile)
+                        }
                 ) {
                     "Controlled compilation selected roots are not canonical."
                 }
@@ -340,9 +352,14 @@ internal class R2ProjectCompilation(
     }
 }
 
-private fun String.isControlledProjectRootPath(): Boolean =
+private fun String.isControlledProjectRootPath(profile: R2ProjectProfile): Boolean =
     startsWith("/sources/") &&
-        (endsWith(".ts") || endsWith(".tsx")) &&
+        when (profile) {
+            R2ProjectProfile.PROVISIONAL_RHINO ->
+                endsWith(".ts") || endsWith(".tsx")
+            R2ProjectProfile.PROVISIONAL_NODE_NEXT ->
+                endsWith(".ts") || endsWith(".mts") || endsWith(".cts")
+        } &&
         R2UnicodePathPolicy.isCanonicalAbsolutePath(this)
 
 internal data class R2ProjectCompilationOutcome(

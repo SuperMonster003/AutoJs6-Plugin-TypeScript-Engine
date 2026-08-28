@@ -5,7 +5,6 @@ import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 import java.util.Collections
-import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
 
 internal enum class R2GeneratedModuleMappingFailureCode(
     val contractValue: String,
@@ -49,10 +48,14 @@ internal data class R2GeneratedPackageFormatAuthority(
                 "A no-boundary package authority cannot carry boundary identity.",
             )
             else -> {
-                if (packageMetadataInventoryFingerprint == null || boundaryPath != "/") {
+                if (
+                    packageMetadataInventoryFingerprint == null ||
+                    boundaryPath == null ||
+                    !isCanonicalBoundaryPath(boundaryPath)
+                ) {
                     throw R2GeneratedModuleMappingException(
                         R2GeneratedModuleMappingFailureCode.PACKAGE_AUTHORITY_MISMATCH,
-                        "An accepted package boundary must carry exact root identity.",
+                        "An accepted package boundary must carry exact canonical identity.",
                     )
                 }
                 try {
@@ -68,6 +71,29 @@ internal data class R2GeneratedPackageFormatAuthority(
                     )
                 }
             }
+        }
+    }
+
+    private fun isCanonicalBoundaryPath(path: String): Boolean {
+        if (path == "/") return true
+        if (!path.startsWith("/packages/") || path.endsWith('/')) return false
+        val relativeBoundary = path.removePrefix("/")
+        val segments = relativeBoundary.split('/')
+        return try {
+            val dependencyRoot = if (segments.getOrNull(1)?.startsWith('@') == true) {
+                require(segments.size >= 3)
+                segments.take(3).joinToString("/")
+            } else {
+                require(segments.size >= 2)
+                segments.take(2).joinToString("/")
+            }
+            R2PackageMetadataPolicy.requireDependencyRoot(dependencyRoot)
+            R2PackageMetadataPolicy.requirePackageMetadataPath(
+                "$relativeBoundary/${R2PackageMetadataPolicy.PACKAGE_FILE_NAME}",
+            )
+            true
+        } catch (_: IllegalArgumentException) {
+            false
         }
     }
 }

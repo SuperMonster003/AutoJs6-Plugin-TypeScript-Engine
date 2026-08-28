@@ -1,0 +1,96 @@
+{
+  "schema": "autojs6.typescript.t2-1.dependency-layer",
+  "schemaRevision": 1,
+  "policyRevision": 2,
+  "policyFingerprint": "c159ae179de24307c456c69ae4e456ed9d7dba71dc965c22e6114f632af3834a",
+  "decision": "full-compilation-relevant-pack-with-exclusions-and-independent-immutable-spool",
+  "namespaces": {
+    "manifestKey": "dependencyLayer",
+    "dependencyArchivePrefix": "dependencies/node_modules/",
+    "lockfileArchivePrefix": "dependencies/lockfiles/",
+    "futureVfsPrefix": "/node_modules/",
+    "readMode": "immutable-file-backed-framed-readonly-t2-2",
+    "callerInventoryIncluded": false,
+    "ordinaryCallerQuotaCharged": false,
+    "workerFramedBeforeT2_2": false
+  },
+  "limits": {
+    "maximumFiles": 8192,
+    "maximumSingleFileBytes": 8388608,
+    "maximumTotalBytes": 67108864,
+    "maximumLockfileBytes": 8388608,
+    "maximumPathBytes": 1572864,
+    "maximumCombinedArchiveFiles": 12289,
+    "maximumCombinedArchiveContainerBytes": 146800640,
+    "maximumCombinedArchiveExpandedBytes": 138412032
+  },
+  "identity": {
+    "priority": [
+      "package-lock",
+      "pnpm-lock",
+      "content"
+    ],
+    "packageLockPath": "dependencies/lockfiles/package-lock.json",
+    "pnpmLockPath": "dependencies/lockfiles/pnpm-lock.yaml",
+    "contentFallback": "exact-inventory-fingerprint",
+    "inventoryAlwaysBound": true,
+    "cacheKeyIncludes": [
+      "schema-revision",
+      "policy-revision",
+      "policy-fingerprint",
+      "identity-kind",
+      "identity-path",
+      "identity-fingerprint",
+      "inventory-fingerprint",
+      "exact-file-inventory"
+    ]
+  },
+  "filtering": {
+    "allowedSuffixes": [
+      ".cjs",
+      ".cts",
+      ".js",
+      ".json",
+      ".jsx",
+      ".mjs",
+      ".mts",
+      ".ts",
+      ".tsx"
+    ],
+    "excludedSuffixes": [
+      ".map",
+      ".markdown",
+      ".md"
+    ],
+    "excludedDirectories": [
+      ".bin",
+      ".git",
+      ".github",
+      "bench",
+      "benchmark",
+      "benchmarks",
+      "coverage",
+      "doc",
+      "docs",
+      "example",
+      "examples",
+      "test",
+      "tests"
+    ],
+    "nestedNodeModulesAllowed": true,
+    "symbolicLinkTraversalAllowed": false,
+    "utf8Required": true,
+    "packageScripts": "non-install-accepted-as-inert-install-lifecycle-rejected"
+  },
+  "acceptance": {
+    "directDependencies": [
+      "dayjs",
+      "lodash",
+      "zod"
+    ],
+    "pipeline": "host-archive-binder-plugin-validation-private-spool-compiler",
+    "bareSpecifierImportsRequired": false,
+    "bareSpecifierPhase": "T2-2",
+    "deviceTest": "dependencyLayerWithThreeDirectPackagesCompilesThroughRealPluginBinder"
+  }
+}

@@ -78,9 +78,10 @@ TypeScript `ModuleKind.CommonJS=1` 与 `ModuleKind.ESNext=99`，numeric enum 或
 nearest boundary 只来自 C5 已接受的 project-root `package.json` 和 explicit dependency roots
 内显式 descriptor。`package.json` 映射 `/`，其余 descriptor 映射去掉 `/package.json` 的 VFS
 目录；source 必须是 boundary 子树成员，选择 segment 最长者。不得从 filesystem 隐式发现
-metadata，不得越过 explicit dependency root。因 C5 不允许 `sources/**/package.json`，ordinary
-`/sources/**` 当前只会匹配 project-root boundary；nested boundary 只作用于 resolver grant 的
-`/packages/**` source。
+metadata，不得越过 explicit dependency root。T1-6 已让宿主把受控 `packages/*` workspace
+metadata 放入该 inventory，并在查询时把 ordinary `/sources/packages/**` 投影回项目 package
+命名空间；因此 resolver grant 与用户 workspace 源码现在共享同一 longest-boundary authority。
+完整激活记录见 [T1-6](NESTED_PACKAGE_BOUNDARIES_T1_6.md)。
 
 ## Resolver v2
 

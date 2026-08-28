@@ -12,16 +12,16 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
 
     @Test
     @Suppress("DEPRECATION")
-    fun fixtureFreezesOrdinaryQuotaAcrossPublicAndNativeAuthorities() {
+    fun fixturePromotesOrdinaryQuotaAcrossPublicAndNativeAuthorities() {
         val fixture = fixture()
         assertEquals(ROOT_KEYS, fixture.keys.toList())
         assertEquals(
-            "autojs6.typescript.s1-3.ordinary-input-quota-decision",
+            "autojs6.typescript.t1-1.ordinary-input-quota-promotion",
             fixture.string("schema"),
         )
-        assertEquals(2, fixture.int("revision"))
+        assertEquals(3, fixture.int("revision"))
         assertEquals(
-            "retain-512-caller-files-8mib-single-file-8mib-total-excluding-trusted-declarations",
+            "promote-4096-caller-files-8mib-single-file-64mib-total-excluding-trusted-declarations",
             fixture.string("decision"),
         )
 
@@ -133,16 +133,16 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
         assertEquals(882_657L, rhino.long("profileBytes"))
         assertEquals(159, rhino.int("occupiedFiles"))
         assertEquals(4_667_415L, rhino.long("occupiedBytes"))
-        assertEquals(512, rhino.int("maximumCallerFilesBeforeOptionalMetadata"))
-        assertEquals(8_388_608L, rhino.long("maximumCallerBytesBeforeOptionalMetadata"))
+        assertEquals(4_096, rhino.int("maximumCallerFilesBeforeOptionalMetadata"))
+        assertEquals(67_108_864L, rhino.long("maximumCallerBytesBeforeOptionalMetadata"))
 
         val node = profiles.single { profile -> profile.string("profile") == "node" }
         assertEquals(59, node.int("profileFiles"))
         assertEquals(246_572L, node.long("profileBytes"))
         assertEquals(167, node.int("occupiedFiles"))
         assertEquals(4_031_330L, node.long("occupiedBytes"))
-        assertEquals(512, node.int("maximumCallerFilesBeforeOptionalMetadata"))
-        assertEquals(8_388_608L, node.long("maximumCallerBytesBeforeOptionalMetadata"))
+        assertEquals(4_096, node.int("maximumCallerFilesBeforeOptionalMetadata"))
+        assertEquals(67_108_864L, node.long("maximumCallerBytesBeforeOptionalMetadata"))
 
         val distributionRoot = requireNotNull(
             System.getProperty("r2.generatedDeclarationDistributionDir"),
@@ -307,28 +307,38 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
 
         val transport = fixture.objectValue("transportCeiling")
         assertEquals(TRANSPORT_KEYS, transport.keys.toList())
-        assertEquals("archive-validation-and-private-staging-only", transport.string("authority"))
-        assertEquals(TypeScriptCompilerContract.MAX_INPUT_FILES, transport.int("maximumArchiveFiles"))
         assertEquals(
-            TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+            "ordinary-caller-plus-independent-dependency-layer",
+            transport.string("authority"),
+        )
+        assertEquals(
+            R2_INPUT_ARCHIVE_MAXIMUM_FILES,
+            transport.int("maximumArchiveFiles"),
+        )
+        assertEquals(
+            R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
             transport.long("maximumArchiveContainerBytes"),
         )
         assertEquals(
-            TypeScriptCompilerContract.MAX_INPUT_BYTES,
+            R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES,
             transport.long("maximumArchiveExpandedBytes"),
         )
         assertEquals(
             TypeScriptCompilerContract.MAX_SINGLE_FILE_BYTES,
             transport.long("maximumSingleFileBytes"),
         )
-        assertFalse(transport.boolean("promotesOrdinaryCompilationQuota"))
-        assertTrue(
-            transport.int("maximumArchiveFiles") >
-                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_FILES,
+        assertTrue(transport.boolean("promotesOrdinaryCompilationQuota"))
+        assertEquals(
+            TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_FILES +
+                TypeScriptR2Contract.MAX_DEPENDENCY_LAYER_FILES +
+                R2_INPUT_MANIFEST_MAXIMUM_FILES,
+            transport.int("maximumArchiveFiles"),
         )
-        assertTrue(
-            transport.long("maximumArchiveExpandedBytes") >
-                TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES,
+        assertEquals(
+            TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES +
+                TypeScriptR2Contract.MAX_DEPENDENCY_LAYER_BYTES +
+                R2_INPUT_MANIFEST_MAXIMUM_BYTES,
+            transport.long("maximumArchiveExpandedBytes"),
         )
 
         val testOnly = fixture.objectValue("testOnlyExpandedCapacity")
@@ -380,7 +390,7 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
         size = bytes.size.toLong(),
         sha256 = R2Digests.sha256(bytes),
         policyRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
-        policyFingerprint = R2ControlledTsConfigPolicy.fingerprint,
+        policyFingerprint = R2ControlledTsConfigPolicy.revision4Fingerprint,
     )
 
     private fun packageMetadataInventory(
@@ -404,7 +414,7 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
     )
 
     private fun fixture(): Map<String, Any?> = requireNotNull(
-        javaClass.getResourceAsStream("/r2-input-quota/s1-3-v2.json"),
+        javaClass.getResourceAsStream("/r2-input-quota/t1-1-v3.json"),
     ).use { input -> R2StrictJson.parseObject(input.readBytes()) }
 
     private fun Map<String, Any?>.string(key: String): String = getValue(key) as String
@@ -469,6 +479,7 @@ class R2OrdinaryInputQuotaDecisionFixtureTest {
         )
         val EXCLUDED_INPUTS = listOf(
             "plugin-owned-trusted-declarations",
+            "independent-node-modules-dependency-layer",
             "request-manifest-json",
             "zip-container-bytes",
             "framing-and-base64-overhead",

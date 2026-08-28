@@ -90,7 +90,11 @@ internal data class R2OutputArchiveAuthority(
         require(
             configKind == TypeScriptR2Contract.CONFIG_KIND_NONE &&
                 configSchemaRevision == profileAuthority.configSchemaRevision ||
-                profile == R2ProjectProfile.PROVISIONAL_RHINO &&
+                (
+                    profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
+                        profileAuthority ==
+                        R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+                    ) &&
                 configKind == TypeScriptR2Contract.CONFIG_KIND_TSCONFIG &&
                 configSchemaRevision ==
                 TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION
@@ -119,8 +123,8 @@ internal data class R2OutputArchiveAuthority(
         require(inputArchiveSchemaRevision == R2InputArchiveSchemaV1.REVISION) {
             "Output provenance does not use formal input archive schema v1."
         }
-        require(inputQuotaRevision == R2InputArchiveSchemaV1.INPUT_QUOTA_REVISION) {
-            "Output provenance does not use the frozen ordinary input quota."
+        require(R2InputArchiveSchemaV1.supportsInputQuotaRevision(inputQuotaRevision)) {
+            "Output provenance does not use a supported ordinary input quota."
         }
         R2Digests.requireLowerSha256(
             callerInventoryFingerprint,

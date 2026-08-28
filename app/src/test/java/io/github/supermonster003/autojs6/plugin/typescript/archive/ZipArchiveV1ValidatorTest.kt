@@ -1,5 +1,8 @@
 package io.github.supermonster003.autojs6.plugin.typescript.archive
 
+import io.github.supermonster003.autojs6.plugin.typescript.R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES
+import io.github.supermonster003.autojs6.plugin.typescript.R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES
+import io.github.supermonster003.autojs6.plugin.typescript.R2_INPUT_ARCHIVE_MAXIMUM_FILES
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.RandomAccessFile
@@ -671,9 +674,9 @@ class ZipArchiveV1ValidatorTest {
     @Test
     fun productionInputAndOutputQuotasMatchEveryFrozenV1Constant() {
         val input = ZipArchiveV1Limits.INPUT
-        assertEquals(64L * MEBIBYTE, input.maximumContainerBytes)
-        assertEquals(4_096, input.maximumFiles)
-        assertEquals(64L * MEBIBYTE, input.maximumTotalUncompressedBytes)
+        assertEquals(140L * MEBIBYTE, input.maximumContainerBytes)
+        assertEquals(12_289, input.maximumFiles)
+        assertEquals(132L * MEBIBYTE, input.maximumTotalUncompressedBytes)
         assertEquals(8L * MEBIBYTE, input.maximumSingleFileBytes)
         assertEquals(1_024, input.maximumEntryNameBytes)
         assertEquals(64, input.maximumPathDepth)
@@ -691,12 +694,12 @@ class ZipArchiveV1ValidatorTest {
         assertEquals(100, output.maximumCompressionRatio)
 
         assertEquals(
-            TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+            R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
             input.maximumContainerBytes,
         )
-        assertEquals(TypeScriptCompilerContract.MAX_INPUT_FILES, input.maximumFiles)
+        assertEquals(R2_INPUT_ARCHIVE_MAXIMUM_FILES, input.maximumFiles)
         assertEquals(
-            TypeScriptCompilerContract.MAX_INPUT_BYTES,
+            R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES,
             input.maximumTotalUncompressedBytes,
         )
         assertEquals(
@@ -734,12 +737,12 @@ class ZipArchiveV1ValidatorTest {
     fun provisionalMaterializedProjectUsesASeparateHeapBudget() {
         val provisional = ZipArchiveV1Limits.PROVISIONAL_MATERIALIZED_PROJECT
 
-        assertEquals(64L * MEBIBYTE, provisional.maximumContainerBytes)
+        assertEquals(140L * MEBIBYTE, provisional.maximumContainerBytes)
         assertEquals(257, provisional.maximumFiles)
         assertEquals(1L * MEBIBYTE, provisional.maximumTotalUncompressedBytes)
         assertEquals(512L * 1024L, provisional.maximumSingleFileBytes)
         assertEquals(
-            64L * MEBIBYTE,
+            132L * MEBIBYTE,
             ZipArchiveV1Limits.INPUT.maximumTotalUncompressedBytes,
         )
     }

@@ -1,4 +1,5 @@
 import com.android.build.api.variant.FilterConfiguration
+import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import java.security.MessageDigest
 import java.util.Properties
@@ -437,6 +438,56 @@ val verifyTypeScriptDistribution =
         )
     }
 
+// S10-3 keeps an isolated 6.0.2 baseline so maintainers can prove that a real compiler
+// distribution change rolls content fingerprints without changing the production lock first.
+// This graph is explicitly invoked and is not part of daily check; after the first authenticated
+// acquisition it can be rerun with --offline from Gradle's up-to-date outputs.
+val typeScriptUpgradeRehearsalBaselineVersion = "6.0.2"
+val typeScriptUpgradeRehearsalCompilerLockFile =
+    rootProject.layout.projectDirectory.file(
+        "docs/maintenance/typescript-upgrades/" +
+            "rehearsal-$typeScriptUpgradeRehearsalBaselineVersion.compiler.lock.json",
+    )
+val typeScriptUpgradeRehearsalRoot =
+    layout.buildDirectory.dir("typescript-upgrade-rehearsal")
+val downloadTypeScriptUpgradeRehearsalTarball =
+    tasks.register<DownloadTypeScriptDistributionTarball>(
+        "downloadTypeScriptUpgradeRehearsalTarball",
+    ) {
+        lockFile.set(typeScriptUpgradeRehearsalCompilerLockFile)
+        tarballFile.set(
+            typeScriptUpgradeRehearsalRoot.map {
+                it.file("typescript-$typeScriptUpgradeRehearsalBaselineVersion.tgz")
+            },
+        )
+    }
+val generateTypeScriptUpgradeRehearsalDistribution =
+    tasks.register<GenerateTypeScriptDistribution>(
+        "generateTypeScriptUpgradeRehearsalDistribution",
+    ) {
+        dependsOn(downloadTypeScriptUpgradeRehearsalTarball)
+        lockFile.set(typeScriptUpgradeRehearsalCompilerLockFile)
+        tarballFile.set(downloadTypeScriptUpgradeRehearsalTarball.flatMap { it.tarballFile })
+        distributionDirectory.set(
+            typeScriptUpgradeRehearsalRoot.map {
+                it.dir("typescript/$typeScriptUpgradeRehearsalBaselineVersion")
+            },
+        )
+    }
+val verifyTypeScriptUpgradeRehearsalDistribution =
+    tasks.register<VerifyTypeScriptDistribution>(
+        "verifyTypeScriptUpgradeRehearsalDistribution",
+    ) {
+        dependsOn(generateTypeScriptUpgradeRehearsalDistribution)
+        lockFile.set(typeScriptUpgradeRehearsalCompilerLockFile)
+        tarballFile.set(downloadTypeScriptUpgradeRehearsalTarball.flatMap { it.tarballFile })
+        distributionDirectory.set(
+            generateTypeScriptUpgradeRehearsalDistribution.flatMap {
+                it.distributionDirectory
+            },
+        )
+    }
+
 val r2DiagnosticStopEmitFixture = layout.projectDirectory.file(
     "src/test/resources/r2-compiler-diagnostics/x2-v1.json",
 )
@@ -466,7 +517,7 @@ val r2ApiContractTestSource = rootProject.layout.projectDirectory.file(
         "TypeScriptR2ContractTest.kt",
 )
 val r2OrdinaryInputQuotaDecisionFixture = layout.projectDirectory.file(
-    "src/test/resources/r2-input-quota/d1-v1.json",
+    "src/test/resources/r2-input-quota/t1-1-v3.json",
 )
 val r2OrdinaryInputQuotaDecisionFixtureTestSource = layout.projectDirectory.file(
     "src/test/java/io/github/supermonster003/autojs6/plugin/typescript/" +
@@ -553,6 +604,453 @@ val verifyR2DeclarationDistribution =
             generateR2DeclarationDistribution.flatMap { it.distributionDirectory },
         )
         declarationReleaseVersion.set(pluginVersionName)
+    }
+
+val typeScriptUpgradeRehearsalDeclarationLockFile =
+    rootProject.layout.projectDirectory.file(
+        "docs/maintenance/typescript-upgrades/" +
+            "rehearsal-$typeScriptUpgradeRehearsalBaselineVersion.declarations.lock.json",
+    )
+val generateTypeScriptUpgradeRehearsalDeclarations =
+    tasks.register<GenerateR2DeclarationDistribution>(
+        "generateTypeScriptUpgradeRehearsalDeclarations",
+    ) {
+        dependsOn(
+            generateTypeScriptUpgradeRehearsalDistribution,
+            downloadR2DeclarationDistributionTarball,
+        )
+        lockFile.set(typeScriptUpgradeRehearsalDeclarationLockFile)
+        rhinoTarballFile.set(
+            downloadR2DeclarationDistributionTarball.flatMap { it.tarballFile },
+        )
+        nodeSourceDirectory.set(r2DeclarationNodeSourceDirectory)
+        typescriptDistributionDirectory.set(
+            generateTypeScriptUpgradeRehearsalDistribution.flatMap {
+                it.distributionDirectory
+            },
+        )
+        distributionDirectory.set(
+            typeScriptUpgradeRehearsalRoot.map { it.dir("r2-declarations/v2") },
+        )
+        declarationReleaseVersion.set(pluginVersionName)
+    }
+val verifyTypeScriptUpgradeRehearsalDeclarations =
+    tasks.register<VerifyR2DeclarationDistribution>(
+        "verifyTypeScriptUpgradeRehearsalDeclarations",
+    ) {
+        dependsOn(generateTypeScriptUpgradeRehearsalDeclarations)
+        lockFile.set(typeScriptUpgradeRehearsalDeclarationLockFile)
+        rhinoTarballFile.set(
+            downloadR2DeclarationDistributionTarball.flatMap { it.tarballFile },
+        )
+        nodeSourceDirectory.set(r2DeclarationNodeSourceDirectory)
+        typescriptDistributionDirectory.set(
+            generateTypeScriptUpgradeRehearsalDistribution.flatMap {
+                it.distributionDirectory
+            },
+        )
+        distributionDirectory.set(
+            generateTypeScriptUpgradeRehearsalDeclarations.flatMap {
+                it.distributionDirectory
+            },
+        )
+        declarationReleaseVersion.set(pluginVersionName)
+    }
+
+val verifyTypeScriptUpgradeRehearsal =
+    tasks.register("verifyTypeScriptUpgradeRehearsal") {
+        group = "verification"
+        description =
+            "Replays TypeScript 6.0.2 -> the production 6.x distribution, verifies " +
+                "digest/content identity rolling, and records conditional declaration profiles."
+        dependsOn(
+            verifyTypeScriptUpgradeRehearsalDistribution,
+            verifyTypeScriptUpgradeRehearsalDeclarations,
+            verifyTypeScriptDistribution,
+            verifyR2DeclarationDistribution,
+        )
+        val baselineCompilerManifest =
+            generateTypeScriptUpgradeRehearsalDistribution.flatMap {
+                it.distributionDirectory.file("distribution.json")
+            }
+        val currentCompilerManifest =
+            generateTypeScriptDistribution.flatMap {
+                it.distributionDirectory.file("distribution.json")
+            }
+        val baselineDeclarationManifest =
+            generateTypeScriptUpgradeRehearsalDeclarations.flatMap {
+                it.distributionDirectory.file("distribution.json")
+            }
+        val currentDeclarationManifest =
+            generateR2DeclarationDistribution.flatMap {
+                it.distributionDirectory.file("distribution.json")
+            }
+        val reportFile = layout.buildDirectory.file(
+            "reports/typescript-upgrade/rehearsal-$typeScriptUpgradeRehearsalBaselineVersion" +
+                "-to-$typeScriptVersion.json",
+        )
+        inputs.files(
+            baselineCompilerManifest,
+            currentCompilerManifest,
+            baselineDeclarationManifest,
+            currentDeclarationManifest,
+            typeScriptUpgradeRehearsalCompilerLockFile,
+            typeScriptUpgradeRehearsalDeclarationLockFile,
+            compilerDistributionLockFile,
+            r2DeclarationDistributionLockFile,
+        )
+        outputs.file(reportFile)
+        doLast {
+            @Suppress("UNCHECKED_CAST")
+            fun parseJson(file: File): Map<String, Any?> =
+                JsonSlurper().parse(file) as Map<String, Any?>
+
+            @Suppress("UNCHECKED_CAST")
+            fun objectValue(owner: Map<String, Any?>, key: String): Map<String, Any?> =
+                owner[key] as? Map<String, Any?>
+                    ?: error("Upgrade rehearsal manifest is missing object '$key'.")
+
+            fun stringValue(owner: Map<String, Any?>, key: String): String =
+                owner[key] as? String
+                    ?: error("Upgrade rehearsal manifest is missing string '$key'.")
+
+            val baselineCompiler = parseJson(baselineCompilerManifest.get().asFile)
+            val currentCompiler = parseJson(currentCompilerManifest.get().asFile)
+            val baselineDeclarations = parseJson(baselineDeclarationManifest.get().asFile)
+            val currentDeclarations = parseJson(currentDeclarationManifest.get().asFile)
+            val baselinePackage = objectValue(baselineCompiler, "package")
+            val currentPackage = objectValue(currentCompiler, "package")
+            val baselineVersion = stringValue(baselinePackage, "version")
+            val currentVersion = stringValue(currentPackage, "version")
+            check(baselineVersion == typeScriptUpgradeRehearsalBaselineVersion)
+            check(currentVersion == typeScriptVersion)
+            check(Regex("6\\.\\d+\\.\\d+").matches(currentVersion)) {
+                "S10-3 rehearsal is intentionally bounded to the JavaScript-based 6.x line."
+            }
+
+            val baselineTarball = objectValue(baselineCompiler, "tarball")
+            val currentTarball = objectValue(currentCompiler, "tarball")
+            listOf("sha1", "sha256", "integrity").forEach { digest ->
+                check(
+                    stringValue(baselineTarball, digest) !=
+                        stringValue(currentTarball, digest),
+                ) {
+                    "TypeScript $baselineVersion -> $currentVersion did not roll $digest."
+                }
+            }
+            val baselineDistributionFingerprint =
+                stringValue(baselineCompiler, "fingerprint")
+            val currentDistributionFingerprint =
+                stringValue(currentCompiler, "fingerprint")
+            check(baselineDistributionFingerprint != currentDistributionFingerprint) {
+                "Compiler distribution fingerprint did not roll across the rehearsal."
+            }
+
+            val baselineLayers = objectValue(baselineDeclarations, "layers")
+            val currentLayers = objectValue(currentDeclarations, "layers")
+            val baselineCommonFingerprint =
+                stringValue(objectValue(baselineLayers, "common"), "fingerprint")
+            val currentCommonFingerprint =
+                stringValue(objectValue(currentLayers, "common"), "fingerprint")
+            val declarationsChanged = baselineCommonFingerprint != currentCommonFingerprint
+            val baselineProfiles = objectValue(baselineDeclarations, "profiles")
+            val currentProfiles = objectValue(currentDeclarations, "profiles")
+            val profileResults = listOf("rhino", "node").associateWith { profile ->
+                val baselineFingerprint =
+                    stringValue(objectValue(baselineProfiles, profile), "fingerprint")
+                val currentFingerprint =
+                    stringValue(objectValue(currentProfiles, profile), "fingerprint")
+                if (declarationsChanged) {
+                    check(baselineFingerprint != currentFingerprint) {
+                        "$profile declaration profile did not roll with changed declarations."
+                    }
+                } else {
+                    check(baselineFingerprint == currentFingerprint) {
+                        "$profile declaration profile drifted without declaration byte changes."
+                    }
+                }
+                mapOf(
+                    "baseline" to baselineFingerprint,
+                    "current" to currentFingerprint,
+                    "changed" to (baselineFingerprint != currentFingerprint),
+                )
+            }
+            val report = mapOf(
+                "schemaVersion" to 1,
+                "baselineVersion" to baselineVersion,
+                "currentVersion" to currentVersion,
+                "tarballDigestsRolled" to true,
+                "compilerDistribution" to mapOf(
+                    "baselineFingerprint" to baselineDistributionFingerprint,
+                    "currentFingerprint" to currentDistributionFingerprint,
+                    "changed" to true,
+                ),
+                "standardLibraries" to mapOf(
+                    "baselineFingerprint" to baselineCommonFingerprint,
+                    "currentFingerprint" to currentCommonFingerprint,
+                    "changed" to declarationsChanged,
+                ),
+                "declarationProfiles" to profileResults,
+                "cacheAuthorityChanged" to true,
+                "cacheAuthorityReason" to
+                    "compilerVersion+compilerDistributionFingerprint",
+                "gate" to "identity-only",
+            )
+            val target = reportFile.get().asFile
+            target.parentFile.mkdirs()
+            target.writeText(
+                JsonOutput.prettyPrint(JsonOutput.toJson(report)) + "\n",
+                Charsets.UTF_8,
+            )
+            println(
+                "TypeScript upgrade rehearsal verified: $baselineVersion -> $currentVersion; " +
+                    "distribution $baselineDistributionFingerprint -> " +
+                    "$currentDistributionFingerprint; declarationsChanged=$declarationsChanged; " +
+                    "cacheAuthorityChanged=true.",
+            )
+        }
+    }
+
+val verifyS7UserGuidesAndTemplates =
+    tasks.register<Exec>("verifyS7UserGuidesAndTemplates") {
+        group = "verification"
+        description =
+            "Type-checks and emits every S7 user-guide snippet/template, and keeps the " +
+                "documented config/error/Source Map contracts aligned with public constants."
+        dependsOn(verifyR2DeclarationDistribution)
+        val harnessFile = layout.projectDirectory.file(
+            "src/test/scripts/verify-s7-user-guides-and-templates.js",
+        )
+        val typeScriptLibDirectory = generatedTypeScriptDistributionDirectory.map {
+            it.dir("lib")
+        }
+        val templatesDirectory = rootProject.layout.projectDirectory.dir("templates")
+        val userDocsDirectory = rootProject.layout.projectDirectory.dir("docs/user")
+        val compilerContractFile = rootProject.layout.projectDirectory.file(
+            "plugin-api/typescript-api/src/main/java/org/autojs/plugin/typescript/api/" +
+                "TypeScriptCompilerContract.kt",
+        )
+        val r2ContractFile = rootProject.layout.projectDirectory.file(
+            "plugin-api/typescript-api/src/main/java/org/autojs/plugin/typescript/api/" +
+                "TypeScriptR2Contract.kt",
+        )
+        val configPolicyFile = layout.projectDirectory.file(
+            "src/main/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+                "R2ControlledTsConfigPolicy.kt",
+        )
+        val nodeResolutionFile = layout.projectDirectory.file(
+            "src/main/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+                "R2NodeResolutionKernel.kt",
+        )
+        inputs.files(
+            harnessFile,
+            compilerContractFile,
+            r2ContractFile,
+            configPolicyFile,
+            nodeResolutionFile,
+        )
+        inputs.dir(typeScriptLibDirectory)
+        inputs.dir(generatedR2DeclarationDistributionDirectory)
+        inputs.dir(templatesDirectory)
+        inputs.dir(userDocsDirectory)
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            "--max-old-space-size=512",
+            harnessFile.asFile.absolutePath,
+            typeScriptLibDirectory.get().asFile.absolutePath,
+            generatedR2DeclarationDistributionDirectory.get().asFile.absolutePath,
+            templatesDirectory.asFile.absolutePath,
+            userDocsDirectory.asFile.absolutePath,
+            compilerContractFile.asFile.absolutePath,
+            r2ContractFile.asFile.absolutePath,
+            configPolicyFile.asFile.absolutePath,
+            nodeResolutionFile.asFile.absolutePath,
+        )
+    }
+
+val verifyS10Maintenance =
+    tasks.register<Exec>("verifyS10Maintenance") {
+        group = "verification"
+        description =
+            "Keeps the release-memory history, dependency compatibility inspection, " +
+                "release checklist, and WebView support policy aligned with source truth."
+        val harnessFile = layout.projectDirectory.file(
+            "src/test/scripts/verify-s10-maintenance.js",
+        )
+        val repositoryDirectory = rootProject.layout.projectDirectory
+        inputs.files(
+            harnessFile,
+            repositoryDirectory.file("ROADMAP.md"),
+            repositoryDirectory.file("README.md"),
+            repositoryDirectory.file("version.properties"),
+            repositoryDirectory.file("gradle/wrapper/gradle-wrapper.properties"),
+            repositoryDirectory.file("gradle/libs.versions.toml"),
+            repositoryDirectory.file("gradle/data/agp-releases.list"),
+            repositoryDirectory.file("gradle/data/agp-gradle-compat.properties"),
+            repositoryDirectory.file("gradle/data/gradle-kotlin-compat.properties"),
+            repositoryDirectory.file("gradle/data/ksp-releases.properties"),
+            repositoryDirectory.file("gradle/data/ksp-agp-compat.properties"),
+            repositoryDirectory.file("gradle/data/kotlin-r8-compat.properties"),
+            repositoryDirectory.file("gradle/data/java-gradle-compat.properties"),
+            repositoryDirectory.file("tools/observe-release-memory.ps1"),
+            repositoryDirectory.file("docs/releases/v0.6.0.md"),
+            layout.projectDirectory.file(
+                "src/androidTest/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+                    "R2BinderCompilationInstrumentationTest.kt",
+            ),
+        )
+        inputs.dir(repositoryDirectory.dir("docs/maintenance"))
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            harnessFile.asFile.absolutePath,
+            repositoryDirectory.asFile.absolutePath,
+        )
+    }
+
+val verifyS10ColdStart =
+    tasks.register<Exec>("verifyS10ColdStart") {
+        group = "verification"
+        description =
+            "Keeps the S10-1 6-total/4-payload transport, four-device raw medians, " +
+                "reproduction workflow, and unchanged envelope safety bounds aligned."
+        val harnessFile = layout.projectDirectory.file(
+            "src/test/scripts/verify-s10-cold-start.js",
+        )
+        val repositoryDirectory = rootProject.layout.projectDirectory
+        inputs.files(
+            harnessFile,
+            repositoryDirectory.file("ROADMAP.md"),
+            repositoryDirectory.file("README.md"),
+            repositoryDirectory.file("docs/releases/v0.6.0.md"),
+            repositoryDirectory.file("docs/maintenance/README.md"),
+            repositoryDirectory.file("docs/maintenance/RELEASE_CHECKLIST.md"),
+            repositoryDirectory.file("docs/maintenance/COLD_START.md"),
+            repositoryDirectory.file("docs/maintenance/cold-start-observations.json"),
+            repositoryDirectory.file("docs/architecture/PROJECT_TRANSPORT_R2_PROVISIONAL.md"),
+            repositoryDirectory.file("docs/architecture/FILE_BACKED_INPUT_R2_P3A.md"),
+            repositoryDirectory.file("tools/observe-cold-start.ps1"),
+            layout.projectDirectory.file(
+                "src/main/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+                    "R2ProjectFramedTransport.kt",
+            ),
+            layout.projectDirectory.file(
+                "src/main/assets/typescript-compiler-r1/compiler-host.js",
+            ),
+            layout.projectDirectory.file(
+                "src/main/assets/typescript-compiler-r1/compiler-worker.js",
+            ),
+            layout.projectDirectory.file(
+                "src/androidTest/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+                    "R2ProjectCompilerInstrumentationTest.kt",
+            ),
+            layout.projectDirectory.file(
+                "src/test/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+                    "R2ProjectFramedTransportTest.kt",
+            ),
+            layout.projectDirectory.file(
+                "src/test/scripts/verify-r2-compiler-escape-policy.js",
+            ),
+        )
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            harnessFile.asFile.absolutePath,
+            repositoryDirectory.asFile.absolutePath,
+        )
+    }
+
+val verifyS10TypeScriptUpgrade =
+    tasks.register<Exec>("verifyS10TypeScriptUpgrade") {
+        group = "verification"
+        description =
+            "Keeps the official stable-6.x audit, isolated upgrade rehearsal, " +
+                "conditional declaration identity, cache evidence, and device smoke aligned."
+        dependsOn(
+            verifyTypeScriptDistribution,
+            verifyR2DeclarationDistribution,
+            gradle.includedBuild("build-logic").task(":convention:test"),
+        )
+        val harnessFile = layout.projectDirectory.file(
+            "src/test/scripts/verify-s10-typescript-upgrade.js",
+        )
+        val repositoryDirectory = rootProject.layout.projectDirectory
+        val compilerManifestFile =
+            generateTypeScriptDistribution.flatMap {
+                it.distributionDirectory.file("distribution.json")
+            }
+        val declarationManifestFile =
+            generateR2DeclarationDistribution.flatMap {
+                it.distributionDirectory.file("distribution.json")
+            }
+        inputs.files(
+            harnessFile,
+            compilerManifestFile,
+            declarationManifestFile,
+            compilerDistributionLockFile,
+            r2DeclarationDistributionLockFile,
+            typeScriptUpgradeRehearsalCompilerLockFile,
+            typeScriptUpgradeRehearsalDeclarationLockFile,
+            repositoryDirectory.file("version.properties"),
+            repositoryDirectory.file("ROADMAP.md"),
+            repositoryDirectory.file("README.md"),
+            repositoryDirectory.file("docs/maintenance/README.md"),
+            repositoryDirectory.file("docs/maintenance/UPGRADE.md"),
+            repositoryDirectory.file("tools/prepare-typescript-upgrade.mjs"),
+            repositoryDirectory.file(
+                "build-logic/convention/src/main/kotlin/org/autojs/build/" +
+                    "R2DeclarationDistribution.kt",
+            ),
+            layout.projectDirectory.file("build.gradle.kts"),
+        )
+        inputs.dir(
+            repositoryDirectory.dir("docs/maintenance/typescript-upgrades"),
+        )
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            harnessFile.asFile.absolutePath,
+            repositoryDirectory.asFile.absolutePath,
+            compilerManifestFile.get().asFile.absolutePath,
+            declarationManifestFile.get().asFile.absolutePath,
+        )
+    }
+
+val verifyS10IssueTriage =
+    tasks.register<Exec>("verifyS10IssueTriage") {
+        group = "verification"
+        description =
+            "Exercises the privacy-bounded issue evidence collector and keeps the local " +
+                "issue form, triage workflow, real closure record, and remote boundary aligned."
+        val harnessFile = layout.projectDirectory.file(
+            "src/test/scripts/verify-s10-issue-triage.js",
+        )
+        val repositoryDirectory = rootProject.layout.projectDirectory
+        inputs.files(
+            harnessFile,
+            repositoryDirectory.file(
+                ".github/ISSUE_TEMPLATE/typescript-bug.yml",
+            ),
+            repositoryDirectory.file(
+                "tools/collect-typescript-issue-evidence.mjs",
+            ),
+            repositoryDirectory.file("docs/maintenance/ISSUE_TRIAGE.md"),
+            repositoryDirectory.file(
+                "docs/maintenance/issue-triage/LOCAL-TS-2026-08-25-01.md",
+            ),
+            repositoryDirectory.file("docs/maintenance/README.md"),
+            repositoryDirectory.file("docs/user/SOURCE_MAPS.md"),
+            repositoryDirectory.file("README.md"),
+            repositoryDirectory.file("ROADMAP.md"),
+            layout.projectDirectory.file(
+                "src/test/resources/issue-triage/diagnostics-sensitive.json",
+            ),
+            layout.projectDirectory.file(
+                "src/test/resources/issue-triage/logcat-sensitive.txt",
+            ),
+        )
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            harnessFile.asFile.absolutePath,
+            repositoryDirectory.asFile.absolutePath,
+        )
     }
 
 tasks.withType<Test>().configureEach {
@@ -1852,6 +2350,86 @@ val r2ControlledTsConfigEffectiveOptionsFixture = layout.projectDirectory.file(
 val r2ControlledTsConfigEffectiveOptionsHarness = layout.projectDirectory.file(
     "src/test/scripts/verify-r2-controlled-tsconfig-effective-options.js",
 )
+val t1ControlledTsConfigRevision3PolicyFixture = layout.projectDirectory.file(
+    "src/test/resources/r2-controlled-tsconfig/policy-v3.json",
+)
+val t1ControlledTsConfigRevision3EffectiveOptionsFixture = layout.projectDirectory.file(
+    "src/test/resources/r2-controlled-tsconfig/effective-options-v3.json",
+)
+val t1ControlledTsConfigRevision3Harness = layout.projectDirectory.file(
+    "src/test/scripts/verify-t1-controlled-tsconfig-revision3.js",
+)
+val t1ControlledPathAliasPolicyFixture = layout.projectDirectory.file(
+    "src/test/resources/r2-controlled-tsconfig/policy-v4.json",
+)
+val t1ControlledPathAliasEffectiveOptionsFixture = layout.projectDirectory.file(
+    "src/test/resources/r2-controlled-tsconfig/effective-options-v4.json",
+)
+val t1ControlledPathAliasHarness = layout.projectDirectory.file(
+    "src/test/scripts/verify-t1-controlled-path-aliases.js",
+)
+val t1StandardDecoratorsHarness = layout.projectDirectory.file(
+    "src/test/scripts/verify-t1-standard-decorators.js",
+)
+val t1NodeTopLevelAwaitHarness = layout.projectDirectory.file(
+    "src/test/scripts/verify-t1-node-top-level-await.js",
+)
+val t2DependencyLayerSource = layout.projectDirectory.file(
+    "src/main/java/io/github/supermonster003/autojs6/plugin/typescript/R2DependencyLayer.kt",
+)
+val t2DependencyResolverSource = layout.projectDirectory.file(
+    "src/main/java/io/github/supermonster003/autojs6/plugin/typescript/R2DependencyResolverPolicy.kt",
+)
+val t2DependencyResolverTestSource = layout.projectDirectory.file(
+    "src/test/java/io/github/supermonster003/autojs6/plugin/typescript/R2DependencyResolverPolicyTest.kt",
+)
+val t2BareSpecifierResolutionHarness = layout.projectDirectory.file(
+    "src/test/scripts/verify-t2-bare-specifier-resolution.js",
+)
+val t2DependencyTypesHarness = layout.projectDirectory.file(
+    "src/test/scripts/verify-t2-dependency-types.js",
+)
+val t2RealPackageMatrixHarness = layout.projectDirectory.file(
+    "src/test/scripts/verify-t2-real-package-matrix.js",
+)
+val t2RealPackageMatrixFixture = layout.projectDirectory.file(
+    "src/test/resources/t2-real-package-matrix/t2-5-v1.json",
+)
+val t2RealPackageMatrixArchiveDirectory = layout.projectDirectory.dir(
+    "src/test/resources/t2-real-package-matrix",
+)
+val t2RealPackageMatrixDocument = layout.projectDirectory.file(
+    "../docs/user/REAL_PACKAGE_MATRIX.md",
+)
+val t2NativeModuleBoundaryHarness = layout.projectDirectory.file(
+    "src/test/scripts/verify-t2-native-module-boundary.js",
+)
+val t2NativeModuleBoundaryFixture = layout.projectDirectory.file(
+    "src/test/resources/t2-native-module-boundary/t2-6-v1.json",
+)
+val t2NativeModuleBoundaryArchiveDirectory = layout.projectDirectory.dir(
+    "src/test/resources/t2-native-module-boundary",
+)
+val t2NativeModuleBoundaryArchitectureDocument = layout.projectDirectory.file(
+    "../docs/architecture/NATIVE_DEPENDENCY_BOUNDARY_T2_6.md",
+)
+val t2NativeModuleBoundaryUserDocument = layout.projectDirectory.file(
+    "../docs/user/NATIVE_DEPENDENCIES.md",
+)
+val t2DependencyLayerTestSource = layout.projectDirectory.file(
+    "src/test/java/io/github/supermonster003/autojs6/plugin/typescript/R2DependencyLayerTest.kt",
+)
+val t2DependencyLayerDecisionTestSource = layout.projectDirectory.file(
+    "src/test/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+        "R2DependencyLayerDecisionFixtureTest.kt",
+)
+val t2DependencyLayerFixture = layout.projectDirectory.file(
+    "src/test/resources/t2-dependency-layer/t2-1-v1.json",
+)
+val t1ControlledPathAliasSource = layout.projectDirectory.file(
+    "src/main/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+        "R2ControlledPathAliasTable.kt",
+)
 val r2CompilerEscapePolicySource = layout.projectDirectory.file(
     "src/main/java/io/github/supermonster003/autojs6/plugin/typescript/" +
         "R2CompilerEscapePolicy.kt",
@@ -2292,7 +2870,9 @@ val verifyR2M2C1ControlledTsConfigPolicy =
             val contractSource = typeScriptR2ContractSource.asFile.readText(Charsets.UTF_8)
             listOf(
                 "const val CONFIG_KIND_TSCONFIG = \"tsconfig\"",
-                "const val CONTROLLED_TSCONFIG_POLICY_REVISION = 2",
+                "const val LEGACY_CONTROLLED_TSCONFIG_POLICY_REVISION = 2",
+                "const val PREVIOUS_CONTROLLED_TSCONFIG_POLICY_REVISION = 3",
+                "const val CONTROLLED_TSCONFIG_POLICY_REVISION = 4",
                 "const val CONFIG_POLICY_CODE_ENCODING_INVALID",
                 "const val CONFIG_POLICY_CODE_ENTRY_NOT_SELECTED",
             ).forEach { marker ->
@@ -2423,7 +3003,8 @@ val verifyR2M2C2ControlledTsConfigParser =
                 "require(inputArchiveSchemaRevision == R2InputArchiveSchemaV1.REVISION)",
                 "TOP_LEVEL_KEYS_WITH_CONFIG = TOP_LEVEL_KEYS + \"config\"",
                 "MAXIMUM_CONTROLLED_TSCONFIG_SOURCE_FILES",
-                "TypeScriptCompilerContract.MAX_INPUT_FILES - 2",
+                "(if (rawConfigAuthority == null) 0 else 1)",
+                "TypeScriptCompilerContract.MAX_INPUT_FILES - reservedCallerFiles",
                 "validateRawConfigEntry(",
             ).forEach { marker ->
                 check(marker in archiveSource) {
@@ -2474,7 +3055,8 @@ val verifyR2M2C2ControlledTsConfigParser =
             listOf(
                 "const controlledTsConfigAuthority = Object.freeze({",
                 "const parseControlledJsonc = (",
-                "const parseControlledTsConfig = (source) =>",
+                "const parseControlledTsConfig = (",
+                "authority = controlledTsConfigAuthority,",
                 "presentTopLevelKeys: Object.freeze(",
                 "case \"projectInputConfigStart\":",
                 "case \"projectInputConfigChunk\":",
@@ -2736,8 +3318,13 @@ val verifyR2M2C3ControlledTsConfigEffectiveOptions =
                     "R2-M2-C3 native effective-options authority is missing marker: $marker"
                 }
             }
-            val nativeKeysStart = effectiveAuthoritySource.indexOf("val canonicalOptionKeys")
-            val nativeKeysEnd = effectiveAuthoritySource.indexOf("fun resolve(", nativeKeysStart)
+            val nativeKeysStart = effectiveAuthoritySource.indexOf(
+                "val canonicalOptionKeys: List<String> = Collections.unmodifiableList(",
+            )
+            val nativeKeysEnd = effectiveAuthoritySource.indexOf(
+                "val canonicalOptionKeysRevision3Rhino",
+                nativeKeysStart,
+            )
             check(nativeKeysStart >= 0 && nativeKeysEnd > nativeKeysStart) {
                 "R2-M2-C3 native canonical option inventory is not bounded."
             }
@@ -2817,7 +3404,7 @@ val verifyR2M2C3ControlledTsConfigEffectiveOptions =
             }
             val configEndSource = workerSource.substring(configEndStart, configEndEnd)
             val configEndMarkers = listOf(
-                "parseControlledTsConfig(text)",
+                "const parsedConfig = parseControlledTsConfig(",
                 "await resolveControlledTsConfigEffectiveOptions(parsedConfig)",
                 "state.controlledConfig = parsedConfig",
                 "state.controlledEffectiveOptions = effectiveOptions",
@@ -2893,8 +3480,8 @@ val verifyR2M2C3ControlledTsConfigEffectiveOptions =
             }
             val hostProtocolSource = r2CompilerHostProtocolSource.asFile.readText(Charsets.UTF_8)
             check(
-                "parseControlledEffectiveOptions(result, optionsJson, effectiveOptions)" in
-                    hostProtocolSource &&
+                "parseControlledEffectiveOptions(" in hostProtocolSource &&
+                    "requireNotNull(controlledOptionsRevision)" in hostProtocolSource &&
                     "R2ControlledTsConfigEffectiveOptions.canonicalOptionKeys" in
                     hostProtocolSource,
             ) {
@@ -2904,7 +3491,9 @@ val verifyR2M2C3ControlledTsConfigEffectiveOptions =
             val contractSource = typeScriptR2ContractSource.asFile.readText(Charsets.UTF_8)
             listOf(
                 "const val CONTROLLED_TSCONFIG_SCHEMA_REVISION = 2",
-                "const val CONTROLLED_TSCONFIG_POLICY_REVISION = 2",
+                "const val LEGACY_CONTROLLED_TSCONFIG_POLICY_REVISION = 2",
+                "const val PREVIOUS_CONTROLLED_TSCONFIG_POLICY_REVISION = 3",
+                "const val CONTROLLED_TSCONFIG_POLICY_REVISION = 4",
             ).forEach { marker ->
                 check(marker in contractSource) {
                     "R2-M2-C3 additive config contract is missing marker: $marker"
@@ -3945,7 +4534,8 @@ val verifyR2M2C7ControlledTsConfigRootSelection =
             }
             val protocolSource = r2CompilerHostProtocolSource.asFile.readText(Charsets.UTF_8)
             listOf(
-                "parseControlledEffectiveOptions(result, optionsJson, effectiveOptions)",
+                "parseControlledEffectiveOptions(",
+                "requireNotNull(controlledOptionsRevision)",
                 "encodedRootNames.size <= R2_FILE_BACKED_MAXIMUM_FILES",
                 "result.requireList(\"rootNames\")",
                 "R2ControlledTsConfigEffectiveOptions.canonicalOptionKeys",
@@ -5464,12 +6054,1070 @@ val verifyCompilerSmokeNode =
         )
     }
 
+val verifyT1ControlledTsConfigRevision3 =
+    tasks.register<Exec>("verifyT1ControlledTsConfigRevision3") {
+        group = "verification"
+        description =
+            "Verifies append-only controlled-tsconfig revision 3, revision-2 compatibility, " +
+                "profile-bounded target/lib values, and real Rhino/NodeNext compile/execute."
+        dependsOn(generateTypeScriptDistribution)
+        dependsOn("testDebugUnitTest")
+        dependsOn(":plugin-api:typescript-api:testDebugUnitTest")
+        val compilerFile = generatedTypeScriptDistributionDirectory.map {
+            it.file("lib/typescript.js")
+        }
+        inputs.files(
+            r2CompilerWorkerSource,
+            compilerFile,
+            t1ControlledTsConfigRevision3PolicyFixture,
+            t1ControlledTsConfigRevision3EffectiveOptionsFixture,
+            t1ControlledTsConfigRevision3Harness,
+            r2InputArchiveAuthorityHarness,
+            r2ControlledTsConfigPolicySource,
+            r2ControlledTsConfigEffectiveOptionsSource,
+            r2ControlledTsConfigPolicyTestSource,
+            r2ControlledTsConfigEffectiveOptionsTestSource,
+            r2CompilerHostProtocolSource,
+            r2ProjectArchiveSource,
+            r2CompilationProbeSource,
+            r2CompilationProbeProtocolTestSource,
+            r2PublicPreviewMetadataSource,
+            typeScriptR2ContractSource,
+        )
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            "--max-old-space-size=512",
+            t1ControlledTsConfigRevision3Harness.asFile.absolutePath,
+            r2CompilerWorkerSource.asFile.absolutePath,
+            compilerFile.get().asFile.absolutePath,
+            t1ControlledTsConfigRevision3PolicyFixture.asFile.absolutePath,
+            t1ControlledTsConfigRevision3EffectiveOptionsFixture.asFile.absolutePath,
+            typeScriptVersion,
+        )
+        doLast {
+            @Suppress("UNCHECKED_CAST")
+            val policy = JsonSlurper().parse(
+                t1ControlledTsConfigRevision3PolicyFixture.asFile,
+            ) as Map<String, Any?>
+            @Suppress("UNCHECKED_CAST")
+            val effective = JsonSlurper().parse(
+                t1ControlledTsConfigRevision3EffectiveOptionsFixture.asFile,
+            ) as Map<String, Any?>
+            check(
+                policy["schema"] == "autojs6.typescript.controlled-tsconfig-policy" &&
+                    (policy["revision"] as Number).toInt() == 3 &&
+                    policy["fingerprint"] ==
+                    "1f77d37080466f2752176fb5aa1b96e9a3f3dbdc89b853f30b4a0fed4313e90a" &&
+                    effective["schema"] ==
+                    "autojs6.typescript.controlled-tsconfig-effective-options" &&
+                    (effective["revision"] as Number).toInt() == 3 &&
+                    (effective["profiles"] as List<*>).size == 2 &&
+                    (effective["rejected"] as List<*>).size == 3
+            ) {
+                "T1-2 revision-3 checked-in authorities drifted."
+            }
+            val policySource = r2ControlledTsConfigPolicySource.asFile.readText(Charsets.UTF_8)
+            val workerSource = r2CompilerWorkerSource.asFile.readText(Charsets.UTF_8)
+            val apiSource = typeScriptR2ContractSource.asFile.readText(Charsets.UTF_8)
+            val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
+            listOf(
+                "const val LEGACY_CONTROLLED_TSCONFIG_POLICY_REVISION = 2",
+                "const val PREVIOUS_CONTROLLED_TSCONFIG_POLICY_REVISION = 3",
+                "const val CONTROLLED_TSCONFIG_POLICY_REVISION = 4",
+            ).forEach { marker ->
+                check(marker in apiSource) {
+                    "T1-2 API compatibility marker is missing: $marker"
+                }
+            }
+            listOf(
+                "val revision3AllowedBooleanCompilerOptions",
+                "val revision3AllowedValueCompilerOptions",
+                "val revision3Fingerprint",
+                "fun isSupportedPolicy(",
+            ).forEach { marker ->
+                check(marker in policySource) {
+                    "T1-2 native policy marker is missing: $marker"
+                }
+            }
+            listOf(
+                "const controlledTsConfigRevision3Authority",
+                "resolveControlledTsConfigRevision3EffectiveOptions",
+                "createControlledStandardLibraryResolver",
+                "isControlledNodeRevisionTwoProgramStart",
+            ).forEach { marker ->
+                check(marker in workerSource) {
+                    "T1-2 Worker marker is missing: $marker"
+                }
+            }
+            check(
+                "R2ControlledTsConfigPolicy.revision4Fingerprint" in metadataSource &&
+                    "REVISION_3 -> R2Digests.equal(policyFingerprint, revision3Fingerprint)" in
+                    policySource
+            ) {
+                "T1-2 revision-3 identity is not retained below the current advertisement."
+            }
+        }
+    }
+
+val verifyT1ControlledPathAliases =
+    tasks.register<Exec>("verifyT1ControlledPathAliases") {
+        group = "verification"
+        description =
+            "Verifies controlled-tsconfig revision 4 baseUrl/paths in 12-file Rhino and " +
+                "Node projects, runtime-relative emit rewriting, diagnostics, and Source Maps."
+        dependsOn(generateTypeScriptDistribution)
+        dependsOn("testDebugUnitTest")
+        dependsOn(":plugin-api:typescript-api:testDebugUnitTest")
+        val compilerFile = generatedTypeScriptDistributionDirectory.map {
+            it.file("lib/typescript.js")
+        }
+        inputs.files(
+            r2CompilerWorkerSource,
+            compilerFile,
+            t1ControlledPathAliasPolicyFixture,
+            t1ControlledPathAliasEffectiveOptionsFixture,
+            t1ControlledPathAliasHarness,
+            r2InputArchiveAuthorityHarness,
+            t1ControlledPathAliasSource,
+            r2ControlledTsConfigPolicySource,
+            r2ControlledTsConfigEffectiveOptionsSource,
+            r2ControlledTsConfigPolicyTestSource,
+            r2ControlledTsConfigEffectiveOptionsTestSource,
+            r2CompilerHostProtocolSource,
+            r2ProjectFramedTransportTestSource,
+            r2CompilationProbeSource,
+            r2CompilationProbeProtocolTestSource,
+            r2PublicPreviewMetadataSource,
+            typeScriptR2ContractSource,
+        )
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            "--max-old-space-size=512",
+            t1ControlledPathAliasHarness.asFile.absolutePath,
+            r2CompilerWorkerSource.asFile.absolutePath,
+            compilerFile.get().asFile.absolutePath,
+            t1ControlledPathAliasPolicyFixture.asFile.absolutePath,
+            t1ControlledPathAliasEffectiveOptionsFixture.asFile.absolutePath,
+            typeScriptVersion,
+        )
+        doLast {
+            @Suppress("UNCHECKED_CAST")
+            val policy = JsonSlurper().parse(
+                t1ControlledPathAliasPolicyFixture.asFile,
+            ) as Map<String, Any?>
+            @Suppress("UNCHECKED_CAST")
+            val effective = JsonSlurper().parse(
+                t1ControlledPathAliasEffectiveOptionsFixture.asFile,
+            ) as Map<String, Any?>
+            check(
+                (policy["revision"] as Number).toInt() == 4 &&
+                    policy["fingerprint"] ==
+                    "4a9a5e70150f81e1ec9a5e2f749cc081f93f207f092300c96a79abfdcc152dab" &&
+                    (effective["revision"] as Number).toInt() == 4 &&
+                    (effective["profiles"] as List<*>).size == 2 &&
+                    ((effective["pathAliases"] as Map<*, *>)["projectSourceFileCount"] as Number)
+                    .toInt() == 12
+            ) {
+                "T1-3 checked-in path-alias authorities drifted."
+            }
+            val policySource = r2ControlledTsConfigPolicySource.asFile.readText(Charsets.UTF_8)
+            val workerSource = r2CompilerWorkerSource.asFile.readText(Charsets.UTF_8)
+            val hostSource = r2CompilerHostProtocolSource.asFile.readText(Charsets.UTF_8)
+            val apiSource = typeScriptR2ContractSource.asFile.readText(Charsets.UTF_8)
+            listOf(
+                "const val PREVIOUS_CONTROLLED_TSCONFIG_POLICY_REVISION = 3",
+                "const val CONTROLLED_TSCONFIG_POLICY_REVISION = 4",
+                "const val MAX_CONTROLLED_TSCONFIG_PATH_ALIASES = 128",
+                "const val MAX_CONTROLLED_TSCONFIG_PATH_TARGETS = 512",
+            ).forEach { marker ->
+                check(marker in apiSource) {
+                    "T1-3 public contract marker is missing: $marker"
+                }
+            }
+            listOf(
+                "val revision4AllowedValueCompilerOptions",
+                "val revision4EscapeForbiddenCompilerOptions",
+                "val revision4CanonicalInput",
+                "val revision4Fingerprint",
+            ).forEach { marker ->
+                check(marker in policySource) {
+                    "T1-3 native policy marker is missing: $marker"
+                }
+            }
+            listOf(
+                "const controlledTsConfigRevision4Authority",
+                "validateControlledPathAliases",
+                "installControlledPathAliasResolver",
+                "createControlledPathAliasEmitTransformer",
+                "relativeGeneratedModuleSpecifier",
+                "emitProjectBuilder",
+            ).forEach { marker ->
+                check(marker in workerSource) {
+                    "T1-3 Worker marker is missing: $marker"
+                }
+            }
+            check(
+                "R2ControlledTsConfigEffectiveOptions.REVISION_4" in hostSource &&
+                    "resolveRevision4(" in hostSource
+            ) {
+                "T1-3 framed result parser does not bind revision-4 aliases."
+            }
+        }
+    }
+
+val verifyT1StandardDecorators =
+    tasks.register<Exec>("verifyT1StandardDecorators") {
+        group = "verification"
+        description =
+            "Verifies typed Stage-3 class/method decorators through current revision-4 " +
+                "Rhino and Node options, emitted CommonJS execution, Source Maps, and the " +
+                "public Binder instrumentation source."
+        dependsOn(verifyTypeScriptDistribution, verifyR2DeclarationDistribution)
+        dependsOn("testDebugUnitTest", "compileDebugAndroidTestKotlin")
+        dependsOn(":plugin-api:typescript-api:testDebugUnitTest")
+        val compilerFile = generatedTypeScriptDistributionDirectory.map {
+            it.file("lib/typescript.js")
+        }
+        val typeScriptLibDirectory = generatedTypeScriptDistributionDirectory.map {
+            it.dir("lib")
+        }
+        val decisionDocument = rootProject.layout.projectDirectory.file(
+            "docs/architecture/STANDARD_DECORATORS_T1_4.md",
+        )
+        val configurationDocument = rootProject.layout.projectDirectory.file(
+            "docs/user/CONFIGURATION.md",
+        )
+        val quickStartDocument = rootProject.layout.projectDirectory.file(
+            "docs/user/QUICK_START.md",
+        )
+        inputs.files(
+            r2CompilerWorkerSource,
+            compilerFile,
+            t1ControlledPathAliasPolicyFixture,
+            t1StandardDecoratorsHarness,
+            r2ControlledTsConfigPolicySource,
+            r2ControlledTsConfigPolicyTestSource,
+            r2BinderCompilationInstrumentationSource,
+            decisionDocument,
+            configurationDocument,
+            quickStartDocument,
+        )
+        inputs.dir(generatedR2DeclarationDistributionDirectory)
+        inputs.dir(typeScriptLibDirectory)
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            "--max-old-space-size=512",
+            t1StandardDecoratorsHarness.asFile.absolutePath,
+            r2CompilerWorkerSource.asFile.absolutePath,
+            compilerFile.get().asFile.absolutePath,
+            generatedR2DeclarationDistributionDirectory.get().asFile.absolutePath,
+            typeScriptLibDirectory.get().asFile.absolutePath,
+            t1ControlledPathAliasPolicyFixture.asFile.absolutePath,
+            typeScriptVersion,
+        )
+        doLast {
+            val harnessSource =
+                t1StandardDecoratorsHarness.asFile.readText(Charsets.UTF_8)
+            val workerSource = r2CompilerWorkerSource.asFile.readText(Charsets.UTF_8)
+            val instrumentationSource =
+                r2BinderCompilationInstrumentationSource.asFile.readText(Charsets.UTF_8)
+            val decisionSource = decisionDocument.asFile.readText(Charsets.UTF_8)
+            val configurationSource = configurationDocument.asFile.readText(Charsets.UTF_8)
+            val quickStartSource = quickStartDocument.asFile.readText(Charsets.UTF_8)
+            listOf(
+                "ClassDecoratorContext<T>",
+                "ClassMethodDecoratorContext<This",
+                "var __esDecorate",
+                "var __runInitializers",
+                "runtime.decoratedAnswer === 42",
+                "experimentalDecorators",
+                "emitDecoratorMetadata",
+                "expectedEffectiveOptionsFingerprints",
+            ).forEach { marker ->
+                check(marker in harnessSource) {
+                    "T1-4 desktop/runtime marker is missing: $marker"
+                }
+            }
+            check(
+                "decorators(?:\\.legacy)?" in workerSource &&
+                    "createControlledStandardLibraryResolver" in workerSource
+            ) {
+                "T1-4 Worker no longer resolves the pinned decorator declaration closure."
+            }
+            listOf(
+                "standardClassAndMethodDecoratorsCompileThroughBothPublicProfiles",
+                "var __esDecorate",
+                "var __runInitializers",
+                "R2ControlledTsConfigEffectiveOptions.resolveRevision4",
+            ).forEach { marker ->
+                check(marker in instrumentationSource) {
+                    "T1-4 public Binder instrumentation marker is missing: $marker"
+                }
+            }
+            listOf(
+                "standard-only",
+                "910002",
+                "a5a49efc19206d54f61c5db67323c72da05250a023398ebcae84557bbcbcd8a7",
+                "b77bfac45d80ad99a9a65168ecd97a10607f0574189e521e3355eb080b4a97ff",
+                "OK (1 test)",
+            ).forEach { marker ->
+                check(marker in decisionSource) {
+                    "T1-4 decision evidence is missing: $marker"
+                }
+            }
+            listOf(configurationSource, quickStartSource).forEach { userDocument ->
+                check(
+                    "ClassDecoratorContext" in userDocument &&
+                        "ClassMethodDecoratorContext" in userDocument &&
+                        "experimentalDecorators" in userDocument
+                ) {
+                    "T1-4 user documentation does not explain the standard decorator contract."
+                }
+            }
+        }
+    }
+
+val verifyT1NodeTopLevelAwait =
+    tasks.register<Exec>("verifyT1NodeTopLevelAwait") {
+        group = "verification"
+        description =
+            "Verifies NodeNext revision-2 with controlled ES2022 options preserves and " +
+                "executes top-level await for .mts and root type:module .ts, with public " +
+                "Binder coverage and paired Source Maps."
+        dependsOn(verifyTypeScriptDistribution, verifyR2DeclarationDistribution)
+        dependsOn("testDebugUnitTest", "compileDebugAndroidTestKotlin")
+        dependsOn(":plugin-api:typescript-api:testDebugUnitTest")
+        val compilerFile = generatedTypeScriptDistributionDirectory.map {
+            it.file("lib/typescript.js")
+        }
+        val typeScriptLibDirectory = generatedTypeScriptDistributionDirectory.map {
+            it.dir("lib")
+        }
+        val decisionDocument = rootProject.layout.projectDirectory.file(
+            "docs/architecture/NODE_TOP_LEVEL_AWAIT_T1_5.md",
+        )
+        val configurationDocument = rootProject.layout.projectDirectory.file(
+            "docs/user/CONFIGURATION.md",
+        )
+        val quickStartDocument = rootProject.layout.projectDirectory.file(
+            "docs/user/QUICK_START.md",
+        )
+        inputs.files(
+            r2CompilerWorkerSource,
+            compilerFile,
+            t1ControlledPathAliasPolicyFixture,
+            t1NodeTopLevelAwaitHarness,
+            r2BinderCompilationInstrumentationSource,
+            decisionDocument,
+            configurationDocument,
+            quickStartDocument,
+        )
+        inputs.dir(generatedR2DeclarationDistributionDirectory)
+        inputs.dir(typeScriptLibDirectory)
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            "--max-old-space-size=512",
+            t1NodeTopLevelAwaitHarness.asFile.absolutePath,
+            r2CompilerWorkerSource.asFile.absolutePath,
+            compilerFile.get().asFile.absolutePath,
+            generatedR2DeclarationDistributionDirectory.get().asFile.absolutePath,
+            typeScriptLibDirectory.get().asFile.absolutePath,
+            t1ControlledPathAliasPolicyFixture.asFile.absolutePath,
+            typeScriptVersion,
+        )
+        doLast {
+            val harnessSource =
+                t1NodeTopLevelAwaitHarness.asFile.readText(Charsets.UTF_8)
+            val instrumentationSource =
+                r2BinderCompilationInstrumentationSource.asFile.readText(Charsets.UTF_8)
+            val decisionSource = decisionDocument.asFile.readText(Charsets.UTF_8)
+            val configurationSource = configurationDocument.asFile.readText(Charsets.UTF_8)
+            val quickStartSource = quickStartDocument.asFile.readText(Charsets.UTF_8)
+            listOf(
+                "nodeRevisionTwoImpliedModuleFormat",
+                "createNodeRevisionTwoSourceFile",
+                "await sleep(4)",
+                "type-module-ts",
+                "runtime.answer === 42",
+                "b77bfac45d80ad99a9a65168ecd97a10607f0574189e521e3355eb080b4a97ff",
+            ).forEach { marker ->
+                check(marker in harnessSource) {
+                    "T1-5 desktop/runtime marker is missing: $marker"
+                }
+            }
+            listOf(
+                "nodeTopLevelAwaitCompilesMtsAndTypeModuleTsThroughPublicBinder",
+                "packageJson = \"{\\\"type\\\":\\\"module\\\"}\"",
+                "await sleep(4)",
+                "modules/package-entry.js",
+            ).forEach { marker ->
+                check(marker in instrumentationSource) {
+                    "T1-5 public Binder instrumentation marker is missing: $marker"
+                }
+            }
+            listOf(
+                "NodeNext revision 2",
+                "ES2022",
+                "await sleep(4)",
+                "OK (1 test)",
+            ).forEach { marker ->
+                check(marker in decisionSource) {
+                    "T1-5 decision evidence is missing: $marker"
+                }
+            }
+            listOf(configurationSource, quickStartSource).forEach { userDocument ->
+                check(
+                    "顶层 `await`" in userDocument &&
+                        "type: module" in userDocument &&
+                        "ES2022" in userDocument
+                ) {
+                    "T1-5 user documentation does not explain top-level await."
+                }
+            }
+        }
+    }
+
+val verifyT1NestedPackageBoundaries =
+    tasks.register("verifyT1NestedPackageBoundaries") {
+        group = "verification"
+        description =
+            "Verifies nearest workspace package boundaries drive ESM/CommonJS Worker emit, " +
+                "generated mapping authority, public Binder coverage, and user documentation."
+        dependsOn(verifyT1NodeTopLevelAwait)
+        val packageFormatCatalogSource = layout.projectDirectory.file(
+            "src/main/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+                "R2NodePackageFormatCatalog.kt",
+        )
+        val packageFormatCatalogTestSource = layout.projectDirectory.file(
+            "src/test/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+                "R2NodePackageFormatCatalogTest.kt",
+        )
+        val generatedModuleMappingSource = layout.projectDirectory.file(
+            "src/main/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+                "R2GeneratedModuleMapping.kt",
+        )
+        val decisionDocument = rootProject.layout.projectDirectory.file(
+            "docs/architecture/NESTED_PACKAGE_BOUNDARIES_T1_6.md",
+        )
+        val configurationDocument = rootProject.layout.projectDirectory.file(
+            "docs/user/CONFIGURATION.md",
+        )
+        val quickStartDocument = rootProject.layout.projectDirectory.file(
+            "docs/user/QUICK_START.md",
+        )
+        val roadmapDocument = rootProject.layout.projectDirectory.file("ROADMAP.md")
+        val releaseDocument = rootProject.layout.projectDirectory.file(
+            "docs/releases/v0.6.0.md",
+        )
+        inputs.files(
+            r2CompilerWorkerSource,
+            t1NodeTopLevelAwaitHarness,
+            packageFormatCatalogSource,
+            packageFormatCatalogTestSource,
+            generatedModuleMappingSource,
+            r2NodeRevisionTwoResultAuthorityTestSource,
+            r2BinderCompilationInstrumentationSource,
+            decisionDocument,
+            configurationDocument,
+            quickStartDocument,
+            roadmapDocument,
+            releaseDocument,
+        )
+        doLast {
+            val workerSource = r2CompilerWorkerSource.asFile.readText(Charsets.UTF_8)
+            val harnessSource = t1NodeTopLevelAwaitHarness.asFile.readText(Charsets.UTF_8)
+            val catalogSource = packageFormatCatalogSource.asFile.readText(Charsets.UTF_8)
+            val catalogTestSource = packageFormatCatalogTestSource.asFile.readText(Charsets.UTF_8)
+            val mappingSource = generatedModuleMappingSource.asFile.readText(Charsets.UTF_8)
+            val resultAuthorityTestSource =
+                r2NodeRevisionTwoResultAuthorityTestSource.asFile.readText(Charsets.UTF_8)
+            val instrumentationSource =
+                r2BinderCompilationInstrumentationSource.asFile.readText(Charsets.UTF_8)
+            listOf(
+                "nodePackageBoundaryLookupPath",
+                "\"/sources/\"",
+                "packageLookupPath",
+            ).forEach { marker ->
+                check(marker in workerSource) {
+                    "T1-6 production Worker boundary marker is missing: $marker"
+                }
+            }
+            listOf(
+                "workspace-esm",
+                "workspace-commonjs",
+                "/outputs/packages/esm/value.js",
+                "/outputs/packages/cjs/value.js",
+                "executeGeneratedCommonJs",
+                "c311b411058914e446b3af99db59945a671a3fcd879cb4760893a465377068ef",
+                "77cffdbf86a640479036b33703f4558434e9ef72bcfbc1aab514a9b4d5014e73",
+            ).forEach { marker ->
+                check(marker in harnessSource || marker in decisionDocument.asFile.readText(Charsets.UTF_8)) {
+                    "T1-6 desktop Worker/runtime marker is missing: $marker"
+                }
+            }
+            check(
+                "R2NodePackageBoundaryLookup.projectPath" in catalogSource &&
+                    "source projection" in catalogTestSource &&
+                    "exact canonical identity" in mappingSource
+            ) {
+                "T1-6 native nearest-boundary authority is incomplete."
+            }
+            check(
+                "nearestWorkspacePackageBoundariesDriveEsmAndCommonJsMappings" in
+                    resultAuthorityTestSource &&
+                    "packageBoundary=%2Fpackages%2Fcjs" in resultAuthorityTestSource &&
+                    "packageBoundary=%2Fpackages%2Fesm" in resultAuthorityTestSource
+            ) {
+                "T1-6 generated mapping authority coverage is incomplete."
+            }
+            listOf(
+                "nestedPackageBoundariesCompileEsmAndCommonJsThroughPublicBinder",
+                "packages/cjs/package.json",
+                "packages/esm/package.json",
+                "modules/packages/cjs/value.js",
+                "modules/packages/esm/value.js",
+            ).forEach { marker ->
+                check(marker in instrumentationSource) {
+                    "T1-6 public Binder instrumentation marker is missing: $marker"
+                }
+            }
+            val decisionSource = decisionDocument.asFile.readText(Charsets.UTF_8)
+            listOf(
+                "package metadata schema/policy revision 1",
+                "128",
+                "256",
+                "1 MiB",
+                "BUILD SUCCESSFUL in 20s",
+                "BUILD SUCCESSFUL in 22s",
+            ).forEach { marker ->
+                check(marker in decisionSource) {
+                    "T1-6 decision evidence is missing: $marker"
+                }
+            }
+            val configurationSource = configurationDocument.asFile.readText(Charsets.UTF_8)
+            val quickStartSource = quickStartDocument.asFile.readText(Charsets.UTF_8)
+            check(
+                "Workspace package boundary" in configurationSource &&
+                    "packages/@scope/<name>" in configurationSource &&
+                    "最近" in configurationSource &&
+                    "Node workspace 子包" in quickStartSource &&
+                    "commonJsValue" in quickStartSource
+            ) {
+                "T1-6 user documentation does not explain mixed workspace package formats."
+            }
+            check(
+                "- [x] **T1-6 嵌套 package boundary / monorepo 初步**" in
+                    roadmapDocument.asFile.readText(Charsets.UTF_8) &&
+                    "T1-1–T1-7" in releaseDocument.asFile.readText(Charsets.UTF_8)
+            ) {
+                "T1-6 Roadmap or release status is not complete."
+            }
+        }
+    }
+
+val verifyT1NodeEsmLiveBindings =
+    tasks.register("verifyT1NodeEsmLiveBindings") {
+        group = "verification"
+        description =
+            "Verifies TypeScript NodeNext emit preserves native ESM live bindings across " +
+                "a cyclic re-export graph, executes the graph in Node, and freezes public " +
+                "Binder plus cross-runtime integration evidence."
+        dependsOn(verifyT1NestedPackageBoundaries)
+        val decisionDocument = rootProject.layout.projectDirectory.file(
+            "docs/architecture/NODE_ESM_LIVE_BINDINGS_T1_7.md",
+        )
+        val configurationDocument = rootProject.layout.projectDirectory.file(
+            "docs/user/CONFIGURATION.md",
+        )
+        val quickStartDocument = rootProject.layout.projectDirectory.file(
+            "docs/user/QUICK_START.md",
+        )
+        val roadmapDocument = rootProject.layout.projectDirectory.file("ROADMAP.md")
+        val releaseDocument = rootProject.layout.projectDirectory.file(
+            "docs/releases/v0.6.0.md",
+        )
+        inputs.files(
+            t1NodeTopLevelAwaitHarness,
+            r2BinderCompilationInstrumentationSource,
+            decisionDocument,
+            configurationDocument,
+            quickStartDocument,
+            roadmapDocument,
+            releaseDocument,
+        )
+        doLast {
+            val harnessSource = t1NodeTopLevelAwaitHarness.asFile.readText(Charsets.UTF_8)
+            val instrumentationSource =
+                r2BinderCompilationInstrumentationSource.asFile.readText(Charsets.UTF_8)
+            val decisionSource = decisionDocument.asFile.readText(Charsets.UTF_8)
+            val configurationSource = configurationDocument.asFile.readText(Charsets.UTF_8)
+            val quickStartSource = quickStartDocument.asFile.readText(Charsets.UTF_8)
+            val roadmapSource = roadmapDocument.asFile.readText(Charsets.UTF_8)
+            val releaseSource = releaseDocument.asFile.readText(Charsets.UTF_8)
+            listOf(
+                "/outputs/live/barrel.mjs",
+                "export let value: number = 1",
+                "childProcess.spawnSync",
+                "t1-7.initial=1",
+                "t1-7.updated=42",
+                "T1-7 Node ESM live binding verified",
+            ).forEach { marker ->
+                check(marker in harnessSource) {
+                    "T1-7 production Worker/desktop Node marker is missing: $marker"
+                }
+            }
+            listOf(
+                "nodeEsmLiveBindingCycleCompilesThroughPublicBinder",
+                "modules/live/barrel.mjs",
+                "export let value = 1",
+                "|moduleFormat=esm|",
+                "exports.value",
+            ).forEach { marker ->
+                check(marker in instrumentationSource) {
+                    "T1-7 public Binder instrumentation marker is missing: $marker"
+                }
+            }
+            listOf(
+                "vm.SourceTextModule",
+                "vm.SyntheticModule",
+                "embedded_script.esm_linker=vm_source_text_module",
+                "embedded_script.esm_live_bindings=true",
+                "d78ad1b93ed0c52b6f13b1464edf0c365c85b0db249f839f1bf9f05af7aae95f",
+                "BUILD SUCCESSFUL in 21s",
+                "BUILD SUCCESSFUL in 25s",
+            ).forEach { marker ->
+                check(marker in decisionSource) {
+                    "T1-7 architecture/evidence marker is missing: $marker"
+                }
+            }
+            listOf(configurationSource, quickStartSource).forEach { userDocument ->
+                check(
+                    "vm_source_text_module" in userDocument &&
+                        "CommonJS `require(esm)`" in userDocument &&
+                        "updated=42" in userDocument
+                ) {
+                    "T1-7 user documentation does not explain ESM live-binding cycles."
+                }
+            }
+            check(
+                "- [x] **T1-7 Node ESM live-binding 循环依赖**" in roadmapSource &&
+                    "已完成（T1-1–T1-7）" in roadmapSource &&
+                    "T1-1–T1-7" in releaseSource &&
+                    "V8 native linker" in releaseSource
+            ) {
+                "T1-7 Roadmap or release status is not complete."
+            }
+        }
+    }
+
+val verifyT2DependencyLayer =
+    tasks.register("verifyT2DependencyLayer") {
+        group = "verification"
+        description =
+            "Verifies T2-1 independent node_modules admission, immutable storage, cache identity, " +
+                "documented limits, and the three-direct-dependency acceptance contract."
+        dependsOn("testDebugUnitTest")
+        dependsOn(":plugin-api:typescript-api:testDebugUnitTest")
+        val decisionDocument = rootProject.layout.projectDirectory.file(
+            "docs/architecture/DEPENDENCY_LAYER_T2_1.md",
+        )
+        val configurationDocument = rootProject.layout.projectDirectory.file(
+            "docs/user/CONFIGURATION.md",
+        )
+        val roadmapDocument = rootProject.layout.projectDirectory.file("ROADMAP.md")
+        inputs.files(
+            t2DependencyLayerSource,
+            t2DependencyLayerTestSource,
+            t2DependencyLayerDecisionTestSource,
+            t2DependencyLayerFixture,
+            r2ProjectArchiveSource,
+            r2ProjectSnapshotSource,
+            r2FileBackedProjectSnapshotSource,
+            r2CompilationProbeSource,
+            r2PublicPreviewMetadataSource,
+            typeScriptR2ContractSource,
+            decisionDocument,
+            configurationDocument,
+            roadmapDocument,
+        )
+        doLast {
+            @Suppress("UNCHECKED_CAST")
+            val fixture = JsonSlurper().parse(t2DependencyLayerFixture.asFile) as Map<String, Any?>
+            @Suppress("UNCHECKED_CAST")
+            val limits = fixture["limits"] as Map<String, Any?>
+            @Suppress("UNCHECKED_CAST")
+            val acceptance = fixture["acceptance"] as Map<String, Any?>
+            check(
+                fixture["schema"] == "autojs6.typescript.t2-1.dependency-layer" &&
+                    (fixture["schemaRevision"] as Number).toInt() == 1 &&
+                    (fixture["policyRevision"] as Number).toInt() == 2 &&
+                    fixture["policyFingerprint"] ==
+                    "c159ae179de24307c456c69ae4e456ed9d7dba71dc965c22e6114f632af3834a" &&
+                    (limits["maximumFiles"] as Number).toInt() == 8_192 &&
+                    (limits["maximumTotalBytes"] as Number).toLong() == 64L * 1024L * 1024L &&
+                    (limits["maximumCombinedArchiveFiles"] as Number).toInt() == 12_289 &&
+                    (acceptance["directDependencies"] as List<*>) ==
+                    listOf("dayjs", "lodash", "zod")
+            ) {
+                "T2-1 checked-in dependency-layer decision drifted."
+            }
+
+            val policySource = t2DependencyLayerSource.asFile.readText(Charsets.UTF_8)
+            val archiveSource = r2ProjectArchiveSource.asFile.readText(Charsets.UTF_8)
+            val snapshotSource = r2ProjectSnapshotSource.asFile.readText(Charsets.UTF_8)
+            val fileBackedSource = r2FileBackedProjectSnapshotSource.asFile.readText(Charsets.UTF_8)
+            val probeSource = r2CompilationProbeSource.asFile.readText(Charsets.UTF_8)
+            val metadataSource = r2PublicPreviewMetadataSource.asFile.readText(Charsets.UTF_8)
+            val apiSource = typeScriptR2ContractSource.asFile.readText(Charsets.UTF_8)
+            listOf(
+                "immutable-file-backed-framed-readonly-t2-2",
+                "packageScripts=non-install-inert-install-rejected",
+                "IDENTITY_PACKAGE_LOCK",
+                "IDENTITY_PNPM_LOCK",
+                "IDENTITY_CONTENT",
+                "MAX_DEPENDENCY_LAYER_PATH_BYTES",
+            ).forEach { marker ->
+                check(marker in policySource || marker in apiSource) {
+                    "T2-1 policy/API marker is missing: $marker"
+                }
+            }
+            listOf(
+                "dependencyLayerInventory",
+                "R2DependencyLayerInventory.create",
+                "R2FileBackedDependencyLayerRecord",
+            ).forEach { marker ->
+                check(marker in archiveSource) {
+                    "T2-1 archive marker is missing: $marker"
+                }
+            }
+            check(
+                "openDependencyLayerFile" in snapshotSource &&
+                    "R2FileBackedDependencyLayerRecord" in fileBackedSource &&
+                    "openDependencyLayerFile" in fileBackedSource
+            ) {
+                "T2-1 independent read-only snapshot storage is incomplete."
+            }
+            listOf(
+                "dependencyLayerSchemaRevision",
+                "dependencyLayerPolicyRevision",
+                "dependencyLayerPolicyFingerprint",
+                "dependencyLayerInventoryFingerprint",
+                "dependencyLayerFingerprint",
+            ).forEach { marker ->
+                check(marker in probeSource) {
+                    "T2-1 request authority marker is missing: $marker"
+                }
+            }
+            listOf(
+                "KEY_DEPENDENCY_LAYER_SCHEMA_REVISION",
+                "KEY_DEPENDENCY_LAYER_POLICY_REVISION",
+                "KEY_DEPENDENCY_LAYER_POLICY_FINGERPRINT",
+            ).forEach { marker ->
+                check(marker in metadataSource) {
+                    "T2-1 advertised metadata marker is missing: $marker"
+                }
+            }
+
+            val decisionSource = decisionDocument.asFile.readText(Charsets.UTF_8)
+            val configurationSource = configurationDocument.asFile.readText(Charsets.UTF_8)
+            val roadmapSource = roadmapDocument.asFile.readText(Charsets.UTF_8)
+            listOf(
+                "8192",
+                "64 MiB",
+                "1.5 MiB",
+                "12289",
+                "140 MiB",
+                "132 MiB",
+                "dayjs/lodash/zod",
+                "bare imports 刻意留给 T2-2",
+            ).forEach { marker ->
+                check(marker in decisionSource) {
+                    "T2-1 architecture/evidence marker is missing: $marker"
+                }
+            }
+            check(
+                "T2-1 `node_modules` 独立依赖层" in configurationSource &&
+                    "8192" in configurationSource &&
+                    "c159ae179de24307c456c69ae4e456ed9d7dba71dc965c22e6114f632af3834a" in
+                    configurationSource
+            ) {
+                "T2-1 user documentation is incomplete."
+            }
+            check("- [x] **T2-1 依赖层引入与打包策略**" in roadmapSource) {
+                "T2-1 Roadmap state is not complete."
+            }
+        }
+    }
+
+val verifyT2BareSpecifierResolution =
+    tasks.register<Exec>("verifyT2BareSpecifierResolution") {
+        group = "verification"
+        description =
+            "Verifies T2-2 read-only node_modules framing and TypeScript 6 NodeNext bare " +
+                "specifier resolution for scoped packages, exports conditions, fallbacks, " +
+                "and stable misses without claiming runtime loading."
+        dependsOn(generateTypeScriptDistribution)
+        dependsOn(verifyT2DependencyLayer)
+        dependsOn("verifyOptionalPluginIndependence")
+        val compilerFile = generatedTypeScriptDistributionDirectory.map {
+            it.file("lib/typescript.js")
+        }
+        val decisionDocument = rootProject.layout.projectDirectory.file(
+            "docs/architecture/DEPENDENCY_RESOLUTION_T2_2.md",
+        )
+        val configurationDocument = rootProject.layout.projectDirectory.file(
+            "docs/user/CONFIGURATION.md",
+        )
+        val roadmapDocument = rootProject.layout.projectDirectory.file("ROADMAP.md")
+        inputs.files(
+            compilerFile,
+            r2CompilerWorkerSource,
+            r2ProjectFramedTransportSource,
+            t2DependencyLayerSource,
+            t2DependencyResolverSource,
+            t2DependencyResolverTestSource,
+            t2BareSpecifierResolutionHarness,
+            typeScriptR2ContractSource,
+            decisionDocument,
+            configurationDocument,
+            roadmapDocument,
+        )
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            t2BareSpecifierResolutionHarness.asFile.absolutePath,
+            r2CompilerWorkerSource.asFile.absolutePath,
+            compilerFile.get().asFile.absolutePath,
+            typeScriptVersion,
+        )
+        doLast {
+            val resolverSource = t2DependencyResolverSource.asFile.readText(Charsets.UTF_8)
+            val framerSource = r2ProjectFramedTransportSource.asFile.readText(Charsets.UTF_8)
+            val workerSource = r2CompilerWorkerSource.asFile.readText(Charsets.UTF_8)
+            val apiSource = typeScriptR2ContractSource.asFile.readText(Charsets.UTF_8)
+            val decisionSource = decisionDocument.asFile.readText(Charsets.UTF_8)
+            val configurationSource = configurationDocument.asFile.readText(Charsets.UTF_8)
+            val roadmapSource = roadmapDocument.asFile.readText(Charsets.UTF_8)
+            listOf(
+                "immutable-file-backed-framed-readonly-t2-2",
+                "conditionOrder=types,import,require,node,default",
+                "fallbackOrder=typesVersions,types,typings,installed-@types,module,main,index",
+                "runtimeLoading=exact-readonly-t2-3",
+            ).forEach { marker ->
+                check(marker in resolverSource) {
+                    "T2-2 dependency resolver policy marker is missing: $marker"
+                }
+            }
+            listOf(
+                "dependencyResolverPolicyRevision",
+                "dependencyResolverPolicyFingerprint",
+                "openDependencyLayerFile",
+                "toWorkerVfsPath",
+            ).forEach { marker ->
+                check(marker in framerSource) {
+                    "T2-2 framed transport marker is missing: $marker"
+                }
+            }
+            listOf(
+                "createDependencyLayerResolution",
+                "ts.resolveModuleName",
+                "ts.resolveTypeReferenceDirective",
+                "dependencyResolverAuthority.nodeModulesVfsPrefix",
+                "controlledNodeResolutionFailureCodes.exportsNoMatch",
+            ).forEach { marker ->
+                check(marker in workerSource) {
+                    "T2-2 Worker resolver marker is missing: $marker"
+                }
+            }
+            check(
+                "DEPENDENCY_RESOLVER_POLICY_REVISION = 4" in apiSource &&
+                    "d8207539237d2a08a6b97b530c5e6215f4b73311fdd6954ce9f8004717ebd635" in
+                    apiSource
+            ) {
+                "T2-2 public resolver identity is missing."
+            }
+            listOf(
+                "dayjs",
+                "zod/mini",
+                "@scope/tool/feature",
+                "NODE_RESOLUTION_EXPORTS_NO_MATCH",
+                "T2-3",
+            ).forEach { marker ->
+                check(marker in decisionSource) {
+                    "T2-2 architecture marker is missing: $marker"
+                }
+            }
+            check(
+                "T2-2 bare specifier" in configurationSource &&
+                    "运行期装载仍属于 T2-3" in configurationSource &&
+                    "- [x] **T2-2 bare specifier 解析**" in roadmapSource
+            ) {
+                "T2-2 documentation or Roadmap state is incomplete."
+            }
+        }
+    }
+
+val verifyT2DependencyTypes =
+    tasks.register<Exec>("verifyT2DependencyTypes") {
+        group = "verification"
+        description =
+            "Verifies package types/typings, TypeScript 6 typesVersions, installed @types, " +
+                "nested declaration imports, and identical Rhino/Node strict diagnostics."
+        dependsOn(generateTypeScriptDistribution)
+        dependsOn(verifyT2BareSpecifierResolution)
+        val compilerFile = generatedTypeScriptDistributionDirectory.map {
+            it.file("lib/typescript.js")
+        }
+        inputs.files(
+            compilerFile,
+            r2CompilerWorkerSource,
+            t2DependencyTypesHarness,
+            t2DependencyResolverSource,
+            typeScriptR2ContractSource,
+        )
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            t2DependencyTypesHarness.asFile.absolutePath,
+            r2CompilerWorkerSource.asFile.absolutePath,
+            compilerFile.get().asFile.absolutePath,
+            typeScriptVersion,
+        )
+    }
+
+val verifyT2RealPackageMatrix =
+    tasks.register<Exec>("verifyT2RealPackageMatrix") {
+        group = "verification"
+        description =
+            "Verifies five pinned npm releases with strict dual-profile compilation, " +
+                "applicable CJS/ESM execution, and stable documented boundaries."
+        dependsOn(generateTypeScriptDistribution)
+        dependsOn(verifyT2DependencyTypes)
+        val compilerFile = generatedTypeScriptDistributionDirectory.map {
+            it.file("lib/typescript.js")
+        }
+        val roadmapDocument = rootProject.layout.projectDirectory.file("ROADMAP.md")
+        inputs.files(
+            compilerFile,
+            r2CompilerWorkerSource,
+            t2RealPackageMatrixHarness,
+            t2RealPackageMatrixFixture,
+            t2RealPackageMatrixArchiveDirectory,
+            t2RealPackageMatrixDocument,
+            roadmapDocument,
+        )
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            t2RealPackageMatrixHarness.asFile.absolutePath,
+            r2CompilerWorkerSource.asFile.absolutePath,
+            compilerFile.get().asFile.absolutePath,
+            t2RealPackageMatrixFixture.asFile.absolutePath,
+            t2RealPackageMatrixArchiveDirectory.asFile.absolutePath,
+            typeScriptVersion,
+        )
+        doLast {
+            val documentSource = t2RealPackageMatrixDocument.asFile.readText(Charsets.UTF_8)
+            listOf(
+                "dayjs",
+                "lodash",
+                "zod",
+                "uuid",
+                "nanoid",
+                "@types/lodash",
+                "TS7016",
+                "ERR_AUTOJS6_TYPESCRIPT_RHINO_ESM_ONLY_DEPENDENCY",
+                "verifyT2RealPackageMatrix",
+                "6241375f2ea49ac2c2d2b3b79b28b7c1ee4adde75c989defc61e252c89ced2bd",
+            ).forEach { marker ->
+                check(marker in documentSource) {
+                    "T2-5 real-package user document is missing: $marker"
+                }
+            }
+            check("- [x] **T2-5 真实包验收矩阵**" in roadmapDocument.asFile.readText()) {
+                "T2-5 Roadmap state is incomplete."
+            }
+        }
+    }
+
+val verifyT2NativeModuleBoundary =
+    tasks.register<Exec>("verifyT2NativeModuleBoundary") {
+        group = "verification"
+        description =
+            "Verifies pinned bcrypt native-addon rejection, install lifecycle rejection, " +
+                "stable T2-6 errors, and documented pure-JS/WASM workarounds."
+        dependsOn(verifyT2RealPackageMatrix)
+        val compilerFile = generatedTypeScriptDistributionDirectory.map {
+            it.file("lib/typescript.js")
+        }
+        val roadmapDocument = rootProject.layout.projectDirectory.file("ROADMAP.md")
+        inputs.files(
+            compilerFile,
+            t2NativeModuleBoundaryHarness,
+            t2NativeModuleBoundaryFixture,
+            t2NativeModuleBoundaryArchiveDirectory,
+            t2DependencyLayerSource,
+            t2DependencyResolverSource,
+            r2CompilerWorkerSource,
+            r2ApiContractSource,
+            t2NativeModuleBoundaryArchitectureDocument,
+            t2NativeModuleBoundaryUserDocument,
+            roadmapDocument,
+        )
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            t2NativeModuleBoundaryHarness.asFile.absolutePath,
+            t2NativeModuleBoundaryFixture.asFile.absolutePath,
+            t2NativeModuleBoundaryArchiveDirectory.asFile.absolutePath,
+            t2DependencyLayerSource.asFile.absolutePath,
+            t2DependencyResolverSource.asFile.absolutePath,
+            r2CompilerWorkerSource.asFile.absolutePath,
+            r2ApiContractSource.asFile.absolutePath,
+            compilerFile.get().asFile.absolutePath,
+        )
+        doLast {
+            val architectureSource =
+                t2NativeModuleBoundaryArchitectureDocument.asFile.readText(Charsets.UTF_8)
+            val userSource = t2NativeModuleBoundaryUserDocument.asFile.readText(Charsets.UTF_8)
+            val roadmapSource = roadmapDocument.asFile.readText(Charsets.UTF_8)
+            listOf(
+                "bcrypt@6.0.0",
+                "ERR_AUTOJS6_TYPESCRIPT_NATIVE_DEPENDENCY_UNSUPPORTED",
+                "ERR_AUTOJS6_TYPESCRIPT_DEPENDENCY_INSTALL_SCRIPT_UNSUPPORTED",
+                "binding.gyp",
+                "preinstall",
+                "postinstall",
+                "pure JavaScript",
+                "WASM",
+                "verifyT2NativeModuleBoundary",
+            ).forEach { marker ->
+                check(marker in architectureSource || marker in userSource) {
+                    "T2-6 documentation is missing: $marker"
+                }
+            }
+            check("- [x] **T2-6" in roadmapSource) {
+                "T2-6 Roadmap state is incomplete."
+            }
+        }
+    }
+
 val verifyCompilerSmoke =
     tasks.register("verifyCompilerSmoke") {
         group = "verification"
         description =
             "Runs one real Worker compilation for each public Rhino and NodeNext profile."
-        dependsOn(verifyCompilerSmokeRhino, verifyCompilerSmokeNode)
+        dependsOn(
+            verifyCompilerSmokeRhino,
+            verifyCompilerSmokeNode,
+            verifyT1ControlledTsConfigRevision3,
+            verifyT1ControlledPathAliases,
+            verifyT1StandardDecorators,
+            verifyT1NodeTopLevelAwait,
+            verifyT1NestedPackageBoundaries,
+            verifyT1NodeEsmLiveBindings,
+            verifyT2DependencyLayer,
+            verifyT2BareSpecifierResolution,
+            verifyT2DependencyTypes,
+            verifyT2RealPackageMatrix,
+            verifyT2NativeModuleBoundary,
+        )
     }
 
 val verifyR2M2P2P5NodePackageTargetResolutionV2 =
@@ -8382,7 +10030,7 @@ val verifyR2M2X2DiagnosticStopEmitModel =
             val instrumentationMethod = between(
                 instrumentationSource,
                 "fun rhinoAndNodeRevisionOneStopEmitForSourceDiagnosticsThroughPublicShapedService",
-                "fun storedContainerCapacityAcceptsExact64MiBAndRejectsPlusOne",
+                "fun storedContainerCapacityAcceptsMetadataAwareLimitAndRejectsPlusOne",
             )
             requireMarkers(
                 label = "Android public-shaped diagnostics-only matrix",
@@ -8827,9 +10475,9 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
     tasks.register("verifyR2M3D1OrdinaryInputQuotaFixture") {
         group = "verification"
         description =
-            "Freezes the R2-M3-D1 ordinary 512-file/8 MiB input quota, exact counting " +
-                "domain, inclusive/+1 boundaries, current profile declaration occupancy, " +
-                "and separation from 64 MiB transport/TEST_ONLY capacity."
+            "Extends the historical R2-M3-D1 gate with the T1-1 revision 3 ordinary " +
+                "4096-file/64 MiB caller quota, bounded archive metadata overhead, " +
+                "revision 2 compatibility, and retained Worker guardrails."
 
         dependsOn(verifyR2DeclarationDistribution)
         dependsOn("testDebugUnitTest")
@@ -8885,18 +10533,20 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                     "countingDomain",
                     "profileDeclarationOccupancy",
                     "boundaryCases",
+                    "retainedInputGuardrail",
                     "transportCeiling",
                     "testOnlyExpandedCapacity",
                     "quotaRejection",
                     "promotionState",
                 ) &&
                     fixture["schema"] ==
-                    "autojs6.typescript.r2-m3-d1.ordinary-input-quota-decision" &&
-                    (fixture["revision"] as Number).toInt() == 1 &&
+                    "autojs6.typescript.t1-1.ordinary-input-quota-promotion" &&
+                    (fixture["revision"] as Number).toInt() == 3 &&
                     fixture["decision"] ==
-                    "retain-512-files-8mib-single-file-8mib-total"
+                    "promote-4096-caller-files-8mib-single-file-64mib-total-" +
+                        "excluding-trusted-declarations"
             ) {
-                "R2-M3-D1 quota fixture identity or exact root shape drifted."
+                "T1-1 quota fixture identity or exact root shape drifted."
             }
 
             @Suppress("UNCHECKED_CAST")
@@ -8909,20 +10559,20 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                     "maximumTotalBytes",
                     "comparison",
                 ) &&
-                    (quota["schemaRevision"] as Number).toInt() == 1 &&
-                    (quota["maximumFiles"] as Number).toInt() == 512 &&
+                    (quota["schemaRevision"] as Number).toInt() == 3 &&
+                    (quota["maximumFiles"] as Number).toInt() == 4_096 &&
                     (quota["maximumSingleFileBytes"] as Number).toLong() ==
                     8L * 1024L * 1024L &&
                     (quota["maximumTotalBytes"] as Number).toLong() ==
-                    8L * 1024L * 1024L &&
+                    64L * 1024L * 1024L &&
                     quota["comparison"] ==
                     "inclusive-when-all-other-dimensions-remain-eligible"
             ) {
-                "R2-M3-D1 ordinary compilation quota is not the exact 512/8 MiB decision."
+                "T1-1 ordinary compilation quota is not the exact revision 3 decision."
             }
 
             val countedInputs = listOf(
-                "project-vfs-files-including-trusted-declarations",
+                "caller-project-vfs-files-excluding-trusted-declarations",
                 "raw-config-if-present",
                 "package-metadata-files",
                 "package-target-files",
@@ -8941,6 +10591,7 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                     countingDomain["fileCountIncludes"] == countedInputs &&
                     countingDomain["byteCountIncludes"] == countedInputs &&
                     countingDomain["excludes"] == listOf(
+                        "plugin-owned-trusted-declarations",
                         "request-manifest-json",
                         "zip-container-bytes",
                         "framing-and-base64-overhead",
@@ -8953,9 +10604,9 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
             @Suppress("UNCHECKED_CAST")
             val boundaryCases = fixture["boundaryCases"] as List<Map<String, Any?>>
             val expectedLimits = linkedMapOf(
-                "file-count" to 512L,
+                "file-count" to 4_096L,
                 "single-file-bytes" to 8L * 1024L * 1024L,
-                "total-bytes" to 8L * 1024L * 1024L,
+                "total-bytes" to 64L * 1024L * 1024L,
             )
             check(
                 boundaryCases.map { boundary -> boundary["dimension"] } ==
@@ -8982,8 +10633,8 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
             val profileOccupancy = fixture["profileDeclarationOccupancy"] as
                 List<Map<String, Any?>>
             val expectedProfileOccupancy = linkedMapOf(
-                "rhino" to listOf(1L, 825L, 109L, 3_785_583L, 403L, 4_603_025L),
-                "node" to listOf(59L, 246_572L, 167L, 4_031_330L, 345L, 4_357_278L),
+                "rhino" to listOf(51L, 882_657L, 159L, 4_667_415L),
+                "node" to listOf(59L, 246_572L, 167L, 4_031_330L),
             )
             check(
                 profileOccupancy.map { profile -> profile["profile"] } ==
@@ -9010,11 +10661,11 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                             (profile["occupiedFiles"] as Number).toLong() == expected[2] &&
                             (profile["occupiedBytes"] as Number).toLong() == expected[3] &&
                             (profile["maximumCallerFilesBeforeOptionalMetadata"] as Number)
-                                .toLong() == expected[4] &&
+                                .toLong() == 4_096L &&
                             (profile["maximumCallerBytesBeforeOptionalMetadata"] as Number)
-                                .toLong() == expected[5] &&
-                            expected[2] + expected[4] == 512L &&
-                            expected[3] + expected[5] == 8L * 1024L * 1024L
+                                .toLong() == 64L * 1024L * 1024L &&
+                            expected[2] == 108L + expected[0] &&
+                            expected[3] == 3_784_758L + expected[1]
                     }
             ) {
                 "R2-M3-D1 profile-specific declaration occupancy/headroom drifted."
@@ -9039,7 +10690,31 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                             (profile["profileBytes"] as Number).toLong()
                     }
             ) {
-                "R2-M3-D1 quota headroom no longer matches the generated declaration layers."
+                "T1-1 declaration occupancy no longer matches the generated declaration layers."
+            }
+
+            @Suppress("UNCHECKED_CAST")
+            val retained = fixture["retainedInputGuardrail"] as Map<String, Any?>
+            check(
+                retained.keys.toList() == listOf(
+                    "authority",
+                    "maximumWorkerFiles",
+                    "maximumWorkerSingleFileBytes",
+                    "maximumWorkerTotalBytes",
+                    "callerSelectable",
+                    "expandsCallerQuota",
+                ) &&
+                    retained["authority"] ==
+                    "trusted-host-caller-plus-plugin-declarations" &&
+                    (retained["maximumWorkerFiles"] as Number).toInt() == 4_608 &&
+                    (retained["maximumWorkerSingleFileBytes"] as Number).toLong() ==
+                    8L * 1024L * 1024L &&
+                    (retained["maximumWorkerTotalBytes"] as Number).toLong() ==
+                    72L * 1024L * 1024L &&
+                    retained["callerSelectable"] == false &&
+                    retained["expandsCallerQuota"] == false
+            ) {
+                "T1-1 retained Worker guardrail drifted."
             }
 
             @Suppress("UNCHECKED_CAST")
@@ -9053,17 +10728,17 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                     "maximumSingleFileBytes",
                     "promotesOrdinaryCompilationQuota",
                 ) &&
-                    transport["authority"] == "archive-validation-and-private-staging-only" &&
-                    (transport["maximumArchiveFiles"] as Number).toInt() == 4_096 &&
+                    transport["authority"] == "ordinary-caller-and-archive-validation" &&
+                    (transport["maximumArchiveFiles"] as Number).toInt() == 4_097 &&
                     (transport["maximumArchiveContainerBytes"] as Number).toLong() ==
-                    64L * 1024L * 1024L &&
+                    65L * 1024L * 1024L &&
                     (transport["maximumArchiveExpandedBytes"] as Number).toLong() ==
-                    64L * 1024L * 1024L &&
+                    64L * 1024L * 1024L + 512L * 1024L &&
                     (transport["maximumSingleFileBytes"] as Number).toLong() ==
                     8L * 1024L * 1024L &&
-                    transport["promotesOrdinaryCompilationQuota"] == false
+                    transport["promotesOrdinaryCompilationQuota"] == true
             ) {
-                "R2-M3-D1 transport ceiling was conflated with ordinary compilation quota."
+                "T1-1 archive overhead allowance drifted from the caller quota."
             }
 
             @Suppress("UNCHECKED_CAST")
@@ -9088,7 +10763,7 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                     testOnly["distinctUidRequired"] == true &&
                     testOnly["publicRequestAllowed"] == false &&
                     testOnly["ordinaryQuotaMutated"] == false &&
-                    (testOnly["maximumWorkerFiles"] as Number).toInt() == 4_607 &&
+                    (testOnly["maximumWorkerFiles"] as Number).toInt() == 4_608 &&
                     (testOnly["maximumWorkerTotalBytes"] as Number).toLong() ==
                     72L * 1024L * 1024L
             ) {
@@ -9114,13 +10789,15 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                     rejection["workerDispatchStarted"] == false &&
                     rejection["automaticRetryAllowed"] == false &&
                     promotion.keys.toList() == listOf(
-                        "publicCapabilityChanged",
-                        "runtimeCapabilityChanged",
-                        "nodeRevisionTwoEndToEndChanged",
+                        "publicCapabilityAvailable",
+                        "runtimeCapabilityAvailable",
+                        "nodeRevisionTwoEndToEndAvailable",
                     ) &&
-                    promotion.values.all { value -> value == false }
+                    promotion["publicCapabilityAvailable"] == true &&
+                    promotion["runtimeCapabilityAvailable"] == true &&
+                    promotion["nodeRevisionTwoEndToEndAvailable"] == false
             ) {
-                "R2-M3-D1 rejection or non-promotion decision drifted."
+                "T1-1 rejection or promotion state drifted."
             }
 
             val apiSource = r2ApiContractSource.asFile.readText(Charsets.UTF_8)
@@ -9129,14 +10806,21 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                 source = apiSource + "\n" +
                     r2ApiContractTestSource.asFile.readText(Charsets.UTF_8),
                 markers = listOf(
-                    "const val ORDINARY_COMPILATION_INPUT_QUOTA_REVISION = 2",
-                    "const val MAX_ORDINARY_COMPILATION_INPUT_FILES = 512",
-                    "const val MAX_ORDINARY_COMPILATION_SINGLE_FILE_BYTES = " +
+                    "const val ORDINARY_COMPILATION_INPUT_QUOTA_REVISION = 3",
+                    "TypeScriptCompilerContract.MAX_INPUT_FILES",
+                    "TypeScriptCompilerContract.MAX_INPUT_BYTES",
+                    "const val MAX_ORDINARY_COMPILATION_INPUT_ARCHIVE_FILES =",
+                    "const val MAX_ORDINARY_COMPILATION_INPUT_ARCHIVE_EXPANDED_BYTES =",
+                    "const val MAX_ORDINARY_COMPILATION_INPUT_ARCHIVE_BYTES = " +
+                        "65L * 1024L * 1024L",
+                    "const val LEGACY_ORDINARY_COMPILATION_INPUT_QUOTA_REVISION = 2",
+                    "const val LEGACY_MAX_ORDINARY_COMPILATION_INPUT_FILES = 512",
+                    "const val LEGACY_MAX_ORDINARY_COMPILATION_SINGLE_FILE_BYTES = " +
                         "8L * 1024L * 1024L",
-                    "const val MAX_ORDINARY_COMPILATION_INPUT_BYTES = 8L * 1024L * 1024L",
-                    "transport-valid does",
-                    "not make it eligible for ordinary compilation",
-                    "ordinaryCompilationInputQuotaIsExactRevisionTwoAndNotTheTransportCeiling",
+                    "const val LEGACY_MAX_ORDINARY_COMPILATION_INPUT_BYTES = " +
+                        "8L * 1024L * 1024L",
+                    "constants are inlined into already-compiled hosts",
+                    "ordinaryCompilationInputQuotaRevisionTwoRemainsAvailableForOldHosts",
                 ),
             )
 
@@ -9159,8 +10843,8 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
             )
             val capacityRegion = between(
                 snapshotSource,
-                "private fun inputCapacity(",
-                "internal fun validateInventory(",
+                "private fun retainedInputCapacity(",
+                "private fun callerInputCapacity(",
             )
             requireMarkers(
                 label = "complete Worker-retained counting domain",
@@ -9245,8 +10929,9 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                 label = "pre-dispatch ordinary admission",
                 source = hostSource,
                 markers = listOf(
-                    "workerAdmissionLimits: R2ProjectSnapshotLimits =\n" +
-                        "            R2ProjectSnapshotLimits.ORDINARY_COMPILATION",
+                    "workerAdmissionLimits: R2ProjectSnapshotLimits? = null",
+                    "workerInputQuotaAuthority: R2WorkerInputQuotaAuthority? = null",
+                    "val selectedWorkerAdmissionLimits =",
                     "val workerAdmission = R2ProjectSnapshot.ordinaryCompilationAdmission(",
                     "code = TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA",
                     "Project is outside the ordinary compilation input limit:",
@@ -9256,9 +10941,9 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                 label = "plugin-owned declaration failure ownership",
                 source = r2ProjectArchiveSource.asFile.readText(Charsets.UTF_8),
                 markers = listOf(
-                    "Local declarations exceed the ordinary compilation file-count limit.",
-                    "A local declaration exceeds the ordinary compilation single-file limit.",
-                    "Local declarations exceed the ordinary compilation byte limit.",
+                    "Local declarations exceed the retained-input file-count limit.",
+                    "A local declaration exceeds the retained-input single-file limit.",
+                    "Local declarations exceed the retained-input byte limit.",
                     "TypeScriptCompilerContract.ERROR_COMPILER_UNAVAILABLE",
                 ),
             )
@@ -9319,7 +11004,7 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                 label = "expanded Worker transport envelope",
                 source = r2CompilerWorkerSource.asFile.readText(Charsets.UTF_8),
                 markers = listOf(
-                    "const maximumProjectFiles = 4_607;",
+                    "const maximumProjectFiles = 4_608;",
                     "const maximumProjectFileBytes = 8 * 1024 * 1024;",
                     "const maximumProjectBytes = 72 * 1024 * 1024;",
                 ),
@@ -9332,9 +11017,9 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                 source = fixtureTestSource,
                 markers = listOf(
                     "class R2OrdinaryInputQuotaDecisionFixtureTest",
-                    "fixtureFreezesOrdinaryQuotaAcrossPublicAndNativeAuthorities",
+                    "fixturePromotesOrdinaryQuotaAcrossPublicAndNativeAuthorities",
                     "profileDeclarationOccupancyDerivesCurrentCallerHeadroom",
-                    "countingDomainAndTestOnlyTransportCapacityRemainDisjoint",
+                    "callerCountingDomainAndRetainedTransportGuardrailsRemainDisjoint",
                     "R2ProjectSnapshot.ordinaryCompilationAdmission(snapshot)",
                     "r2.generatedDeclarationDistributionDir",
                     "TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA",
@@ -9365,13 +11050,13 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
             val instrumentationSource =
                 r2BinderCompilationInstrumentationSource.asFile.readText(Charsets.UTF_8)
             requireMarkers(
-                label = "historical 64 MiB transport-only evidence",
+                label = "bounded archive transport evidence",
                 source = instrumentationSource,
                 markers = listOf(
-                    "storedContainerCapacityAcceptsExact64MiBAndRejectsPlusOne",
-                    "deflatedCapacityAcceptsExact64MiBExpandedAndRejectsPlusOne",
-                    "TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES",
-                    "TypeScriptCompilerContract.MAX_INPUT_BYTES",
+                    "storedContainerCapacityAcceptsMetadataAwareLimitAndRejectsPlusOne",
+                    "deflatedCapacityAcceptsMetadataAwareExpandedLimitAndRejectsPlusOne",
+                    "R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES",
+                    "R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES",
                     "assertEquals(0L, output.length())",
                 ),
             )
@@ -9396,11 +11081,11 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
             }
 
             logger.lifecycle(
-                "R2-M3-D1 ordinary input quota fixture verified: public/native=512 files, " +
-                    "8 MiB single/total inclusive; complete Worker-retained counting domain; " +
-                    "Rhino declarations=109/3785583 with headroom=403/4603025; " +
-                    "Node declarations=167/4031330 with headroom=345/4357278; " +
-                    "64 MiB transport and 72 MiB TEST_ONLY Worker evidence remain isolated; " +
+                "T1-1 ordinary input quota verified: revision 3 caller=4096 files, " +
+                    "8 MiB single, 64 MiB total; revision 2 remains compatible; " +
+                    "Rhino declarations=159/4667415 and Node declarations=167/4031330 " +
+                    "remain outside caller accounting; archive metadata receives one entry, " +
+                    "512 KiB expanded, and 1 MiB container overhead; " +
                     "quota rejection is pre-dispatch with empty-output contract; " +
                     "compiler capability mask=15",
             )
@@ -9411,8 +11096,8 @@ val verifyR2M3D1OrdinaryInputQuotaDecision =
     tasks.register("verifyR2M3D1OrdinaryInputQuotaDecision") {
         group = "verification"
         description =
-            "Closes R2-M3-D1 through the canonical quota fixture, strict JVM/source gates, " +
-                "generated declaration occupancy, complete M2-X3 dependency, and AndroidTest APK."
+            "Keeps historical R2-M3-D1 coverage while verifying the T1-1 revision 3 quota " +
+                "promotion, compatibility path, generated declarations, and AndroidTest APK."
 
         dependsOn(verifyR2M2X3StableConfigurationAndResolutionFailures)
         dependsOn(verifyR2M3D1OrdinaryInputQuotaFixture)
@@ -9421,9 +11106,8 @@ val verifyR2M3D1OrdinaryInputQuotaDecision =
 
         doLast {
             logger.lifecycle(
-                "R2-M3-D1 ordinary input quota decision verified: 512 files / 8 MiB " +
-                    "single / 8 MiB total, inclusive/+1 and profile-derived headroom; " +
-                    "transport/TEST_ONLY capacity is not public compilation authority",
+                "T1-1 ordinary input quota decision verified: revision 3 is 4096 files / " +
+                    "8 MiB single / 64 MiB total, inclusive/+1; revision 2 remains accepted",
             )
         }
     }
@@ -10372,17 +12056,19 @@ val verifyR2M3S1InputArchiveSchemaV1Fixture =
             @Suppress("UNCHECKED_CAST")
             val transport = fixture["transportCeiling"] as Map<String, Any?>
             check(
-                (quota["inputQuotaRevision"] as Number).toInt() == 1 &&
-                    (quota["maximumFiles"] as Number).toInt() == 512 &&
+                (quota["inputQuotaRevision"] as Number).toInt() == 3 &&
+                    (quota["maximumFiles"] as Number).toInt() == 4_096 &&
                     (quota["maximumSingleFileBytes"] as Number).toLong() ==
                     8L * 1024L * 1024L &&
                     (quota["maximumTotalBytes"] as Number).toLong() ==
-                    8L * 1024L * 1024L &&
-                    quota["admissionPoint"] == "before-worker-handle-claim-and-framing" &&
-                    (transport["maximumArchiveFiles"] as Number).toInt() == 4_096 &&
-                    (transport["maximumArchiveContainerBytes"] as Number).toLong() ==
                     64L * 1024L * 1024L &&
-                    (transport["privateFileBackedMaximumFiles"] as Number).toInt() == 4_607 &&
+                    quota["admissionPoint"] == "before-worker-handle-claim-and-framing" &&
+                    (transport["maximumArchiveFiles"] as Number).toInt() == 4_097 &&
+                    (transport["maximumArchiveContainerBytes"] as Number).toLong() ==
+                    65L * 1024L * 1024L &&
+                    (transport["maximumArchiveExpandedBytes"] as Number).toLong() ==
+                    64L * 1024L * 1024L + 512L * 1024L &&
+                    (transport["privateFileBackedMaximumFiles"] as Number).toInt() == 4_608 &&
                     (transport["privateFileBackedMaximumTotalBytes"] as Number).toLong() ==
                     72L * 1024L * 1024L &&
                     (transport["testOnlyWorkerQuotaRevision"] as Number).toInt() ==
@@ -10390,9 +12076,9 @@ val verifyR2M3S1InputArchiveSchemaV1Fixture =
                     transport["testOnlySelectionAuthority"] ==
                     "trusted-debug-or-evidence-host-only" &&
                     transport["promotesFormalSchema"] == false &&
-                    transport["promotesOrdinaryQuota"] == false
+                    transport["promotesOrdinaryQuota"] == true
             ) {
-                "R2-M3-S1 D1 quota and legacy/private transport ceilings were conflated."
+                "R2-M3-S1 current quota promotion or private retained ceiling drifted."
             }
 
             @Suppress("UNCHECKED_CAST")
@@ -10470,7 +12156,7 @@ val verifyR2M3S1InputArchiveSchemaV1Fixture =
                     "acceptedInputAuthority.inputQuotaRevision ==",
                     "R2WorkerInputQuotaAuthority.ORDINARY.revision",
                     "\"inputArchiveSchemaRevision\" to acceptedInputAuthority.schemaRevision",
-                    "\"inputQuotaRevision\" to workerInputQuotaAuthority.revision",
+                    "\"inputQuotaRevision\" to selectedWorkerInputQuotaAuthority.revision",
                     "\"callerInventoryFingerprint\" to",
                     "\"retainedInventoryFingerprint\" to",
                     "\"declarationProfileFingerprint\" to",
@@ -10487,7 +12173,7 @@ val verifyR2M3S1InputArchiveSchemaV1Fixture =
                     "inventoryCanonicalPrefix: \"autojs6.typescript.input-inventory.v1\\n\"",
                     "const testOnlyExpandedInputQuotaAuthority = Object.freeze({",
                     "quotaRevision: 2_147_483_647",
-                    "const workerInputQuotaAuthority =",
+                    "const callerInputQuotaAuthority =",
                     "const deriveInputInventoryFingerprint = async (records) =>",
                     "message.inputArchiveSchemaRevision !== inputArchiveAuthority.schemaRevision",
                     "deriveInputInventoryFingerprint(callerRecords)",
@@ -10535,7 +12221,8 @@ val verifyR2M3S1InputArchiveSchemaV1Fixture =
                     r2ProjectFramedTransportTestSource.asFile.readText(Charsets.UTF_8),
                 markers = listOf(
                     "workerInputQuotaAuthority = R2WorkerInputQuotaAuthority.TEST_ONLY_EXPANDED",
-                    "workerAdmissionLimits == workerInputQuotaAuthority.limits",
+                    "selectedWorkerAdmissionLimits ==",
+                    "selectedWorkerInputQuotaAuthority.callerLimits",
                     "ordinaryAndTestOnlyExpandedWorkerQuotaAuthoritiesStaySeparated",
                     "projectScopedFramerRejectsMissingAcceptedInputAuthority",
                 ),
@@ -10665,7 +12352,7 @@ val verifyR2M3S1InputArchiveSchemaV1Fixture =
                     "archiveAuthorityRejectsEveryLegacyAndUnknownSchemaRevision",
                     "schemaRevisionOneUnifiesAllLegacyFeatureCombinationsWithoutRevisionOverloading",
                     "productionOwnerUsesOnePrefixAndDomainTaggedCanonicalRecords",
-                    "legacyZipTransportCeilingDoesNotPromoteOrdinaryInputQuota",
+                    "transportCeilingIsPromotedToOrdinaryInputQuotaRevisionThree",
                     "inputArchiveSchemaRejectsLegacyRevisionAndProfileDrift",
                     "nodeProfileRequiresItsExactTrustedDeclarationLayer",
                 ),
@@ -11843,11 +13530,13 @@ tasks.register("verifyR2PublicPreviewSourcePolicy") {
             label = "public ordinary compilation quota",
             source = r2ApiContractSource.asFile.readText(Charsets.UTF_8),
             markers = listOf(
-                "const val ORDINARY_COMPILATION_INPUT_QUOTA_REVISION = 2",
-                "const val MAX_ORDINARY_COMPILATION_INPUT_FILES = 512",
+                "const val ORDINARY_COMPILATION_INPUT_QUOTA_REVISION = 3",
+                "const val MAX_ORDINARY_COMPILATION_INPUT_FILES =",
+                "TypeScriptCompilerContract.MAX_INPUT_FILES",
                 "const val MAX_ORDINARY_COMPILATION_SINGLE_FILE_BYTES = " +
                     "8L * 1024L * 1024L",
-                "const val MAX_ORDINARY_COMPILATION_INPUT_BYTES = 8L * 1024L * 1024L",
+                "const val MAX_ORDINARY_COMPILATION_INPUT_BYTES = " +
+                    "TypeScriptCompilerContract.MAX_INPUT_BYTES",
             ),
         )
         val snapshotSource = r2ProjectSnapshotSource.asFile.readText(Charsets.UTF_8)
@@ -11871,8 +13560,9 @@ tasks.register("verifyR2PublicPreviewSourcePolicy") {
             source = webViewHostSource,
             markers = listOf(
                 "private val inputFrameExecutor = ThreadPoolExecutor(",
-                "workerAdmissionLimits: R2ProjectSnapshotLimits =\n" +
-                    "            R2ProjectSnapshotLimits.ORDINARY_COMPILATION",
+                "workerAdmissionLimits: R2ProjectSnapshotLimits? = null",
+                "val selectedWorkerInputQuotaAuthority = workerInputQuotaAuthority",
+                "val selectedWorkerAdmissionLimits =",
                 "R2ProjectSnapshot.ordinaryCompilationAdmission(",
                 "private fun scheduleProjectInputPreparationOnMain(",
                 "inputFrameExecutor.execute {",
@@ -11937,7 +13627,7 @@ tasks.register("verifyR2PublicPreviewSourcePolicy") {
                 "storedContainerScope.isEmpty()",
                 "deflatedExpandedScope.isEmpty()",
                 "scopeAcceptsInputSize(",
-                "TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES",
+                "R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES",
                 "R2CompilationControlOrigin.EXTERNAL_CAPACITY_EVIDENCE",
                 "expandedWorkerCapacity = true",
             ),
@@ -11960,7 +13650,7 @@ tasks.register("verifyR2PublicPreviewSourcePolicy") {
 
         val workerSource = r2CompilerWorkerSource.asFile.readText(Charsets.UTF_8)
         val p3bWorkerCapacity = Regex(
-            """const maximumProjectFiles = 4_607;\s*""" +
+            """const maximumProjectFiles = 4_608;\s*""" +
                 """const maximumProjectFileBytes = 8 \* 1024 \* 1024;\s*""" +
                 """const maximumProjectBytes = 72 \* 1024 \* 1024;""",
             RegexOption.DOT_MATCHES_ALL,
@@ -11968,7 +13658,7 @@ tasks.register("verifyR2PublicPreviewSourcePolicy") {
         check(
             p3bWorkerCapacity.containsMatchIn(workerSource),
         ) {
-            "R2-P3b-a Worker capacity must cover the 4,607-file/72 MiB native spool envelope."
+            "R2-P3b-a Worker capacity must cover the 4,608-file/72 MiB native spool envelope."
         }
         requireSourceMarkers(
             label = "bounded Worker input lifetime",
@@ -12269,10 +13959,10 @@ val verifyR2P3bB2bResourceSourcePolicy =
                 label = "three-cycle exact-64-MiB Binder resource matrix",
                 source = binderResourceSource,
                 markers = listOf(
-                    "fun repeatedExact64BinderJobsReachCompilerPssFdAndTransientCleanupPlateau()",
+                    "fun repeatedCapacityBoundaryBinderJobsReachCompilerPssFdAndTransientCleanupPlateau()",
                     "repeat(REPEATED_RESOURCE_CYCLE_COUNT)",
                     "R2CapacityArchiveBoundary.STORED_CONTAINER_INCLUSIVE",
-                    "TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES",
+                    "R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES",
                     "processResourceProbe.requireIdentity(compilerPid)",
                     "processResourceProbe.awaitR2TransientFileDescriptors(",
                     "processResourceProbe.awaitStableFileDescriptors(",
@@ -12482,8 +14172,8 @@ val verifyR2P3bB2bAndroidTestApk =
                         "R2PrivateTransientOrphanScavengerInstrumentationTest",
                     "remote FD resource probe" to "RemoteProcessResourceProbe",
                     "exact PSS identity probe" to "R1WebViewProcessMemoryProbe",
-                    "three-cycle exact64 Binder method" to
-                        "repeatedExact64BinderJobsReachCompilerPssFdAndTransientCleanupPlateau",
+                    "three-cycle capacity-boundary Binder method" to
+                        "repeatedCapacityBoundaryBinderJobsReachCompilerPssFdAndTransientCleanupPlateau",
                     "natural ingress cleanup method" to
                         "repeatedExact64NaturalIngressCancellationReleasesCursorAndBoundsRendererPss",
                     "cold-successor startup cleanup method" to
@@ -12624,14 +14314,14 @@ val verifyR2P3bB2eNaturalIngressTimeoutSourcePolicy =
             val binderMethod = testMethod(
                 source = binderSource,
                 signature =
-                    "fun exact64NaturalDeadlinePublishesTimeoutCleansBinderStateAndRecovers()",
+                    "fun capacityBoundaryNaturalDeadlinePublishesTimeoutCleansBinderStateAndRecovers()",
             )
             requireMethodMarkers(
                 label = "Binder natural timeout",
                 method = binderMethod,
                 markers = listOf(
                     "R2CapacityArchiveBoundary.STORED_CONTAINER_INCLUSIVE",
-                    "TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES",
+                    "R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES",
                     "timeoutMs =",
                     "NATURAL_INGRESS_BINDER_TIMEOUT_MILLIS,",
                     "publicAcknowledgement(fixture.requestId, token)",
@@ -12697,7 +14387,7 @@ val verifyR2P3bB2eNaturalIngressTimeoutAndroidTestApk =
                     "direct-host natural timeout method" to
                         "repeatedExact64NaturalIngressTimeoutReleasesCursorAndRecovers",
                     "Binder natural timeout method" to
-                        "exact64NaturalDeadlinePublishesTimeoutCleansBinderStateAndRecovers",
+                        "capacityBoundaryNaturalDeadlinePublishesTimeoutCleansBinderStateAndRecovers",
                     "shared natural-timeout log tag" to "R2P3bNaturalTimeout",
                     "direct timeout cycle evidence" to "INGRESS_TIMEOUT_CYCLE_PASS",
                     "direct timeout matrix evidence" to "INGRESS_TIMEOUT_MATRIX_PASS",
@@ -13193,7 +14883,7 @@ val verifyR2P3bB2gNaturalPhaseCancellationSourcePolicy =
                     "check(phaseProgressSequenceAtTermination == 2)",
                     "data class WorkerTerminated(",
                     "private const val MIN_PROJECT_PHASE_PROGRESS_UNITS = 8",
-                    "private const val MAX_PROJECT_PHASE_PROGRESS_UNITS = 2 * 4_607",
+                    "private const val MAX_PROJECT_PHASE_PROGRESS_UNITS = 2 * 4_608",
                 ),
             )
 

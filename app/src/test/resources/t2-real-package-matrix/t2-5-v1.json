@@ -1,0 +1,162 @@
+{
+  "schema": "autojs6.typescript.t2-5.real-package-matrix",
+  "schemaRevision": 1,
+  "verifiedOn": "2026-08-28",
+  "resolverPolicyRevision": 3,
+  "resolverPolicyFingerprint": "6241375f2ea49ac2c2d2b3b79b28b7c1ee4adde75c989defc61e252c89ced2bd",
+  "archives": [
+    {
+      "installName": "dayjs",
+      "packageName": "dayjs",
+      "version": "1.11.13",
+      "license": "MIT",
+      "archive": "dayjs-1.11.13.tgz",
+      "archiveRoot": "package/",
+      "integrity": "sha512-oaMBel6gjolK862uaPQOVTA7q3TZhuSvuMQAAglQDOWYO9A91IrAOUJEyKVlqJlHE0vq5p5UXxzdPfMH/x6xNg==",
+      "role": "runtime"
+    },
+    {
+      "installName": "lodash",
+      "packageName": "lodash",
+      "version": "4.17.21",
+      "license": "MIT",
+      "archive": "lodash-4.17.21.tgz",
+      "archiveRoot": "package/",
+      "integrity": "sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==",
+      "role": "runtime"
+    },
+    {
+      "installName": "@types/lodash",
+      "packageName": "@types/lodash",
+      "version": "4.17.25",
+      "license": "MIT",
+      "archive": "types-lodash-4.17.25.tgz",
+      "archiveRoot": "lodash/",
+      "integrity": "sha512-+K1NIO8I+F9/wNulfVvu23QYd0Pe9/OCqRrim4NoYIf1VoEDL90Ve4ClzpyqBLc7NpGGWRvYNCKZ1BE/Jpf8dQ==",
+      "role": "types"
+    },
+    {
+      "installName": "zod",
+      "packageName": "zod",
+      "version": "4.1.5",
+      "license": "MIT",
+      "archive": "zod-4.1.5.tgz",
+      "archiveRoot": "package/",
+      "integrity": "sha512-rcUUZqlLJgBC33IT3PNMgsCq6TzLQEG/Ei/KTCU0PedSWRMAXoOUN+4t/0H+Q8bdnLPdqUYnvboJT0bn/229qg==",
+      "role": "runtime"
+    },
+    {
+      "installName": "uuid",
+      "packageName": "uuid",
+      "version": "13.0.0",
+      "license": "MIT",
+      "archive": "uuid-13.0.0.tgz",
+      "archiveRoot": "package/",
+      "integrity": "sha512-XQegIaBTVUjSHliKqcnFqYypAd4S+WCYt5NIeRs6w/UAry7z8Y9j5ZwRRL4kzq9U3sD6v+85er9FvkEaBpji2w==",
+      "role": "runtime"
+    },
+    {
+      "installName": "nanoid",
+      "packageName": "nanoid",
+      "version": "5.1.5",
+      "license": "MIT",
+      "archive": "nanoid-5.1.5.tgz",
+      "archiveRoot": "package/",
+      "integrity": "sha512-Ir/+ZpE9fDsNH0hQ3C68uyThDXzYcim2EqcZ8zn8Chtt1iylPT9xXJB0kPCnqzgcEGikO9RxSrh63MsmVCU7Fw==",
+      "role": "runtime"
+    }
+  ],
+  "cases": [
+    {
+      "name": "dayjs",
+      "sourceLines": [
+        "import dayjs from \"dayjs\";",
+        "export const result: string = dayjs(\"2020-02-03\").format(\"YYYY-MM-DD\");"
+      ],
+      "expected": "2020-02-03",
+      "rhino": {
+        "runtime": "execute",
+        "entry": "dayjs.min.js"
+      },
+      "node": {
+        "runtime": "execute",
+        "entry": "dayjs.min.js"
+      },
+      "boundary": "Bundled declarations and a CommonJS main entry work in both profiles.",
+      "workaround": "None."
+    },
+    {
+      "name": "lodash",
+      "sourceLines": [
+        "import lodash from \"lodash\";",
+        "export const result: number[][] = lodash.chunk([1, 2, 3], 2);"
+      ],
+      "expected": [[1, 2], [3]],
+      "rhino": {
+        "runtime": "execute",
+        "entry": "lodash.js"
+      },
+      "node": {
+        "runtime": "execute",
+        "entry": "lodash.js"
+      },
+      "boundary": "The runtime package is CommonJS and does not bundle declarations.",
+      "workaround": "Install @types/lodash; without it strict compilation reports TS7016."
+    },
+    {
+      "name": "zod",
+      "sourceLines": [
+        "import { z } from \"zod\";",
+        "export const result: string = z.string().min(2).parse(\"ok\");"
+      ],
+      "expected": "ok",
+      "rhino": {
+        "runtime": "execute",
+        "entry": "index.cjs"
+      },
+      "node": {
+        "runtime": "execute",
+        "entry": "index.js"
+      },
+      "boundary": "The exports map supplies independent require/import entries and .d.cts types.",
+      "workaround": "None."
+    },
+    {
+      "name": "uuid",
+      "sourceLines": [
+        "import { validate, version } from \"uuid\";",
+        "const candidate = \"6ec0bd7f-11c0-43da-975e-2a8ad9ebae0b\";",
+        "export const result: boolean = validate(candidate) && version(candidate) === 4;"
+      ],
+      "expected": true,
+      "rhino": {
+        "runtime": "stable-error",
+        "errorCode": "ERR_AUTOJS6_TYPESCRIPT_RHINO_ESM_ONLY_DEPENDENCY"
+      },
+      "node": {
+        "runtime": "execute",
+        "entry": "dist-node/index.js"
+      },
+      "boundary": "Version 13 publishes only ESM runtime entries.",
+      "workaround": "Use the Node profile."
+    },
+    {
+      "name": "nanoid",
+      "sourceLines": [
+        "import { nanoid } from \"nanoid\";",
+        "export const result: number = nanoid(8).length;"
+      ],
+      "expected": 8,
+      "rhino": {
+        "runtime": "stable-error",
+        "errorCode": "ERR_AUTOJS6_TYPESCRIPT_RHINO_ESM_ONLY_DEPENDENCY"
+      },
+      "node": {
+        "runtime": "execute",
+        "entry": "index.js"
+      },
+      "boundary": "Version 5 requires Node 18+ and publishes only ESM runtime entries.",
+      "workaround": "Use the Node profile."
+    }
+  ]
+}

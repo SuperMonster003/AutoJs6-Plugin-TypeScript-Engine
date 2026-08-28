@@ -3,7 +3,23 @@ package io.github.supermonster003.autojs6.plugin.typescript
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.Collections
+import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
 import org.autojs.plugin.typescript.api.TypeScriptR2Contract
+
+/**
+ * Revision 3 caller inputs and the T2 dependency layer share one ZIP/PFD but retain independent
+ * semantic quotas. These constants are the additive transport envelope, not caller admission.
+ */
+internal const val R2_INPUT_MANIFEST_MAXIMUM_FILES =
+    TypeScriptR2Contract.ORDINARY_COMPILATION_INPUT_MANIFEST_FILES
+internal const val R2_INPUT_MANIFEST_MAXIMUM_BYTES =
+    TypeScriptCompilerContract.MAX_MANIFEST_BYTES
+internal const val R2_INPUT_ARCHIVE_MAXIMUM_FILES =
+    TypeScriptR2Contract.MAX_INPUT_ARCHIVE_WITH_DEPENDENCIES_FILES
+internal const val R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES =
+    TypeScriptR2Contract.MAX_INPUT_ARCHIVE_WITH_DEPENDENCIES_EXPANDED_BYTES
+internal const val R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES =
+    TypeScriptR2Contract.MAX_INPUT_ARCHIVE_WITH_DEPENDENCIES_BYTES
 
 /** Canonical production authority for the frozen R2 input-archive schema revision 1. */
 internal object R2InputArchiveSchemaV1 {
@@ -12,6 +28,9 @@ internal object R2InputArchiveSchemaV1 {
     const val REVISION = TypeScriptR2Contract.INPUT_ARCHIVE_SCHEMA_REVISION
     const val REQUEST_MANIFEST_PATH = TypeScriptR2Contract.INPUT_ARCHIVE_MANIFEST_PATH
     const val INPUT_QUOTA_REVISION = TypeScriptR2Contract.ORDINARY_COMPILATION_INPUT_QUOTA_REVISION
+
+    fun supportsInputQuotaRevision(revision: Int): Boolean =
+        R2ProjectSnapshotLimits.forInputQuotaRevision(revision) != null
 
     private const val INVENTORY_PREFIX = "autojs6.typescript.input-inventory.v1\n"
     private const val SOURCE = "source"
@@ -55,6 +74,7 @@ internal object R2InputArchiveSchemaV1 {
 
     fun acceptedAuthority(
         callerInventoryFingerprint: String,
+        inputQuotaRevision: Int = INPUT_QUOTA_REVISION,
         sources: List<R2ProjectArchiveFile>,
         trustedDeclarations: R2TrustedDeclarations,
         rawConfig: R2RawProjectConfigDescriptor?,
@@ -63,6 +83,9 @@ internal object R2InputArchiveSchemaV1 {
         nodePackageTargetsV2: R2NodePackageTargetV2Inventory?,
     ): R2AcceptedInputAuthorityV1 {
         R2Digests.requireLowerSha256(callerInventoryFingerprint, "Caller inventory fingerprint")
+        require(supportsInputQuotaRevision(inputQuotaRevision)) {
+            "Input quota revision is not supported."
+        }
         val callerRecords = callerRecords(
             sources,
             rawConfig,
@@ -90,7 +113,7 @@ internal object R2InputArchiveSchemaV1 {
             declarationInventoryFingerprint = fingerprint(declarationRecords),
             declarationFileCount = declarationRecords.size,
             declarationByteLength = declarationRecords.sumOf(Record::size),
-            inputQuotaRevision = INPUT_QUOTA_REVISION,
+            inputQuotaRevision = inputQuotaRevision,
             callerCapacity = capacity(callerRecords),
             capacity = capacity(retainedRecords),
         )
@@ -258,7 +281,7 @@ internal data class R2AcceptedInputAuthorityV1(
 ) {
     init {
         require(schemaRevision == R2InputArchiveSchemaV1.REVISION)
-        require(inputQuotaRevision == R2InputArchiveSchemaV1.INPUT_QUOTA_REVISION)
+        require(R2InputArchiveSchemaV1.supportsInputQuotaRevision(inputQuotaRevision))
         R2Digests.requireLowerSha256(callerInventoryFingerprint, "Caller inventory fingerprint")
         R2Digests.requireLowerSha256(retainedInventoryFingerprint, "Retained inventory fingerprint")
         R2Digests.requireLowerSha256(

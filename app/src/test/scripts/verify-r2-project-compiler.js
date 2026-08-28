@@ -7,6 +7,7 @@ const path = require("node:path");
 const v8 = require("node:v8");
 const vm = require("node:vm");
 const {
+    CURRENT_ORDINARY_INPUT_QUOTA_REVISION,
     TEST_ONLY_EXPANDED_INPUT_QUOTA_REVISION,
     descriptorRecord: inputArchiveDescriptorRecord,
     projectInputAuthority,
@@ -146,7 +147,7 @@ const p3bWorkerLimits = Object.freeze({
     maximumDirectoryNodes: 65_536,
     maximumPathChars: 8 * 1024 * 1024,
     maximumProjectBytes: 72 * 1024 * 1024,
-    maximumProjectFiles: 4_607,
+    maximumProjectFiles: 4_608,
     maximumProjectTokens: 262_144,
     maximumTokensPerFile: 65_536,
 });
@@ -267,6 +268,59 @@ const fullStandardLibrarySnapshot = () => {
     };
     return {
         files: declarationFiles.concat([source]),
+        rootNames: [source.path],
+        targetProfile: fixture.targetProfile,
+    };
+};
+
+const t1LargeProjectSnapshot = () => {
+    const declarationFileCount = 1_024;
+    const declarationFileBytes = 32 * 1024;
+    const sharedPadding = "x".repeat(declarationFileBytes);
+    const declarations = Array.from(
+        { length: declarationFileCount },
+        (_, index) => {
+            const suffix = index.toString().padStart(4, "0");
+            const tail = `*/\ndeclare const t1Bulk${suffix}: number;\n`;
+            const prefix = "/*";
+            const paddingBytes =
+                declarationFileBytes -
+                Buffer.byteLength(prefix + tail, "utf8");
+            const text = prefix + sharedPadding.slice(0, paddingBytes) + tail;
+            assert(
+                Buffer.byteLength(text, "utf8") === declarationFileBytes,
+                "T1-1 large-project declaration size drifted.",
+            );
+            return {
+                path: `/sources/bulk/${suffix}.d.ts`,
+                text,
+            };
+        },
+    );
+    const source = {
+        path: "/sources/main.ts",
+        text:
+            declarations
+                .map((file) =>
+                    `/// <reference path="./bulk/${path.posix.basename(file.path)}" />`,
+                )
+                .join("\n") +
+            "\nexport const t1LargeProjectValue: number = t1Bulk0000;\n",
+    };
+    const callerBytes = declarations.reduce(
+        (total, file) => total + Buffer.byteLength(file.text, "utf8"),
+        Buffer.byteLength(source.text, "utf8"),
+    );
+    assert(
+        declarations.length + 1 > 1_000 && callerBytes > 30 * 1024 * 1024,
+        "T1-1 large-project acceptance fixture is below its public threshold.",
+    );
+    return {
+        callerBytes,
+        callerFiles: declarations.length + 1,
+        files: fixture.commonFiles
+            .filter((file) => file.path.startsWith("/declarations/"))
+            .concat(declarations, [source]),
         rootNames: [source.path],
         targetProfile: fixture.targetProfile,
     };
@@ -1074,7 +1128,11 @@ const expectInputAck = (responses, requestId, sequence) => {
 const compile = async (
     requestId,
     project,
-    { workerSpinMilliseconds = 0, workerSpinPhase = null } = {},
+    {
+        inputQuotaRevision = null,
+        workerSpinMilliseconds = 0,
+        workerSpinPhase = null,
+    } = {},
 ) => {
     const requestStartedAtElapsedRealtimeNanos = process.hrtime.bigint();
     const encodedFiles = project.files.map((file) => ({
@@ -1096,9 +1154,10 @@ const compile = async (
         encodedFiles.some((file) => file.byteLength > 8 * 1024 * 1024);
     const authority = inputArchiveAuthorityForFiles(
         encodedFiles,
-        usesHistoricalExpandedCapacity
-            ? TEST_ONLY_EXPANDED_INPUT_QUOTA_REVISION
-            : undefined,
+        inputQuotaRevision ??
+            (usesHistoricalExpandedCapacity
+                ? TEST_ONLY_EXPANDED_INPUT_QUOTA_REVISION
+                : undefined),
     );
     const expectedProfileAuthority =
         project.profileAuthority ?? profileAuthorityFields;
@@ -3541,7 +3600,8 @@ const verifyP3bMaximumFileIngressRelease = async () => {
         "Maximum-cardinality ingress/release fixture exceeded 30 seconds.",
     );
     process.stdout.write(
-        `P3b 4,607-file ingress/release passed in ${elapsedMilliseconds} ms.\n`,
+        `P3b ${p3bWorkerLimits.maximumProjectFiles}-file ingress/release passed in ` +
+            `${elapsedMilliseconds} ms.\n`,
     );
 };
 
@@ -5788,6 +5848,37 @@ const verifyCompilerPageStateMachine = () => {
             assert(
                 result.outputs.length === 2,
                 "Full declaration project did not emit one module and map.",
+            );
+        },
+        failures,
+    );
+    await runGolden(
+        "T1-1 revision 3 compiles 1000+ caller files and 30+ MiB",
+        async () => {
+            const project = t1LargeProjectSnapshot();
+            const { result } = await compile(
+                "desktop-t1-large-project",
+                project,
+                {
+                    inputQuotaRevision:
+                        CURRENT_ORDINARY_INPUT_QUOTA_REVISION,
+                },
+            );
+            assert(
+                project.callerFiles === 1_025 &&
+                    project.callerBytes > 30 * 1024 * 1024,
+                "T1-1 large-project caller authority drifted.",
+            );
+            assert(
+                !result.emitSkipped &&
+                    result.diagnostics.length === 0 &&
+                    result.outputs.length === 2,
+                "T1-1 large project did not compile and emit one clean module: " +
+                    JSON.stringify({
+                        diagnostics: result.diagnostics.slice(0, 3),
+                        emitSkipped: result.emitSkipped,
+                        outputPaths: result.outputs.map((output) => output.path),
+                    }),
             );
         },
         failures,

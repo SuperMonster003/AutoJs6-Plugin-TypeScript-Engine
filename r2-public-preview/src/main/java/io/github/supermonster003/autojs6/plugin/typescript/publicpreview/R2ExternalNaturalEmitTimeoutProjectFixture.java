@@ -224,11 +224,11 @@ final class R2ExternalNaturalEmitTimeoutProjectFixture implements AutoCloseable 
     private static final String CONFIG_KIND_NONE = "none";
 
     private static final int ORDINARY_MAXIMUM_FILES =
-            TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_FILES;
+            TypeScriptR2Contract.LEGACY_MAX_ORDINARY_COMPILATION_INPUT_FILES;
     private static final long ORDINARY_MAXIMUM_TOTAL_BYTES =
-            TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES;
+            TypeScriptR2Contract.LEGACY_MAX_ORDINARY_COMPILATION_INPUT_BYTES;
     private static final long ORDINARY_MAXIMUM_FILE_BYTES =
-            TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_FILE_BYTES;
+            TypeScriptR2Contract.LEGACY_MAX_ORDINARY_COMPILATION_SINGLE_FILE_BYTES;
     private static final int WORKER_MAXIMUM_PROJECT_TOKENS = 262_144;
     private static final int WORKER_MAXIMUM_TOKENS_PER_FILE = 65_536;
     private static final int INPUT_TRANSPORT_FRAME_BYTES = 64 * 1024;
@@ -1329,7 +1329,7 @@ final class R2ExternalNaturalEmitTimeoutProjectFixture implements AutoCloseable 
                 .append(",\"revision\":")
                 .append(TypeScriptR2Contract.INPUT_ARCHIVE_SCHEMA_REVISION)
                 .append(",\"inputQuotaRevision\":")
-                .append(TypeScriptR2Contract.ORDINARY_COMPILATION_INPUT_QUOTA_REVISION)
+                .append(TypeScriptR2Contract.LEGACY_ORDINARY_COMPILATION_INPUT_QUOTA_REVISION)
                 .append(",\"contractVersion\":")
                 .append(TypeScriptCompilerContract.VERSION)
                 .append(",\"contractHash\":")

@@ -34,7 +34,7 @@ internal data class R2RawProjectConfigAuthority(
     val sha256: String,
     val path: String = R2ControlledTsConfigPolicy.CONFIG_PATH,
     val policyRevision: Int = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
-    val policyFingerprint: String = R2ControlledTsConfigPolicy.fingerprint,
+    val policyFingerprint: String = R2ControlledTsConfigPolicy.revision4Fingerprint,
 ) {
 
     init {
@@ -45,14 +45,11 @@ internal data class R2RawProjectConfigAuthority(
             "Raw project config exceeds the controlled byte limit."
         }
         R2Digests.requireLowerSha256(sha256, "Raw project config SHA-256")
-        require(policyRevision == TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION) {
-            "Raw project config policy revision is not supported."
-        }
         R2Digests.requireLowerSha256(
             policyFingerprint,
             "Raw project config policy fingerprint",
         )
-        require(R2Digests.equal(policyFingerprint, R2ControlledTsConfigPolicy.fingerprint)) {
+        require(R2ControlledTsConfigPolicy.isSupportedPolicy(policyRevision, policyFingerprint)) {
             "Raw project config policy fingerprint is not supported."
         }
     }
@@ -83,14 +80,11 @@ internal data class R2RawProjectConfigDescriptor(
             "Raw project config exceeds the controlled byte limit."
         }
         R2Digests.requireLowerSha256(sha256, "Raw project config SHA-256")
-        require(policyRevision == TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION) {
-            "Raw project config policy revision is not supported."
-        }
         R2Digests.requireLowerSha256(
             policyFingerprint,
             "Raw project config policy fingerprint",
         )
-        require(R2Digests.equal(policyFingerprint, R2ControlledTsConfigPolicy.fingerprint)) {
+        require(R2ControlledTsConfigPolicy.isSupportedPolicy(policyRevision, policyFingerprint)) {
             "Raw project config policy fingerprint is not supported."
         }
     }
@@ -119,6 +113,8 @@ internal interface R2ProjectInputSnapshot : Closeable {
     val rawConfigDescriptor: R2RawProjectConfigDescriptor?
         get() = null
     val packageMetadataInventory: R2PackageMetadataInventory?
+        get() = null
+    val dependencyLayerInventory: R2DependencyLayerInventory?
         get() = null
     val nodePackageFormatCatalog: R2NodePackageFormatCatalog?
         get() = null
@@ -151,6 +147,12 @@ internal interface R2ProjectInputSnapshot : Closeable {
     fun openPackageTargetFile(fileIndex: Int): R2ProjectFileCursor {
         throw IndexOutOfBoundsException(
             "Package target file index is outside its inventory.",
+        )
+    }
+
+    fun openDependencyLayerFile(fileIndex: Int): R2ProjectFileCursor {
+        throw IndexOutOfBoundsException(
+            "Dependency-layer file index is outside its inventory.",
         )
     }
 
@@ -221,6 +223,8 @@ internal class R2ProjectSnapshot private constructor(
     override val nodePackageFormatCatalog: R2NodePackageFormatCatalog?,
     override val nodePackageMetadataCatalog: R2NodePackageMetadataCatalog?,
     packageMetadataBytes: ArrayList<ByteArray>,
+    override val dependencyLayerInventory: R2DependencyLayerInventory?,
+    dependencyLayerBytes: ArrayList<ByteArray>,
     override val packageTargetInventory: R2PackageTargetInventory?,
     packageTargetBytes: ArrayList<ByteArray>,
     override val nodePackageTargetV2Inventory: R2NodePackageTargetV2Inventory?,
@@ -236,6 +240,7 @@ internal class R2ProjectSnapshot private constructor(
     private val payloadLock = Any()
     private var rawConfigBytes: ByteArray? = rawConfigBytes
     private var packageMetadataBytes: ArrayList<ByteArray>? = packageMetadataBytes
+    private var dependencyLayerBytes: ArrayList<ByteArray>? = dependencyLayerBytes
     private var packageTargetBytes: ArrayList<ByteArray>? = packageTargetBytes
     private var nodePackageTargetV2Bytes: ArrayList<ByteArray>? = nodePackageTargetV2Bytes
     private var closed = false
@@ -295,6 +300,20 @@ internal class R2ProjectSnapshot private constructor(
                     "Package target file index is outside its inventory.",
                 )
             R2HeapPackageTargetCursor(
+                snapshot = this,
+                fileIndex = fileIndex,
+                byteLength = bytes.size,
+            )
+        }
+
+    override fun openDependencyLayerFile(fileIndex: Int): R2ProjectFileCursor =
+        synchronized(payloadLock) {
+            check(!closed) { "Project snapshot is closed." }
+            val bytes = dependencyLayerBytes?.getOrNull(fileIndex)
+                ?: throw IndexOutOfBoundsException(
+                    "Dependency-layer file index is outside its inventory.",
+                )
+            R2HeapDependencyLayerCursor(
                 snapshot = this,
                 fileIndex = fileIndex,
                 byteLength = bytes.size,
@@ -395,6 +414,33 @@ internal class R2ProjectSnapshot private constructor(
         )
     }
 
+    internal fun readDependencyLayerAt(
+        fileIndex: Int,
+        offset: Int,
+        destination: ByteArray,
+        destinationOffset: Int,
+        byteCount: Int,
+    ) = synchronized(payloadLock) {
+        check(!closed) { "Project snapshot is closed." }
+        val bytes = dependencyLayerBytes?.getOrNull(fileIndex)
+            ?: throw IndexOutOfBoundsException(
+                "Dependency-layer file index is outside its inventory.",
+            )
+        require(
+            offset >= 0 &&
+                destinationOffset >= 0 &&
+                byteCount >= 0 &&
+                offset <= bytes.size - byteCount &&
+                destinationOffset <= destination.size - byteCount
+        )
+        bytes.copyInto(
+            destination = destination,
+            destinationOffset = destinationOffset,
+            startIndex = offset,
+            endIndex = offset + byteCount,
+        )
+    }
+
     internal fun readNodePackageTargetV2At(
         fileIndex: Int,
         offset: Int,
@@ -429,6 +475,9 @@ internal class R2ProjectSnapshot private constructor(
         packageMetadataBytes?.forEach { bytes -> bytes.fill(0) }
         packageMetadataBytes?.clear()
         packageMetadataBytes = null
+        dependencyLayerBytes?.forEach { bytes -> bytes.fill(0) }
+        dependencyLayerBytes?.clear()
+        dependencyLayerBytes = null
         packageTargetBytes?.forEach { bytes -> bytes.fill(0) }
         packageTargetBytes?.clear()
         packageTargetBytes = null
@@ -486,6 +535,8 @@ internal class R2ProjectSnapshot private constructor(
             rawConfigBytes: ByteArray? = null,
             packageMetadataInventory: R2PackageMetadataInventory? = null,
             packageMetadataBytes: List<ByteArray> = emptyList(),
+            dependencyLayerInventory: R2DependencyLayerInventory? = null,
+            dependencyLayerBytes: List<ByteArray> = emptyList(),
             packageTargetInventory: R2PackageTargetInventory? = null,
             packageTargetBytes: List<ByteArray> = emptyList(),
             nodePackageTargetV2Inventory: R2NodePackageTargetV2Inventory? = null,
@@ -538,6 +589,7 @@ internal class R2ProjectSnapshot private constructor(
             }
 
             val ownedPackageMetadataBytes = ArrayList<ByteArray>(packageMetadataBytes.size)
+            val ownedDependencyLayerBytes = ArrayList<ByteArray>(dependencyLayerBytes.size)
             val ownedPackageTargetBytes = ArrayList<ByteArray>(packageTargetBytes.size)
             val ownedNodePackageTargetV2Bytes =
                 ArrayList<ByteArray>(nodePackageTargetV2Bytes.size)
@@ -583,6 +635,65 @@ internal class R2ProjectSnapshot private constructor(
                                 "${descriptor.path}."
                         }
                         R2PackageMetadataPolicy.validatePackageJson(ownedBytes)
+                    }
+                }
+                require(dependencyLayerInventory != null || dependencyLayerBytes.isEmpty()) {
+                    "Dependency-layer bytes require an inventory."
+                }
+                require(
+                    dependencyLayerInventory == null ||
+                        profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
+                        profileAuthority ==
+                            R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+                ) {
+                    "Dependency layers require the current Rhino or Node revision 2 profile."
+                }
+                dependencyLayerInventory?.let { layerInventory ->
+                    val revalidatedInventory = R2DependencyLayerInventory.create(
+                        identityKind = layerInventory.identityKind,
+                        identityPath = layerInventory.identityPath,
+                        identityFingerprint = layerInventory.identityFingerprint,
+                        files = layerInventory.files,
+                    )
+                    require(
+                        revalidatedInventory.files == layerInventory.files &&
+                            revalidatedInventory.totalBytes == layerInventory.totalBytes &&
+                            revalidatedInventory.totalPathBytes == layerInventory.totalPathBytes &&
+                            R2Digests.equal(
+                                revalidatedInventory.inventoryFingerprint,
+                                layerInventory.inventoryFingerprint,
+                            ) &&
+                            R2Digests.equal(
+                                revalidatedInventory.fingerprint,
+                                layerInventory.fingerprint,
+                            )
+                    ) {
+                        "Dependency-layer authority changed before snapshot indexing."
+                    }
+                    require(layerInventory.files.size == dependencyLayerBytes.size) {
+                        "Dependency-layer bytes do not exactly cover their inventory."
+                    }
+                    layerInventory.files.forEachIndexed { index, descriptor ->
+                        val ownedBytes = dependencyLayerBytes[index].copyOf()
+                        ownedDependencyLayerBytes += ownedBytes
+                        require(ownedBytes.size.toLong() == descriptor.size) {
+                            "Dependency-layer size does not match its descriptor: " +
+                                "${descriptor.path}."
+                        }
+                        require(
+                            R2Digests.equal(
+                                R2Digests.sha256(ownedBytes),
+                                descriptor.sha256,
+                            ),
+                        ) {
+                            "Dependency-layer digest does not match its descriptor: " +
+                                "${descriptor.path}."
+                        }
+                        R2Utf8.decode(ownedBytes, "Dependency-layer file ${descriptor.path}")
+                        R2DependencyLayerPolicy.validateDependencyFile(
+                            descriptor.path,
+                            ownedBytes,
+                        )
                     }
                 }
                 require(packageTargetInventory != null || packageTargetBytes.isEmpty()) {
@@ -837,6 +948,8 @@ internal class R2ProjectSnapshot private constructor(
                     nodePackageFormatCatalog = nodePackageFormatCatalog,
                     nodePackageMetadataCatalog = nodePackageMetadataCatalog,
                     packageMetadataBytes = ownedPackageMetadataBytes,
+                    dependencyLayerInventory = dependencyLayerInventory,
+                    dependencyLayerBytes = ownedDependencyLayerBytes,
                     packageTargetInventory = packageTargetInventory,
                     packageTargetBytes = ownedPackageTargetBytes,
                     nodePackageTargetV2Inventory = nodePackageTargetV2Inventory,
@@ -851,6 +964,7 @@ internal class R2ProjectSnapshot private constructor(
             } catch (failure: Throwable) {
                 ownedNodePackageTargetV2Bytes.forEach { bytes -> bytes.fill(0) }
                 ownedPackageTargetBytes.forEach { bytes -> bytes.fill(0) }
+                ownedDependencyLayerBytes.forEach { bytes -> bytes.fill(0) }
                 ownedPackageMetadataBytes.forEach { bytes -> bytes.fill(0) }
                 ownedRawConfigBytes?.fill(0)
                 throw failure
@@ -884,11 +998,11 @@ internal class R2ProjectSnapshot private constructor(
                     "Node revision 1 accepts no raw config or package authority."
                 }
                 R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2 -> require(
-                    !hasRawConfig &&
-                        packageTargetInventory == null &&
+                    packageTargetInventory == null &&
                         (nodePackageTargetV2Inventory == null || packageMetadataInventory != null),
                 ) {
-                    "Node revision 2 is config-none and accepts only package-target v2 bound to metadata."
+                    "Node revision 2 accepts optional controlled config and only package-target " +
+                        "v2 bound to metadata."
                 }
                 else -> throw IllegalArgumentException(
                     "Project snapshot profile authority is not registered for package formats.",
@@ -1566,6 +1680,48 @@ private class R2HeapPackageTargetCursor(
     }
 }
 
+private class R2HeapDependencyLayerCursor(
+    private val snapshot: R2ProjectSnapshot,
+    private val fileIndex: Int,
+    private val byteLength: Int,
+) : R2ProjectFileCursor {
+
+    private var offset = 0
+    private var closed = false
+
+    override val remainingBytes: Long
+        get() = if (closed) 0L else (byteLength - offset).toLong()
+
+    override fun read(
+        destination: ByteArray,
+        destinationOffset: Int,
+        byteCount: Int,
+    ): Int {
+        check(!closed) { "Dependency-layer cursor is closed." }
+        require(
+            destinationOffset >= 0 &&
+                byteCount >= 0 &&
+                destinationOffset <= destination.size - byteCount
+        )
+        if (byteCount == 0 || offset == byteLength) return 0
+        val count = minOf(byteCount, byteLength - offset)
+        snapshot.readDependencyLayerAt(
+            fileIndex = fileIndex,
+            offset = offset,
+            destination = destination,
+            destinationOffset = destinationOffset,
+            byteCount = count,
+        )
+        offset += count
+        return count
+    }
+
+    override fun close() {
+        closed = true
+        offset = byteLength
+    }
+}
+
 private class R2HeapNodePackageTargetV2Cursor(
     private val snapshot: R2ProjectSnapshot,
     private val fileIndex: Int,
@@ -1638,6 +1794,23 @@ internal data class R2ProjectSnapshotLimits(
                 TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_FILE_BYTES,
             maximumTotalBytes = TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES,
         )
+
+        /** Revision 2 limits used only when an already-compiled host sends a revision 2 manifest. */
+        val ORDINARY_COMPILATION_REVISION_2 = R2ProjectSnapshotLimits(
+            maximumFiles = TypeScriptR2Contract.LEGACY_MAX_ORDINARY_COMPILATION_INPUT_FILES,
+            maximumSingleFileBytes =
+                TypeScriptR2Contract.LEGACY_MAX_ORDINARY_COMPILATION_SINGLE_FILE_BYTES,
+            maximumTotalBytes =
+                TypeScriptR2Contract.LEGACY_MAX_ORDINARY_COMPILATION_INPUT_BYTES,
+        )
+
+        fun forInputQuotaRevision(revision: Int): R2ProjectSnapshotLimits? = when (revision) {
+            TypeScriptR2Contract.LEGACY_ORDINARY_COMPILATION_INPUT_QUOTA_REVISION ->
+                ORDINARY_COMPILATION_REVISION_2
+            TypeScriptR2Contract.ORDINARY_COMPILATION_INPUT_QUOTA_REVISION ->
+                ORDINARY_COMPILATION
+            else -> null
+        }
 
         /** Historical name retained as an exact alias, never as an independent quota. */
         @Deprecated(
@@ -1744,6 +1917,6 @@ internal const val R2_PROVISIONAL_WORKER_MAXIMUM_TOTAL_BYTES =
 internal const val R2_TRUSTED_DECLARATION_MAXIMUM_FILES = 512
 internal const val R2_TRUSTED_DECLARATION_MAXIMUM_BYTES = 8L * 1024L * 1024L
 internal const val R2_FILE_BACKED_MAXIMUM_FILES =
-    TypeScriptCompilerContract.MAX_INPUT_FILES - 1 + R2_TRUSTED_DECLARATION_MAXIMUM_FILES
+    TypeScriptCompilerContract.MAX_INPUT_FILES + R2_TRUSTED_DECLARATION_MAXIMUM_FILES
 internal const val R2_FILE_BACKED_MAXIMUM_TOTAL_BYTES =
     TypeScriptCompilerContract.MAX_INPUT_BYTES + R2_TRUSTED_DECLARATION_MAXIMUM_BYTES

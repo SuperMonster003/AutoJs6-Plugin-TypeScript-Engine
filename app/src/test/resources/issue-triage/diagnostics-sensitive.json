@@ -1,0 +1,46 @@
+{
+  "schema": "autojs6.typescript.diagnostics",
+  "revision": 1,
+  "diagnosticsQuotaRevision": 1,
+  "requestId": "SECRET-REQUEST-ID",
+  "projectId": "SECRET-PROJECT-ID",
+  "targetProfile": "rhino",
+  "profileSchemaRevision": 1,
+  "profileRevision": 2,
+  "configSchemaRevision": 2,
+  "configKind": "tsconfig",
+  "positionEncoding": "utf-16-code-unit",
+  "lineBase": 1,
+  "columnBase": 1,
+  "diagnosticCount": 1,
+  "relatedInformationCount": 1,
+  "diagnostics": [
+    {
+      "phase": "semantic",
+      "uri": "autojs://source/p-9876095ce2297318967f87b9d9e90bd863e8c90940a23bb3b74079cfaa74526a/sources/private/SECRET-CUSTOMER.ts",
+      "range": {
+        "start": 7,
+        "length": 5,
+        "line": 2,
+        "column": 3
+      },
+      "category": 1,
+      "code": 2322,
+      "message": "SECRET-TOKEN does not match CustomerAccount.",
+      "relatedInformation": [
+        {
+          "uri": "autojs://source/p-9876095ce2297318967f87b9d9e90bd863e8c90940a23bb3b74079cfaa74526a/declarations/SECRET-LIB.d.ts",
+          "range": {
+            "start": 11,
+            "length": 4,
+            "line": 3,
+            "column": 2
+          },
+          "category": 3,
+          "code": 6500,
+          "message": "SECRET declaration is here."
+        }
+      ]
+    }
+  ]
+}

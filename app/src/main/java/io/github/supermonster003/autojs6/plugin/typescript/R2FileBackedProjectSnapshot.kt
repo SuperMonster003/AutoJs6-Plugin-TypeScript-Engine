@@ -37,6 +37,11 @@ internal data class R2FileBackedPackageMetadataRecord(
     val offset: Long,
 )
 
+internal data class R2FileBackedDependencyLayerRecord(
+    val descriptor: R2DependencyLayerFileDescriptor,
+    val offset: Long,
+)
+
 internal data class R2FileBackedPackageTargetRecord(
     val descriptor: R2PackageTargetFileDescriptor,
     val offset: Long,
@@ -275,6 +280,8 @@ internal class R2PrivateProjectSpool private constructor(
         rawConfigRecord: R2FileBackedRawProjectConfigRecord? = null,
         packageMetadataInventory: R2PackageMetadataInventory? = null,
         packageMetadataRecords: List<R2FileBackedPackageMetadataRecord> = emptyList(),
+        dependencyLayerInventory: R2DependencyLayerInventory? = null,
+        dependencyLayerRecords: List<R2FileBackedDependencyLayerRecord> = emptyList(),
         nodePackageFormatCatalog: R2NodePackageFormatCatalog? = null,
         nodePackageMetadataCatalog: R2NodePackageMetadataCatalog? = null,
         packageTargetInventory: R2PackageTargetInventory? = null,
@@ -333,6 +340,47 @@ internal class R2PrivateProjectSpool private constructor(
                     packageMetadataRecords.map(R2FileBackedPackageMetadataRecord::metadata),
             ) {
                 "Package metadata records do not exactly cover their inventory."
+            }
+        }
+        require(dependencyLayerInventory != null || dependencyLayerRecords.isEmpty()) {
+            "Dependency-layer records require an inventory."
+        }
+        require(
+            dependencyLayerInventory == null ||
+                profileAuthority ==
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2 ||
+                profileAuthority ==
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+        ) {
+            "Dependency layers require the current Rhino or Node revision 2 profile."
+        }
+        dependencyLayerInventory?.let { layerInventory ->
+            val revalidatedInventory = R2DependencyLayerInventory.create(
+                identityKind = layerInventory.identityKind,
+                identityPath = layerInventory.identityPath,
+                identityFingerprint = layerInventory.identityFingerprint,
+                files = layerInventory.files,
+            )
+            require(
+                revalidatedInventory.files == layerInventory.files &&
+                    revalidatedInventory.totalBytes == layerInventory.totalBytes &&
+                    revalidatedInventory.totalPathBytes == layerInventory.totalPathBytes &&
+                    R2Digests.equal(
+                        revalidatedInventory.inventoryFingerprint,
+                        layerInventory.inventoryFingerprint,
+                    ) &&
+                    R2Digests.equal(
+                        revalidatedInventory.fingerprint,
+                        layerInventory.fingerprint,
+                    )
+            ) {
+                "Dependency-layer authority changed before file-backed indexing."
+            }
+            require(
+                layerInventory.files ==
+                    dependencyLayerRecords.map(R2FileBackedDependencyLayerRecord::descriptor),
+            ) {
+                "Dependency-layer records do not exactly cover their inventory."
             }
         }
         require(packageTargetInventory != null || packageTargetRecords.isEmpty()) {
@@ -529,6 +577,8 @@ internal class R2PrivateProjectSpool private constructor(
                 rawConfigRecord = rawConfigRecord,
                 packageMetadataInventory = packageMetadataInventory,
                 packageMetadataRecords = ArrayList(packageMetadataRecords),
+                dependencyLayerInventory = dependencyLayerInventory,
+                dependencyLayerRecords = ArrayList(dependencyLayerRecords),
                 nodePackageFormatCatalog = nodePackageFormatCatalog,
                 nodePackageMetadataCatalog = nodePackageMetadataCatalog,
                 packageTargetInventory = packageTargetInventory,
@@ -663,6 +713,8 @@ internal class R2FileBackedProjectSnapshot internal constructor(
     private val rawConfigRecord: R2FileBackedRawProjectConfigRecord?,
     override val packageMetadataInventory: R2PackageMetadataInventory? = null,
     packageMetadataRecords: ArrayList<R2FileBackedPackageMetadataRecord> = arrayListOf(),
+    override val dependencyLayerInventory: R2DependencyLayerInventory? = null,
+    dependencyLayerRecords: ArrayList<R2FileBackedDependencyLayerRecord> = arrayListOf(),
     override val nodePackageFormatCatalog: R2NodePackageFormatCatalog? = null,
     override val nodePackageMetadataCatalog: R2NodePackageMetadataCatalog? = null,
     override val packageTargetInventory: R2PackageTargetInventory? = null,
@@ -682,6 +734,8 @@ internal class R2FileBackedProjectSnapshot internal constructor(
     private val records = Collections.unmodifiableList(ArrayList(records))
     private val packageMetadataRecords =
         Collections.unmodifiableList(ArrayList(packageMetadataRecords))
+    private val dependencyLayerRecords =
+        Collections.unmodifiableList(ArrayList(dependencyLayerRecords))
     private val packageTargetRecords =
         Collections.unmodifiableList(ArrayList(packageTargetRecords))
     private val nodePackageTargetV2Records =
@@ -835,6 +889,64 @@ internal class R2FileBackedProjectSnapshot internal constructor(
             } finally {
                 verifiedPackageMetadataBytes.forEach { bytes -> bytes.fill(0) }
                 verifiedPackageMetadataBytes.clear()
+            }
+        }
+        require(dependencyLayerInventory != null || this.dependencyLayerRecords.isEmpty()) {
+            "Dependency-layer records require an inventory."
+        }
+        require(
+            dependencyLayerInventory == null ||
+                profileAuthority ==
+                R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2 ||
+                profileAuthority ==
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+        ) {
+            "Dependency layers require the current Rhino or Node revision 2 profile."
+        }
+        dependencyLayerInventory?.let { layerInventory ->
+            val revalidatedInventory = R2DependencyLayerInventory.create(
+                identityKind = layerInventory.identityKind,
+                identityPath = layerInventory.identityPath,
+                identityFingerprint = layerInventory.identityFingerprint,
+                files = layerInventory.files,
+            )
+            require(
+                revalidatedInventory.files == layerInventory.files &&
+                    revalidatedInventory.totalBytes == layerInventory.totalBytes &&
+                    revalidatedInventory.totalPathBytes == layerInventory.totalPathBytes &&
+                    R2Digests.equal(
+                        revalidatedInventory.inventoryFingerprint,
+                        layerInventory.inventoryFingerprint,
+                    ) &&
+                    R2Digests.equal(
+                        revalidatedInventory.fingerprint,
+                        layerInventory.fingerprint,
+                    )
+            ) {
+                "Dependency-layer authority changed before file-backed cursor use."
+            }
+            require(
+                layerInventory.files ==
+                    this.dependencyLayerRecords.map(
+                        R2FileBackedDependencyLayerRecord::descriptor,
+                    ),
+            ) {
+                "Dependency-layer records do not exactly cover their inventory."
+            }
+            this.dependencyLayerRecords.forEach { record ->
+                require(record.offset >= 0L) {
+                    "Dependency-layer record has a negative spool offset."
+                }
+                require(record.offset <= immutableReader.length() - record.descriptor.size) {
+                    "Dependency-layer record exceeds the immutable spool range."
+                }
+                requirePackageTargetPayload(
+                    offset = record.offset,
+                    size = record.descriptor.size,
+                    sha256 = record.descriptor.sha256,
+                    path = record.descriptor.path,
+                    label = "Dependency-layer file",
+                )
             }
         }
         require(packageTargetInventory != null || this.packageTargetRecords.isEmpty()) {
@@ -1019,6 +1131,22 @@ internal class R2FileBackedProjectSnapshot internal constructor(
             val record = packageTargetRecords.getOrNull(fileIndex)
                 ?: throw IndexOutOfBoundsException(
                     "Package target file index is outside its inventory.",
+                )
+            R2FileBackedProjectCursor(
+                snapshot = this,
+                offset = record.offset,
+                byteLength = record.descriptor.size,
+            )
+        }
+
+    override fun openDependencyLayerFile(fileIndex: Int): R2ProjectFileCursor =
+        synchronized(lock) {
+            check(usable && !readerClosed) {
+                "R2 file-backed project snapshot is closed."
+            }
+            val record = dependencyLayerRecords.getOrNull(fileIndex)
+                ?: throw IndexOutOfBoundsException(
+                    "Dependency-layer file index is outside its inventory.",
                 )
             R2FileBackedProjectCursor(
                 snapshot = this,

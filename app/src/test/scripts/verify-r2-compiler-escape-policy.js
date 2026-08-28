@@ -380,10 +380,23 @@ assert(
     "Worker source-path rejection authority drifted.",
 );
 const compileProjectSource = workerBinding("compileProject").toString();
+const emitProjectBuilderSource = workerBinding("emitProjectBuilder").toString();
 assert(
-    /\bbuilder\.emit\(\s*\)/.test(compileProjectSource) &&
-        !/\bbuilder\.emit\(\s*[^\s)]/.test(compileProjectSource),
-    "Worker emit call can accept caller-supplied transformer arguments.",
+    /\bemitProjectBuilder\(\s*builder,\s*controlledRevision4\s*\?\s*createControlledPathAliasEmitTransformer\(\s*vfs,\s*options,\s*isNodeRevisionTwoProject,?\s*\)\s*:\s*null,?\s*\)/s.test(
+        compileProjectSource,
+    ) &&
+        (workerSource.match(/\bemitProjectBuilder\s*\(/g) ?? []).length === 1,
+    "Worker emit transformer is not exclusively derived from the revision-4 alias authority.",
+);
+assert(
+    /beforeTransformer\s*===\s*null\s*\?\s*builder\.emit\(\s*\)\s*:\s*Reflect\.apply\(\s*builder\.emit,\s*builder,/s.test(
+        emitProjectBuilderSource,
+    ) &&
+        /\{\s*before:\s*\[beforeTransformer\]\s*\}/s.test(emitProjectBuilderSource) &&
+        !/project|message|request|config|plugin/i.test(
+            emitProjectBuilderSource.replace(/emitProjectBuilder/g, ""),
+        ),
+    "Worker emit helper can obtain transformer authority from caller-controlled state.",
 );
 assert(
     /ts\.createIncrementalProgram\(\s*{\s*host,\s*options,\s*rootNames:/s.test(
@@ -715,6 +728,35 @@ const makeProject = (sourceText) => {
         assertWorkerProjectStateCleared("project-input-batch injection");
         recordExactFrameInjection("projectInputBatch");
         await assertControlledSuccessorReusable("project-input-batch injection");
+    }
+    {
+        const operation = await beginControlledStart("{}");
+        const frames = Array.from({ length: 5 }, (_, index) => ({
+            chunkIndex: index,
+            data: "",
+            kind: "projectInputConfigChunk",
+            requestId: operation.requestId,
+            sequence: operation.sequence + index,
+        }));
+        const messages = await dispatch({
+            frames,
+            kind: "projectInputBatch",
+            requestId: operation.requestId,
+            sequence: operation.sequence + frames.length - 1,
+        });
+        expectProjectErrorWithoutAck(
+            messages,
+            operation.requestId,
+            "project-input-batch payload-chunk cap",
+        );
+        assert(
+            messages[0].message.includes("too many payload chunks"),
+            "Five payload chunks did not fail at the independent Worker batch cap.",
+        );
+        assertWorkerProjectStateCleared("project-input-batch payload-chunk cap");
+        await assertControlledSuccessorReusable(
+            "project-input-batch payload-chunk cap",
+        );
     }
     {
         const operation = await beginControlledConfig("{}");

@@ -117,10 +117,11 @@ internal class R2NodePackageFormatCatalog private constructor(
 
     fun nearestRecord(containingPath: String): R2NodePackageFormatRecord? {
         requireCanonicalContainingPath(containingPath)
+        val packageLookupPath = R2NodePackageBoundaryLookup.projectPath(containingPath)
         return records.asSequence()
             .filter { record ->
                 record.packageBoundaryPath == "/" ||
-                    containingPath.startsWith("${record.packageBoundaryPath}/")
+                    packageLookupPath.startsWith("${record.packageBoundaryPath}/")
             }
             .maxByOrNull { record -> record.packageBoundaryPath.length }
     }
@@ -280,6 +281,23 @@ internal class R2NodePackageFormatCatalog private constructor(
             }
         }
     }
+}
+
+/**
+ * Projects compiler VFS source paths back into the project/package namespace used by C5.
+ *
+ * C5 metadata paths intentionally omit the archive-only `sources/` layer. A source such as
+ * `/sources/packages/esm/main.ts` therefore belongs to `/packages/esm`, while package-target
+ * paths such as `/packages/dependency/index.d.ts` are already in the package namespace.
+ */
+internal object R2NodePackageBoundaryLookup {
+
+    fun projectPath(containingPath: String): String =
+        if (containingPath.startsWith("/sources/")) {
+            containingPath.removePrefix("/sources")
+        } else {
+            containingPath
+        }
 }
 
 private fun boundaryPathFor(packageMetadataPath: String): String =

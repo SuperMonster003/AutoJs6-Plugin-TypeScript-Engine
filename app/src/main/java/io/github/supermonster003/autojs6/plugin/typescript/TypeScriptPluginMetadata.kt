@@ -20,6 +20,10 @@ object TypeScriptPluginMetadata {
     internal const val ADVERTISED_CONFIG_SCHEMA_REVISION =
         TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION
     internal const val ADVERTISED_CONFIG_KIND = TypeScriptR2Contract.CONFIG_KIND_TSCONFIG
+    internal const val ADVERTISED_CONFIG_POLICY_REVISION =
+        TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION
+    internal val ADVERTISED_CONFIG_POLICY_FINGERPRINT
+        get() = R2ControlledTsConfigPolicy.revision4Fingerprint
     internal val ADVERTISED_RHINO_SUPPORTED_EXTENSIONS
         get() = arrayOf(".ts", ".tsx")
     internal val ADVERTISED_SUPPORTED_EXTENSIONS
@@ -69,11 +73,11 @@ object TypeScriptPluginMetadata {
         )
         putInt(
             TypeScriptR2Contract.KEY_CONFIG_POLICY_REVISION,
-            TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
+            ADVERTISED_CONFIG_POLICY_REVISION,
         )
         putString(
             TypeScriptR2Contract.KEY_CONFIG_POLICY_FINGERPRINT,
-            R2ControlledTsConfigPolicy.fingerprint,
+            ADVERTISED_CONFIG_POLICY_FINGERPRINT,
         )
         putString(
             TypeScriptCompilerContract.KEY_RUNTIME_CAPABILITIES_FINGERPRINT,
@@ -198,11 +202,11 @@ object TypeScriptPluginMetadata {
         )
         putInt(
             TypeScriptR2Contract.KEY_CONFIG_POLICY_REVISION,
-            TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
+            ADVERTISED_CONFIG_POLICY_REVISION,
         )
         putString(
             TypeScriptR2Contract.KEY_CONFIG_POLICY_FINGERPRINT,
-            R2ControlledTsConfigPolicy.fingerprint,
+            ADVERTISED_CONFIG_POLICY_FINGERPRINT,
         )
         putInt(
             TypeScriptPluginCapabilityKeys.RUNTIME_CAPABILITY_SCHEMA_REVISION,
@@ -258,6 +262,26 @@ object TypeScriptPluginMetadata {
         putString(
             TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_FINGERPRINT,
             R2PackageMetadataPolicy.fingerprint,
+        )
+        putInt(
+            TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_SCHEMA_REVISION,
+            R2DependencyLayerPolicy.SCHEMA_REVISION,
+        )
+        putInt(
+            TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_POLICY_REVISION,
+            R2DependencyLayerPolicy.POLICY_REVISION,
+        )
+        putString(
+            TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_POLICY_FINGERPRINT,
+            R2DependencyLayerPolicy.fingerprint,
+        )
+        putInt(
+            TypeScriptR2Contract.KEY_DEPENDENCY_RESOLVER_POLICY_REVISION,
+            R2DependencyResolverPolicy.POLICY_REVISION,
+        )
+        putString(
+            TypeScriptR2Contract.KEY_DEPENDENCY_RESOLVER_POLICY_FINGERPRINT,
+            R2DependencyResolverPolicy.fingerprint,
         )
     }
 

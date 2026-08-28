@@ -169,6 +169,45 @@ class R2DeclarationDistributionTest {
     }
 
     @Test
+    fun `stable TypeScript 6 identity derives common paths from the verified lock`() {
+        val fixture = fixture(
+            name = "typescript-stable-six",
+            archiveEntries = validArchiveEntries(),
+            commonVersion = "6.0.2",
+            commonDistributionFingerprint = TYPESCRIPT_6_0_2_DISTRIBUTION_FINGERPRINT,
+        )
+        val output = temporaryFolder.newFolder("typescript-stable-six-output")
+
+        generate(fixture, output)
+        verify(fixture, output)
+
+        @Suppress("UNCHECKED_CAST")
+        val binding = JsonSlurper().parse(
+            File(output, "layers/common/binding.json"),
+        ) as Map<String, Any?>
+        assertEquals("6.0.2", binding["version"])
+        assertEquals("typescript/6.0.2", binding["distributionAssetRoot"])
+        assertEquals(
+            "typescript/6.0.2/distribution.json",
+            binding["distributionManifest"],
+        )
+        assertEquals(
+            TYPESCRIPT_6_0_2_DISTRIBUTION_FINGERPRINT,
+            binding["distributionFingerprint"],
+        )
+
+        val unsupported = fixture(
+            name = "typescript-seven-rejected",
+            archiveEntries = validArchiveEntries(),
+            commonVersion = "7.0.2",
+            commonDistributionFingerprint = "7".repeat(64),
+        )
+        assertThrows(R2DeclarationDistributionException::class.java) {
+            generate(unsupported, temporaryFolder.newFolder("typescript-seven-output"))
+        }
+    }
+
+    @Test
     fun `vendored content changes fingerprints without a private hash lock`() {
         val valid = fixture("source-tamper", validArchiveEntries())
         val originalOutput = temporaryFolder.newFolder("source-original-output")
@@ -259,18 +298,29 @@ class R2DeclarationDistributionTest {
         )
     }
 
-    private fun fixture(name: String, archiveEntries: List<ArchiveSpec>): Fixture {
+    private fun fixture(
+        name: String,
+        archiveEntries: List<ArchiveSpec>,
+        commonVersion: String = "6.0.3",
+        commonDistributionFingerprint: String =
+            TYPESCRIPT_6_0_3_DISTRIBUTION_FINGERPRINT,
+    ): Fixture {
         val root = temporaryFolder.newFolder(name)
         val tarball = createTarball(File(root, "rhino.tgz"), archiveEntries)
         val nodeSource = File(root, "node").apply { mkdirs() }
         createNodeSources(nodeSource)
         val typeScript = File(root, "typescript").apply { mkdirs() }
         File(typeScript, "distribution.json").writeText(
-            """{"components":{"standardLibraries":{"fileCount":108,"fingerprint":"${R2DeclarationDistribution.COMMON_STANDARD_LIBRARIES_FINGERPRINT}","totalBytes":3784758}},"fingerprint":"${R2DeclarationDistribution.COMMON_DISTRIBUTION_FINGERPRINT}","package":{"name":"typescript","version":"6.0.3"},"schemaVersion":1}""",
+            """{"components":{"standardLibraries":{"fileCount":108,"fingerprint":"$TYPESCRIPT_6_0_3_STANDARD_LIBRARIES_FINGERPRINT","totalBytes":3784758}},"fingerprint":"$commonDistributionFingerprint","package":{"name":"typescript","version":"$commonVersion"},"schemaVersion":1}""",
             Charsets.UTF_8,
         )
         val lock = File(root, "r2-declarations.lock.json")
-        createLock(lock, tarball)
+        createLock(
+            target = lock,
+            tarball = tarball,
+            commonVersion = commonVersion,
+            commonDistributionFingerprint = commonDistributionFingerprint,
+        )
         return Fixture(lock, tarball, nodeSource, typeScript)
     }
 
@@ -317,15 +367,18 @@ class R2DeclarationDistributionTest {
     private fun createLock(
         target: File,
         tarball: File,
+        commonVersion: String = "6.0.3",
+        commonDistributionFingerprint: String =
+            TYPESCRIPT_6_0_3_DISTRIBUTION_FINGERPRINT,
     ) {
         val tarballBytes = tarball.readBytes()
         val lock = mapOf(
             "schemaVersion" to 2L,
             "common" to mapOf(
                 "package" to "typescript",
-                "version" to "6.0.3",
-                "distributionFingerprint" to R2DeclarationDistribution.COMMON_DISTRIBUTION_FINGERPRINT,
-                "standardLibrariesFingerprint" to R2DeclarationDistribution.COMMON_STANDARD_LIBRARIES_FINGERPRINT,
+                "version" to commonVersion,
+                "distributionFingerprint" to commonDistributionFingerprint,
+                "standardLibrariesFingerprint" to TYPESCRIPT_6_0_3_STANDARD_LIBRARIES_FINGERPRINT,
                 "declarationFileCount" to 108L,
                 "declarationTotalBytes" to 3_784_758L,
             ),
@@ -614,6 +667,12 @@ interface AutoJsError extends ErrorConstructor {}
 
     companion object {
         private const val DECLARATION_RELEASE_VERSION = "0.5.0"
+        private const val TYPESCRIPT_6_0_3_STANDARD_LIBRARIES_FINGERPRINT =
+            "6ee5c0bce41694b8ca86430b82abfe4fbb60bf96321fba43e99d9810a44a1c1f"
+        private const val TYPESCRIPT_6_0_3_DISTRIBUTION_FINGERPRINT =
+            "3855b04b968db8a9529b60c96dd8b8ec94fa1ee040cac10a5ab569aa6e33f658"
+        private const val TYPESCRIPT_6_0_2_DISTRIBUTION_FINGERPRINT =
+            "e2e90fd9f4ab1a8e2dbd2907f131828a7be3a04c2dd7105badc97d4664a4d5b9"
 
         private val RHINO_PROJECTION_PATHS = listOf(
             "package/declarations/autojs6/aj6-declarations.d.ts",

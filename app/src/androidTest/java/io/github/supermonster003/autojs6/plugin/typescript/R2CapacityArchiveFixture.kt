@@ -284,7 +284,7 @@ internal class R2CapacityArchiveFixture private constructor(
                 val targetPayloadBytes = when (compression) {
                     R2CapacityZipCompression.STORED -> {
                         val targetContainerBytes = Math.addExact(
-                            TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+                            R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
                             boundary.quotaDeltaBytes,
                         )
                         Math.subtractExact(
@@ -296,7 +296,7 @@ internal class R2CapacityArchiveFixture private constructor(
                         )
                     }
                     R2CapacityZipCompression.DEFLATED -> Math.addExact(
-                        TypeScriptCompilerContract.MAX_INPUT_BYTES,
+                        R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES,
                         boundary.quotaDeltaBytes,
                     )
                 }
@@ -447,21 +447,22 @@ internal class R2CapacityArchiveFixture private constructor(
                 when (compression) {
                     R2CapacityZipCompression.STORED -> {
                         val target = Math.addExact(
-                            TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+                            R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
                             boundary.quotaDeltaBytes,
                         )
                         check(expectedContainerBytes == target) {
                             "STORED R2 capacity fixture does not bind the container boundary."
                         }
                         check(
-                            uncompressedBytes <= TypeScriptCompilerContract.MAX_INPUT_BYTES,
+                            uncompressedBytes <=
+                                R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES,
                         ) {
                             "STORED R2 capacity fixture unexpectedly exceeds expanded bytes."
                         }
                     }
                     R2CapacityZipCompression.DEFLATED -> {
                         val target = Math.addExact(
-                            TypeScriptCompilerContract.MAX_INPUT_BYTES,
+                            R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES,
                             boundary.quotaDeltaBytes,
                         )
                         check(uncompressedBytes == target) {
@@ -469,7 +470,7 @@ internal class R2CapacityArchiveFixture private constructor(
                         }
                         check(
                             expectedContainerBytes <=
-                                TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+                                R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
                         ) {
                             "DEFLATED R2 capacity fixture also exceeds the container boundary."
                         }

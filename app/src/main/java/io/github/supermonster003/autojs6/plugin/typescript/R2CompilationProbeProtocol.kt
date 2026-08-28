@@ -118,6 +118,7 @@ internal data class R2CompilationControls(
         R2CompilationProfileRegistry.PROVISIONAL_RHINO,
     val rawConfigAuthority: R2RawProjectConfigAuthority? = null,
     val packageMetadataAuthority: R2PackageMetadataAuthority? = null,
+    val dependencyLayerAuthority: R2DependencyLayerAuthority? = null,
     val workerSpinMilliseconds: Int = 0,
     val workerSpinPhase: R2ProjectExecutionPhase? = null,
     val expandedWorkerCapacity: Boolean = false,
@@ -144,9 +145,11 @@ internal data class R2CompilationControls(
         }
         require(
             rawConfigAuthority == null ||
-                profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO,
+                profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
+                profileAuthority ==
+                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
         ) {
-            "Controlled tsconfig is admitted only for the exact Rhino profile authority."
+            "Controlled tsconfig requires the current Rhino or Node revision-2 authority."
         }
         require(
             rawConfigAuthority == null || origin != R2CompilationControlOrigin.DEBUG_PROBE,
@@ -156,13 +159,25 @@ internal data class R2CompilationControls(
         require(
             packageMetadataAuthority == null ||
                 (
-                    origin == R2CompilationControlOrigin.PUBLIC_PREVIEW &&
+                        origin == R2CompilationControlOrigin.PUBLIC_PREVIEW &&
                         profileAuthority ==
-                        R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2 &&
-                        rawConfigAuthority == null
+                        R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
                     ),
         ) {
             "Public package metadata requires the exact Node revision-2 config-none authority."
+        }
+        require(
+            dependencyLayerAuthority == null ||
+                (
+                        origin == R2CompilationControlOrigin.PUBLIC_PREVIEW &&
+                        (
+                            profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
+                                profileAuthority ==
+                                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+                            )
+                    ),
+        ) {
+            "Public dependency layers require the current Rhino or Node revision-2 authority."
         }
         require(
             when (origin) {
@@ -236,6 +251,7 @@ internal data class R2CompilationControls(
             compilerOptionsJson = request.compilerOptionsJson,
             rawConfigAuthority = rawConfigAuthority,
             packageMetadataAuthority = packageMetadataAuthority,
+            dependencyLayerAuthority = dependencyLayerAuthority,
         )
     }
 }
@@ -262,6 +278,13 @@ internal data class R2PublicCompilationMetadata(
     val packageMetadataPolicyRevision: Int? = null,
     val packageMetadataPolicyFingerprint: String? = null,
     val packageMetadataInventoryFingerprint: String? = null,
+    val dependencyLayerSchemaRevision: Int? = null,
+    val dependencyLayerPolicyRevision: Int? = null,
+    val dependencyLayerPolicyFingerprint: String? = null,
+    val dependencyLayerInventoryFingerprint: String? = null,
+    val dependencyLayerFingerprint: String? = null,
+    val dependencyResolverPolicyRevision: Int? = null,
+    val dependencyResolverPolicyFingerprint: String? = null,
 )
 
 internal enum class R2PublicCompilationDisposition {
@@ -310,6 +333,11 @@ internal object R2PublicCompilationProtocol {
         TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_REVISION,
         TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_FINGERPRINT,
         TypeScriptR2Contract.KEY_PACKAGE_METADATA_INVENTORY_FINGERPRINT,
+        TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_SCHEMA_REVISION,
+        TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_POLICY_REVISION,
+        TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_POLICY_FINGERPRINT,
+        TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_INVENTORY_FINGERPRINT,
+        TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_FINGERPRINT,
     )
 
     /** Formal authority shared by the public and same-UID debug control planes. */
@@ -406,6 +434,34 @@ internal object R2PublicCompilationProtocol {
         if (hasAnyPackageMetadataIdentity && !hasCompletePackageMetadataIdentity) {
             return malformed()
         }
+        val dependencyLayerFieldPresence = listOf(
+            metadata.dependencyLayerSchemaRevision != null,
+            metadata.dependencyLayerPolicyRevision != null,
+            metadata.dependencyLayerPolicyFingerprint != null,
+            metadata.dependencyLayerInventoryFingerprint != null,
+            metadata.dependencyLayerFingerprint != null,
+        )
+        val hasAnyDependencyLayerIdentity =
+            dependencyLayerFieldPresence.any { present -> present }
+        val hasCompleteDependencyLayerIdentity =
+            dependencyLayerFieldPresence.all { present -> present }
+        if (hasAnyDependencyLayerIdentity && !hasCompleteDependencyLayerIdentity) {
+            return malformed()
+        }
+        val dependencyResolverFieldPresence = listOf(
+            metadata.dependencyResolverPolicyRevision != null,
+            metadata.dependencyResolverPolicyFingerprint != null,
+        )
+        val hasAnyDependencyResolverIdentity =
+            dependencyResolverFieldPresence.any { present -> present }
+        val hasCompleteDependencyResolverIdentity =
+            dependencyResolverFieldPresence.all { present -> present }
+        if (
+            hasAnyDependencyResolverIdentity != hasCompleteDependencyResolverIdentity ||
+            hasCompleteDependencyLayerIdentity != hasCompleteDependencyResolverIdentity
+        ) {
+            return malformed()
+        }
 
         val baseDigestsValid = runCatching {
             R2Digests.requireLowerSha256(
@@ -468,6 +524,32 @@ internal object R2PublicCompilationProtocol {
             }.isSuccess
             if (!packageIdentityValid) return malformed()
         }
+        if (hasCompleteDependencyLayerIdentity) {
+            val dependencyIdentityValid = runCatching {
+                R2Digests.requireLowerSha256(
+                    requireNotNull(metadata.dependencyLayerPolicyFingerprint),
+                    "R2 dependency layer policy fingerprint",
+                )
+                R2Digests.requireLowerSha256(
+                    requireNotNull(metadata.dependencyLayerInventoryFingerprint),
+                    "R2 dependency layer inventory fingerprint",
+                )
+                R2Digests.requireLowerSha256(
+                    requireNotNull(metadata.dependencyLayerFingerprint),
+                    "R2 dependency layer fingerprint",
+                )
+            }.isSuccess
+            if (!dependencyIdentityValid) return malformed()
+        }
+        if (hasCompleteDependencyResolverIdentity) {
+            val resolverIdentityValid = runCatching {
+                R2Digests.requireLowerSha256(
+                    requireNotNull(metadata.dependencyResolverPolicyFingerprint),
+                    "R2 dependency resolver policy fingerprint",
+                )
+            }.isSuccess
+            if (!resolverIdentityValid) return malformed()
+        }
 
         val profileAuthority = runCatching {
             R2CompilationProfileRegistry.requireExactContractValue(
@@ -499,6 +581,43 @@ internal object R2PublicCompilationProtocol {
             )
         ) {
             return unsupportedAuthority()
+        }
+        val dependencyLayerSupported =
+            !hasAnyDependencyLayerIdentity ||
+                (
+                    hasCompleteDependencyLayerIdentity &&
+                        (
+                            profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
+                                profileAuthority ==
+                                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+                            ) &&
+                        metadata.dependencyLayerSchemaRevision ==
+                        R2DependencyLayerPolicy.SCHEMA_REVISION &&
+                        metadata.dependencyLayerPolicyRevision ==
+                        R2DependencyLayerPolicy.POLICY_REVISION &&
+                        R2Digests.equal(
+                            requireNotNull(metadata.dependencyLayerPolicyFingerprint),
+                            R2DependencyLayerPolicy.fingerprint,
+                        ) &&
+                        metadata.dependencyResolverPolicyRevision ==
+                            R2DependencyResolverPolicy.POLICY_REVISION &&
+                        R2Digests.equal(
+                            requireNotNull(metadata.dependencyResolverPolicyFingerprint),
+                            R2DependencyResolverPolicy.fingerprint,
+                        )
+                    )
+        if (!dependencyLayerSupported) return unsupportedAuthority()
+        val dependencyLayerAuthority = if (hasCompleteDependencyLayerIdentity) {
+            R2DependencyLayerAuthority(
+                fingerprint = requireNotNull(metadata.dependencyLayerFingerprint),
+                inventoryFingerprint = requireNotNull(
+                    metadata.dependencyLayerInventoryFingerprint,
+                ),
+                policyRevision = requireNotNull(metadata.dependencyLayerPolicyRevision),
+                policyFingerprint = requireNotNull(metadata.dependencyLayerPolicyFingerprint),
+            )
+        } else {
+            null
         }
 
         return when (configKind) {
@@ -555,22 +674,51 @@ internal object R2PublicCompilationProtocol {
                             } else {
                                 null
                             },
+                        dependencyLayerAuthority = dependencyLayerAuthority,
                     ),
                 )
             }
 
             TypeScriptR2Contract.CONFIG_KIND_TSCONFIG -> {
                 if (!hasCompleteConfigIdentity) return malformed()
-                if (hasAnyPackageMetadataIdentity) return unsupportedAuthority()
+                val configPolicyRevision = requireNotNull(metadata.configPolicyRevision)
+                val configPolicyFingerprint =
+                    requireNotNull(metadata.configPolicyFingerprint)
+                val legacyRhinoPolicy =
+                    configPolicyRevision == R2ControlledTsConfigPolicy.LEGACY_POLICY_REVISION &&
+                        profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO
+                val modernProfile =
+                    configPolicyRevision in
+                        R2ControlledTsConfigPolicy.REVISION_3..
+                        R2ControlledTsConfigPolicy.LATEST_POLICY_REVISION &&
+                        (
+                            profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
+                                profileAuthority ==
+                                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+                            )
+                val packageMetadataSupported =
+                    !hasAnyPackageMetadataIdentity ||
+                        (
+                            hasCompletePackageMetadataIdentity &&
+                                profileAuthority ==
+                                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2 &&
+                                metadata.packageMetadataSchemaRevision ==
+                                R2PackageMetadataPolicy.SCHEMA_REVISION &&
+                                metadata.packageMetadataPolicyRevision ==
+                                R2PackageMetadataPolicy.POLICY_REVISION &&
+                                R2Digests.equal(
+                                    requireNotNull(metadata.packageMetadataPolicyFingerprint),
+                                    R2PackageMetadataPolicy.fingerprint,
+                                )
+                            )
                 if (
-                    profileAuthority != R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
+                    (!legacyRhinoPolicy && !modernProfile) ||
+                    !packageMetadataSupported ||
                     configSchemaRevision !=
                     TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION ||
-                    metadata.configPolicyRevision !=
-                    TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION ||
-                    !R2Digests.equal(
-                        requireNotNull(metadata.configPolicyFingerprint),
-                        R2ControlledTsConfigPolicy.fingerprint,
+                    !R2ControlledTsConfigPolicy.isSupportedPolicy(
+                        configPolicyRevision,
+                        configPolicyFingerprint,
                     )
                 ) {
                     return unsupportedAuthority()
@@ -599,6 +747,23 @@ internal object R2PublicCompilationProtocol {
                             policyFingerprint =
                                 requireNotNull(metadata.configPolicyFingerprint),
                         ),
+                        packageMetadataAuthority =
+                            if (hasCompletePackageMetadataIdentity) {
+                                R2PackageMetadataAuthority(
+                                    fingerprint = requireNotNull(
+                                        metadata.packageMetadataInventoryFingerprint,
+                                    ),
+                                    policyRevision = requireNotNull(
+                                        metadata.packageMetadataPolicyRevision,
+                                    ),
+                                    policyFingerprint = requireNotNull(
+                                        metadata.packageMetadataPolicyFingerprint,
+                                    ),
+                                )
+                            } else {
+                                null
+                            },
+                        dependencyLayerAuthority = dependencyLayerAuthority,
                     ),
                 )
             }

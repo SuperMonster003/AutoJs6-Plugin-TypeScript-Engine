@@ -1,5 +1,11 @@
 # R2-M2-C4 Compiler Escape Closure
 
+> **T1-3 amendment（2026-08-26）。** policy revision 4 开放 snapshot-only
+> `baseUrl`/`paths`，并在 emit 使用一个由 frozen alias table 内部构造的固定 `before`
+> transformer。它没有 caller callback/plugin 输入，且只有一个调用点；项目提供的
+> transformer 字段仍按本文结论拒绝或保持 inert。当前正向 authority 见
+> [T1-3 Controlled `baseUrl`/`paths` Revision 4](CONTROLLED_PATH_ALIASES_T1_3_REVISION4.md)。
+
 > **R2-M3-S1 supersession（2026-08-14）。** 本页保留 M2 的 pre-S1 input provenance；正文中的
 > request-manifest revisions `2/3` 与当时的 Worker start shape 不是当前 formal alias/fallback。
 > 当前只接受 `autojs6.typescript.input-archive/revision=1`，见

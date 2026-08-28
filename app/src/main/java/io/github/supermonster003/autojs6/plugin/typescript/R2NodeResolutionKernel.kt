@@ -980,7 +980,8 @@ internal class R2NodePackageMetadataCatalog private constructor(
         records.asSequence()
             .filter { record ->
                 record.boundaryPath == "/" ||
-                    containingPath.startsWith("${record.boundaryPath}/")
+                    R2NodePackageBoundaryLookup.projectPath(containingPath)
+                        .startsWith("${record.boundaryPath}/")
             }
             .maxByOrNull { record -> record.boundaryPath.length }
 

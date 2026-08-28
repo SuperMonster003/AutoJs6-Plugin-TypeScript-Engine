@@ -1,5 +1,15 @@
 # Compiler IPC v1
 
+> **T1-1–T1-3 current-state amendment（2026-08-26）。** frozen AIDL transaction、
+> formal archive schema 与 diagnostics schema 不变；ordinary input quota 当前为 revision 3，
+> caller 上限是 `4096 files / 8 MiB per file / 64 MiB total`，旧宿主内联的 input quota
+> revision 2 仍按 `512 files / 8 MiB total` 兼容。controlled tsconfig 当前为 policy
+> revision 4，Rhino 与 NodeNext revision 2 均接受 20 个 boolean options、profile-scoped
+> `target`/`lib` 及 snapshot-only `baseUrl`/`paths`；policy revision 2/3 仍按原身份兼容。
+> 精确指纹、选项集合与
+> 传输形状见
+> [T1-3 Controlled `baseUrl`/`paths` Revision 4](CONTROLLED_PATH_ALIASES_T1_3_REVISION4.md)。
+
 > **S1-1–S1-5 current-state amendment（2026-08-23）。** frozen AIDL transaction 与 ZIP
 > transport version 不变；四项 compiler capability 当前均已开放。formal input/output archive
 > schema revision 仍为 1，但 ordinary input/output quota revision 均为 2：caller input 是
@@ -406,9 +416,9 @@ cancel, timeout, internal error 和 transport error 不提交 ZIP, output 必须
 [R2-M2-C3 Effective Options Authority](CONTROLLED_TSCONFIG_R2_M2_C3.md) 已完成 41-key
 merge、canonicalization 与 fingerprint；
 [R2-M2-C4 Compiler Escape Closure](COMPILER_ESCAPE_CLOSURE_R2_M2_C4.md) 已关闭
-transformer/plugin、package/deferred path、Binder 与 host/network escape。S1-4 已把这条链路
-接入 production public Rhino；当前 request 可选择 `configKind=none` 或 exact revision-2
-`configKind=tsconfig`：
+transformer/plugin、package/deferred path、Binder 与 host/network escape。S1-4 首先把这条
+链路接入 production public Rhino；T1-2 随后发布 exact revision-3 `configKind=tsconfig`，
+当前 Rhino 与 NodeNext profile 均可使用，revision 2 Rhino 继续作为兼容请求：
 
 ```text
 immutable AutoJs6 security/profile constraints
@@ -426,8 +436,9 @@ immutable AutoJs6 security/profile constraints
   revision，并与 archive `tsconfig.json` 严格互斥；不得静默复用 frozen v1 field。
 - plugin 是 options 的唯一解释者. host/input manifest 只声明原始 bytes hash,
   不得声称 effective options fingerprint.
-- plugin 过滤用户配置后, 最后覆盖 target/module/moduleResolution/sourceMap/outDir/
-  noEmitOnError 等 immutable profile; 禁止项直接诊断, 不静默执行.
+- plugin 过滤用户配置后，按 profile 白名单应用 `target`/`lib`，最后覆盖
+  module/moduleResolution/sourceMap/outDir/noEmitOnError 等 immutable profile；禁止项
+  直接诊断，不静默执行。
 - controlled effective options 精确为 41 keys：历史 18-key inventory、16 个新增 C1
   boolean key 与 7 个 TypeScript 6.0.3 profile pin；历史 config-none 18-key JSON 与
   fingerprint 不变。

@@ -134,7 +134,7 @@ internal class R2PrivateInputStaging private constructor(
         fun stage(
             input: InputStream,
             privateDirectory: File,
-            maximumBytes: Long = TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+            maximumBytes: Long = R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
         ): R2PrivateInputStaging {
             require(privateDirectory.isDirectory) {
                 "R2 private input staging directory does not exist or is not a directory."
@@ -230,7 +230,7 @@ internal class R2PrivateInputStaging private constructor(
         fun stage(
             inputArchive: ParcelFileDescriptor,
             privateDirectory: File,
-            maximumBytes: Long = TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+            maximumBytes: Long = R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
         ): R2PrivateInputStaging {
             var staging: R2PrivateInputStaging? = null
             var failure: Throwable? = null

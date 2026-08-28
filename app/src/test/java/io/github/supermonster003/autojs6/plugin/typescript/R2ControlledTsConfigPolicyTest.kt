@@ -336,6 +336,200 @@ class R2ControlledTsConfigPolicyTest {
         assertEquals(expected.toString(), (actual as R2StrictJson.NumberToken).source)
     }
 
+    @Test
+    fun revision3PolicyPublishesProfileBoundValueOptions() {
+        assertEquals(20, R2ControlledTsConfigPolicy.revision3AllowedBooleanCompilerOptions.size)
+        assertEquals(
+            setOf("lib", "target"),
+            R2ControlledTsConfigPolicy.revision3AllowedValueCompilerOptions,
+        )
+        assertEquals(
+            setOf(R2ControlledTsConfigTarget.ES2018),
+            R2ControlledTsConfigPolicy.rhinoRevision3Targets,
+        )
+        assertEquals(
+            R2ControlledTsConfigTarget.entries.toSet(),
+            R2ControlledTsConfigPolicy.nodeRevision3Targets,
+        )
+        assertEquals(
+            "1f77d37080466f2752176fb5aa1b96e9a3f3dbdc89b853f30b4a0fed4313e90a",
+            R2ControlledTsConfigPolicy.revision3Fingerprint,
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.revision3Fingerprint,
+            R2ControlledTsConfigPolicy.fingerprintForRevision(3),
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.fingerprint,
+            R2ControlledTsConfigPolicy.fingerprintForRevision(2),
+        )
+        listOf("lib", "target", "preserveConstEnums", "removeComments").forEach { name ->
+            assertNull(
+                R2ControlledTsConfigPolicy.compilerOptionRejectionCode(
+                    name = name,
+                    isKnownTypeScriptOption = true,
+                    policyRevision = R2ControlledTsConfigPolicy.REVISION_3,
+                ),
+            )
+            assertNull(
+                R2ControlledTsConfigPolicy.compilerOptionWarningDiagnosticCode(
+                    name = name,
+                    isKnownTypeScriptOption = true,
+                    policyRevision = R2ControlledTsConfigPolicy.REVISION_3,
+                ),
+            )
+        }
+        assertEquals(
+            TypeScriptR2Contract.CONFIG_POLICY_CODE_PROFILE_CONFLICT,
+            R2ControlledTsConfigPolicy.compilerOptionRejectionCode(
+                name = "target",
+                isKnownTypeScriptOption = true,
+                policyRevision = R2ControlledTsConfigPolicy.LEGACY_POLICY_REVISION,
+            ),
+        )
+        assertEquals(
+            TypeScriptR2Contract.CONFIG_POLICY_CODE_UNSUPPORTED_FEATURE,
+            R2ControlledTsConfigPolicy.compilerOptionRejectionCode(
+                name = "lib",
+                isKnownTypeScriptOption = true,
+                policyRevision = R2ControlledTsConfigPolicy.LEGACY_POLICY_REVISION,
+            ),
+        )
+    }
+
+    @Test
+    fun checkedInRevision3GoldenExactlyMirrorsTheAppendOnlyOverlay() {
+        val bytes = requireNotNull(
+            javaClass.getResourceAsStream("/r2-controlled-tsconfig/policy-v3.json"),
+        ).use { input -> input.readBytes() }
+        val root = R2StrictJson.parseObject(bytes)
+
+        assertEquals(EXACT_REVISION_3_ROOT_KEYS, root.keys)
+        assertNumber(R2ControlledTsConfigPolicy.REVISION_3, root.getValue("revision"))
+        assertEquals(
+            R2ControlledTsConfigPolicy.revision3Fingerprint,
+            root.getValue("fingerprint"),
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.revision3AllowedBooleanCompilerOptions
+                .mapValues { (_, default) -> default.contractValue },
+            root.requireStringMap("allowedBooleanCompilerOptions"),
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.revision3AllowedValueCompilerOptions.sorted(),
+            root.requireStringList("allowedValueCompilerOptions"),
+        )
+        val targets = root.requireObject("profileTargets")
+        assertEquals(setOf("rhino", "node"), targets.keys)
+        assertEquals(
+            R2ControlledTsConfigPolicy.rhinoRevision3Targets
+                .map(R2ControlledTsConfigTarget::configValue)
+                .sorted(),
+            targets.requireStringList("rhino"),
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.nodeRevision3Targets
+                .map(R2ControlledTsConfigTarget::configValue)
+                .sorted(),
+            targets.requireStringList("node"),
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.revision3ProfileManagedCompilerOptions.sorted(),
+            root.requireStringList("profileManagedCompilerOptions"),
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.revision3EscapeForbiddenCompilerOptions.sorted(),
+            root.requireStringList("escapeForbiddenCompilerOptions"),
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.revision3OutputForbiddenCompilerOptions.sorted(),
+            root.requireStringList("outputForbiddenCompilerOptions"),
+        )
+        assertEquals("target-subset-defaults-to-target", root.getValue("libValues"))
+        assertEquals(
+            root.getValue("fingerprint"),
+            R2Digests.sha256(
+                R2ControlledTsConfigPolicy.revision3CanonicalInput
+                    .toByteArray(Charsets.US_ASCII),
+            ),
+        )
+    }
+
+    @Test
+    fun checkedInRevision4GoldenFreezesTheSnapshotOnlyPathAliasOverlay() {
+        val bytes = requireNotNull(
+            javaClass.getResourceAsStream("/r2-controlled-tsconfig/policy-v4.json"),
+        ).use { input -> input.readBytes() }
+        val root = R2StrictJson.parseObject(bytes)
+
+        assertEquals(EXACT_REVISION_4_ROOT_KEYS, root.keys)
+        assertNumber(R2ControlledTsConfigPolicy.LATEST_POLICY_REVISION, root.getValue("revision"))
+        assertNumber(R2ControlledTsConfigPolicy.REVISION_3, root.getValue("parentRevision"))
+        assertEquals(R2ControlledTsConfigPolicy.revision3Fingerprint, root["parentFingerprint"])
+        assertEquals(R2ControlledTsConfigPolicy.revision4Fingerprint, root["fingerprint"])
+        assertEquals(
+            "4a9a5e70150f81e1ec9a5e2f749cc081f93f207f092300c96a79abfdcc152dab",
+            R2ControlledTsConfigPolicy.revision4Fingerprint,
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.revision4AllowedValueCompilerOptions.sorted(),
+            root.requireStringList("allowedValueCompilerOptions"),
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.revision4EscapeForbiddenCompilerOptions.sorted(),
+            root.requireStringList("escapeForbiddenCompilerOptions"),
+        )
+        val aliases = root.requireObject("pathAliases")
+        assertEquals(EXACT_REVISION_4_PATH_ALIAS_KEYS, aliases.keys)
+        assertEquals(R2ControlledTsConfigPolicy.PATH_ALIAS_BASE_URL_DEFAULT, aliases["baseUrlDefault"])
+        assertEquals(R2ControlledTsConfigPolicy.PATH_ALIAS_RESOLUTION_DOMAIN, aliases["resolutionDomain"])
+        assertEquals(R2ControlledTsConfigPolicy.PATH_ALIAS_MATCHING, aliases["matching"])
+        assertEquals(R2ControlledTsConfigPolicy.PATH_ALIAS_EMIT_REWRITE, aliases["emitRewrite"])
+        assertNumber(
+            TypeScriptR2Contract.MAX_CONTROLLED_TSCONFIG_PATH_ALIASES,
+            aliases.getValue("maximumAliases"),
+        )
+        assertNumber(
+            TypeScriptR2Contract.MAX_CONTROLLED_TSCONFIG_PATH_TARGETS_PER_ALIAS,
+            aliases.getValue("maximumTargetsPerAlias"),
+        )
+        assertNumber(
+            TypeScriptR2Contract.MAX_CONTROLLED_TSCONFIG_PATH_TARGETS,
+            aliases.getValue("maximumTargets"),
+        )
+        assertNumber(
+            TypeScriptR2Contract.MAX_CONTROLLED_TSCONFIG_PATH_PATTERN_UTF8_BYTES,
+            aliases.getValue("maximumPatternUtf8Bytes"),
+        )
+        assertEquals(
+            root.getValue("fingerprint"),
+            R2Digests.sha256(
+                R2ControlledTsConfigPolicy.revision4CanonicalInput
+                    .toByteArray(Charsets.US_ASCII),
+            ),
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.revision4Fingerprint,
+            R2ControlledTsConfigPolicy.fingerprintForRevision(4),
+        )
+        listOf("baseUrl", "paths").forEach { name ->
+            assertNull(
+                R2ControlledTsConfigPolicy.compilerOptionRejectionCode(
+                    name = name,
+                    isKnownTypeScriptOption = true,
+                    policyRevision = R2ControlledTsConfigPolicy.LATEST_POLICY_REVISION,
+                ),
+            )
+            assertNull(
+                R2ControlledTsConfigPolicy.compilerOptionWarningDiagnosticCode(
+                    name = name,
+                    isKnownTypeScriptOption = true,
+                    policyRevision = R2ControlledTsConfigPolicy.LATEST_POLICY_REVISION,
+                ),
+            )
+        }
+    }
+
     private companion object {
         val EXACT_ROOT_KEYS = setOf(
             "schema",
@@ -358,6 +552,39 @@ class R2ControlledTsConfigPolicyTest {
             "knownOptionFallback",
             "warningDiagnosticCodes",
             "policyCodes",
+        )
+        val EXACT_REVISION_3_ROOT_KEYS = EXACT_ROOT_KEYS + setOf(
+            "allowedValueCompilerOptions",
+            "profileTargets",
+            "libValues",
+        )
+        val EXACT_REVISION_4_ROOT_KEYS = setOf(
+            "schema",
+            "revision",
+            "configKind",
+            "configPath",
+            "fingerprint",
+            "parentRevision",
+            "parentFingerprint",
+            "allowedValueCompilerOptions",
+            "escapeForbiddenCompilerOptions",
+            "pathAliases",
+        )
+        val EXACT_REVISION_4_PATH_ALIAS_KEYS = setOf(
+            "baseUrlDefault",
+            "resolutionDomain",
+            "matching",
+            "emitRewrite",
+            "maximumAliases",
+            "maximumTargetsPerAlias",
+            "maximumTargets",
+            "maximumPatternUtf8Bytes",
+            "baseUrlGrammar",
+            "keyGrammar",
+            "targetGrammar",
+            "wildcardCardinality",
+            "canonicalOrdering",
+            "emptyPaths",
         )
         val EXACT_GRAMMAR_KEYS = setOf(
             "name",

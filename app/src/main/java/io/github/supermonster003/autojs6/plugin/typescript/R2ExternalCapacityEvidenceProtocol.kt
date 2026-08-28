@@ -96,11 +96,11 @@ internal object R2ExternalCapacityEvidenceProtocol {
         return when {
             requestedScope == storedContainerScope ->
                 inputArchiveBytes ==
-                    TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES
+                    R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES
             requestedScope == deflatedExpandedScope ->
                 inputArchiveBytes != null &&
                     inputArchiveBytes in
-                    1L..TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES
+                    1L..R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES
             else -> false
         }
     }

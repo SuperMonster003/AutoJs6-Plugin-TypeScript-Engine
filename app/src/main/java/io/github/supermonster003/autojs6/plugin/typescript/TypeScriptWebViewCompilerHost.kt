@@ -775,10 +775,8 @@ class TypeScriptWebViewCompilerHost(
         dispatchOnMain: Boolean,
         workerSpinMilliseconds: Int,
         workerSpinPhase: R2ProjectExecutionPhase?,
-        workerAdmissionLimits: R2ProjectSnapshotLimits =
-            R2ProjectSnapshotLimits.ORDINARY_COMPILATION,
-        workerInputQuotaAuthority: R2WorkerInputQuotaAuthority =
-            R2WorkerInputQuotaAuthority.ORDINARY,
+        workerAdmissionLimits: R2ProjectSnapshotLimits? = null,
+        workerInputQuotaAuthority: R2WorkerInputQuotaAuthority? = null,
         absoluteDeadlineAtElapsedRealtimeNanos: Long? = null,
         projectExecutionObserver: ((R2ProjectExecutionEvent) -> Unit)? = null,
     ): R2ProjectCompilationOutcome {
@@ -813,11 +811,21 @@ class TypeScriptWebViewCompilerHost(
                 elapsedMs = elapsedSince(startedAt),
             )
         }
+        val selectedWorkerInputQuotaAuthority = workerInputQuotaAuthority ?: snapshot
+            .acceptedInputAuthority
+            ?.inputQuotaRevision
+            ?.let(R2WorkerInputQuotaAuthority::ordinaryForRevision)
+            ?: R2WorkerInputQuotaAuthority.ORDINARY
+        val selectedWorkerAdmissionLimits =
+            workerAdmissionLimits ?: selectedWorkerInputQuotaAuthority.callerLimits
         val workerAdmission = R2ProjectSnapshot.ordinaryCompilationAdmission(
             snapshot = snapshot,
-            limits = workerAdmissionLimits,
+            limits = selectedWorkerAdmissionLimits,
         )
-        check(workerAdmissionLimits == workerInputQuotaAuthority.callerLimits) {
+        check(
+            selectedWorkerAdmissionLimits ==
+                selectedWorkerInputQuotaAuthority.callerLimits,
+        ) {
             "Host caller admission and Worker quota authorities must be identical."
         }
         workerAdmission.exceededDimension?.let { exceededDimension ->
@@ -843,7 +851,7 @@ class TypeScriptWebViewCompilerHost(
                     snapshot = snapshot,
                     workerSpinMilliseconds = workerSpinMilliseconds,
                     workerSpinPhase = workerSpinPhase,
-                    workerInputQuotaAuthority = workerInputQuotaAuthority,
+                    workerInputQuotaAuthority = selectedWorkerInputQuotaAuthority,
                 ),
             )
         }.getOrElse { error ->

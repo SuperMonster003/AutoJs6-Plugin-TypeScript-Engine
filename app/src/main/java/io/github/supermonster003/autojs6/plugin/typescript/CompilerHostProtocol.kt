@@ -469,13 +469,19 @@ internal object CompilerHostProtocol {
         val configSchemaRevision = result.requireProtocolInt("configSchemaRevision")
         val configKind = result.requireString("configKind")
         val controlledConfig = configKind == TypeScriptR2Contract.CONFIG_KIND_TSCONFIG
+        val controlledOptionsRevision =
+            if (controlledConfig) result.requireProtocolInt("effectiveOptionsRevision") else null
         check(
             targetProfile == authority.profile.contractValue &&
                 profileSchemaRevision == authority.profileSchemaRevision &&
                 profileRevision == authority.profileRevision &&
                 (
                     controlledConfig &&
-                        authority.profile == R2ProjectProfile.PROVISIONAL_RHINO &&
+                        (
+                            authority == R2CompilationProfileRegistry.PROVISIONAL_RHINO ||
+                                authority ==
+                                R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+                            ) &&
                         configSchemaRevision ==
                         TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION ||
                         !controlledConfig &&
@@ -487,8 +493,7 @@ internal object CompilerHostProtocol {
         }
 
         val optionsJson = result.requireObject("options")
-        val hasTsxOptions =
-            authority == R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2
+        val hasTsxOptions = authority == R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2
         val effectiveOptions = R2ProjectEffectiveOptions(
             allowJs = optionsJson.requireBoolean("allowJs"),
             checkJs = optionsJson.requireBoolean("checkJs"),
@@ -517,10 +522,78 @@ internal object CompilerHostProtocol {
                         ?: error("Project compiler option types[$index] must be a string.")
                 },
             ),
+            lib = if (
+                controlledOptionsRevision == R2ControlledTsConfigEffectiveOptions.REVISION_3 ||
+                controlledOptionsRevision == R2ControlledTsConfigEffectiveOptions.REVISION_4
+            ) {
+                Collections.unmodifiableList(
+                    optionsJson.requireList("lib").mapIndexed { index, value ->
+                        value as? String
+                            ?: error("Project compiler option lib[$index] must be a string.")
+                    },
+                )
+            } else {
+                null
+            },
+            removeComments =
+                if (
+                    controlledOptionsRevision == R2ControlledTsConfigEffectiveOptions.REVISION_3 ||
+                    controlledOptionsRevision == R2ControlledTsConfigEffectiveOptions.REVISION_4
+                ) {
+                    optionsJson.requireBoolean("removeComments")
+                } else {
+                    false
+                },
+            preserveConstEnums =
+                if (
+                    controlledOptionsRevision == R2ControlledTsConfigEffectiveOptions.REVISION_3 ||
+                    controlledOptionsRevision == R2ControlledTsConfigEffectiveOptions.REVISION_4
+                ) {
+                    optionsJson.requireBoolean("preserveConstEnums")
+                } else {
+                    false
+                },
+            baseUrl = if (
+                controlledOptionsRevision == R2ControlledTsConfigEffectiveOptions.REVISION_4
+            ) {
+                optionsJson.requireNullableString("baseUrl")
+            } else {
+                null
+            },
+            paths = if (
+                controlledOptionsRevision == R2ControlledTsConfigEffectiveOptions.REVISION_4
+            ) {
+                Collections.unmodifiableMap(
+                    optionsJson.requireObject("paths")
+                        .entries
+                        .sortedBy { entry -> entry.key }
+                        .associateTo(linkedMapOf()) { (key, value) ->
+                            val targets = value as? List<*>
+                                ?: error("Project compiler option paths.$key must be an array.")
+                            key to Collections.unmodifiableList(
+                                targets.mapIndexed { index, target ->
+                                    target as? String
+                                        ?: error(
+                                            "Project compiler option paths.$key[$index] " +
+                                                "must be a string.",
+                                        )
+                                },
+                            )
+                        },
+                )
+            } else {
+                null
+            },
         )
         val controlledEffectiveOptions =
             if (controlledConfig) {
-                parseControlledEffectiveOptions(result, optionsJson, effectiveOptions)
+                parseControlledEffectiveOptions(
+                    result,
+                    optionsJson,
+                    effectiveOptions,
+                    authority,
+                    requireNotNull(controlledOptionsRevision),
+                )
             } else {
                 check(effectiveOptions == authority.effectiveOptions) {
                     "Project compiler violated the selected provisional option contract."
@@ -621,17 +694,54 @@ internal object CompilerHostProtocol {
         result: Map<String, Any?>,
         options: Map<String, Any?>,
         coreOptions: R2ProjectEffectiveOptions,
+        profileAuthority: R2CompilationProfileAuthority,
+        revision: Int,
     ): R2ControlledTsConfigEffectiveOptions {
         check(
-            result.requireProtocolInt("effectiveOptionsRevision") ==
-                R2ControlledTsConfigEffectiveOptions.REVISION
+            revision == R2ControlledTsConfigEffectiveOptions.REVISION ||
+                revision == R2ControlledTsConfigEffectiveOptions.REVISION_3 ||
+                revision == R2ControlledTsConfigEffectiveOptions.REVISION_4
         ) {
             "Controlled effective-options revision is not supported."
         }
+        check(
+            revision != R2ControlledTsConfigEffectiveOptions.REVISION ||
+                profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO
+        ) {
+            "Controlled effective-options revision 2 is Rhino-only."
+        }
+        val allowedBooleans = R2ControlledTsConfigPolicy.allowedBooleanCompilerOptions(
+            if (revision == R2ControlledTsConfigEffectiveOptions.REVISION) {
+                R2ControlledTsConfigPolicy.LEGACY_POLICY_REVISION
+            } else if (revision == R2ControlledTsConfigEffectiveOptions.REVISION_3) {
+                R2ControlledTsConfigPolicy.REVISION_3
+            } else {
+                R2ControlledTsConfigPolicy.LATEST_POLICY_REVISION
+            },
+        )
         val resolvedBooleans =
-            R2ControlledTsConfigPolicy.allowedBooleanCompilerOptions.keys
+            allowedBooleans.keys
                 .associateWith { name -> options.requireBoolean(name) }
-        val resolved = R2ControlledTsConfigEffectiveOptions.resolve(resolvedBooleans)
+        val resolved =
+            if (revision == R2ControlledTsConfigEffectiveOptions.REVISION) {
+                R2ControlledTsConfigEffectiveOptions.resolve(resolvedBooleans)
+            } else if (revision == R2ControlledTsConfigEffectiveOptions.REVISION_3) {
+                R2ControlledTsConfigEffectiveOptions.resolveRevision3(
+                    profileAuthority = profileAuthority,
+                    explicitBooleanOptions = resolvedBooleans,
+                    target = R2ControlledTsConfigTarget.fromCompilerValue(coreOptions.target),
+                    libraries = requireNotNull(coreOptions.lib),
+                )
+            } else {
+                R2ControlledTsConfigEffectiveOptions.resolveRevision4(
+                    profileAuthority = profileAuthority,
+                    explicitBooleanOptions = resolvedBooleans,
+                    target = R2ControlledTsConfigTarget.fromCompilerValue(coreOptions.target),
+                    libraries = requireNotNull(coreOptions.lib),
+                    baseUrl = coreOptions.baseUrl,
+                    paths = requireNotNull(coreOptions.paths),
+                )
+            }
         val explicitDefaults = R2ControlledTsConfigExplicitProfileDefaults(
             allowSyntheticDefaultImports =
                 options.requireBoolean("allowSyntheticDefaultImports"),
@@ -1221,12 +1331,37 @@ internal object CompilerHostProtocol {
 
         val options = result.requireObject("options")
         if (configKind == TypeScriptR2Contract.CONFIG_KIND_TSCONFIG) {
+            val effectiveOptionsRevision = result.requireProtocolInt("effectiveOptionsRevision")
+            val optionKeys = when (effectiveOptionsRevision) {
+                R2ControlledTsConfigEffectiveOptions.REVISION ->
+                    R2ControlledTsConfigEffectiveOptions.canonicalOptionKeys
+                R2ControlledTsConfigEffectiveOptions.REVISION_3 ->
+                    R2ControlledTsConfigEffectiveOptions.canonicalOptionKeysRevision3(
+                        when (result.requireString("targetProfile")) {
+                            TypeScriptCompilerContract.PROFILE_RHINO ->
+                                R2ProjectProfile.PROVISIONAL_RHINO
+                            TypeScriptCompilerContract.PROFILE_NODE ->
+                                R2ProjectProfile.PROVISIONAL_NODE_NEXT
+                            else -> error("Controlled result profile is not supported.")
+                        },
+                    )
+                R2ControlledTsConfigEffectiveOptions.REVISION_4 ->
+                    R2ControlledTsConfigEffectiveOptions.canonicalOptionKeysRevision4(
+                        when (result.requireString("targetProfile")) {
+                            TypeScriptCompilerContract.PROFILE_RHINO ->
+                                R2ProjectProfile.PROVISIONAL_RHINO
+                            TypeScriptCompilerContract.PROFILE_NODE ->
+                                R2ProjectProfile.PROVISIONAL_NODE_NEXT
+                            else -> error("Controlled result profile is not supported.")
+                        },
+                    )
+                else -> error("Controlled effective-options revision is not supported.")
+            }
             options.requireExactPayloadKeys(
                 label = "Controlled framed project options",
-                *R2ControlledTsConfigEffectiveOptions.canonicalOptionKeys.toTypedArray(),
+                *optionKeys.toTypedArray(),
             )
             result.requireString("effectiveOptionsFingerprint")
-            result.requireProtocolInt("effectiveOptionsRevision")
             result.requireList("rootNames").forEachIndexed { index, value ->
                 check(value is String) {
                     "Controlled framed project rootNames[$index] must be a string."
@@ -1319,6 +1454,34 @@ internal object CompilerHostProtocol {
                 "useUnknownInCatchVariables",
             ).forEach { name -> options.requireBoolean(name) }
             options.requireProtocolInt("moduleDetection")
+            if (
+                result.requireProtocolInt("effectiveOptionsRevision") in
+                R2ControlledTsConfigEffectiveOptions.REVISION_3..
+                R2ControlledTsConfigEffectiveOptions.REVISION_4
+            ) {
+                options.requireBoolean("preserveConstEnums")
+                options.requireBoolean("removeComments")
+                options.requireList("lib").forEachIndexed { index, value ->
+                    check(value is String) {
+                        "Controlled framed project option lib[$index] must be a string."
+                    }
+                }
+            }
+            if (
+                result.requireProtocolInt("effectiveOptionsRevision") ==
+                R2ControlledTsConfigEffectiveOptions.REVISION_4
+            ) {
+                options.requireNullableString("baseUrl")
+                options.requireObject("paths").forEach { (key, value) ->
+                    val targets = value as? List<*>
+                        ?: error("Controlled framed project option paths.$key must be an array.")
+                    targets.forEachIndexed { index, target ->
+                        check(target is String) {
+                            "Controlled framed project option paths.$key[$index] must be a string."
+                        }
+                    }
+                }
+            }
         }
 
         result.requireList("diagnostics").forEachIndexed { index, value ->
@@ -1618,7 +1781,7 @@ internal object CompilerHostProtocol {
         TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_SINGLE_SOURCE_MAP_BYTES.toInt()
     private const val MAX_REQUEST_ID_CHARS = 128
     private const val MIN_PROJECT_PHASE_PROGRESS_UNITS = 8
-    private const val MAX_PROJECT_PHASE_PROGRESS_UNITS = 2 * 4_607
+    private const val MAX_PROJECT_PHASE_PROGRESS_UNITS = 2 * 4_608
     private const val MAX_BASE64_CHUNK_CHARS =
         (R2_PROJECT_FRAME_RAW_CHUNK_BYTES + 2) / 3 * 4
     private const val MAX_SOURCE_MAP_MAPPINGS_CHARS = 16 * 1024

@@ -488,7 +488,10 @@ const successMainSource =
     "export type Combined = TypesBranch & CustomBranch & PatternBranch & LocalValue;\n" +
     "export const requiredMode = requiredValue.mode;\n";
 const ordinaryFiles = (mainSource) => [
+    // The VFS keeps the legacy controlled-library sentinel while Rhino revision 2
+    // selects the ES2018 entry point from the packaged standard-library layer.
     { path: "/declarations/lib.d.ts", text: minimalLibrary },
+    { path: "/declarations/lib.es2018.d.ts", text: minimalLibrary },
     {
         path: "/declarations/local.d.ts",
         text: "export interface LocalValue { readonly local: true; }\n",
@@ -914,7 +917,15 @@ const assertSuccessfulProgram = ({ call, result }, label) => {
                 resolution.resolvedFileName?.startsWith("/packages/"),
             ).length === 5 &&
             call.typeReferenceResolutions.length === 1,
-        `${label} result/root/output authority drifted.`,
+        `${label} result/root/output authority drifted: ${JSON.stringify({
+            emitSkipped: result.emitSkipped,
+            diagnostics: result.diagnostics,
+            resultRootNames: result.rootNames,
+            outputPaths: result.outputs?.map((output) => output.path),
+            callRootNames: call.rootNames,
+            resolutions: call.resolutions,
+            typeReferenceResolutions: call.typeReferenceResolutions,
+        })}.`,
     );
     assert(
         !call.rootNames.some((rootName) => rootName.startsWith("/packages/")) &&

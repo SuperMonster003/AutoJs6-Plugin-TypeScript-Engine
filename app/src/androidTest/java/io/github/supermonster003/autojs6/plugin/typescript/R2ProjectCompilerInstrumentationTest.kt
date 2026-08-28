@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -11,6 +12,7 @@ import io.github.supermonster003.autojs6.plugin.typescript.archive.ZipArchiveV1E
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.Callable
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
@@ -168,9 +170,22 @@ class R2ProjectCompilerInstrumentationTest {
         assertTrue(snapshot.totalUtf8Bytes > 3L * 1024L * 1024L)
 
         withCompilerHost { host ->
-            val outcome = host.compileProject(
+            val phaseEvents = CopyOnWriteArrayList<R2ProjectExecutionEvent.Phase>()
+            val startedAtElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+            val outcome = host.compileProjectUntilElapsedRealtimeDeadline(
+                handle = host.newProjectOperationHandle(),
                 snapshot = snapshot,
-                timeoutMs = TypeScriptCompilerContract.MAX_TIMEOUT_MS,
+                deadlineAtElapsedRealtimeNanos = Math.addExact(
+                    startedAtElapsedRealtimeNanos,
+                    TimeUnit.MILLISECONDS.toNanos(
+                        TypeScriptCompilerContract.MAX_TIMEOUT_MS,
+                    ),
+                ),
+                projectExecutionObserver = { event ->
+                    if (event is R2ProjectExecutionEvent.Phase) {
+                        phaseEvents += event
+                    }
+                },
             )
             assertTrue(outcome.errorMessage.orEmpty(), outcome.succeeded)
             val compilation = requireNotNull(outcome.compilation)
@@ -183,25 +198,61 @@ class R2ProjectCompilerInstrumentationTest {
             )
             assertTrue(inputTelemetry.complete)
             assertTrue(inputTelemetry.sentFrameCount > inputTelemetry.sentEnvelopeCount)
-            assertEquals(
+            val theoreticalMinimumEnvelopes =
                 2 + (
                     inputTelemetry.sentFrameCount - 2 +
                         R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES - 1
-                    ) / R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES,
-                inputTelemetry.sentEnvelopeCount,
+                    ) / R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES
+            assertTrue(
+                inputTelemetry.sentEnvelopeCount >= theoreticalMinimumEnvelopes,
+            )
+            val previousFourFrameEnvelopes =
+                2 + (inputTelemetry.sentFrameCount - 2 + 3) / 4
+            assertTrue(
+                inputTelemetry.sentEnvelopeCount < previousFourFrameEnvelopes,
             )
             assertTrue(
                 inputTelemetry.maximumEncodedEnvelopeBytes <=
                     R2_PROJECT_MAXIMUM_BATCH_ENVELOPE_BYTES,
             )
+            val phaseDurationsMs = R2ProjectExecutionPhase.ordered.associateWith { phase ->
+                val started = phaseEvents.single { event ->
+                    event.phase == phase &&
+                        event.state == R2ProjectExecutionPhaseState.STARTED
+                }
+                val completed = phaseEvents.single { event ->
+                    event.phase == phase &&
+                        event.state == R2ProjectExecutionPhaseState.COMPLETED
+                }
+                assertTrue(
+                    "Project phase $phase completed before it started.",
+                    completed.observedAtElapsedRealtimeNanos >
+                        started.observedAtElapsedRealtimeNanos,
+                )
+                TimeUnit.NANOSECONDS.toMillis(
+                    completed.observedAtElapsedRealtimeNanos -
+                        started.observedAtElapsedRealtimeNanos,
+                )
+            }
             Log.i(
                 CAPACITY_LOG_TAG,
-                "PROJECT_INPUT_BATCH_PASS " +
+                "typescript-cold-start-perf schema=1 " +
+                    "api=${Build.VERSION.SDK_INT} " +
+                    "webView=" +
+                    "${androidx.webkit.WebViewCompat.getCurrentWebViewPackage(context)?.versionName} " +
+                    "batchFrames=$R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES " +
+                    "batchPayloadChunks=" +
+                    "$R2_PROJECT_INPUT_BATCH_MAXIMUM_PAYLOAD_CHUNK_FRAMES " +
                     "frames=${inputTelemetry.sentFrameCount} " +
                     "envelopes=${inputTelemetry.sentEnvelopeCount} " +
-                    "maximumEncodedEnvelopeBytes=" +
+                    "maxEnvelopeBytes=" +
                     "${inputTelemetry.maximumEncodedEnvelopeBytes} " +
-                    "elapsedMs=${outcome.elapsedMs}",
+                    "compilerMs=${outcome.elapsedMs} " +
+                    "ingressMs=${phaseDurationsMs.getValue(R2ProjectExecutionPhase.INGRESS)} " +
+                    "parseMs=${phaseDurationsMs.getValue(R2ProjectExecutionPhase.PARSE)} " +
+                    "semanticMs=${phaseDurationsMs.getValue(R2ProjectExecutionPhase.SEMANTIC)} " +
+                    "emitMs=${phaseDurationsMs.getValue(R2ProjectExecutionPhase.EMIT)} " +
+                    "gate=none",
             )
         }
     }

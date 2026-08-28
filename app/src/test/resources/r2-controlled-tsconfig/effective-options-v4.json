@@ -1,0 +1,67 @@
+{
+  "schema": "autojs6.typescript.controlled-tsconfig-effective-options",
+  "revision": 4,
+  "configSchemaRevision": 2,
+  "configKind": "tsconfig",
+  "previousCompatibility": {
+    "policyRevision": 3,
+    "policyFingerprint": "1f77d37080466f2752176fb5aa1b96e9a3f3dbdc89b853f30b4a0fed4313e90a"
+  },
+  "pathAliases": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@feature/*": ["src/features/*"]
+    },
+    "projectSourceFileCount": 12,
+    "entryPath": "/sources/src/index.ts",
+    "entryOutputPath": "/outputs/src/index.js",
+    "runtimeSum": 55,
+    "runtimeFaultSourcePath": "/sources/src/features/fault.ts",
+    "runtimeFaultSourceLine": 2
+  },
+  "profiles": [
+    {
+      "id": "rhino-aliases",
+      "targetProfile": "rhino",
+      "profileSchemaRevision": 1,
+      "profileRevision": 2,
+      "normalizedTarget": "ES2018",
+      "normalizedLibraries": ["lib.es2018.d.ts"],
+      "canonicalOptionCount": 49,
+      "effectiveOptionsFingerprint": "b2da71259b531113171de449e3226a8b5d7870620063feb4ac81459dedc4146b"
+    },
+    {
+      "id": "node-aliases",
+      "targetProfile": "node",
+      "profileSchemaRevision": 1,
+      "profileRevision": 2,
+      "normalizedTarget": "ES2022",
+      "normalizedLibraries": ["lib.es2022.d.ts"],
+      "canonicalOptionCount": 46,
+      "effectiveOptionsFingerprint": "341d3f22c61fd7488bae6de0ed6003376e62cdfdf394ac153677d7dc3b67c546"
+    }
+  ],
+  "rejected": [
+    {
+      "id": "base-url-escape",
+      "configSource": "{\"compilerOptions\":{\"baseUrl\":\"../outside\",\"paths\":{\"@/*\":[\"src/*\"]}}}",
+      "policyCode": "CONFIG_PATH_INVALID"
+    },
+    {
+      "id": "path-target-escape",
+      "configSource": "{\"compilerOptions\":{\"paths\":{\"@/*\":[\"../outside/*\"]}}}",
+      "policyCode": "CONFIG_PATH_INVALID"
+    },
+    {
+      "id": "wildcard-cardinality-mismatch",
+      "configSource": "{\"compilerOptions\":{\"paths\":{\"@/*\":[\"src/exact\"]}}}",
+      "policyCode": "CONFIG_PATH_INVALID"
+    },
+    {
+      "id": "relative-alias-key",
+      "configSource": "{\"compilerOptions\":{\"paths\":{\"./relative/*\":[\"src/*\"]}}}",
+      "policyCode": "CONFIG_PATH_INVALID"
+    }
+  ]
+}

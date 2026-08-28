@@ -181,6 +181,43 @@ class R2GeneratedModuleMappingTest {
     }
 
     @Test
+    fun packageAuthorityUsesCanonicalWorkspaceBoundaryPolicy() {
+        val inventoryFingerprint = "a".repeat(64)
+        listOf(
+            "/packages/plain",
+            "/packages/@scope/name",
+            "/packages/plain/nested",
+        ).forEach { boundaryPath ->
+            assertEquals(
+                boundaryPath,
+                R2GeneratedPackageFormatAuthority(
+                    typeState = R2PackageTypeState.MODULE,
+                    packageMetadataInventoryFingerprint = inventoryFingerprint,
+                    boundaryPath = boundaryPath,
+                ).boundaryPath,
+            )
+        }
+        listOf(
+            "/outside/plain",
+            "/packages/@scope",
+            "/packages/Uppercase",
+            "/packages/plain/..",
+        ).forEach { boundaryPath ->
+            assertEquals(
+                boundaryPath,
+                R2GeneratedModuleMappingFailureCode.PACKAGE_AUTHORITY_MISMATCH,
+                assertFails<R2GeneratedModuleMappingException> {
+                    R2GeneratedPackageFormatAuthority(
+                        typeState = R2PackageTypeState.MODULE,
+                        packageMetadataInventoryFingerprint = inventoryFingerprint,
+                        boundaryPath = boundaryPath,
+                    )
+                }.policyCode,
+            )
+        }
+    }
+
+    @Test
     fun rhinoRevisionTwoMapsTsxToJavaScriptAndRevisionOneStaysClosed() {
         val sourcePath = "/sources/ui/component.tsx"
         val revisionTwo = R2GeneratedModuleMappingPolicy.map(

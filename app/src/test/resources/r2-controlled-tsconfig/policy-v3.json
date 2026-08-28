@@ -1,0 +1,150 @@
+{
+  "schema": "autojs6.typescript.controlled-tsconfig-policy",
+  "revision": 3,
+  "configKind": "tsconfig",
+  "configPath": "tsconfig.json",
+  "fingerprint": "1f77d37080466f2752176fb5aa1b96e9a3f3dbdc89b853f30b4a0fed4313e90a",
+  "grammar": {
+    "name": "typescript-jsonc-6.0.3",
+    "allowUtf8Bom": true,
+    "allowComments": true,
+    "allowTrailingComma": true,
+    "rejectDuplicateKeys": true
+  },
+  "budgets": {
+    "maximumBytes": 49152,
+    "maximumSelectors": 512,
+    "maximumSelectorUtf8Bytes": 4096,
+    "maximumJsonDepth": 16,
+    "maximumJsonNodes": 4096
+  },
+  "budgetSemantics": {
+    "jsonDepthCounting": "root-value-one-each-child-value-plus-one-inclusive",
+    "jsonNodeCounting": "every-json-value-root-included-property-names-excluded-inclusive",
+    "selectorCounting": "all-array-elements-before-validation-normalization-dedup-inclusive",
+    "selectorUtf8Measurement": "max-of-decoded-json-string-and-nfc-normalized-string"
+  },
+  "rootSelection": {
+    "logicalPathDomain": "nfc-logical-project-path",
+    "defaultInclude": "**/*",
+    "defaultExclude": [],
+    "filesAndInclude": "union",
+    "excludeAffects": "include-only"
+  },
+  "allowedTopLevel": [
+    "$schema",
+    "compilerOptions",
+    "exclude",
+    "files",
+    "include"
+  ],
+  "unsupportedTopLevel": [
+    "compileOnSave",
+    "extends",
+    "references",
+    "typeAcquisition",
+    "watchOptions"
+  ],
+  "allowedBooleanCompilerOptions": {
+    "exactOptionalPropertyTypes": "false",
+    "noFallthroughCasesInSwitch": "false",
+    "noImplicitAny": "inherit-strict",
+    "noImplicitOverride": "false",
+    "noImplicitReturns": "false",
+    "noImplicitThis": "inherit-strict",
+    "noPropertyAccessFromIndexSignature": "false",
+    "noUncheckedIndexedAccess": "false",
+    "noUnusedLocals": "false",
+    "noUnusedParameters": "false",
+    "preserveConstEnums": "false",
+    "removeComments": "false",
+    "skipLibCheck": "false",
+    "strict": "true",
+    "strictBindCallApply": "inherit-strict",
+    "strictBuiltinIteratorReturn": "inherit-strict",
+    "strictFunctionTypes": "inherit-strict",
+    "strictNullChecks": "inherit-strict",
+    "strictPropertyInitialization": "inherit-strict",
+    "useUnknownInCatchVariables": "inherit-strict"
+  },
+  "allowedValueCompilerOptions": [
+    "lib",
+    "target"
+  ],
+  "profileTargets": {
+    "rhino": ["ES2018"],
+    "node": ["ES2018", "ES2019", "ES2020", "ES2021", "ES2022"]
+  },
+  "libValues": "target-subset-defaults-to-target",
+  "profileManagedCompilerOptions": [
+    "allowJs",
+    "allowSyntheticDefaultImports",
+    "alwaysStrict",
+    "checkJs",
+    "esModuleInterop",
+    "forceConsistentCasingInFileNames",
+    "ignoreDeprecations",
+    "module",
+    "moduleDetection",
+    "moduleResolution",
+    "newLine",
+    "noEmitOnError",
+    "outDir",
+    "resolveJsonModule",
+    "rootDir",
+    "sourceMap",
+    "useDefineForClassFields"
+  ],
+  "escapeForbiddenCompilerOptions": [
+    "baseUrl",
+    "customConditions",
+    "moduleSuffixes",
+    "paths",
+    "plugins",
+    "rootDirs",
+    "traceResolution",
+    "typeRoots",
+    "types"
+  ],
+  "outputForbiddenCompilerOptions": [
+    "declaration",
+    "declarationDir",
+    "declarationMap",
+    "emitBOM",
+    "emitDeclarationOnly",
+    "importHelpers",
+    "incremental",
+    "inlineSourceMap",
+    "inlineSources",
+    "mapRoot",
+    "noEmit",
+    "noEmitHelpers",
+    "outFile",
+    "sourceRoot",
+    "tsBuildInfoFile"
+  ],
+  "customTransformerCompilerOptions": [
+    "customTransformer",
+    "customTransformers",
+    "transformers"
+  ],
+  "unknownTopLevelFallback": "warning-ignore",
+  "knownOptionFallback": "warning-ignore",
+  "warningDiagnosticCodes": {
+    "ignoredTopLevelProperty": 910001,
+    "ignoredCompilerOption": 910002
+  },
+  "policyCodes": [
+    "CONFIG_ENCODING_INVALID",
+    "CONFIG_SYNTAX_INVALID",
+    "CONFIG_DUPLICATE_KEY",
+    "CONFIG_UNKNOWN_PROPERTY",
+    "CONFIG_INVALID_VALUE",
+    "CONFIG_UNSUPPORTED_FEATURE",
+    "CONFIG_PROFILE_CONFLICT",
+    "CONFIG_PATH_INVALID",
+    "CONFIG_COMPLEXITY_EXCEEDED",
+    "CONFIG_NO_INPUTS",
+    "CONFIG_ENTRY_NOT_SELECTED"
+  ]
+}

@@ -4,6 +4,7 @@ const crypto = require("node:crypto");
 
 const INPUT_ARCHIVE_SCHEMA_REVISION = 1;
 const ORDINARY_INPUT_QUOTA_REVISION = 1;
+const CURRENT_ORDINARY_INPUT_QUOTA_REVISION = 3;
 const TEST_ONLY_EXPANDED_INPUT_QUOTA_REVISION = 2_147_483_647;
 const INVENTORY_CANONICAL_PREFIX = "autojs6.typescript.input-inventory.v1\n";
 const DOMAIN_ORDER = Object.freeze({
@@ -138,6 +139,7 @@ const projectInputAuthority = ({
 };
 
 module.exports = Object.freeze({
+    CURRENT_ORDINARY_INPUT_QUOTA_REVISION,
     INPUT_ARCHIVE_SCHEMA_REVISION,
     INVENTORY_CANONICAL_PREFIX,
     ORDINARY_INPUT_QUOTA_REVISION,

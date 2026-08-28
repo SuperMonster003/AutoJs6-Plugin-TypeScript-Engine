@@ -17,6 +17,11 @@ internal enum class R2WorkerInputQuotaAuthority(
     val callerLimits: R2ProjectSnapshotLimits,
     val retainedLimits: R2ProjectSnapshotLimits,
 ) {
+    LEGACY_ORDINARY(
+        revision = TypeScriptR2Contract.LEGACY_ORDINARY_COMPILATION_INPUT_QUOTA_REVISION,
+        callerLimits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION_REVISION_2,
+        retainedLimits = R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE,
+    ),
     ORDINARY(
         revision = TypeScriptR2Contract.ORDINARY_COMPILATION_INPUT_QUOTA_REVISION,
         callerLimits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION,
@@ -26,17 +31,26 @@ internal enum class R2WorkerInputQuotaAuthority(
         revision = Int.MAX_VALUE,
         callerLimits = R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE,
         retainedLimits = R2ProjectSnapshotLimits.FILE_BACKED_ARCHIVE,
-    ),
+    );
+
+    companion object {
+        fun ordinaryForRevision(revision: Int): R2WorkerInputQuotaAuthority? = when (revision) {
+            LEGACY_ORDINARY.revision -> LEGACY_ORDINARY
+            ORDINARY.revision -> ORDINARY
+            else -> null
+        }
+    }
 }
 
 /**
  * P3a R2 text-VFS transport.
  *
  * Native input stays file-backed and frames are produced through bounded cursor reads. The
- * current Worker still reconstructs a heap-backed VFS, so ordinary production dispatch keeps its
- * provisional 8 MiB admission limit. A DEBUG-only device gate can exercise the larger file-backed
- * envelope. Logical frames remain independently bounded; production sends start/end singly and
- * groups at most four middle frames into one bounded, acknowledgement-backpressured envelope.
+ * Worker reconstructs a heap-backed VFS behind a retained-input guardrail. Revision 3 caller
+ * input may use the 4,096-file / 64 MiB transport ceiling, while revision 2 callers retain their
+ * historical 512-file / 8 MiB limits. Logical frames remain independently bounded; production
+ * sends start/end singly and groups at most six middle frames into one bounded,
+ * acknowledgement-backpressured envelope.
  */
 internal interface R2ProjectInputTransport {
 
@@ -59,8 +73,7 @@ internal class R2ProjectInputFramer(
     private val snapshot: R2ProjectInputSnapshot,
     private val workerSpinMilliseconds: Int = 0,
     private val workerSpinPhase: R2ProjectExecutionPhase? = null,
-    private val workerInputQuotaAuthority: R2WorkerInputQuotaAuthority =
-        R2WorkerInputQuotaAuthority.ORDINARY,
+    private val workerInputQuotaAuthority: R2WorkerInputQuotaAuthority? = null,
 ) : R2ProjectInputTransport {
 
     private val files = snapshot.fileInventory.toList()
@@ -75,6 +88,8 @@ internal class R2ProjectInputFramer(
     private val packageTargetFiles = packageTargets?.files?.toList().orEmpty()
     private val nodePackageTargetsV2 = snapshot.nodePackageTargetV2Inventory
     private val nodePackageTargetV2Files = nodePackageTargetsV2?.files?.toList().orEmpty()
+    private val dependencyLayer = snapshot.dependencyLayerInventory
+    private val dependencyLayerFiles = dependencyLayer?.files?.toList().orEmpty()
     private val targetProfile = profileAuthority.profile.contractValue
     private val acceptedInputAuthority = snapshot.acceptedInputAuthority ?: run {
         require(snapshot.acceptedProjectId == null) {
@@ -82,8 +97,18 @@ internal class R2ProjectInputFramer(
         }
         R2InputArchiveSchemaV1.compatibilityAuthority(snapshot)
     }
+    private val selectedWorkerInputQuotaAuthority = workerInputQuotaAuthority ?: requireNotNull(
+        R2WorkerInputQuotaAuthority.ordinaryForRevision(
+            acceptedInputAuthority.inputQuotaRevision,
+        ),
+    ) {
+        "Accepted archive authority has no matching Worker quota revision."
+    }
     private val isNodeRevisionTwo =
         profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+    private val supportsDependencyResolver =
+        profileAuthority == R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_2 ||
+            isNodeRevisionTwo
 
     init {
         // Reject delegated snapshot package-authority drift before deriving the resolver-v2
@@ -98,20 +123,26 @@ internal class R2ProjectInputFramer(
         )
         require(
             acceptedInputAuthority.inputQuotaRevision ==
-                R2WorkerInputQuotaAuthority.ORDINARY.revision,
+                if (selectedWorkerInputQuotaAuthority ==
+                    R2WorkerInputQuotaAuthority.TEST_ONLY_EXPANDED
+                ) {
+                    R2WorkerInputQuotaAuthority.ORDINARY.revision
+                } else {
+                    selectedWorkerInputQuotaAuthority.revision
+                },
         ) {
             "Accepted archive authority must retain the ordinary caller quota revision."
         }
         require(
             acceptedInputAuthority.callerCapacity
-                .admissionAgainst(workerInputQuotaAuthority.callerLimits)
+                .admissionAgainst(selectedWorkerInputQuotaAuthority.callerLimits)
                 .isEligible,
         ) {
             "Accepted caller input exceeds the trusted Worker quota authority."
         }
         require(
             acceptedInputAuthority.capacity
-                .admissionAgainst(workerInputQuotaAuthority.retainedLimits)
+                .admissionAgainst(selectedWorkerInputQuotaAuthority.retainedLimits)
                 .isEligible,
         ) {
             "Accepted retained input exceeds the trusted Worker guardrail."
@@ -138,12 +169,16 @@ internal class R2ProjectInputFramer(
     private val declaredPackageMetadataBytes = packageMetadata?.totalBytes ?: 0L
     private val declaredPackageTargetBytes = packageTargets?.totalBytes ?: 0L
     private val declaredNodePackageTargetV2Bytes = nodePackageTargetsV2?.totalBytes ?: 0L
-    private val transportedFileCount = Math.addExact(
+    private val transportedOrdinaryFileCount = Math.addExact(
         Math.addExact(
             Math.addExact(packageMetadataFiles.size, packageTargetFiles.size),
             nodePackageTargetV2Files.size,
         ),
         files.size,
+    )
+    private val transportedFileCount = Math.addExact(
+        transportedOrdinaryFileCount,
+        dependencyLayerFiles.size,
     )
     private val declaredFileBytes = Math.addExact(
         Math.addExact(
@@ -156,9 +191,14 @@ internal class R2ProjectInputFramer(
         declaredFileBytes,
         rawConfig?.size ?: 0L,
     )
+    private val declaredDependencyLayerBytes = dependencyLayer?.totalBytes ?: 0L
+    private val declaredTransportBytes = Math.addExact(
+        declaredTotalBytes,
+        declaredDependencyLayerBytes,
+    )
     private val inputAuthorityFields: Array<Pair<String, Any>> = arrayOf(
         "inputArchiveSchemaRevision" to acceptedInputAuthority.schemaRevision,
-        "inputQuotaRevision" to workerInputQuotaAuthority.revision,
+        "inputQuotaRevision" to selectedWorkerInputQuotaAuthority.revision,
         "callerInventoryFingerprint" to acceptedInputAuthority.callerInventoryFingerprint,
         "retainedInventoryFingerprint" to acceptedInputAuthority.retainedInventoryFingerprint,
         "retainedFileCount" to acceptedInputAuthority.capacity.fileCount,
@@ -170,6 +210,23 @@ internal class R2ProjectInputFramer(
         "declarationFileCount" to acceptedInputAuthority.declarationFileCount,
         "declarationByteLength" to acceptedInputAuthority.declarationByteLength,
     )
+    private val dependencyResolverFields: Array<Pair<String, Any>> = dependencyLayer?.let { layer ->
+        arrayOf(
+            "dependencyLayerSchemaRevision" to R2DependencyLayerPolicy.SCHEMA_REVISION,
+            "dependencyLayerPolicyRevision" to layer.authority.policyRevision,
+            "dependencyLayerPolicyFingerprint" to layer.authority.policyFingerprint,
+            "dependencyLayerIdentityKind" to layer.identityKind,
+            "dependencyLayerIdentityPath" to layer.identityPath,
+            "dependencyLayerIdentityFingerprint" to layer.identityFingerprint,
+            "dependencyLayerInventoryFingerprint" to layer.inventoryFingerprint,
+            "dependencyLayerFingerprint" to layer.fingerprint,
+            "dependencyLayerFileCount" to layer.files.size,
+            "dependencyLayerByteLength" to layer.totalBytes,
+            "dependencyLayerPathByteLength" to layer.totalPathBytes,
+            "dependencyResolverPolicyRevision" to R2DependencyResolverPolicy.POLICY_REVISION,
+            "dependencyResolverPolicyFingerprint" to R2DependencyResolverPolicy.fingerprint,
+        )
+    } ?: emptyArray()
     private val chunkBuffer = ByteArray(R2_PROJECT_FRAME_RAW_CHUNK_BYTES)
 
     private var stage = Stage.PROJECT_START
@@ -206,6 +263,12 @@ internal class R2ProjectInputFramer(
     override val nextFrameCompletesTransport: Boolean
         get() = !awaitingAcknowledgement && stage == Stage.PROJECT_END
 
+    /** True only while the next middle frame carries a canonical Base64 payload chunk. */
+    val nextFrameIsPayloadChunk: Boolean
+        get() =
+            !awaitingAcknowledgement &&
+                (stage == Stage.CONFIG_CHUNK || stage == Stage.FILE_CHUNK)
+
     override fun telemetryForTesting(): R2ProjectInputTransportTelemetry {
         val acceptedConfigBytes = when (stage) {
             Stage.PROJECT_START,
@@ -223,7 +286,7 @@ internal class R2ProjectInputFramer(
             maximumEncodedFrameBytes = maximumEncodedFrameBytes,
             maximumEncodedEnvelopeBytes = maximumEncodedFrameBytes,
             acceptedPayloadBytes = acceptedConfigBytes + completedFileBytes + fileOffset,
-            totalPayloadBytes = declaredTotalBytes,
+            totalPayloadBytes = declaredTransportBytes,
             fileIndex = fileIndex,
             fileOffset = fileOffset,
             stage = stage.name,
@@ -239,15 +302,19 @@ internal class R2ProjectInputFramer(
         require(requestId.isNotEmpty() && requestId.length <= MAX_REQUEST_ID_CHARS) {
             "Project transport request ID is invalid."
         }
-        require(transportedFileCount > 0 && transportedFileCount <= MAXIMUM_PROJECT_FILES) {
-            "Project transport file count is outside the file-backed native limit."
+        require(
+            transportedOrdinaryFileCount > 0 &&
+                transportedOrdinaryFileCount <= MAXIMUM_PROJECT_FILES &&
+                transportedFileCount <= MAXIMUM_PROJECT_FILES_WITH_DEPENDENCIES,
+        ) {
+            "Project transport file count is outside its ordinary/dependency Worker limits."
         }
         require(files.sumOf(R2ProjectFileMetadata::utf8Bytes) == snapshot.totalUtf8Bytes) {
             "Project transport bytes do not match the snapshot budget."
         }
         require(
             acceptedInputAuthority.capacity.fileCount ==
-                transportedFileCount + (if (rawConfig == null) 0 else 1) &&
+                transportedOrdinaryFileCount + (if (rawConfig == null) 0 else 1) &&
                 acceptedInputAuthority.capacity.totalUtf8Bytes == declaredTotalBytes,
         ) {
             "Project transport does not match its accepted retained-input authority."
@@ -277,6 +344,15 @@ internal class R2ProjectInputFramer(
         )
         require(declaredTotalBytes <= MAXIMUM_PROJECT_BYTES) {
             "Project transport exceeds the file-backed native byte limit."
+        }
+        require(
+            declaredDependencyLayerBytes <= TypeScriptR2Contract.MAX_DEPENDENCY_LAYER_BYTES &&
+                declaredTransportBytes <= MAXIMUM_PROJECT_BYTES_WITH_DEPENDENCIES,
+        ) {
+            "Project dependency transport exceeds its independent Worker byte limit."
+        }
+        require(dependencyLayer == null || supportsDependencyResolver) {
+            "Dependency resolver transport requires the current Rhino or Node revision 2 profile."
         }
         require(packageMetadata == null || rawConfig != null || isNodeRevisionTwo) {
             "Package metadata transport requires controlled raw config or exact Node revision 2."
@@ -344,6 +420,18 @@ internal class R2ProjectInputFramer(
                 val catalog = nodePackageFormatCatalog
                 val resolverSnapshot = requireNotNull(nodeResolutionV2SnapshotTargets)
                 val resolverAuthority = requireNotNull(nodeResolutionV2Authority)
+                val nodeConfig = rawConfig
+                val nodeConfigFields: Array<Pair<String, Any>> =
+                    if (nodeConfig == null) {
+                        emptyArray()
+                    } else {
+                        arrayOf(
+                            "configByteLength" to nodeConfig.size,
+                            "configSha256" to nodeConfig.sha256,
+                            "configPolicyRevision" to nodeConfig.policyRevision,
+                            "configPolicyFingerprint" to nodeConfig.policyFingerprint,
+                        )
+                    }
                 if (packageMetadata == null) {
                     check(catalog == null && nodePackageTargetsV2 == null) {
                         "Node revision 2 no-boundary transport cannot carry package authority."
@@ -352,18 +440,30 @@ internal class R2ProjectInputFramer(
                     // 24-field transport identity plus six module-output/resolver fields.
                     R2FramedJson.objectValue(
                         *inputAuthorityFields,
+                        *dependencyResolverFields,
                         "kind" to "projectInputStart",
                         "requestId" to requestId,
                         "sequence" to sequence,
                         "targetProfile" to targetProfile,
                         "profileSchemaRevision" to profileAuthority.profileSchemaRevision,
                         "profileRevision" to profileAuthority.profileRevision,
-                        "configSchemaRevision" to profileAuthority.configSchemaRevision,
-                        "configKind" to profileAuthority.configKind,
+                        "configSchemaRevision" to
+                            if (nodeConfig == null) {
+                                profileAuthority.configSchemaRevision
+                            } else {
+                                TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION
+                            },
+                        "configKind" to
+                            if (nodeConfig == null) {
+                                profileAuthority.configKind
+                            } else {
+                                TypeScriptR2Contract.CONFIG_KIND_TSCONFIG
+                            },
+                        *nodeConfigFields,
                         "entryPath" to entryPath,
                         "runtimeCapabilitiesFingerprint" to
                             profileAuthority.runtimeCapabilitiesFingerprint,
-                        "fileCount" to transportedFileCount,
+                        "fileCount" to transportedOrdinaryFileCount,
                         "totalBytes" to declaredTotalBytes,
                         "workerSpinMilliseconds" to workerSpinMilliseconds,
                         "workerSpinPhase" to
@@ -389,14 +489,26 @@ internal class R2ProjectInputFramer(
                     // precedes only additive resolver/v2-target identity.
                     val commonFields: Array<Pair<String, Any>> = arrayOf(
                         *inputAuthorityFields,
+                        *dependencyResolverFields,
                         "kind" to "projectInputStart",
                         "requestId" to requestId,
                         "sequence" to sequence,
                         "targetProfile" to targetProfile,
                         "profileSchemaRevision" to profileAuthority.profileSchemaRevision,
                         "profileRevision" to profileAuthority.profileRevision,
-                        "configSchemaRevision" to profileAuthority.configSchemaRevision,
-                        "configKind" to profileAuthority.configKind,
+                        "configSchemaRevision" to
+                            if (nodeConfig == null) {
+                                profileAuthority.configSchemaRevision
+                            } else {
+                                TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION
+                            },
+                        "configKind" to
+                            if (nodeConfig == null) {
+                                profileAuthority.configKind
+                            } else {
+                                TypeScriptR2Contract.CONFIG_KIND_TSCONFIG
+                            },
+                        *nodeConfigFields,
                         "entryPath" to entryPath,
                         "runtimeCapabilitiesFingerprint" to
                             profileAuthority.runtimeCapabilitiesFingerprint,
@@ -420,7 +532,7 @@ internal class R2ProjectInputFramer(
                             R2NodeModuleOutputPolicy.POLICY_REVISION,
                         "nodeModuleOutputPolicyFingerprint" to
                             R2NodeModuleOutputPolicy.fingerprint,
-                        "fileCount" to transportedFileCount,
+                        "fileCount" to transportedOrdinaryFileCount,
                         "totalBytes" to declaredTotalBytes,
                         "workerSpinMilliseconds" to workerSpinMilliseconds,
                         "workerSpinPhase" to
@@ -452,6 +564,7 @@ internal class R2ProjectInputFramer(
                 val metadata = requireNotNull(packageMetadata)
                 R2FramedJson.objectValue(
                     *inputAuthorityFields,
+                    *dependencyResolverFields,
                     "kind" to "projectInputStart",
                     "requestId" to requestId,
                     "sequence" to sequence,
@@ -482,7 +595,7 @@ internal class R2ProjectInputFramer(
                     "packageTargetFingerprint" to targets.fingerprint,
                     "packageTargetFileCount" to packageTargetFiles.size,
                     "packageTargetByteLength" to declaredPackageTargetBytes,
-                    "fileCount" to transportedFileCount,
+                    "fileCount" to transportedOrdinaryFileCount,
                     "totalBytes" to declaredTotalBytes,
                     "workerSpinMilliseconds" to workerSpinMilliseconds,
                     "workerSpinPhase" to
@@ -492,6 +605,7 @@ internal class R2ProjectInputFramer(
                 val config = requireNotNull(rawConfig)
                 R2FramedJson.objectValue(
                     *inputAuthorityFields,
+                    *dependencyResolverFields,
                     "kind" to "projectInputStart",
                     "requestId" to requestId,
                     "sequence" to sequence,
@@ -515,7 +629,7 @@ internal class R2ProjectInputFramer(
                     "packageMetadataFingerprint" to metadata.fingerprint,
                     "packageMetadataFileCount" to packageMetadataFiles.size,
                     "packageMetadataByteLength" to declaredPackageMetadataBytes,
-                    "fileCount" to transportedFileCount,
+                    "fileCount" to transportedOrdinaryFileCount,
                     "totalBytes" to declaredTotalBytes,
                     "workerSpinMilliseconds" to workerSpinMilliseconds,
                     "workerSpinPhase" to
@@ -524,6 +638,7 @@ internal class R2ProjectInputFramer(
             } ?: rawConfig?.let { config ->
                 R2FramedJson.objectValue(
                     *inputAuthorityFields,
+                    *dependencyResolverFields,
                     "kind" to "projectInputStart",
                     "requestId" to requestId,
                     "sequence" to sequence,
@@ -538,7 +653,7 @@ internal class R2ProjectInputFramer(
                     "configSha256" to config.sha256,
                     "configPolicyRevision" to config.policyRevision,
                     "configPolicyFingerprint" to config.policyFingerprint,
-                    "fileCount" to transportedFileCount,
+                    "fileCount" to transportedOrdinaryFileCount,
                     "totalBytes" to declaredTotalBytes,
                     "workerSpinMilliseconds" to workerSpinMilliseconds,
                     "workerSpinPhase" to
@@ -549,6 +664,7 @@ internal class R2ProjectInputFramer(
             }?.let { authority ->
                 R2FramedJson.objectValue(
                     *inputAuthorityFields,
+                    *dependencyResolverFields,
                     "kind" to "projectInputStart",
                     "requestId" to requestId,
                     "sequence" to sequence,
@@ -560,7 +676,7 @@ internal class R2ProjectInputFramer(
                     "entryPath" to entryPath,
                     "runtimeCapabilitiesFingerprint" to
                         authority.runtimeCapabilitiesFingerprint,
-                    "fileCount" to transportedFileCount,
+                    "fileCount" to transportedOrdinaryFileCount,
                     "totalBytes" to declaredTotalBytes,
                     "workerSpinMilliseconds" to workerSpinMilliseconds,
                     "workerSpinPhase" to
@@ -568,6 +684,7 @@ internal class R2ProjectInputFramer(
                 )
             } ?: R2FramedJson.objectValue(
                 *inputAuthorityFields,
+                *dependencyResolverFields,
                 "kind" to "projectInputStart",
                 "requestId" to requestId,
                 "sequence" to sequence,
@@ -576,7 +693,7 @@ internal class R2ProjectInputFramer(
                 "profileRevision" to profileAuthority.profileRevision,
                 "configSchemaRevision" to profileAuthority.configSchemaRevision,
                 "configKind" to profileAuthority.configKind,
-                "fileCount" to transportedFileCount,
+                "fileCount" to transportedOrdinaryFileCount,
                 "totalBytes" to declaredTotalBytes,
                 "workerSpinMilliseconds" to workerSpinMilliseconds,
                 "workerSpinPhase" to
@@ -663,7 +780,7 @@ internal class R2ProjectInputFramer(
                 "kind" to "projectInputEnd",
                 "requestId" to requestId,
                 "sequence" to sequence,
-                "fileCount" to transportedFileCount,
+                "fileCount" to transportedOrdinaryFileCount,
                 "totalBytes" to declaredTotalBytes,
             )
             Stage.COMPLETE -> error("Project input transport is already complete.")
@@ -891,6 +1008,7 @@ internal class R2ProjectInputFramer(
                 packageMetadataIndex = index,
                 packageTargetIndex = null,
                 nodePackageTargetV2Index = null,
+                dependencyLayerIndex = null,
             )
         }
         val packageTargetIndex = index - packageMetadataFiles.size
@@ -902,6 +1020,7 @@ internal class R2ProjectInputFramer(
                 packageMetadataIndex = null,
                 packageTargetIndex = packageTargetIndex,
                 nodePackageTargetV2Index = null,
+                dependencyLayerIndex = null,
             )
         }
         val nodePackageTargetV2Index = packageTargetIndex - packageTargetFiles.size
@@ -913,18 +1032,32 @@ internal class R2ProjectInputFramer(
                 packageMetadataIndex = null,
                 packageTargetIndex = null,
                 nodePackageTargetV2Index = nodePackageTargetV2Index,
+                dependencyLayerIndex = null,
             )
         }
         val projectIndex = nodePackageTargetV2Index - nodePackageTargetV2Files.size
-        val metadata = files.getOrNull(projectIndex)
+        files.getOrNull(projectIndex)?.let { metadata ->
+            return TransportedFile(
+                path = metadata.path,
+                byteLength = metadata.utf8Bytes,
+                sha256 = metadata.sha256,
+                packageMetadataIndex = null,
+                packageTargetIndex = null,
+                nodePackageTargetV2Index = null,
+                dependencyLayerIndex = null,
+            )
+        }
+        val dependencyLayerIndex = projectIndex - files.size
+        val dependency = dependencyLayerFiles.getOrNull(dependencyLayerIndex)
             ?: error("Project input transport has no current file.")
         return TransportedFile(
-            path = metadata.path,
-            byteLength = metadata.utf8Bytes,
-            sha256 = metadata.sha256,
+            path = R2DependencyResolverPolicy.toWorkerVfsPath(dependency.path),
+            byteLength = dependency.size,
+            sha256 = dependency.sha256,
             packageMetadataIndex = null,
             packageTargetIndex = null,
             nodePackageTargetV2Index = null,
+            dependencyLayerIndex = dependencyLayerIndex,
         )
     }
 
@@ -940,6 +1073,8 @@ internal class R2ProjectInputFramer(
                 snapshot.openPackageTargetFile(file.packageTargetIndex)
             file.nodePackageTargetV2Index != null ->
                 snapshot.openNodePackageTargetV2File(file.nodePackageTargetV2Index)
+            file.dependencyLayerIndex != null ->
+                snapshot.openDependencyLayerFile(file.dependencyLayerIndex)
             else -> snapshot.openFile(
                 fileIndex - packageMetadataFiles.size - packageTargetFiles.size -
                     nodePackageTargetV2Files.size,
@@ -1061,6 +1196,7 @@ internal class R2ProjectInputFramer(
         val packageMetadataIndex: Int?,
         val packageTargetIndex: Int?,
         val nodePackageTargetV2Index: Int?,
+        val dependencyLayerIndex: Int?,
     )
 
     private enum class Stage {
@@ -1082,6 +1218,10 @@ internal class R2ProjectInputFramer(
         const val MAX_REQUEST_ID_CHARS = 128
         const val MAXIMUM_PROJECT_FILES = R2_FILE_BACKED_MAXIMUM_FILES
         const val MAXIMUM_PROJECT_BYTES = R2_FILE_BACKED_MAXIMUM_TOTAL_BYTES
+        const val MAXIMUM_PROJECT_FILES_WITH_DEPENDENCIES =
+            R2_FILE_BACKED_MAXIMUM_FILES + TypeScriptR2Contract.MAX_DEPENDENCY_LAYER_FILES
+        const val MAXIMUM_PROJECT_BYTES_WITH_DEPENDENCIES =
+            R2_FILE_BACKED_MAXIMUM_TOTAL_BYTES + TypeScriptR2Contract.MAX_DEPENDENCY_LAYER_BYTES
         const val MAXIMUM_TEST_SPIN_MILLISECONDS = 10_000
         const val WORKER_SPIN_PHASE_NONE = "none"
     }
@@ -1093,8 +1233,11 @@ internal class R2ProjectInputFramer(
  * Project start and end retain their individual acknowledgements so the Worker ingress boundary
  * and the "end ACK before synchronous TypeScript" guarantee stay unchanged. Each inner frame is
  * still generated, hashed, sequenced, and validated exactly as before. A batch contains at most
- * four ordinary frames, which keeps its encoded size below the existing 576 KiB extended-envelope
- * ceiling even when every inner frame reaches the 128 KiB ordinary limit.
+ * six production-shaped middle frames, but no more than four Base64 payload chunks. This merges
+ * small file/config boundaries without admitting a fifth large chunk; the measured peak remains
+ * in the prior ~350 KiB class. Middle frames also retain a separate 92 KiB encoded ceiling, and
+ * every completed envelope is still checked against the unchanged 576 KiB hard limit. Start/end
+ * retain the broader frame bound.
  */
 internal class R2BatchedProjectInputFramer(
     private val delegate: R2ProjectInputFramer,
@@ -1135,11 +1278,28 @@ internal class R2BatchedProjectInputFramer(
         } else {
             val frames = ArrayList<String>(R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES)
             var lastSequence = -1
+            var payloadChunkFrames = 0
             while (
                 frames.size < R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES &&
-                !delegate.nextFrameCompletesTransport
+                !delegate.nextFrameCompletesTransport &&
+                (
+                    payloadChunkFrames <
+                        R2_PROJECT_INPUT_BATCH_MAXIMUM_PAYLOAD_CHUNK_FRAMES ||
+                        !delegate.nextFrameIsPayloadChunk
+                )
             ) {
-                frames += delegate.nextFrame()
+                val payloadChunk = delegate.nextFrameIsPayloadChunk
+                val frame = delegate.nextFrame()
+                val encodedFrameBytes = R2Utf8.encode(
+                    frame,
+                    "Project input batchable frame",
+                ).size
+                check(encodedFrameBytes <= R2_PROJECT_MAXIMUM_BATCHABLE_FRAME_BYTES) {
+                    "Project input middle frame exceeds " +
+                        "$R2_PROJECT_MAXIMUM_BATCHABLE_FRAME_BYTES bytes."
+                }
+                frames += frame
+                if (payloadChunk) payloadChunkFrames++
                 lastSequence = requireNotNull(delegate.outstandingSequence)
                 delegate.acknowledge(lastSequence)
             }
@@ -1506,5 +1666,7 @@ internal const val R2_PROJECT_MAXIMUM_FRAME_BYTES = 128 * 1024
 internal const val R2_PROJECT_MAXIMUM_START_FRAME_BYTES = 576 * 1024
 internal const val R2_PROJECT_MAXIMUM_BATCH_ENVELOPE_BYTES =
     R2_PROJECT_MAXIMUM_START_FRAME_BYTES
-internal const val R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES = 4
+internal const val R2_PROJECT_MAXIMUM_BATCHABLE_FRAME_BYTES = 92 * 1024
+internal const val R2_PROJECT_INPUT_BATCH_MAXIMUM_FRAMES = 6
+internal const val R2_PROJECT_INPUT_BATCH_MAXIMUM_PAYLOAD_CHUNK_FRAMES = 4
 internal const val R2_PROJECT_FRAME_RAW_CHUNK_BYTES = 64 * 1024

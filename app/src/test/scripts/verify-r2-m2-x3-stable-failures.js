@@ -564,7 +564,11 @@ const minimalLibrary =
     "interface RegExp {}\n" +
     "interface String {}\n";
 const cleanFiles = Object.freeze([
-    Object.freeze({ path: "/declarations/lib.d.ts", text: minimalLibrary }),
+    Object.freeze({ path: "/declarations/lib.d.ts", text: "" }),
+    Object.freeze({
+        path: "/declarations/lib.es2018.d.ts",
+        text: minimalLibrary,
+    }),
     Object.freeze({
         path: "/sources/main.ts",
         text: "export const answer: number = 42;\n",
@@ -854,7 +858,7 @@ const verifyControlledCleanSuccessor = async () => {
                 result.outputs.map((output) => output.path),
                 ["/outputs/main.js", "/outputs/main.js.map"],
             ),
-        "Controlled clean successor result drifted.",
+        `Controlled clean successor result drifted: ${JSON.stringify(result)}.`,
     );
     assert(
         programConstructionCount === 1 && emitCount === 1,

@@ -1,0 +1,40 @@
+{
+  "schema": "autojs6.typescript.controlled-tsconfig-policy",
+  "revision": 4,
+  "configKind": "tsconfig",
+  "configPath": "tsconfig.json",
+  "fingerprint": "4a9a5e70150f81e1ec9a5e2f749cc081f93f207f092300c96a79abfdcc152dab",
+  "parentRevision": 3,
+  "parentFingerprint": "1f77d37080466f2752176fb5aa1b96e9a3f3dbdc89b853f30b4a0fed4313e90a",
+  "allowedValueCompilerOptions": [
+    "baseUrl",
+    "lib",
+    "paths",
+    "target"
+  ],
+  "escapeForbiddenCompilerOptions": [
+    "customConditions",
+    "moduleSuffixes",
+    "plugins",
+    "rootDirs",
+    "traceResolution",
+    "typeRoots",
+    "types"
+  ],
+  "pathAliases": {
+    "baseUrlDefault": ".",
+    "resolutionDomain": "accepted-sources-snapshot-only",
+    "matching": "exact-then-longest-prefix-and-suffix-wildcard",
+    "emitRewrite": "typescript-before-transform-relative-output-specifier",
+    "maximumAliases": 128,
+    "maximumTargetsPerAlias": 8,
+    "maximumTargets": 512,
+    "maximumPatternUtf8Bytes": 4096,
+    "baseUrlGrammar": "dot-or-safe-ascii-project-relative-directory",
+    "keyGrammar": "safe-ascii-bare-specifier-pattern-at-most-one-wildcard",
+    "targetGrammar": "safe-ascii-project-relative-pattern-at-most-one-wildcard",
+    "wildcardCardinality": "key-and-each-target-equal",
+    "canonicalOrdering": "keys-code-unit-targets-input-order-deduplicated",
+    "emptyPaths": "allowed"
+  }
+}

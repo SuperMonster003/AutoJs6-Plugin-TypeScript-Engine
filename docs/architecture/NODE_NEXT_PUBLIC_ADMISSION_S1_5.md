@@ -2,6 +2,10 @@
 
 状态：**完成（2026-08-23）**。
 
+> 本文冻结 S1-5 当时的 Node `configKind=none` 准入证据。T1-2/T1-3 已在 2026-08-26
+> 追加 Node controlled tsconfig revision 3/4；当前权威见
+> [T1-3 Controlled `baseUrl`/`paths` Revision 4](CONTROLLED_PATH_ALIASES_T1_3_REVISION4.md)。
+
 本切片把此前已经覆盖 input archive、snapshot、Worker Program、framed result、generated
 mapping 与 formal output archive、但只允许内部到达的 exact NodeNext revision 2 接入 public
 Binder 编译路径。AIDL v1、contract version/hash、input/output archive schema v1 与 diagnostics
@@ -81,4 +85,5 @@ manifest 的 `targetProfile=node/profileRevision=2`、entry module、Node output
 
 JVM 单元测试覆盖 exact public classifier、legacy Node revision-1 reject、Node revision-2
 config-none accept、Node controlled-tsconfig reject 与 end-to-end registry；既有 P2 Program/result/
-output aggregate 也在提升 authority 后保持通过。下一活动项是 Roadmap S1-6 验证层瘦身。
+output aggregate 也在提升 authority 后保持通过。其后的 S1-6 验证层瘦身已完成，
+见 [S 时代 Roadmap 归档](../roadmap/ROADMAP_LEGACY_S_ERA.md)。

@@ -116,6 +116,11 @@ class R2CompilationProbeProtocolTest {
                 TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_REVISION,
                 TypeScriptR2Contract.KEY_PACKAGE_METADATA_POLICY_FINGERPRINT,
                 TypeScriptR2Contract.KEY_PACKAGE_METADATA_INVENTORY_FINGERPRINT,
+                TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_SCHEMA_REVISION,
+                TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_POLICY_REVISION,
+                TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_POLICY_FINGERPRINT,
+                TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_INVENTORY_FINGERPRINT,
+                TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_FINGERPRINT,
             ),
             R2PublicCompilationProtocol.PUBLIC_METADATA_KEYS,
         )
@@ -435,6 +440,60 @@ class R2CompilationProbeProtocolTest {
     }
 
     @Test
+    fun dependencyLayerAuthorityIsCompleteBoundAndAvailableToRhinoAndNodeRevisionTwo() {
+        val accepted = classifyPublic(validNodeDependencyLayer())
+        val authority = requireNotNull(accepted.controls?.dependencyLayerAuthority)
+        assertEquals(R2PublicCompilationDisposition.ACCEPTED_CONFIG_NONE, accepted.disposition)
+        assertEquals(SHA_F, authority.inventoryFingerprint)
+        assertEquals(SHA_E, authority.fingerprint)
+        assertEquals(R2DependencyLayerPolicy.fingerprint, authority.policyFingerprint)
+        assertEquals(
+            R2DependencyResolverPolicy.fingerprint,
+            validNodeDependencyLayer().dependencyResolverPolicyFingerprint,
+        )
+
+        assertEquals(
+            TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+            classifyPublic(
+                validNodePublicMetadata().copy(
+                    dependencyLayerSchemaRevision = R2DependencyLayerPolicy.SCHEMA_REVISION,
+                ),
+            ).errorCode,
+        )
+        val rhino = classifyPublic(validRhinoDependencyLayer())
+        assertEquals(
+            R2PublicCompilationDisposition.ACCEPTED_CONTROLLED_TSCONFIG,
+            rhino.disposition,
+        )
+        assertEquals(SHA_E, rhino.controls?.dependencyLayerAuthority?.fingerprint)
+        assertEquals(
+            TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
+            classifyPublic(
+                validNodeDependencyLayer().copy(
+                    dependencyLayerPolicyRevision = R2DependencyLayerPolicy.POLICY_REVISION + 1,
+                ),
+            ).errorCode,
+        )
+        assertEquals(
+            TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+            classifyPublic(
+                validNodeDependencyLayer().copy(
+                    dependencyResolverPolicyFingerprint = null,
+                ),
+            ).errorCode,
+        )
+        assertEquals(
+            TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
+            classifyPublic(
+                validNodeDependencyLayer().copy(
+                    dependencyResolverPolicyRevision =
+                        R2DependencyResolverPolicy.POLICY_REVISION + 1,
+                ),
+            ).errorCode,
+        )
+    }
+
+    @Test
     fun missingOrMismatchedPublicRevisionDoesNotClassifyAsR2() {
         assertNull(publicControlsOrNull(null))
         assertEquals(
@@ -524,6 +583,46 @@ class R2CompilationProbeProtocolTest {
     }
 
     @Test
+    fun nodeRevisionTwoAcceptsCurrentAndPreviousControlledConfigAuthorities() {
+        val metadata = validNodeControlledTsConfigMetadata()
+        val classification = classifyPublic(metadata)
+        val controls = requireNotNull(publicControlsOrNull(metadata))
+
+        assertEquals(
+            R2PublicCompilationDisposition.ACCEPTED_CONTROLLED_TSCONFIG,
+            classification.disposition,
+        )
+        assertNull(classification.errorCode)
+        assertEquals(
+            R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
+            controls.profileAuthority,
+        )
+        assertEquals(
+            R2RawProjectConfigAuthority(
+                size = requireNotNull(metadata.configByteLength),
+                sha256 = requireNotNull(metadata.configSha256),
+                policyRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
+                policyFingerprint = R2ControlledTsConfigPolicy.revision4Fingerprint,
+            ),
+            controls.rawConfigAuthority,
+        )
+        val previous = metadata.copy(
+            configPolicyRevision = R2ControlledTsConfigPolicy.REVISION_3,
+            configPolicyFingerprint = R2ControlledTsConfigPolicy.revision3Fingerprint,
+        )
+        assertEquals(
+            R2PublicCompilationDisposition.ACCEPTED_CONTROLLED_TSCONFIG,
+            classifyPublic(previous).disposition,
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.REVISION_3,
+            requireNotNull(publicControlsOrNull(previous))
+                .rawConfigAuthority
+                ?.policyRevision,
+        )
+    }
+
+    @Test
     fun incompleteOrMalformedConfigIdentityIsAnInvalidRequest() {
         val incomplete = validControlledTsConfigMetadata().copy(configSha256 = null)
         val oversized = validControlledTsConfigMetadata().copy(
@@ -566,7 +665,8 @@ class R2CompilationProbeProtocolTest {
                 configKind = TypeScriptR2Contract.CONFIG_KIND_TSCONFIG,
                 configByteLength = 48L,
                 configSha256 = SHA_A,
-                configPolicyRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
+                configPolicyRevision =
+                    TypeScriptR2Contract.LEGACY_CONTROLLED_TSCONFIG_POLICY_REVISION,
                 configPolicyFingerprint = R2ControlledTsConfigPolicy.fingerprint,
             ),
             validControlledTsConfigMetadata().copy(
@@ -596,7 +696,7 @@ class R2CompilationProbeProtocolTest {
             configByteLength = 0L,
             configSha256 = SHA_A,
             configPolicyRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
-            configPolicyFingerprint = R2ControlledTsConfigPolicy.fingerprint,
+            configPolicyFingerprint = R2ControlledTsConfigPolicy.revision4Fingerprint,
         )
 
         val classification = classifyPublic(metadata)
@@ -757,13 +857,42 @@ class R2CompilationProbeProtocolTest {
         packageMetadataInventoryFingerprint = SHA_F,
     )
 
+    private fun validNodeDependencyLayer() = validNodePublicMetadata().copy(
+        dependencyLayerSchemaRevision = R2DependencyLayerPolicy.SCHEMA_REVISION,
+        dependencyLayerPolicyRevision = R2DependencyLayerPolicy.POLICY_REVISION,
+        dependencyLayerPolicyFingerprint = R2DependencyLayerPolicy.fingerprint,
+        dependencyLayerInventoryFingerprint = SHA_F,
+        dependencyLayerFingerprint = SHA_E,
+        dependencyResolverPolicyRevision = R2DependencyResolverPolicy.POLICY_REVISION,
+        dependencyResolverPolicyFingerprint = R2DependencyResolverPolicy.fingerprint,
+    )
+
+    private fun validRhinoDependencyLayer() = validControlledTsConfigMetadata().copy(
+        dependencyLayerSchemaRevision = R2DependencyLayerPolicy.SCHEMA_REVISION,
+        dependencyLayerPolicyRevision = R2DependencyLayerPolicy.POLICY_REVISION,
+        dependencyLayerPolicyFingerprint = R2DependencyLayerPolicy.fingerprint,
+        dependencyLayerInventoryFingerprint = SHA_F,
+        dependencyLayerFingerprint = SHA_E,
+        dependencyResolverPolicyRevision = R2DependencyResolverPolicy.POLICY_REVISION,
+        dependencyResolverPolicyFingerprint = R2DependencyResolverPolicy.fingerprint,
+    )
+
     private fun validControlledTsConfigMetadata() = validPublicMetadata().copy(
         configSchemaRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION,
         configKind = TypeScriptR2Contract.CONFIG_KIND_TSCONFIG,
         configByteLength = 48L,
         configSha256 = SHA_A,
         configPolicyRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
-        configPolicyFingerprint = R2ControlledTsConfigPolicy.fingerprint,
+        configPolicyFingerprint = R2ControlledTsConfigPolicy.revision4Fingerprint,
+    )
+
+    private fun validNodeControlledTsConfigMetadata() = validNodePublicMetadata().copy(
+        configSchemaRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_SCHEMA_REVISION,
+        configKind = TypeScriptR2Contract.CONFIG_KIND_TSCONFIG,
+        configByteLength = 48L,
+        configSha256 = SHA_A,
+        configPolicyRevision = TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
+        configPolicyFingerprint = R2ControlledTsConfigPolicy.revision4Fingerprint,
     )
 
     private fun validRequest() = R0CompilationEnvelope(

@@ -139,6 +139,19 @@ class R2NodePackageFormatCatalogTest {
                 val record = catalog.nearestRecord(lookup.string("path"))
                 assertEquals(id, lookup.string("boundaryPath"), record?.packageBoundaryPath)
                 assertEquals(id, lookup.string("typeState"), record?.typeState?.contractValue)
+
+                val projectSourcePath = "/sources${lookup.string("path")}"
+                val sourceRecord = catalog.nearestRecord(projectSourcePath)
+                assertEquals(
+                    "$id source projection",
+                    lookup.string("boundaryPath"),
+                    sourceRecord?.packageBoundaryPath,
+                )
+                assertEquals(
+                    "$id source projection",
+                    lookup.string("typeState"),
+                    sourceRecord?.typeState?.contractValue,
+                )
             }
 
             val canonicalBeforeCallerMutation = catalog.canonicalInput

@@ -26,8 +26,36 @@ class TypeScriptPluginMetadataTest {
             TypeScriptPluginMetadata.ADVERTISED_CONFIG_KIND,
         )
         assertEquals(
+            TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
+            TypeScriptPluginMetadata.ADVERTISED_CONFIG_POLICY_REVISION,
+        )
+        assertEquals(
+            R2ControlledTsConfigPolicy.revision4Fingerprint,
+            TypeScriptPluginMetadata.ADVERTISED_CONFIG_POLICY_FINGERPRINT,
+        )
+        assertEquals(
             R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2,
             TypeScriptPluginMetadata.ADVERTISED_NODE_PROFILE_AUTHORITY,
+        )
+        assertEquals(
+            TypeScriptR2Contract.DEPENDENCY_LAYER_SCHEMA_REVISION,
+            R2DependencyLayerPolicy.SCHEMA_REVISION,
+        )
+        assertEquals(
+            TypeScriptR2Contract.DEPENDENCY_LAYER_POLICY_REVISION,
+            R2DependencyLayerPolicy.POLICY_REVISION,
+        )
+        assertEquals(
+            "c159ae179de24307c456c69ae4e456ed9d7dba71dc965c22e6114f632af3834a",
+            R2DependencyLayerPolicy.fingerprint,
+        )
+        assertEquals(
+            TypeScriptR2Contract.DEPENDENCY_RESOLVER_POLICY_REVISION,
+            R2DependencyResolverPolicy.POLICY_REVISION,
+        )
+        assertEquals(
+            TypeScriptR2Contract.DEPENDENCY_RESOLVER_POLICY_FINGERPRINT,
+            R2DependencyResolverPolicy.fingerprint,
         )
         assertArrayEquals(
             arrayOf(".ts"),

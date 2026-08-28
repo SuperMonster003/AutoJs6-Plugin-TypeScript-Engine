@@ -88,6 +88,38 @@ class R2ProjectArchiveTest {
     }
 
     @Test
+    fun inputQuotaRevisionTwoRemainsReadableAndUnknownRevisionsAreRejected() {
+        val currentMarker =
+            "\"inputQuotaRevision\":${R2InputArchiveSchemaV1.INPUT_QUOTA_REVISION}"
+        val legacyMarker =
+            "\"inputQuotaRevision\":" +
+                TypeScriptR2Contract.LEGACY_ORDINARY_COMPILATION_INPUT_QUOTA_REVISION
+        val legacy = validFixture(
+            mutateManifest = { manifest -> manifest.replace(currentMarker, legacyMarker) },
+        )
+
+        adapt(legacy).use { adapted ->
+            assertEquals(
+                TypeScriptR2Contract.LEGACY_ORDINARY_COMPILATION_INPUT_QUOTA_REVISION,
+                adapted.manifest.inputQuotaRevision,
+            )
+            assertEquals(
+                adapted.manifest.inputQuotaRevision,
+                adapted.acceptedInputAuthority.inputQuotaRevision,
+            )
+        }
+
+        val unknown = validFixture(
+            mutateManifest = { manifest ->
+                manifest.replace(currentMarker, "\"inputQuotaRevision\":4")
+            },
+        )
+        assertArchiveFailure(TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH) {
+            adapt(unknown)
+        }
+    }
+
+    @Test
     fun acceptedEntryIdentityIsPreservedInsteadOfBeingInferredFromSortedRoots() {
         val helperEntry = "sources/helper.ts"
         val fixture = validFixture(
@@ -167,7 +199,7 @@ class R2ProjectArchiveTest {
             rawConfigBytes = rawConfig,
             mutateManifest = { manifest ->
                 manifest.replace(
-                    R2ControlledTsConfigPolicy.fingerprint,
+                    R2ControlledTsConfigPolicy.revision4Fingerprint,
                     "0".repeat(64),
                 )
             },
@@ -204,7 +236,7 @@ class R2ProjectArchiveTest {
     }
 
     @Test
-    fun revision3ArchiveSourceInventoryHonorsManifestAndConfigEntryBudget() {
+    fun revision3ArchiveSourceInventoryExcludesManifestAndHonorsConfigEntryBudget() {
         val rawConfig = ByteArray(0)
         val rawAuthority = R2RawProjectConfigAuthority(
             size = 0,
@@ -238,21 +270,97 @@ class R2ProjectArchiveTest {
 
         val parsed = R2ProvisionalRequestManifest.parse(maximumManifest, authority)
         assertEquals(
-            TypeScriptCompilerContract.MAX_INPUT_FILES - 2,
+            TypeScriptCompilerContract.MAX_INPUT_FILES - 1,
             parsed.files.size,
         )
 
-        val beyondMaximum = maximumFiles +
+        val maximumWithoutConfig = maximumFiles +
             R2ProjectArchiveFile(
                 path = "sources/zzzz",
                 size = 0,
                 sha256 = EMPTY_SHA256,
             )
+        val maximumWithoutConfigManifest = manifest(maximumWithoutConfig)
+            .toByteArray(StandardCharsets.UTF_8)
+        val maximumWithoutConfigAuthority = validFixture().authority.copy(
+            requestManifestSha256 = R2Digests.sha256(maximumWithoutConfigManifest),
+        )
+        assertEquals(
+            TypeScriptCompilerContract.MAX_INPUT_FILES,
+            R2ProvisionalRequestManifest.parse(
+                maximumWithoutConfigManifest,
+                maximumWithoutConfigAuthority,
+            ).files.size,
+        )
+
+        val beyondMaximum = maximumWithoutConfig +
+            R2ProjectArchiveFile(
+                path = "sources/zzzzz",
+                size = 0,
+                sha256 = EMPTY_SHA256,
+            )
         assertArchiveFailure(TypeScriptCompilerContract.ERROR_ARCHIVE_QUOTA) {
             R2ProvisionalRequestManifest.parse(
-                manifest(beyondMaximum, rawAuthority).toByteArray(StandardCharsets.UTF_8),
-                authority,
+                manifest(beyondMaximum).toByteArray(StandardCharsets.UTF_8),
+                maximumWithoutConfigAuthority,
             )
+        }
+    }
+
+    @Test
+    fun nodeDependencyLayerIsAuthenticatedReadableAndExcludedFromCallerCapacity() {
+        val dependencyEntries = linkedMapOf(
+            "dependencies/lockfiles/package-lock.json" to
+                "{\"lockfileVersion\":3}".toByteArray(),
+            "dependencies/node_modules/dayjs/package.json" to
+                "{\"name\":\"dayjs\",\"scripts\":{\"test\":\"ignored\"}}"
+                    .toByteArray(),
+            "dependencies/node_modules/lodash/index.js" to
+                "export const lodash = true;\n".toByteArray(),
+            "dependencies/node_modules/zod/index.d.ts" to
+                "export declare const zod: unique symbol;\n".toByteArray(),
+        )
+        val profile = R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
+        val withoutDependencies = validFixture(profileAuthority = profile)
+        val baselineCallerCapacity = adapt(withoutDependencies).use { baseline ->
+            requireNotNull(baseline.snapshot.acceptedInputAuthority).callerCapacity
+        }
+        val fixture = validFixture(
+            dependencyLayerEntries = dependencyEntries,
+            profileAuthority = profile,
+        )
+
+        val adapted = adapt(fixture)
+        try {
+            val inventory = requireNotNull(adapted.manifest.dependencyLayerInventory)
+            assertEquals(inventory, adapted.snapshot.dependencyLayerInventory)
+            assertEquals("package-lock", inventory.identityKind)
+            assertEquals(4, inventory.files.size)
+            assertEquals(
+                R2ProvisionalRequestManifest.parse(
+                    withoutDependencies.archiveEntries.getValue(
+                        R2InputArchiveSchemaV1.REQUEST_MANIFEST_PATH,
+                    ),
+                    withoutDependencies.authority,
+                ).callerInventoryFingerprint,
+                adapted.manifest.callerInventoryFingerprint,
+            )
+            assertEquals(
+                baselineCallerCapacity,
+                adapted.snapshot.acceptedInputAuthority?.callerCapacity,
+            )
+            inventory.files.forEachIndexed { index, descriptor ->
+                assertFalse(adapted.snapshot.filePaths.contains("/${descriptor.path}"))
+                assertArrayEquals(
+                    dependencyEntries.getValue(descriptor.path),
+                    readAll(adapted.snapshot.openDependencyLayerFile(index)),
+                )
+            }
+        } finally {
+            adapted.close()
+        }
+        assertFails<IllegalStateException> {
+            adapted.snapshot.openDependencyLayerFile(0)
         }
     }
 
@@ -304,7 +412,7 @@ class R2ProjectArchiveTest {
     }
 
     @Test
-    fun revision4SourceBudgetReservesManifestConfigAndEveryPackageMetadataFile() {
+    fun revision4SourceBudgetReservesConfigAndEveryPackageMetadataFileButNotManifest() {
         val rawConfig = ByteArray(0)
         val rawAuthority = R2RawProjectConfigAuthority(
             size = 0,
@@ -321,7 +429,7 @@ class R2ProjectArchiveTest {
             ),
         )
         val maximumSourceFiles =
-            TypeScriptCompilerContract.MAX_INPUT_FILES - 3
+            TypeScriptCompilerContract.MAX_INPUT_FILES - 2
         val files = buildList {
             repeat(maximumSourceFiles - 1) { index ->
                 add(
@@ -1080,15 +1188,19 @@ class R2ProjectArchiveTest {
         assertFails<IllegalArgumentException> {
             nodeRevisionOne.copy(rawConfigAuthority = rawConfigAuthority)
         }
-        assertFails<IllegalArgumentException> {
-            nodeRevisionTwo.copy(rawConfigAuthority = rawConfigAuthority)
-        }
-        assertFails<IllegalArgumentException> {
+        assertEquals(
+            rawConfigAuthority,
+            nodeRevisionTwo.copy(
+                rawConfigAuthority = rawConfigAuthority,
+            ).rawConfigAuthority,
+        )
+        assertEquals(
+            metadataAuthority,
             nodeRevisionTwo.copy(
                 rawConfigAuthority = rawConfigAuthority,
                 packageMetadataAuthority = metadataAuthority,
-            )
-        }
+            ).packageMetadataAuthority,
+        )
         assertFails<IllegalArgumentException> {
             nodeRevisionTwo.copy(
                 packageMetadataAuthority = metadataAuthority,
@@ -1771,6 +1883,7 @@ class R2ProjectArchiveTest {
         rawConfigBytes: ByteArray? = null,
         dependencyRoots: List<String> = emptyList(),
         packageMetadataEntries: Map<String, ByteArray> = emptyMap(),
+        dependencyLayerEntries: Map<String, ByteArray> = emptyMap(),
         packageTargetEntries: Map<String, ByteArray> = emptyMap(),
         nodePackageTargetV2Entries: Map<String, ByteArray> = emptyMap(),
         profileAuthority: R2CompilationProfileAuthority =
@@ -1825,6 +1938,30 @@ class R2ProjectArchiveTest {
                 )
             }
             ?.let { files -> R2PackageMetadataInventory.create(dependencyRoots, files) }
+        val dependencyLayerInventory = dependencyLayerEntries
+            .takeIf { entries -> entries.isNotEmpty() }
+            ?.entries
+            ?.sortedBy { entry -> entry.key }
+            ?.map { (path, bytes) ->
+                R2DependencyLayerFileDescriptor(
+                    path = path,
+                    size = bytes.size.toLong(),
+                    sha256 = R2Digests.sha256(bytes),
+                )
+            }
+            ?.let { files ->
+                val lockfile = requireNotNull(
+                    files.firstOrNull { file ->
+                        file.path == "dependencies/lockfiles/package-lock.json"
+                    },
+                ) { "Focused dependency-layer fixtures require package-lock.json." }
+                R2DependencyLayerInventory.create(
+                    identityKind = R2DependencyLayerPolicy.IDENTITY_PACKAGE_LOCK,
+                    identityPath = lockfile.path,
+                    identityFingerprint = lockfile.sha256,
+                    files = files,
+                )
+            }
         require(packageTargetEntries.isEmpty() || packageMetadataInventory != null)
         require(nodePackageTargetV2Entries.isEmpty() || packageMetadataInventory != null)
         require(packageTargetEntries.isEmpty() || nodePackageTargetV2Entries.isEmpty())
@@ -1869,6 +2006,7 @@ class R2ProjectArchiveTest {
                 packageMetadataInventory,
                 packageTargetInventory,
                 nodePackageTargetV2Inventory,
+                dependencyLayerInventory = dependencyLayerInventory,
                 profileAuthority = profileAuthority,
                 projectId = projectId,
                 entrySourceUri = entrySourceUri,
@@ -1885,6 +2023,7 @@ class R2ProjectArchiveTest {
                 put(R2ControlledTsConfigPolicy.CONFIG_PATH, bytes)
             }
             putAll(packageMetadataEntries)
+            putAll(dependencyLayerEntries)
             putAll(packageTargetEntries)
             putAll(nodePackageTargetV2Entries)
             putAll(sourceBytes)
@@ -1908,6 +2047,7 @@ class R2ProjectArchiveTest {
             requestManifestSha256 = R2Digests.sha256(manifest),
             rawConfigAuthority = rawConfigAuthority,
             packageMetadataAuthority = packageMetadataInventory?.authority,
+            dependencyLayerAuthority = dependencyLayerInventory?.authority,
             packageTargetAuthority = packageTargetInventory?.authority,
             nodePackageTargetV2Authority = nodePackageTargetV2Inventory?.authority,
         )
@@ -2012,6 +2152,7 @@ class R2ProjectArchiveTest {
         packageMetadataInventory: R2PackageMetadataInventory? = null,
         packageTargetInventory: R2PackageTargetInventory? = null,
         nodePackageTargetV2Inventory: R2NodePackageTargetV2Inventory? = null,
+        dependencyLayerInventory: R2DependencyLayerInventory? = null,
         profileAuthority: R2CompilationProfileAuthority =
             R2CompilationProfileRegistry.PROVISIONAL_RHINO,
         projectId: String = "project-1",
@@ -2097,6 +2238,23 @@ class R2ProjectArchiveTest {
                 "\"inventoryFingerprint\":\"${inventory.fingerprint}\"," +
                 "\"files\":[$targetFilesJson]},"
         }.orEmpty()
+        val dependencyLayerJson = dependencyLayerInventory?.let { inventory ->
+            val dependencyFilesJson = inventory.files.joinToString(",") { file ->
+                "{\"path\":\"${file.path}\",\"size\":${file.size}," +
+                    "\"sha256\":\"${file.sha256}\"}"
+            }
+            "\"dependencyLayer\":{\"schemaRevision\":" +
+                "${R2DependencyLayerPolicy.SCHEMA_REVISION},\"policyRevision\":" +
+                "${inventory.authority.policyRevision},\"policyFingerprint\":" +
+                "\"${inventory.authority.policyFingerprint}\",\"identityKind\":" +
+                "\"${inventory.identityKind}\",\"identityPath\":\"${inventory.identityPath}\"," +
+                "\"identityFingerprint\":\"${inventory.identityFingerprint}\"," +
+                "\"inventoryFingerprint\":\"${inventory.inventoryFingerprint}\"," +
+                "\"fingerprint\":\"${inventory.fingerprint}\"," +
+                "\"fileCount\":${inventory.files.size},\"totalBytes\":${inventory.totalBytes}," +
+                "\"totalPathBytes\":${inventory.totalPathBytes}," +
+                "\"files\":[$dependencyFilesJson]},"
+        }.orEmpty()
         return """
             {"schema":"${R2InputArchiveSchemaV1.SCHEMA}",
             "revision":$revision,
@@ -2117,7 +2275,7 @@ class R2ProjectArchiveTest {
             "declarationsFingerprint":"$declarationsFingerprint",
             "declarationProfileFingerprint":"$declarationProfileFingerprint",
             "configSchemaRevision":$configSchemaRevision,
-            "configKind":"$configKind",$configJson$packageMetadataJson$packageTargetJson$nodePackageTargetV2Json
+            "configKind":"$configKind",$configJson$packageMetadataJson$packageTargetJson$nodePackageTargetV2Json$dependencyLayerJson
             "callerInventoryFingerprint":"$inventoryFingerprint",
             "rootPaths":[$rootJson],"files":[$fileJson]}
         """.trimIndent().replace("\n", "")

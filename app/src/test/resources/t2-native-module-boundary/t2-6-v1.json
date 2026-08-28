@@ -1,0 +1,62 @@
+{
+  "schema": "autojs6.typescript.t2-6.native-module-boundary",
+  "schemaRevision": 1,
+  "verifiedOn": "2026-08-28",
+  "dependencyLayerPolicyRevision": 2,
+  "dependencyLayerPolicyFingerprint": "c159ae179de24307c456c69ae4e456ed9d7dba71dc965c22e6114f632af3834a",
+  "resolverPolicyRevision": 4,
+  "resolverPolicyFingerprint": "d8207539237d2a08a6b97b530c5e6215f4b73311fdd6954ce9f8004717ebd635",
+  "errors": {
+    "nativeDependency": "ERR_AUTOJS6_TYPESCRIPT_NATIVE_DEPENDENCY_UNSUPPORTED",
+    "installLifecycle": "ERR_AUTOJS6_TYPESCRIPT_DEPENDENCY_INSTALL_SCRIPT_UNSUPPORTED"
+  },
+  "boundaryPriority": [
+    "native-binary",
+    "binding-gyp",
+    "gypfile",
+    "install-lifecycle"
+  ],
+  "package": {
+    "name": "bcrypt",
+    "version": "6.0.0",
+    "license": "MIT",
+    "archive": "bcrypt-6.0.0.tgz",
+    "archiveRoot": "package/",
+    "integrity": "sha512-cU8v/EGSrnH+HnxV2z0J7/blxH8gq7Xh2JFT6Aroax7UohdmiJJlxApMxtKfuI7z68NvvVcmR78k2LbT6efhRg==",
+    "expectedFailure": {
+      "code": "ERR_AUTOJS6_TYPESCRIPT_NATIVE_DEPENDENCY_UNSUPPORTED",
+      "signal": "native-binary",
+      "path": "prebuilds/darwin-arm64/bcrypt.node"
+    },
+    "requiredSignals": {
+      "nativeBinarySuffix": ".node",
+      "bindingGyp": "binding.gyp",
+      "installLifecycleKey": "install",
+      "installLifecycleCommand": "node-gyp-build"
+    }
+  },
+  "syntheticMetadataCases": [
+    {
+      "signal": "gypfile",
+      "packageJson": { "name": "native-source", "gypfile": true },
+      "expectedCode": "ERR_AUTOJS6_TYPESCRIPT_NATIVE_DEPENDENCY_UNSUPPORTED"
+    },
+    {
+      "signal": "scripts.preinstall",
+      "packageJson": { "name": "preinstall-package", "scripts": { "preinstall": "prepare-native" } },
+      "expectedCode": "ERR_AUTOJS6_TYPESCRIPT_DEPENDENCY_INSTALL_SCRIPT_UNSUPPORTED"
+    },
+    {
+      "signal": "scripts.install",
+      "packageJson": { "name": "install-package", "scripts": { "install": "prepare-native" } },
+      "expectedCode": "ERR_AUTOJS6_TYPESCRIPT_DEPENDENCY_INSTALL_SCRIPT_UNSUPPORTED"
+    },
+    {
+      "signal": "scripts.postinstall",
+      "packageJson": { "name": "postinstall-package", "scripts": { "postinstall": "prepare-native" } },
+      "expectedCode": "ERR_AUTOJS6_TYPESCRIPT_DEPENDENCY_INSTALL_SCRIPT_UNSUPPORTED"
+    }
+  ],
+  "ordinaryScripts": ["build", "test"],
+  "workaround": "Replace the dependency with a pure JavaScript/TypeScript or WASM package; install hooks are never executed on Android."
+}

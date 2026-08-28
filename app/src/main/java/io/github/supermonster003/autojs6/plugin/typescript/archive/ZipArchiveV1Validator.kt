@@ -1,6 +1,9 @@
 package io.github.supermonster003.autojs6.plugin.typescript.archive
 
 import io.github.supermonster003.autojs6.plugin.typescript.R2Utf8
+import io.github.supermonster003.autojs6.plugin.typescript.R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES
+import io.github.supermonster003.autojs6.plugin.typescript.R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES
+import io.github.supermonster003.autojs6.plugin.typescript.R2_INPUT_ARCHIVE_MAXIMUM_FILES
 import java.io.Closeable
 import java.io.EOFException
 import java.io.File
@@ -64,10 +67,10 @@ internal data class ZipArchiveV1Limits(
     companion object {
         val INPUT = ZipArchiveV1Limits(
             maximumContainerBytes =
-                TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
-            maximumFiles = TypeScriptCompilerContract.MAX_INPUT_FILES,
+                R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
+            maximumFiles = R2_INPUT_ARCHIVE_MAXIMUM_FILES,
             maximumTotalUncompressedBytes =
-                TypeScriptCompilerContract.MAX_INPUT_BYTES,
+                R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES,
             maximumSingleFileBytes =
                 TypeScriptCompilerContract.MAX_SINGLE_FILE_BYTES,
         )

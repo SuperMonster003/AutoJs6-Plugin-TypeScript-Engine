@@ -70,7 +70,7 @@ class R2ExternalCapacityEvidenceProtocolTest {
             valid.copy(signaturesMatch = false),
             valid.copy(
                 inputArchiveBytes =
-                    TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES - 1L,
+                    R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES - 1L,
             ),
         ).forEach { attestation ->
             assertNull(
@@ -156,7 +156,7 @@ class R2ExternalCapacityEvidenceProtocolTest {
         }
         listOf(
             0L,
-            TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES + 1L,
+            R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES + 1L,
         ).forEach { inputArchiveBytes ->
             assertNull(
                 R2ExternalCapacityEvidenceProtocol.controlsOrNull(
@@ -257,7 +257,7 @@ class R2ExternalCapacityEvidenceProtocolTest {
         fixtureTestOnly = true,
         signaturesMatch = true,
         inputArchiveBytes =
-            TypeScriptCompilerContract.MAX_INPUT_ARCHIVE_BYTES,
+            R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
     )
 
     private fun assertRejected(block: () -> Unit) {

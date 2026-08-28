@@ -1,0 +1,72 @@
+{
+  "schema": "autojs6.typescript.controlled-tsconfig-effective-options",
+  "revision": 3,
+  "configSchemaRevision": 2,
+  "configKind": "tsconfig",
+  "legacyCompatibility": {
+    "policyRevision": 2,
+    "policyFingerprint": "64ef1cf36d6531f84088cec49127e6407b107ab86eeaf7f4512358fd1343598b",
+    "defaultEffectiveOptionsFingerprint": "5b529b507e94fafe30ccce6de4d69f89604bc0f1430b7b4ee8f12259fe03a807"
+  },
+  "nodeProgramAuthority": {
+    "runtimeCapabilitiesFingerprint": "a19e8da1a4ab5961aada8d49e1f70eef847b84a0a8f348b6f784f43dc26e2d3a",
+    "nodeModuleOutputPolicySchemaRevision": 1,
+    "nodeModuleOutputPolicyRevision": 1,
+    "nodeModuleOutputPolicyFingerprint": "5c2294f0ee9d6d25bd2132b4ea24866d0a5f9caaa521a63bf81ffe1d897f6ce7",
+    "resolverPolicyRevision": 2,
+    "packageTargetPolicyRevision": 2,
+    "packageTargetPolicyFingerprint": "175cc694dae3e925d66eac3f77f308c95dc0db7b939238a33022d27812578224"
+  },
+  "profiles": [
+    {
+      "id": "rhino-es2018",
+      "targetProfile": "rhino",
+      "profileSchemaRevision": 1,
+      "profileRevision": 2,
+      "entryPath": "/sources/main.ts",
+      "configSource": "{\n  // T1-2 accepts TypeScript JSONC.\n  \"compilerOptions\": {\n    \"lib\": [\"es2018\", \"ES2018\"],\n    \"noPropertyAccessFromIndexSignature\": true,\n    \"preserveConstEnums\": true,\n    \"removeComments\": true,\n    \"target\": \"es2018\",\n  },\n  \"include\": [\"**/*.ts\"],\n  \"futureEditorHint\": true,\n}\n",
+      "normalizedTarget": "ES2018",
+      "normalizedLibraries": ["lib.es2018.d.ts"],
+      "canonicalOptionCount": 47,
+      "effectiveOptionsFingerprint": "780e50f808f2eb399b794ed9a8f4e53c2aacfa01a75671e8fa05485f304eff85",
+      "outputPath": "/outputs/main.js",
+      "runtimeResult": 14,
+      "warningDiagnosticCodes": [910001]
+    },
+    {
+      "id": "node-es2022",
+      "targetProfile": "node",
+      "profileSchemaRevision": 1,
+      "profileRevision": 2,
+      "entryPath": "/sources/main.cts",
+      "configSource": "{\n  \"compilerOptions\": {\n    \"exactOptionalPropertyTypes\": true,\n    \"lib\": [\"ES2022\"],\n    \"preserveConstEnums\": true,\n    \"target\": \"es2022\"\n  },\n  \"files\": [\"main.cts\"]\n}\n",
+      "normalizedTarget": "ES2022",
+      "normalizedLibraries": ["lib.es2022.d.ts"],
+      "canonicalOptionCount": 44,
+      "effectiveOptionsFingerprint": "1a55e601b7c5b55764dc2219afc0320f99c9ada39b1d0dfa98d78687b338a52d",
+      "outputPath": "/outputs/main.cjs",
+      "runtimeResult": 42,
+      "warningDiagnosticCodes": []
+    }
+  ],
+  "rejected": [
+    {
+      "id": "rhino-target-outside-profile",
+      "targetProfile": "rhino",
+      "configSource": "{\"compilerOptions\":{\"target\":\"ES2022\"}}",
+      "policyCode": "CONFIG_INVALID_VALUE"
+    },
+    {
+      "id": "node-lib-outside-profile",
+      "targetProfile": "node",
+      "configSource": "{\"compilerOptions\":{\"lib\":[\"ES2023\"]}}",
+      "policyCode": "CONFIG_INVALID_VALUE"
+    },
+    {
+      "id": "structural-resolution-remains-rejected",
+      "targetProfile": "node",
+      "configSource": "{\"compilerOptions\":{\"paths\":{\"@/*\":[\"src/*\"]}}}",
+      "policyCode": "CONFIG_UNSUPPORTED_FEATURE"
+    }
+  ]
+}

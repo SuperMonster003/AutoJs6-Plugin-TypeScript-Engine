@@ -5,7 +5,7 @@
 gate 与无排除 Core 已全部通过；D3 是 decision-only contract/source/fixture closure，不改变任何
 capability、Public admission 或 runtime 状态。
 
-> 后续状态（2026-08-23）：新版 [Roadmap](../../ROADMAP.md) 的 S1-1 已将生产 metadata
+> 后续状态（2026-08-23）：[S 时代 Roadmap](../roadmap/ROADMAP_LEGACY_S_ERA.md) 的 S1-1 已将生产 metadata
 > 提升为 compiler capability mask `15`，`nodeRuntimeRequired=false`。本页原有的 M4/M5
 > promotion 前置流程与“当前 mask 0”描述仅记录 2026-08-13 的历史状态，不再构成发布门禁；
 > revision 1 的结构兼容矩阵继续有效。

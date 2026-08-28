@@ -131,6 +131,11 @@ gradle.projectsEvaluated {
                 ":app:verifyCompilerDistributionLock",
                 ":plugin-api:typescript-api:verifyTypeScriptApiV1Freeze",
                 ":app:verifyCompilerSmoke",
+                ":app:verifyS7UserGuidesAndTemplates",
+                ":app:verifyS10Maintenance",
+                ":app:verifyS10ColdStart",
+                ":app:verifyS10TypeScriptUpgrade",
+                ":app:verifyS10IssueTriage",
             ),
         )
     }

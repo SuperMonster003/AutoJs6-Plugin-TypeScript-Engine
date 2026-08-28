@@ -69,17 +69,7 @@ object R2DeclarationDistribution {
     const val GENERATOR_VERSION = 4
     const val MANIFEST_SCHEMA_VERSION = 2
 
-    const val COMMON_STANDARD_LIBRARIES_FINGERPRINT =
-        "6ee5c0bce41694b8ca86430b82abfe4fbb60bf96321fba43e99d9810a44a1c1f"
-    const val COMMON_DISTRIBUTION_FINGERPRINT =
-        "3855b04b968db8a9529b60c96dd8b8ec94fa1ee040cac10a5ab569aa6e33f658"
-
-    private const val COMMON_FILE_COUNT = 108L
-    private const val COMMON_TOTAL_BYTES = 3_784_758L
-    private const val TYPESCRIPT_VERSION = "6.0.3"
-    private const val TYPESCRIPT_ASSET_ROOT = "typescript/6.0.3"
-    private const val TYPESCRIPT_MANIFEST_ASSET =
-        "typescript/6.0.3/distribution.json"
+    private val STABLE_TYPESCRIPT_6_VERSION = Regex("6\\.\\d+\\.\\d+")
     private const val RHINO_PACKAGE = "@sm003/autojs6-dts"
     private const val RHINO_VERSION = "2.1.3"
     private const val RHINO_CONVERSION = "autojs6-rhino-modules-v2"
@@ -337,8 +327,8 @@ object R2DeclarationDistribution {
         val commonLayer = linkedMapOf<String, Any?>(
             "sourceId" to "common",
             "entryPoint" to null,
-            "fileCount" to COMMON_FILE_COUNT,
-            "totalBytes" to COMMON_TOTAL_BYTES,
+            "fileCount" to lock.common.declarationFileCount,
+            "totalBytes" to lock.common.declarationTotalBytes,
             "fingerprint" to lock.common.standardLibrariesFingerprint,
             "files" to emptyList<String>(),
         )
@@ -426,56 +416,64 @@ object R2DeclarationDistribution {
         return ExpectedDistribution(files, CanonicalJson.encode(manifest))
     }
 
-    private fun commonBinding(common: CommonLock): Map<String, Any?> = mapOf(
-        "schemaVersion" to 1L,
-        "package" to common.packageName,
-        "version" to common.version,
-        "distributionAssetRoot" to TYPESCRIPT_ASSET_ROOT,
-        "distributionManifest" to TYPESCRIPT_MANIFEST_ASSET,
-        "distributionFingerprint" to common.distributionFingerprint,
-        "standardLibrariesFingerprint" to common.standardLibrariesFingerprint,
-        "fileCount" to common.declarationFileCount,
-        "totalBytes" to common.declarationTotalBytes,
-    )
+    private fun commonBinding(common: CommonLock): Map<String, Any?> {
+        val assetRoot = typeScriptAssetRoot(common.version)
+        return mapOf(
+            "schemaVersion" to 1L,
+            "package" to common.packageName,
+            "version" to common.version,
+            "distributionAssetRoot" to assetRoot,
+            "distributionManifest" to "$assetRoot/distribution.json",
+            "distributionFingerprint" to common.distributionFingerprint,
+            "standardLibrariesFingerprint" to common.standardLibrariesFingerprint,
+            "fileCount" to common.declarationFileCount,
+            "totalBytes" to common.declarationTotalBytes,
+        )
+    }
 
     private fun sourceDescriptors(
         lock: R2Lock,
         declarationReleaseVersion: String,
-    ): Map<String, Map<String, Any?>> = mapOf(
-        "common" to mapOf(
-            "kind" to "typescript-standard-libraries",
-            "package" to lock.common.packageName,
-            "version" to lock.common.version,
-            "distributionAssetRoot" to TYPESCRIPT_ASSET_ROOT,
-            "distributionManifest" to TYPESCRIPT_MANIFEST_ASSET,
-            "bindingFile" to "layers/common/binding.json",
-            "distributionFingerprint" to lock.common.distributionFingerprint,
-            "standardLibrariesFingerprint" to lock.common.standardLibrariesFingerprint,
-            "fileCount" to lock.common.declarationFileCount,
-            "totalBytes" to lock.common.declarationTotalBytes,
-        ),
-        "rhino" to mapOf(
-            "kind" to "npm-tarball-projection",
-            "package" to lock.rhino.packageName,
-            "version" to lock.rhino.version,
-            "source" to lock.rhino.source.toASCIIString(),
-            "sha1" to lock.rhino.digests.sha1,
-            "sha256" to lock.rhino.digests.sha256,
-            "integrity" to lock.rhino.digests.integrity,
-            "conversion" to lock.rhino.conversion,
-            "license" to lock.rhino.license,
-            "licenseFile" to "licenses/rhino/MPL-2.0.txt",
-            "noticeFile" to "notices/rhino-source.txt",
-        ),
-        "node" to mapOf(
-            "kind" to NODE_SOURCE_KIND,
-            "releasePackage" to DECLARATION_RELEASE_PACKAGE,
-            "releaseVersion" to declarationReleaseVersion,
-            "license" to lock.node.license,
-            "licenseFile" to "licenses/node/MPL-2.0.txt",
-            "noticeFile" to "notices/node-source.txt",
-        ),
-    )
+    ): Map<String, Map<String, Any?>> {
+        val assetRoot = typeScriptAssetRoot(lock.common.version)
+        return mapOf(
+            "common" to mapOf(
+                "kind" to "typescript-standard-libraries",
+                "package" to lock.common.packageName,
+                "version" to lock.common.version,
+                "distributionAssetRoot" to assetRoot,
+                "distributionManifest" to "$assetRoot/distribution.json",
+                "bindingFile" to "layers/common/binding.json",
+                "distributionFingerprint" to lock.common.distributionFingerprint,
+                "standardLibrariesFingerprint" to lock.common.standardLibrariesFingerprint,
+                "fileCount" to lock.common.declarationFileCount,
+                "totalBytes" to lock.common.declarationTotalBytes,
+            ),
+            "rhino" to mapOf(
+                "kind" to "npm-tarball-projection",
+                "package" to lock.rhino.packageName,
+                "version" to lock.rhino.version,
+                "source" to lock.rhino.source.toASCIIString(),
+                "sha1" to lock.rhino.digests.sha1,
+                "sha256" to lock.rhino.digests.sha256,
+                "integrity" to lock.rhino.digests.integrity,
+                "conversion" to lock.rhino.conversion,
+                "license" to lock.rhino.license,
+                "licenseFile" to "licenses/rhino/MPL-2.0.txt",
+                "noticeFile" to "notices/rhino-source.txt",
+            ),
+            "node" to mapOf(
+                "kind" to NODE_SOURCE_KIND,
+                "releasePackage" to DECLARATION_RELEASE_PACKAGE,
+                "releaseVersion" to declarationReleaseVersion,
+                "license" to lock.node.license,
+                "licenseFile" to "licenses/node/MPL-2.0.txt",
+                "noticeFile" to "notices/node-source.txt",
+            ),
+        )
+    }
+
+    private fun typeScriptAssetRoot(version: String) = "typescript/$version"
 
     private fun createRhinoProjection(inputs: Map<String, ByteArray>): Map<String, ByteArray> {
         val automator = inputs
@@ -1726,15 +1724,14 @@ object R2DeclarationDistribution {
             declarationFileCount = commonObject.number("declarationFileCount"),
             declarationTotalBytes = commonObject.number("declarationTotalBytes"),
         )
-        if (
-            common.packageName != "typescript" ||
-            common.version != TYPESCRIPT_VERSION ||
-            common.distributionFingerprint != COMMON_DISTRIBUTION_FINGERPRINT ||
-            common.standardLibrariesFingerprint != COMMON_STANDARD_LIBRARIES_FINGERPRINT ||
-            common.declarationFileCount != COMMON_FILE_COUNT ||
-            common.declarationTotalBytes != COMMON_TOTAL_BYTES
-        ) {
-            fail("R2 common declaration lock is not the frozen TypeScript 6.0.3 component")
+        if (common.packageName != "typescript") {
+            fail("R2 common declaration lock must select the TypeScript package")
+        }
+        if (!STABLE_TYPESCRIPT_6_VERSION.matches(common.version)) {
+            fail("R2 common declaration lock must select a stable TypeScript 6.x version")
+        }
+        if (common.declarationFileCount <= 0 || common.declarationTotalBytes <= 0) {
+            fail("R2 common declaration lock must declare a positive library inventory")
         }
 
         val rhinoObject = root.objectValue("rhino").also {
