@@ -171,8 +171,9 @@ generation、文本 revision、请求 generation 与 editor identity 任一变�
 
 ## 后续边界
 
-- T4-3 可复用同一 Program 读取 TypeScript codefix，但任何 auto-import 都必须先变成宿主可
-  审核的当前文档 edit；contract 3 不是写通道。
+- T4-3 已复用同一 Program 读取 TypeScript codefix，并通过新的 contract 4 把 auto-import
+  限定为宿主可独立重放与授权的当前文档 edit；contract 3 仍不是写通道。完整设计与证据见
+  [T4-3 auto-import 与 quick fix](AUTO_IMPORT_QUICK_FIX_T4_3.md)。
 - T4-4 的跨文件 rename 需要新的多文件预览、内容身份与原子提交协议，不能复用定义目标
   callback 直接写文件。
 - T4-5 若缓存宿主复验结果，缓存键必须包含 source/dependency inventory fingerprint、目标

@@ -155,7 +155,9 @@ v18 的当前边界；宿主全量回归现为 1716 tests、0 failed、4 skipped
 - T4-2 已在同一只读源码层上增加跨文件 completion、hover、signature help 与 definition
   location，并由宿主复验后负责打开目标文件及定位；完整设计与证据见
   [T4-2 跨文件智能](CROSS_FILE_INTELLIGENCE_T4_2.md)。
-- T4-3 才开放 TypeScript codefix / auto-import 子集；T4-1 不执行源码写入。
+- T4-3 已通过 active-buffer-only contract 4 开放 TypeScript codefix / auto-import 子集；
+  T4-1 自身仍不执行源码写入。完整边界见
+  [T4-3 auto-import 与 quick fix](AUTO_IMPORT_QUICK_FIX_T4_3.md)。
 - T4-4 的 project rename 必须新增可审核的多文件变更事务，不能把当前只读 bridge 扩成
   任意路径写接口。
 - T4-5 可复用本项 snapshot identity 做增量刷新与防抖，但任何缓存命中都不能绕过完整性

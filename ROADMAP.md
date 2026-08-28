@@ -106,7 +106,7 @@ S10 性能与维护 —— 逐项状态、设备矩阵与提交号见
 | T1 | 语言与配置齐平桌面 TS | 大项目、路径别名、装饰器、顶层 await、更多 tsconfig 键直接可用 | 已完成（T1-1–T1-7） |
 | T2 | npm 生态 | `import dayjs from "dayjs"` 在双 profile 编译执行, 类型与补全同步 | 已完成（T2-1–T2-6） |
 | T3 | 编辑-运行循环提速 | 改一行重跑接近秒级; 冷启动等待继续下降 | 已完成（T3-1–T3-4） |
-| T4 | 编辑器完整体验 | 跨文件诊断、补全、跳转、重命名、快速修复 | 未开始 |
+| T4 | 编辑器完整体验 | 跨文件诊断、补全、跳转、重命名、快速修复 | 进行中（T4-1–T4-3 已完成） |
 | T5 | 运行时动态 TS | 运行中出现的 TS 文件可编译执行; TS 字符串即时执行 | 未开始 |
 | T6 | 遗留收尾与发布 | 旧 stripping 代码删除; 十语言提示; 对外发布 | 未开始 (T6-1/2 可立即启动; T6-3/4 外部依赖) |
 
@@ -507,9 +507,22 @@ install/lifecycle script (本来也不存在执行路径)。原 S9 的"可否决
       Ace `6/6` 与真实宿主跨 APK `2/2`，其中 `shared.ts` 精确定位到 `(0, 16)`。
       契约、安全边界、兼容矩阵与完整验收见
       [T4-2 跨文件智能](docs/architecture/CROSS_FILE_INTELLIGENCE_T4_2.md)。
-- [ ] **T4-3 auto-import 与 quick fix**: 缺失 import 自动补全建议、
+- [x] **T4-3 auto-import 与 quick fix**: 缺失 import 自动补全建议、
       拼写纠正等 TS codefix 子集。
       验收: 引用未导入符号时一键补 import。
+      完成 (2026-08-29): Ace 直接读取 TypeScript 6 Language Service 的
+      `import`/`spelling` codefix，并只接受无 command、非新文件、仅当前文档的有序
+      UTF-16 edit；Ctrl/Command+. 与移动端“快速修复”均可触发，多个候选先展示选择，
+      单个候选直接进入授权。editor ABI contract 4 的类型化请求不含 path、URI、command
+      或第二文件，只携带 action 类型、诊断码、有界 edits 与修改前后 SHA-256。宿主针对
+      当前 Ace buffer 独立校验只读/生命周期、完整 UTF-16、base hash、offset/代理项边界，
+      反向重放 edits 并核对 result hash 后才给一次性批准；Ace 在批准前后再次核对 text
+      revision，并把结果作为一次可撤销修改写回。桌面 verifier 在 Rhino 生成
+      `./shared`、Node 生成 `./shared.mjs`，同时验证拼写修正且原 `[2307, 2322]` golden
+      不变。Xiaomi 23046RP50C / API 35 最终产物通过 Ace `6/6`（4.25 s）与真实宿主
+      跨 APK `2/2`（4.442 s）；后者从 `[2304, 2307]` 一键导入
+      `projectMagicAnswer` 后严格只剩 `[2307]`。完整契约、安全预算、兼容性与证据见
+      [T4-3 auto-import 与 quick fix](docs/architecture/AUTO_IMPORT_QUICK_FIX_T4_3.md)。
 - [ ] **T4-4 跨文件重命名**: 项目范围 rename 符号, 与编译语义一致。
       验收: 重命名一个跨 3 文件引用的函数, 全部引用点更新且编译通过。
 - [ ] **T4-5 保存即诊断**: 增量语言服务常驻编辑会话 (复用 T3-1 思路或
