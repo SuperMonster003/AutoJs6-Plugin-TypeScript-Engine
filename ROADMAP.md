@@ -106,7 +106,7 @@ S10 性能与维护 —— 逐项状态、设备矩阵与提交号见
 | T1 | 语言与配置齐平桌面 TS | 大项目、路径别名、装饰器、顶层 await、更多 tsconfig 键直接可用 | 已完成（T1-1–T1-7） |
 | T2 | npm 生态 | `import dayjs from "dayjs"` 在双 profile 编译执行, 类型与补全同步 | 已完成（T2-1–T2-6） |
 | T3 | 编辑-运行循环提速 | 改一行重跑接近秒级; 冷启动等待继续下降 | 已完成（T3-1–T3-4） |
-| T4 | 编辑器完整体验 | 跨文件诊断、补全、跳转、重命名、快速修复 | 进行中（T4-1–T4-3 已完成） |
+| T4 | 编辑器完整体验 | 跨文件诊断、补全、跳转、重命名、快速修复 | 进行中（T4-1–T4-4 已完成） |
 | T5 | 运行时动态 TS | 运行中出现的 TS 文件可编译执行; TS 字符串即时执行 | 未开始 |
 | T6 | 遗留收尾与发布 | 旧 stripping 代码删除; 十语言提示; 对外发布 | 未开始 (T6-1/2 可立即启动; T6-3/4 外部依赖) |
 
@@ -523,8 +523,20 @@ install/lifecycle script (本来也不存在执行路径)。原 S9 的"可否决
       跨 APK `2/2`（4.442 s）；后者从 `[2304, 2307]` 一键导入
       `projectMagicAnswer` 后严格只剩 `[2307]`。完整契约、安全预算、兼容性与证据见
       [T4-3 auto-import 与 quick fix](docs/architecture/AUTO_IMPORT_QUICK_FIX_T4_3.md)。
-- [ ] **T4-4 跨文件重命名**: 项目范围 rename 符号, 与编译语义一致。
+- [x] **T4-4 跨文件重命名**: 项目范围 rename 符号, 与编译语义一致。
       验收: 重命名一个跨 3 文件引用的函数, 全部引用点更新且编译通过。
+      完成 (2026-08-29): Ace 直接使用 TypeScript 6.0.3 Language Service 的
+      `getRenameInfo` 与 `findRenameLocations`, 通过 F2 或移动端“重命名项目符号”生成与当前
+      project snapshot 精确绑定的候选。editor ABI contract 5 只携带项目 inventory 身份、
+      规范相对路径、每文件 base/result SHA-256 与有界 UTF-16 edits; 插件不能表达绝对目标、
+      dependency、command 或文件创建/删除, 也不写磁盘。宿主独立重捕获并重放全部 edit,
+      展示文件/引用预览, 冻结输入, 按稳定顺序取得多文件写锁, 在目标同目录写入并同步 backup
+      与 staged 内容, 逐文件发布; 任一步失败按逆序验证回滚, 活动 Ace buffer 仅由宿主作为一次
+      undoable replacement 更新。Xiaomi 23046RP50C / API 35 的真实跨 APK 用例在 4.618 s
+      内把 `answer` 的 3 文件 5 处引用全部改为 `projectAnswer`, 无临时文件残留, 新 snapshot
+      diagnostics 为 0。生产 TypeScript 6.0.3 又以 Rhino/CommonJS 与 Node/NodeNext 独立直编译
+      该三文件结果, 两者均 0 error 且各 emit 3 JS + 3 source maps。契约、回滚边界与完整证据见
+      [T4-4 跨文件重命名](docs/architecture/PROJECT_RENAME_T4_4.md)。
 - [ ] **T4-5 保存即诊断**: 增量语言服务常驻编辑会话 (复用 T3-1 思路或
       Ace 内建 LS), 保存/停顿即刷新诊断; 大项目设防抖与预算, 不阻塞
       输入。
