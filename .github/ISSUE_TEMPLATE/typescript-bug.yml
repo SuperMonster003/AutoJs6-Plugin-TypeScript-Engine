@@ -1,0 +1,127 @@
+name: TypeScript 编译问题
+description: 报告 Rhino 或 NodeNext profile 的编译、诊断、Source Map、缓存或性能问题
+title: "[TypeScript] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请只提交最小复现和脱敏证据，不要粘贴账号、token、设备标识、私有路径、完整项目源码或未经检查的 Source Map。
+
+        可先运行：
+
+        `node tools/collect-typescript-issue-evidence.mjs --diagnostics <diagnostics.json> --logcat <logcat.txt>`
+
+        工具只在已忽略的 `build/reports/issue-triage/` 生成脱敏副本，不联网、不创建 issue，也不修改源码。
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 隐私确认
+      options:
+        - label: 我已检查附件和最小复现，不含凭据、个人信息、私有源码或未经脱敏的路径
+          required: true
+
+  - type: input
+    id: autojs_version
+    attributes:
+      label: AutoJs6 版本
+      description: 请填写版本名和 build number
+      placeholder: "6.8.0 Alpha7 (build 5253)"
+    validations:
+      required: true
+
+  - type: input
+    id: plugin_version
+    attributes:
+      label: TypeScript 插件版本
+      placeholder: "0.6.0"
+    validations:
+      required: true
+
+  - type: input
+    id: android_webview
+    attributes:
+      label: Android 与 WebView
+      description: 请同时填写 Android API、WebView package 和完整版本
+      placeholder: "API 35; com.google.android.webview 130.0.6723.86"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: profile
+    attributes:
+      label: 编译 profile
+      options:
+        - Rhino (.ts/.tsx)
+        - NodeNext (.mts/.cts/项目级 .ts)
+        - 不确定
+    validations:
+      required: true
+
+  - type: input
+    id: entry_extension
+    attributes:
+      label: 入口扩展名与 package type
+      description: Node 项目请同时说明最近 package.json 的 type
+      placeholder: ".mts; package type=module"
+    validations:
+      required: true
+
+  - type: input
+    id: stable_error
+    attributes:
+      label: 稳定错误码
+      description: 优先填写 ERR_AUTOJS6_TYPESCRIPT_* 或 diagnostics detail/policy code，不要只写 message
+      placeholder: "ERR_AUTOJS6_TYPESCRIPT_COMPILATION_DIAGNOSTICS"
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 说明终态、首次发生时间、是否稳定复现，以及诊断点击或栈映射结果
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 最小复现
+      description: 提供可独立运行的最小文件树、tsconfig 和步骤；请用占位值替换业务数据
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 脱敏 diagnostics 证据
+      description: 粘贴 diagnostics.redacted.json 或附上采集目录；不要直接上传原 diagnostics.json
+      render: json
+
+  - type: textarea
+    id: performance
+    attributes:
+      label: TypeScript 性能记录
+      description: 仅粘贴采集工具输出的 typescript-compile-perf/schema=2 或 typescript-compiler-perf/schema=1 行
+      render: text
+
+  - type: textarea
+    id: regression
+    attributes:
+      label: 回归范围
+      description: 若已知，请填写最后正常版本、首次异常版本、缓存开关及 Rhino/Node 是否同时受影响
+
+  - type: checkboxes
+    id: local_checks
+    attributes:
+      label: 本地检查
+      options:
+        - label: 清除/关闭持久缓存后仍可复现，或我已明确说明无法执行此检查
+        - label: 我已确认问题不是受控 tsconfig、输入配额或不支持的 npm 裸包边界

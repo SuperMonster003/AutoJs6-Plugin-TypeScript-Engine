@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 1,
+  "fixture": {
+    "testClass": "io.github.supermonster003.autojs6.plugin.typescript.R2ProjectCompilerInstrumentationTest",
+    "testMethod": "packagedStandardLibrariesCrossTheFormerSingleMessageLimit",
+    "profile": "rhino",
+    "sourceFiles": 109,
+    "minimumInputBytes": 3145728,
+    "logicalFrames": 379,
+    "phaseClock": "SystemClock.elapsedRealtimeNanos",
+    "observationLogSchema": 1,
+    "gate": "none"
+  },
+  "optimization": {
+    "id": "s10-1-six-middle-four-payload",
+    "baseline": {
+      "maximumMiddleFramesPerEnvelope": 4,
+      "maximumPayloadChunksPerEnvelope": 4,
+      "envelopes": 97,
+      "maximumEncodedEnvelopeBytes": 350201
+    },
+    "candidate": {
+      "maximumMiddleFramesPerEnvelope": 6,
+      "maximumPayloadChunksPerEnvelope": 4,
+      "maximumEncodedMiddleFrameBytes": 94208,
+      "envelopes": 68,
+      "maximumEncodedEnvelopeBytes": 350433
+    },
+    "unchanged": {
+      "rawPayloadChunkBytes": 65536,
+      "hardEnvelopeBytes": 589824,
+      "outerAcknowledgementWindow": 1,
+      "projectStartAndEndRemainSingle": true,
+      "resultTransportRemainsStopAndWait": true
+    }
+  },
+  "observations": [
+    {
+      "id": "20260825-s10-1-api31-xq-at72",
+      "observedAt": "2026-08-25",
+      "releaseVersion": "0.6.0",
+      "buildType": "debug",
+      "device": {
+        "label": "api31-xq-at72",
+        "api": 31,
+        "model": "Sony XQ-AT72",
+        "abi": "arm64-v8a"
+      },
+      "webViewVersion": "145.0.7632.120",
+      "baseline": {
+        "sampleCount": 3,
+        "compilerMs": [2011, 2025, 2031],
+        "ingressMs": [1150, 1166, 1170],
+        "compilerMedianMs": 2025,
+        "ingressMedianMs": 1166
+      },
+      "candidate": {
+        "sampleCount": 5,
+        "compilerMs": [2064, 1972, 2022, 1987, 1991],
+        "ingressMs": [1172, 1128, 1171, 1122, 1103],
+        "compilerMedianMs": 1991,
+        "ingressMedianMs": 1128
+      },
+      "comparison": {
+        "compilerImprovementPercent": 1.7,
+        "ingressImprovementPercent": 3.3
+      },
+      "provenance": {
+        "kind": "live-instrumentation",
+        "baselineCapture": "device-sequential-three-runs-cross-device-parallel",
+        "candidateCapture": "device-sequential-five-runs"
+      }
+    },
+    {
+      "id": "20260825-s10-1-api35-23046rp50c",
+      "observedAt": "2026-08-25",
+      "releaseVersion": "0.6.0",
+      "buildType": "debug",
+      "device": {
+        "label": "api35-23046rp50c",
+        "api": 35,
+        "model": "Xiaomi 23046RP50C",
+        "abi": "arm64-v8a"
+      },
+      "webViewVersion": "130.0.6723.86",
+      "baseline": {
+        "sampleCount": 3,
+        "compilerMs": [7069, 7119, 5332],
+        "ingressMs": [5982, 5853, 4195],
+        "compilerMedianMs": 7069,
+        "ingressMedianMs": 5853
+      },
+      "candidate": {
+        "sampleCount": 5,
+        "compilerMs": [6729, 6733, 6671, 6594, 5879],
+        "ingressMs": [5459, 5452, 5434, 5417, 4785],
+        "compilerMedianMs": 6671,
+        "ingressMedianMs": 5434
+      },
+      "comparison": {
+        "compilerImprovementPercent": 5.6,
+        "ingressImprovementPercent": 7.2
+      },
+      "provenance": {
+        "kind": "live-instrumentation",
+        "baselineCapture": "device-sequential-three-runs-cross-device-parallel",
+        "candidateCapture": "device-sequential-five-runs"
+      }
+    },
+    {
+      "id": "20260825-s10-1-api36-avd",
+      "observedAt": "2026-08-25",
+      "releaseVersion": "0.6.0",
+      "buildType": "debug",
+      "device": {
+        "label": "api36-avd",
+        "api": 36,
+        "model": "sdk_gphone64_x86_64",
+        "abi": "x86_64"
+      },
+      "webViewVersion": "134.0.6998.135",
+      "baseline": {
+        "sampleCount": 7,
+        "compilerMs": [2726, 2656, 2499, 2352, 2302, 3100, 6268],
+        "ingressMs": [1408, 1316, 1181, 1170, 1151, 1637, 4313],
+        "compilerMedianMs": 2656,
+        "ingressMedianMs": 1316
+      },
+      "candidate": {
+        "sampleCount": 7,
+        "compilerMs": [2468, 7740, 3214, 5344, 2371, 2017, 1979],
+        "ingressMs": [1204, 5349, 1937, 3047, 1070, 1062, 1076],
+        "compilerMedianMs": 2468,
+        "ingressMedianMs": 1204
+      },
+      "comparison": {
+        "compilerImprovementPercent": 7.1,
+        "ingressImprovementPercent": 8.5
+      },
+      "provenance": {
+        "kind": "live-instrumentation",
+        "baselineCapture": "device-sequential-seven-runs",
+        "candidateCapture": "device-sequential-seven-runs-after-cold-avd-boot"
+      }
+    },
+    {
+      "id": "20260825-s10-1-api37-avd",
+      "observedAt": "2026-08-25",
+      "releaseVersion": "0.6.0",
+      "buildType": "debug",
+      "device": {
+        "label": "api37-avd",
+        "api": 37,
+        "model": "sdk_gphone16k_x86_64",
+        "abi": "x86_64"
+      },
+      "webViewVersion": "145.0.7632.218",
+      "baseline": {
+        "sampleCount": 5,
+        "compilerMs": [2572, 2465, 3926, 2467, 2644],
+        "ingressMs": [1316, 1260, 2189, 1276, 1358],
+        "compilerMedianMs": 2572,
+        "ingressMedianMs": 1316
+      },
+      "candidate": {
+        "sampleCount": 5,
+        "compilerMs": [2245, 2317, 2241, 2247, 2307],
+        "ingressMs": [1163, 1133, 1122, 1140, 1099],
+        "compilerMedianMs": 2247,
+        "ingressMedianMs": 1133
+      },
+      "comparison": {
+        "compilerImprovementPercent": 12.6,
+        "ingressImprovementPercent": 13.9
+      },
+      "provenance": {
+        "kind": "live-instrumentation",
+        "baselineCapture": "device-sequential-five-runs-same-idle-avd",
+        "candidateCapture": "device-sequential-five-runs-same-idle-avd"
+      }
+    }
+  ]
+}

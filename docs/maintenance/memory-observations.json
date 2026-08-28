@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "fixture": {
+    "testClass": "io.github.supermonster003.autojs6.plugin.typescript.R2BinderCompilationInstrumentationTest",
+    "testMethod": "recordsTypicalCompilationTimingAndActivePssWithoutPerformanceThreshold",
+    "profile": "rhino",
+    "sourceFiles": 8,
+    "activeMemoryHoldMs": 5000,
+    "pssSampleCount": 3,
+    "pssSampleIntervalMs": 50,
+    "gate": "none"
+  },
+  "records": [
+    {
+      "id": "20260824-s5-5-api31-xq-at72",
+      "observedAt": "2026-08-24",
+      "releaseVersion": "0.6.0",
+      "buildType": "debug",
+      "device": {
+        "label": "api31-xq-at72",
+        "api": 31,
+        "model": "Sony XQ-AT72",
+        "abi": "arm64-v8a",
+        "buildFingerprint": null
+      },
+      "webView": {
+        "package": "com.google.android.webview",
+        "version": "145.0.7632.120"
+      },
+      "measurements": {
+        "inputBytes": 3798,
+        "hostRoundTripMs": null,
+        "compilerMs": 12081,
+        "compilerServiceMedianPssKiB": 64548,
+        "rendererMedianPssKiB": 97112,
+        "combinedMedianPssKiB": 168054
+      },
+      "provenance": {
+        "kind": "migrated-roadmap-baseline",
+        "reference": "ROADMAP.md S5-5"
+      }
+    },
+    {
+      "id": "20260824-s5-5-api35-23046rp50c",
+      "observedAt": "2026-08-24",
+      "releaseVersion": "0.6.0",
+      "buildType": "debug",
+      "device": {
+        "label": "api35-23046rp50c",
+        "api": 35,
+        "model": "Xiaomi 23046RP50C",
+        "abi": "arm64-v8a",
+        "buildFingerprint": null
+      },
+      "webView": {
+        "package": "com.google.android.webview",
+        "version": "130.0.6723.86"
+      },
+      "measurements": {
+        "inputBytes": 3798,
+        "hostRoundTripMs": null,
+        "compilerMs": 15418,
+        "compilerServiceMedianPssKiB": 90458,
+        "rendererMedianPssKiB": 95241,
+        "combinedMedianPssKiB": 191542
+      },
+      "provenance": {
+        "kind": "migrated-roadmap-baseline",
+        "reference": "ROADMAP.md S5-5"
+      }
+    },
+    {
+      "id": "20260824-s5-5-api37-emulator",
+      "observedAt": "2026-08-24",
+      "releaseVersion": "0.6.0",
+      "buildType": "debug",
+      "device": {
+        "label": "api37-emulator",
+        "api": 37,
+        "model": "Android 17 x86_64 AVD",
+        "abi": "x86_64",
+        "buildFingerprint": null
+      },
+      "webView": {
+        "package": "com.google.android.webview",
+        "version": "145.0.7632.218"
+      },
+      "measurements": {
+        "inputBytes": 3798,
+        "hostRoundTripMs": null,
+        "compilerMs": 6835,
+        "compilerServiceMedianPssKiB": 94490,
+        "rendererMedianPssKiB": 130557,
+        "combinedMedianPssKiB": 225047
+      },
+      "provenance": {
+        "kind": "migrated-roadmap-baseline",
+        "reference": "ROADMAP.md S5-5"
+      }
+    },
+    {
+      "id": "20260825T021209Z-api37-emulator",
+      "observedAt": "2026-08-25T02:12:09Z",
+      "releaseVersion": "0.6.0",
+      "buildType": "debug",
+      "device": {
+        "label": "api37-emulator",
+        "api": 37,
+        "model": "sdk_gphone16k_x86_64",
+        "abi": "x86_64",
+        "buildFingerprint": "google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.019/15611780:userdebug/dev-keys"
+      },
+      "webView": {
+        "package": "com.google.android.webview",
+        "version": "145.0.7632.218"
+      },
+      "measurements": {
+        "inputBytes": 3798,
+        "hostRoundTripMs": 3608,
+        "compilerMs": 3595,
+        "compilerServiceMedianPssKiB": 82244,
+        "rendererMedianPssKiB": 114584,
+        "combinedMedianPssKiB": 196448
+      },
+      "provenance": {
+        "kind": "live-instrumentation",
+        "command": "tools/observe-release-memory.ps1",
+        "rawInstrumentation": "20260825T021209Z-api37-emulator-instrumentation.txt",
+        "rawLogcat": "20260825T021209Z-api37-emulator-logcat.txt"
+      }
+    }
+  ]
+}

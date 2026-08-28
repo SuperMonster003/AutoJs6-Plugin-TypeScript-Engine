@@ -4,38 +4,122 @@ AutoJs6 的完整 TypeScript 编译前端插件. 插件负责把 TypeScript 项�
 JavaScript, Source Map 和结构化诊断, 最终 JavaScript 仍由 AutoJs6 选择的
 Rhino 或 Node.js 引擎执行.
 
-> 当前状态（2026-08-23）：新版 Roadmap 的六个必需插件切片 `S1-1`–`S1-6` 已完成。插件现在通过
-> `getCompilerInfo()` 广告 `typescriptCompilerAvailable`、项目编译、语义诊断与
-> Source Map v3 四项 capability（mask `15`）；输入/输出 ZIP、Worker VFS、模块映射与
-> diagnostics URI 已端到端支持安全 UTF-8 路径（仍拒绝控制字符、畸形 Unicode、绝对路径、
-> 反斜杠与 `.`/`..` 逃逸）。ordinary quota revision 2 允许 caller 独占
-> `512 files / 8 MiB` 输入额度（插件声明由独立 retained-input guardrail 约束），输出为
-> `512 artifacts / 16 MiB per JS or map / 64 MiB aggregate`；约 5 MiB source 的公共 Binder
-> 编译已在 API 37 模拟器与 Android 12 实机产出超过 2 MiB 的 JavaScript。
-> Public Rhino 也已激活 controlled-tsconfig policy revision 2：18 个 boolean 选项真实参与
-> effective options，未知或非结构性字段产生有界 warning 后忽略，`paths`、`outFile`、profile
-> override 与 transformer authority 仍 fail closed。宿主可从 compiler info 读取 policy revision
-> 与 fingerprint，并以 archive 内 hash-bound `tsconfig.json` 发起编译；详见
-> [S1-4 Public Controlled tsconfig Activation](docs/architecture/CONTROLLED_TSCONFIG_ACTIVATION_S1_4.md)。
-> `strict=false` + warning-ignore 的 focused Public Binder 回归已通过 API 31/API 35 实机与
-> API 37 模拟器。
-> Public NodeNext revision 2 也已准入：宿主按 compiler info 中独立的
-> `nodeProfileRevision/nodeConfigSchemaRevision/nodeConfigKind/
-> nodeRuntimeCapabilitiesFingerprint/nodeDeclarationProfileFingerprint` 精确构造请求，
-> 即可把 `.ts/.mts/.cts` 编译为 `.js/.mjs/.cjs` 和配对 Source Map。Node revision 1
-> 仅保留为 private/debug compatibility default，Node public config 仍为 `none`；插件锁定的
-> Node declarations 使用独立 ambient-module 索引，caller 的任意裸包导入仍需既有 package
-> authority。`.mts + .cts` 的 focused Public Binder 回归已通过 API 31/API 35 实机与 API 37
-> 模拟器；详见
-> [S1-5 NodeNext Public Admission](docs/architecture/NODE_NEXT_PUBLIC_ADMISSION_S1_5.md)。
-> 默认验证图也已瘦身：`gradlew check --offline` 只运行应用/API 单元测试、统一供应链锁、
-> AIDL/API v1 freeze，以及各一次真实 Rhino/NodeNext Worker 编译；历史 lint/APK/release/device/
-> `verifyR2M*` 证据任务仍可显式调用。清理全部 project build/cache outputs 后的本地冷基线为
-> 116 个任务、28.1 秒；详见
-> [S1-6 Daily Verification](docs/architecture/DAILY_VERIFICATION_S1_6.md)。
-> `nodeRuntimeRequired` 仍为 `false`。
-> 编译服务已经可由宿主集成，但 AutoJs6 主仓库的消费端尚未实现，因此终端用户还不能
-> 直接点击运行 `.ts`。当前工作清单以 [ROADMAP.md](ROADMAP.md) 为准。
+> 当前状态 (2026-08-28): v0.6.0 源码候选已开启完整项目编译 capability
+> (mask `15`)。AutoJs6 的执行前编译、诊断跳转、运行时栈映射、缓存、后台入口、
+> APK 打包与 Ace 编辑器一致性均已接通。当前源码已重新构建正式签名 APK，并通过
+> release 资产门禁与 API 35 的 T1-2–T1-6 公开 Binder 验收；T1-5/T1-6 另由
+> AutoJs6 + Node Runtime 真机执行顶层 `await` 与 ESM/CommonJS workspace 双子包；2026-08-25 的上一
+> 签名基线另已通过 API 24/31/35/37 的完整 S6 发布门禁，最终公开候选仍会复跑该
+> 四设备矩阵。T2-1/T2-2 已把 `node_modules` 接入独立只读 archive/spool/cache/Worker
+> 层并开放 bare/scoped package、子路径与 `exports`；T2-3 让同一 exact snapshot 在
+> Rhino CommonJS 与 Node ESM/CJS 运行，T2-4 又让 package `types`/`typings`、
+> `typesVersions` 与 installed `@types` 在编译器和 Ace 中使用同一冻结类型层。T2-5 已用
+> 固定 npm tarball 验收 dayjs、lodash、zod、uuid 与 nanoid；T2-6 又以固定
+> `bcrypt@6.0.0` tarball 把 `.node`/`binding.gyp`/node-gyp 安装生命周期变成编译前稳定错误，
+> 并让 Ace 发布同一诊断。dependency resolver revision 4 保留 runtime JS 到 installed
+> `@types` 的模块类型回退并绑定该边界。dayjs、zod 与 dual package
+> 已在 API 35 通过真实宿主 Binder 编译/执行/类型诊断。按项目 owner
+> 决定，宿主发布前不创建本项目 GitHub Release 或
+> 插件市场条目；这不阻塞仓库内后续 Roadmap 的继续部署。当前工作清单以
+> [ROADMAP.md](ROADMAP.md) (T 时代路线) 为准，S 时代逐项归档见
+> [docs/roadmap/ROADMAP_LEGACY_S_ERA.md](docs/roadmap/ROADMAP_LEGACY_S_ERA.md)。
+
+## 能做什么
+
+- Rhino profile 编译 `.ts/.tsx`，支持多文件相对导入、JSON、AutoJs6 声明和原生
+  TSX UI DSL；无需安装 Node.js Runtime 插件。
+- NodeNext revision 2 编译 `.mts/.cts`，以及具有明确项目/package boundary 的
+  `.ts`；按 source kind 与 `package.json.type` 产出 `.mjs/.cjs/.js`，运行时需要
+  Node.js Runtime 插件。
+- Node workspace 可在 `packages/<name>` 或 `packages/@scope/<name>` 下建立多个
+  `package.json` boundary；同一项目的 `.ts` 子包可分别使用 ESM 与 CommonJS，按最近
+  boundary 编译并由 Node Runtime 一起运行。
+- Node 项目的 `node_modules` 使用 lockfile + exact inventory 驱动的独立只读依赖层，
+  不占 ordinary caller 配额；支持 bare/scoped package、子路径 `exports`、
+  `types`/`import`/`require` 条件以及 `typings`/installed `@types`/`module`/`main` 回退。
+  TypeScript Program 与 Ace 共用 package declarations、TypeScript 6 `typesVersions` 选择和
+  自动 installed `@types`，运行时继续消费同一 exact snapshot。`.node`、`binding.gyp`、
+  `gypfile` 与 dependency install lifecycle 会在归档阶段给出稳定错误，不会静默过滤。
+- Node ESM 的 `.mts` 与根 `package.json` 为 `type: module` 的 `.ts` 支持顶层
+  `await`；推荐通过 controlled tsconfig revision 4 选择 ES2022 `target`/`lib`。
+- Node ESM 循环依赖使用 Runtime 的 V8 native linker；可变导出、re-export 与
+  live binding 在 `.mts` / `type: module` 项目中保持原生语义。
+- 两个 profile 都使用 TypeScript `6.0.3` 的完整 `Program` 编译，返回 JavaScript、
+  外部 Source Map v3 和结构化 diagnostics。中文、空格及其他安全 UTF-8 路径可用。
+- TypeScript 6 标准 Stage-3 类/方法装饰器在两个 profile 中默认可用，包含 typed
+  decorator context 与 `addInitializer`；无需 `experimentalDecorators` 开关。
+- controlled tsconfig revision 4 同时作用于 Rhino 与 NodeNext，提供 20 个 boolean
+  选项、profile-scoped `target`/`lib` 以及 snapshot-only `baseUrl`/`paths` 路径别名；
+  revision 2/3 请求保持精确兼容。编译错误可点击回到 TS，Node 运行栈映射到文件/行/列，
+  Rhino 映射到文件/行。
+- 跨执行缓存命中实测为 18-63 ms；加密项目可在内存中交给 APK Builder，发布包
+  只携带编译后的 JS/map，不携带 TS 源码。
+- 冷启动标准库传输采用 6-total/4-payload 有界 batching，固定 109-file workload 从
+  97 降至 68 个 envelopes；API 31/35/36/37 四组 Android/WebView 观测的
+  compiler/ingress 中位数均改善，且 576 KiB hard envelope 不变。
+
+## 使用文档与模板
+
+- [快速上手](docs/user/QUICK_START.md)：安装要求、`hello.ts`、profile 路由、Node
+  顶层 `await`、workspace 双子包、标准装饰器、字符串 XML UI 与原生 TSX。
+- [配置与配额参考](docs/user/CONFIGURATION.md)：受控 tsconfig revision 4 的 20 个
+  布尔项、`target`/`lib`、`baseUrl`/`paths`、标准装饰器、Node 顶层 `await`、
+  workspace package boundary、revision 2/3 兼容、module kind 与输入/输出额度。
+- [npm 真实包兼容矩阵](docs/user/REAL_PACKAGE_MATRIX.md)：dayjs、lodash、zod、uuid、
+  nanoid 的固定版本、双 profile 结果、ESM-only 边界与 workaround。
+- [原生 npm 依赖](docs/user/NATIVE_DEPENDENCIES.md)：`.node`、node-gyp、安装 lifecycle 的
+  两个稳定错误码，以及 pure JavaScript/WASM 替代方案。
+- [错误码目录](docs/user/ERRORS.md)：24 个宿主/插件终态错误、11 个配置 detail code、
+  18 对 Node resolver diagnostics 及用户侧解法。
+- [StackTrace 与 Source Map 契约](docs/user/SOURCE_MAPS.md)：Node/Rhino 映射精度、
+  发布 APK 与隐私边界。
+- [项目模板](templates/README.md)：Rhino 单文件 TSX、Rhino 多文件、Node ESM/CJS。
+- [维护与发布入口](docs/maintenance/README.md)：发布 checklist、
+  [冷启动与 ingress 观察](docs/maintenance/COLD_START.md)、固定 PSS 观察历史、
+  [TypeScript 6.x 升级手册](docs/maintenance/UPGRADE.md)、WebView 最低支持策略与
+  季度依赖巡检，以及[脱敏 issue 分诊闭环](docs/maintenance/ISSUE_TRIAGE.md)。
+
+## 安装要求
+
+- Android 7.0 / API 24 或更高版本，并使用 Chrome/WebView `119` 或更高版本。
+  API 24/25 系统镜像自带的旧 Chrome/WebView 不能解析当前 compiler host；仅升级
+  Android API level 不会替代 WebView provider 要求。
+- AutoJs6 `6.8.0 Alpha7` (build `5253`) 或更高兼容版本。
+- 待宿主先行发布且 Roadmap T6-4 上架后，从本项目 Releases 安装同一官方证书签名的
+  `autojs6-plugin-typescript-engine-v0.6.0-universal.apk`。当前本地候选的校验和、
+  签名与设备矩阵见 [v0.6.0 发布说明](docs/releases/v0.6.0.md)；公开资产出现前，
+  不应从非官方镜像获取同名 APK。
+- 在 AutoJs6 中创建并运行 `hello.ts` 即可使用 Rhino profile：
+
+```ts
+const message: string = "Hello from TypeScript";
+toast(message);
+```
+
+## 已知边界
+
+- 编译输入冻结在执行开始时的项目 snapshot；运行中才出现的外部 TS 文件会被拒绝。
+- npm bare/scoped package 与 package `exports` 从编译到执行共用启动时冻结的 exact
+  dependency layer。Rhino 装载 CommonJS/JSON 与 dual-package 的 `require` 分支，ESM-only
+  package 返回稳定错误并提示切换 Node profile；Node 通过不可变私有 workspace overlay
+  执行 ESM/CJS/dual package，且不会把运行期变更回写依赖层。workspace boundary 继续负责
+  项目内 `type` 格式判定，当前不处理 package `imports`；CommonJS `require(esm)` 仍使用
+  既有同步互操作边界。
+- npm `.node` addon、`binding.gyp`/`gypfile` 与 dependency 的
+  `preinstall`/`install`/`postinstall` 不在 Android 项目内编译或执行；它们会返回明确稳定
+  错误。普通 `build`/`test` scripts 只是 inert metadata。可改用 pure JS、WASM 或专用
+  Android/AutoJs6 插件实现。
+- caller 输入 revision 3 上限为 4096 files、单文件 8 MiB、合计 64 MiB；输出上限为
+  512 artifacts、单个 JS/map 16 MiB、总计 64 MiB。插件内置 declarations 不占
+  caller 输入额度；依赖层另有 8192 files / 64 MiB 独立额度；旧宿主内联的
+  revision 2（512 files / 8 MiB）继续兼容。
+- `baseUrl`/`paths` 只解析执行开始时 snapshot 内的项目源码，并在 emit 时改写为显式
+  相对运行时模块；绝对路径、`..`、非法 pattern 与 snapshot 外目标会被拒绝或诊断。
+  `outFile`、caller transformer、compiler plugin、profile override 等其余拓扑覆盖仍
+  保持 fail closed。
+- 标准装饰器不需要配置开关；legacy `experimentalDecorators` 与
+  `emitDecoratorMetadata` 当前只产生 `910002` warning 后被忽略，不会切换 emit dialect
+  或生成反射 metadata。
 
 <details>
 <summary>查看旧 R2 路线截至 2026-08-22 的阶段性记录</summary>
@@ -446,10 +530,10 @@ AutoJs6 host
 - Node Runtime 未安装或未启用时, Rhino TypeScript 仍应可编译并执行.
 - Ace 编辑器和编译插件可以共享 TypeScript 发行包规范, 但不共享 WebView,
   Language Service, AST 或生命周期.
-- R1 compiler host 使用受限 HTTPS asset origin 和专用 Web Worker. 它只运行
-  固定 golden, 不接收真实项目 VFS, 不执行 emitted JavaScript.
-- R2 project path 在同一隔离 host 上接受 framed project VFS，四项 compiler
-  capability 已按 S1-1 开启；宿主消费与运行时执行仍待 S2。完整边界见
+- compiler host 使用受限 HTTPS asset origin 和专用 Web Worker，只接受宿主显式
+  提交的有界 project VFS；它不访问宿主文件系统或网络，也不执行 emitted JavaScript。
+- public project path 在同一隔离 host 上接受 framed project VFS，四项 compiler
+  capability 已按 S1-1 开启；宿主消费、Rhino/Node 执行和栈映射均已完成。完整边界见
   [R2 Public-shaped Admission Preview](docs/architecture/PUBLIC_ADMISSION_R2_PREVIEW.md)
   与
   [R2 Profile/Config Authority](docs/architecture/PROFILE_AUTHORITY_R2_PROVISIONAL.md)，
@@ -487,9 +571,10 @@ AutoJs6 host
   [R2 External-UID Binder Natural Parse Timeout](docs/architecture/EXTERNAL_NATURAL_PARSE_TIMEOUT_R2.md)，
   无编号 normal/shipping Release natural parse timeout follow-up 见
   [R2 Normal/Shipping Release Natural Parse Timeout](docs/architecture/SHIPPING_RELEASE_NATURAL_PARSE_TIMEOUT_R2.md).
-- 首个 GA 的 Rhino profile 支持 `.ts`, Node profile 支持 `.ts/.mts/.cts`.
-- 首个 GA 只编译执行前 snapshot; 运行中外部 TS 与 bundled compiler 延至
-  Post-GA.
+- 首个 GA 的 Rhino profile 支持 `.ts/.tsx`, Node profile 支持项目范围内的
+  `.ts` 以及 `.mts/.cts`.
+- 当前版本只编译执行前 snapshot; 运行中出现的 TS 文件按需编译在
+  Roadmap T5 实现.
 - StackTrace 契约为 Node 文件/行/列, Rhino 文件/行; 两者编译诊断均到列.
 
 ## Roadmap
@@ -512,6 +597,25 @@ py .python/generate_changelog.py --check
 ## 构建与验证
 
 ```powershell
+.\gradlew.bat check --offline
+py .python/generate_changelog.py --check
+.\gradlew.bat :app:assembleRelease --offline
+```
+
+日常 `check` 包含应用/API 单元测试、供应链锁、AIDL/API v1 freeze、Rhino 和
+NodeNext 各一次真实 Worker 编译 smoke，以及 S7 文档/模板与 S10 冷启动/维护记录的防漂移
+门禁。完整发版步骤见[发布前检查清单](docs/maintenance/RELEASE_CHECKLIST.md)。
+`assembleRelease` 只有在
+`sign.properties` 指向有效官方 keystore 时才生成可发布签名包；产物位于
+`app/build/outputs/apk/release/`。
+
+<details>
+<summary>查看 R0-R2 历史专项验证命令与设备证据</summary>
+
+> 以下任务保留用于复现历史架构证据，不代表当前 capability 状态，也不属于日常
+> 发布验证图。
+
+```powershell
 .\gradlew.bat verifyR0
 .\gradlew.bat verifyR1CompilerDistribution
 .\gradlew.bat verifyR1CompilerHost
@@ -531,7 +635,7 @@ instrumentation:
 
 ```powershell
 .\gradlew.bat verifyR1ProtocolCompatibility
-adb -s <serial> install -r -t -d app\build\outputs\apk\debug\autojs6-plugin-typescript-engine-v0.5.0-universal.apk
+adb -s <serial> install -r -t -d app\build\outputs\apk\debug\autojs6-plugin-typescript-engine-v0.6.0-universal.apk
 adb -s <serial> install -r -t -d r1-compat-v1\build\outputs\apk\debug\r1-compat-v1-debug.apk
 adb -s <serial> shell am instrument -w -r io.github.supermonster003.autojs6.plugin.typescript.compat.v1/io.github.supermonster003.autojs6.plugin.typescript.compat.v1.FrozenClientToCurrentServiceInstrumentation
 adb -s <serial> shell am instrument -w -r io.github.supermonster003.autojs6.plugin.typescript.compat.v1/io.github.supermonster003.autojs6.plugin.typescript.compat.v1.CurrentClientToFrozenServiceInstrumentation
@@ -620,14 +724,22 @@ process 自身的 `statm`/`status` 两个只读 procfs telemetry FD；测试只�
 二元组，其他增长或 staging archive 残留仍失败.
 当前 FD 证据不能外推为完整 renderer memory leak 结论.
 
-`release-smoke` 是不依赖 AndroidX runner 的 framework-only helper APK, 用于
-验证 R8/minified target. `verifyR1CompilerHost` 会确保 helper 可构建, 但不会
-为 unsigned release APK 选择签名证书或操作设备. 真机门禁需先用同一测试证书
-签名并安装 release target 与 helper, 再运行:
+`release-smoke` 是不依赖 AndroidX runner 的 framework-only helper APK，用于
+验证 S6 正式签名 release target。target 与 helper 都从 `sign.properties` 读取
+同一证书；helper 会发现 release service，核对 capability mask 15、TypeScript
+6.0.3 与全部公开 metadata，再通过正式 Binder archive 契约实际编译
+`hello.ts`，检查零诊断、JavaScript、Source Map 与 output manifest。构建并安装后运行：
 
 ```powershell
-adb shell am instrument -w io.github.supermonster003.autojs6.plugin.typescript.releasesmoke/.R1ReleaseSmokeInstrumentation
+.\gradlew.bat :app:assembleRelease :release-smoke:assembleDebug --offline
+adb -s <serial> install -r app\build\outputs\apk\release\autojs6-plugin-typescript-engine-v0.6.0-universal.apk
+adb -s <serial> install -r release-smoke\build\outputs\apk\debug\release-smoke-debug.apk
+adb -s <serial> shell am instrument -w -r io.github.supermonster003.autojs6.plugin.typescript.releasesmoke/.R1ReleaseSmokeInstrumentation
 ```
+
+成功结果必须包含 `INSTRUMENTATION_CODE: -1`。API 24/25 的正式门禁使用
+Chrome-WebView `119.0.6045.194` 或更新 provider；旧 provider 的 timeout 只作为
+预期的 fail-closed 负基线。
 
 R0 的细分任务仍可分别运行:
 
@@ -638,6 +750,8 @@ R0 的细分任务仍可分别运行:
 .\gradlew.bat :app:verifyCompilerDistributionLock
 .\gradlew.bat :app:assembleDebug
 ```
+
+</details>
 
 Debug/release APK 分别输出到 `app/build/outputs/apk/debug/` 与
 `app/build/outputs/apk/release/`.

@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "records": [
+    {
+      "id": "2026-08-25-local-offline",
+      "inspectedAt": "2026-08-25",
+      "mode": "repository-compatibility-snapshot",
+      "networkUsed": false,
+      "selected": {
+        "gradle": "9.6.1",
+        "agp": "9.3.0",
+        "kotlin": "2.3.21",
+        "ksp": "2.3.10",
+        "r8": "8.13.19",
+        "java": 21,
+        "jvmTarget": 21,
+        "compileSdk": 36,
+        "targetSdk": 36,
+        "minSdk": 24
+      },
+      "compatibility": {
+        "agpMinimumGradle": "9.5.0",
+        "gradleKotlinSelection": "2.3.21",
+        "kspMinimumAgp": "8.10.0",
+        "kotlinMinimumR8": "8.13.19",
+        "javaMinimumGradle": "8.5"
+      },
+      "matrixSnapshotDates": {
+        "agpReleases": "2026-07-17",
+        "agpGradle": "2026-07-17",
+        "gradleKotlin": "2026-06-28",
+        "kspReleases": "2026-07-13",
+        "kspAgp": "2026-07-10",
+        "javaGradle": "2026-03-06"
+      },
+      "catalog": {
+        "commons-compress": "1.28.0",
+        "foojay-resolver-convention": "1.0.0",
+        "junit": "4.13.2",
+        "test-junit": "1.3.0",
+        "test-runner": "1.7.0",
+        "webkit": "1.14.0",
+        "xz": "1.12"
+      },
+      "evidence": [
+        ".\\gradlew.bat help --offline --console=plain",
+        ".\\gradlew.bat check --offline"
+      ],
+      "result": "pass",
+      "decision": "No dependency version change is required by the checked-in compatibility snapshot."
+    }
+  ]
+}

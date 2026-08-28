@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "package": "typescript",
+  "version": "6.0.2",
+  "source": "https://registry.npmjs.org/typescript/-/typescript-6.0.2.tgz",
+  "sha1": "0b1bfb15f68c64b97032f3d78abbf98bdbba501f",
+  "sha256": "0ae5c188a2f5db22df72fe5e74dcbc122afb52031a86dbac33e78a86db39c65e",
+  "integrity": "sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ==",
+  "runtimeEntry": "package/lib/typescript.js",
+  "declarationEntry": "package/lib/typescript.d.ts",
+  "licenseEntry": "package/LICENSE.txt",
+  "thirdPartyNoticeEntry": "package/ThirdPartyNoticeText.txt",
+  "standardLibraryGlob": "package/lib/lib*.d.ts",
+  "bundled": false,
+  "note": "S10-3 isolated rehearsal baseline only; production remains pinned by compiler-distribution.lock.json."
+}

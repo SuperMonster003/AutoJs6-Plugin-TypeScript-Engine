@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "auditedAt": "2026-08-25",
+  "officialSources": {
+    "registryMetadata": "https://registry.npmjs.org/typescript",
+    "versions": "https://www.npmjs.com/package/typescript?activeTab=versions",
+    "releases": "https://github.com/microsoft/typescript/releases"
+  },
+  "scope": {
+    "acceptedLine": "stable-6.x-javascript",
+    "stableVersions": [
+      "6.0.2",
+      "6.0.3"
+    ],
+    "currentVersion": "6.0.3",
+    "latestStable6": "6.0.3",
+    "overallLatest": "7.0.2",
+    "status": "already-current",
+    "typescript7Decision": "out-of-scope-separate-compiler-host-architecture-review"
+  },
+  "production": {
+    "lockFile": "compiler-distribution.lock.json",
+    "source": "https://registry.npmjs.org/typescript/-/typescript-6.0.3.tgz",
+    "tarballBytes": 4515854,
+    "digests": {
+      "sha1": "90251dc007916e972786cb94d74d15b185577d21",
+      "sha256": "33cd0ee1beaa8c9e9d15a9da836c62ddea4c34a42d7c2d349dbc80d94165d22a",
+      "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="
+    },
+    "distributionFingerprint": "3855b04b968db8a9529b60c96dd8b8ec94fa1ee040cac10a5ab569aa6e33f658",
+    "compilerFingerprint": "2fcd42165b7717eaba6a4f19a2c5bad557eba3fe49374890742df6a27d51616b",
+    "standardLibraries": {
+      "fingerprint": "6ee5c0bce41694b8ca86430b82abfe4fbb60bf96321fba43e99d9810a44a1c1f",
+      "fileCount": 108,
+      "totalBytes": 3784758
+    },
+    "declarations": {
+      "distributionFingerprint": "ae2f7b6287d6d48ec70ccc83a4778fe9e84670fe6cb5b6b0a6f7c806919ae96d",
+      "profiles": {
+        "rhino": "cb4ccfb946a6e4a78ab049145465c3d5b747ef8c6090345180aee3e7389af9be",
+        "node": "8cec5b8e610960a522cab3520784ceccd7bf6f4a008e79503e209b04b65012c4"
+      }
+    }
+  },
+  "rehearsal": {
+    "kind": "isolated-prior-stable-to-current",
+    "baselineVersion": "6.0.2",
+    "currentVersion": "6.0.3",
+    "baselineTarball": {
+      "source": "https://registry.npmjs.org/typescript/-/typescript-6.0.2.tgz",
+      "tarballBytes": 4515770,
+      "digests": {
+        "sha1": "0b1bfb15f68c64b97032f3d78abbf98bdbba501f",
+        "sha256": "0ae5c188a2f5db22df72fe5e74dcbc122afb52031a86dbac33e78a86db39c65e",
+        "integrity": "sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ=="
+      }
+    },
+    "tarballDigestsRolled": true,
+    "compilerDistribution": {
+      "baselineFingerprint": "e2e90fd9f4ab1a8e2dbd2907f131828a7be3a04c2dd7105badc97d4664a4d5b9",
+      "currentFingerprint": "3855b04b968db8a9529b60c96dd8b8ec94fa1ee040cac10a5ab569aa6e33f658",
+      "changed": true
+    },
+    "compiler": {
+      "baselineFingerprint": "2f6b792af2480b198d36494af7013f1b0277ddf11a91992e14bd2fe364327002",
+      "currentFingerprint": "2fcd42165b7717eaba6a4f19a2c5bad557eba3fe49374890742df6a27d51616b",
+      "changed": true
+    },
+    "standardLibraries": {
+      "baselineFingerprint": "6ee5c0bce41694b8ca86430b82abfe4fbb60bf96321fba43e99d9810a44a1c1f",
+      "currentFingerprint": "6ee5c0bce41694b8ca86430b82abfe4fbb60bf96321fba43e99d9810a44a1c1f",
+      "changed": false
+    },
+    "declarationDistribution": {
+      "baselineFingerprint": "088973307134bc0e5b7bd66cf8d4c51856dc6547f16948b17a0bc947c14c9870",
+      "currentFingerprint": "ae2f7b6287d6d48ec70ccc83a4778fe9e84670fe6cb5b6b0a6f7c806919ae96d",
+      "changed": true
+    },
+    "declarationProfiles": {
+      "rhino": {
+        "baseline": "cb4ccfb946a6e4a78ab049145465c3d5b747ef8c6090345180aee3e7389af9be",
+        "current": "cb4ccfb946a6e4a78ab049145465c3d5b747ef8c6090345180aee3e7389af9be",
+        "changed": false
+      },
+      "node": {
+        "baseline": "8cec5b8e610960a522cab3520784ceccd7bf6f4a008e79503e209b04b65012c4",
+        "current": "8cec5b8e610960a522cab3520784ceccd7bf6f4a008e79503e209b04b65012c4",
+        "changed": false
+      }
+    },
+    "cacheAuthorityChanged": true,
+    "cacheAuthorityReason": "compilerVersion+compilerDistributionFingerprint",
+    "gate": "identity-only"
+  },
+  "verification": {
+    "preflight": {
+      "command": "node tools/prepare-typescript-upgrade.mjs --major 6",
+      "result": "already-current",
+      "sourceMutation": "none"
+    },
+    "rehearsal": {
+      "command": ".\\gradlew.bat :app:verifyTypeScriptUpgradeRehearsal --offline --console=plain",
+      "result": "pass"
+    },
+    "buildLogicTest": {
+      "command": ".\\gradlew.bat :build-logic:convention:test --offline --console=plain",
+      "result": "pass"
+    },
+    "hostCacheUnitTest": {
+      "repository": "../AutoJs6",
+      "command": ".\\gradlew.bat :app:testAppDebugUnitTest --tests \"org.autojs.autojs.core.plugin.typescript.TypeScriptCompilationCacheKeyTest\" --offline --console=plain",
+      "result": "pass",
+      "assertion": "compiler-version-or-distribution-fingerprint-change-invalidates-key"
+    },
+    "physicalDeviceSmoke": {
+      "serial": "968e9f18",
+      "kind": "physical",
+      "model": "23046RP50C",
+      "api": 35,
+      "webViewPackage": "com.google.android.webview",
+      "webViewVersion": "130.0.6723.86",
+      "releaseVersion": "0.6.0",
+      "releaseApkSha256": "765b3068aeb4cdd52580e45540e987b8ba6b86500e928f7deee236eb3d25b98a",
+      "compilerVersion": "6.0.3",
+      "result": "pass",
+      "instrumentationCode": -1,
+      "helperRemoved": true
+    },
+    "deviceSmoke": {
+      "serial": "emulator-5554",
+      "kind": "emulator",
+      "model": "sdk_gphone16k_x86_64",
+      "api": 37,
+      "webViewPackage": "com.google.android.webview",
+      "webViewVersion": "145.0.7632.218",
+      "releaseVersion": "0.6.0",
+      "releaseApkSha256": "765b3068aeb4cdd52580e45540e987b8ba6b86500e928f7deee236eb3d25b98a",
+      "compilerVersion": "6.0.3",
+      "result": "pass",
+      "instrumentationCode": -1,
+      "helperRemoved": true
+    }
+  },
+  "decision": {
+    "productionMutation": "none",
+    "reason": "The production lock already matches the latest stable TypeScript 6.x; 7.x requires a separate compiler-host architecture review.",
+    "remoteMutation": "none"
+  }
+}
