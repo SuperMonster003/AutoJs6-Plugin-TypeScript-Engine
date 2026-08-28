@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">TypeScript Engine</string>
-    <string name="plugin_description">Full TypeScript compiler frontend for AutoJs6</string>
-    <string name="plugin_instruction">R1 provides the restricted WebView/Worker compiler host and real golden probe. Project compilation will be enabled in R2.</string>
+    <string name="plugin_description">Full TypeScript project compiler frontend for AutoJs6</string>
+    <string name="plugin_instruction">Provides execution-time TypeScript compilation, diagnostics, and Source Maps for Rhino and Node.js projects. Rhino does not require Node.js Runtime; Node profiles require that plugin.</string>
 </resources>

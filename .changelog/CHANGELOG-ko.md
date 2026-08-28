@@ -4,6 +4,30 @@
 
 ******
 
+# v0.6.0
+
+###### 2026/08/28
+
+* `안내` AutoJs6 6.8.0 Alpha7 (build 5253) 이상에서 project compilation을 활성화함; Node profile은 Node.js Runtime plugin도 필요하지만 Rhino profile은 필요하지 않음
+* `안내` compile과 execution은 시작 시점의 동일한 exact snapshot을 사용함; bare/scoped npm package는 compile 단계에서 resolve되고 Rhino CommonJS 또는 Node.js Runtime plugin을 통해 runtime에서 load됨
+* `안내` Android 7.0 / API 24에서는 Chrome/WebView 119 이상이 필요함; API 24/25에 포함된 구형 provider는 지원하지 않으며 fail closed 처리됨
+* `추가` dependency-layer policy revision 2와 resolver policy revision 4를 추가함: host archive와 production Worker가 `.node`, `binding.gyp`, `gypfile`, 설치 lifecycle hook을 안정적인 native/install-script 오류 및 pure JavaScript/WASM 안내와 함께 결정적으로 거부합니다
+* `추가` Rhino 및 Node profile에서 dayjs 1.11.13, lodash 4.17.21, zod 4.1.5, uuid 13.0.0, nanoid 5.1.5를 검증하는 오프라인 실제 패키지 승인 매트릭스를 추가했으며, resolver policy revision 3은 번들 선언을 덮어쓰지 않고 런타임 JavaScript에서 설치된 `@types`로 폴백합니다
+* `추가` compiler와 Ace의 dependency package type을 동기화함: package `types`/`typings`, TypeScript 6 `typesVersions`, nested declaration import 및 installed `@types`가 동일한 frozen type layer에 포함되고 dayjs completion, hover, strict TS2322 diagnostic이 Rhino/Node profile에서 일치함
+* `추가` `compilerAvailable`, `projectCompilation`, `semanticDiagnostics`, `sourceMapV3`를 함께 활성화함 (capability mask 15); 완전한 TypeScript Program compile, structured diagnostics 및 짝을 이루는 external Source Map v3 output을 제공
+* `추가` UTF-8 path와 AutoJs6 native TSX UI lowering을 지원하는 public Rhino `.ts/.tsx` project compilation을 추가함; controlled tsconfig revision 3는 Rhino와 NodeNext 모두에 20개 boolean option 및 profile-scoped `target`/`lib`를 제공하며 revision 2 Rhino request도 계속 호환됨
+* `추가` `.mts/.cts`와 project-scoped `.ts`를 위한 public NodeNext revision 2 compilation을 추가하고 source kind 및 package type에 따라 `.mjs/.cjs/.js`를 출력함
+* `추가` compiler를 AutoJs6 execution, clickable compile diagnostics, runtime stack mapping, multi-file project, dynamic import mapping, Tasker/scheduled entry 및 APK Builder encrypted-project in-memory flow에 통합함; package에는 compile된 JS/map만 포함하며 TS source는 포함하지 않음
+* `추가` Ace editor declarations와 TypeScript 6.0.3 behavior를 execution 전 compile과 일치시킴
+* `추가` controlled tsconfig revision 4에서 Rhino와 NodeNext에 project-local `baseUrl`/`paths` alias를 추가함; resolution은 frozen snapshot 내부로 제한하고 emit specifier는 명시적 runtime-relative module로 다시 쓰며 revision 2/3 identity는 정확히 호환됨
+* `추가` Node ESM `.mts` 및 root가 `type: module`인 `.ts` project에서 top-level `await`를 활성화함; controlled ES2022 설정은 짝을 이루는 Source Map과 함께 `.mjs/.js`를 출력하며 Node.js Runtime plugin에서 직접 실행할 수 있음
+* `추가` `packages/<name>` 및 `packages/@scope/<name>` 아래에 controlled Node workspace package boundary를 추가함; 동일 project의 `.ts`는 nearest `package.json.type`에 따라 ESM과 CommonJS를 함께 사용할 수 있으며 `scripts`는 계속 금지됨
+* `추가` 호환 Node Runtime은 ESM entry와 dynamic `import()`를 V8 native linker로 실행하여 순환 의존성, 변경 가능한 export 및 re-export live binding을 보존함; 4개 module `.mts` graph는 `initial=1`에서 `updated=42`로 갱신됨
+* `추가` 별도 quota의 read-only `node_modules` dependency layer와 bare/scoped package resolution을 추가함; subpath `exports`, `types`/`import`/`require` condition, `types`/`typings`/`module`/`main`/`index` fallback 및 dayjs + zod full Program acceptance를 포함함; 동일한 exact layer가 runtime에 전달되어 Rhino는 CommonJS/JSON `require` entry를 선택하고 ESM-only를 stable error로 처리하며 Node는 dependency를 write-back하지 않는 private workspace overlay에서 ESM/CJS/dual package를 실행함
+* `개선` deterministic cross-execution cache reuse를 추가함; 측정된 hit는 18-63 ms에 완료되고 bounded input batching은 관측 device의 ingress cost를 40%-57% 줄임
+* `개선` ordinary output limit을 512 artifacts, JavaScript 또는 map당 16 MiB, aggregate 64 MiB로 높이고 ordinary caller input을 revision 3의 4096 files, file당 8 MiB, aggregate 64 MiB로 승격함; built-in declarations는 caller quota에서 제외되며 revision 2 host의 512 files / 8 MiB compatibility path도 유지함
+* `개선` cold project ingress에서 middle frame을 최대 6개로 batching하되 payload chunk는 최대 4개로 유지함; 고정 109-file fixture가 97에서 68 envelopes로 줄었고 4개 Android/WebView 조합에서 compiler와 ingress median이 모두 개선됨
+
 # v0.5.0
 
 ###### 2026/07/27

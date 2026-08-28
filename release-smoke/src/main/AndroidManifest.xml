@@ -5,12 +5,12 @@
         android:name=".R1ReleaseSmokeInstrumentation"
         android:functionalTest="false"
         android:handleProfiling="false"
-        android:label="R1 minified release smoke"
+        android:label="S6 signed release compiler smoke"
         android:targetPackage="io.github.supermonster003.autojs6.plugin.typescript" />
 
     <application
         android:allowBackup="false"
         android:hasCode="true"
-        android:label="R1 Release Smoke" />
+        android:label="S6 Release Smoke" />
 
 </manifest>

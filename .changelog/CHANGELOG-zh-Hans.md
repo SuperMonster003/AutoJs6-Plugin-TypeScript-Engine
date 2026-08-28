@@ -4,6 +4,30 @@
 
 ******
 
+# v0.6.0
+
+###### 2026/08/28
+
+* `提示` 项目编译现已面向 AutoJs6 6.8.0 Alpha7 (build 5253) 或更高版本启用; Node profile 还需要 Node.js Runtime 插件, Rhino profile 不需要
+* `提示` 编译与执行现共用启动时的一份精确快照; npm 裸包/scoped package 可在编译期解析, 并通过 Rhino CommonJS 或 Node.js Runtime 插件在运行期装载
+* `提示` Android 7.0 / API 24 需要 Chrome/WebView 119 或更高版本; API 24/25 系统自带的旧 provider 不受支持并会 fail closed
+* `新增` 新增 dependency-layer policy revision 2 与 resolver policy revision 4: 宿主 archive 和 production Worker 以固定顺序拒绝 `.node`, `binding.gyp`, `gypfile` 与安装生命周期 hook, 返回稳定 native/install-script 错误及纯 JavaScript/WASM 替代指引
+* `新增` 离线真实包验收矩阵在 Rhino 与 Node profile 中覆盖 dayjs 1.11.13, lodash 4.17.21, zod 4.1.5, uuid 13.0.0 和 nanoid 5.1.5; resolver policy revision 3 现可从运行时 JavaScript 回退到已安装的 `@types`, 且不会覆盖包自带声明
+* `新增` 同步编译器与 Ace 的依赖包类型: package `types`/`typings`, TypeScript 6 `typesVersions`, 嵌套声明导入和已安装 `@types` 现进入同一冻结类型层; dayjs 补全, hover 与 strict TS2322 诊断在 Rhino 和 Node profile 间一致
+* `新增` 同时启用 `compilerAvailable`, `projectCompilation`, `semanticDiagnostics` 和 `sourceMapV3` (capability mask 15), 提供完整 TypeScript Program 编译, 结构化诊断与配对的外部 Source Map v3 输出
+* `新增` 新增公开 Rhino `.ts/.tsx` 项目编译, 支持 UTF-8 路径与原生 AutoJs6 TSX UI lowering; controlled tsconfig revision 3 同时覆盖 Rhino 和 NodeNext, 提供 20 个 boolean 选项及按 profile 限定的 `target`/`lib`, revision 2 Rhino 请求保持兼容
+* `新增` 新增公开 NodeNext revision 2 编译, 支持 `.mts/.cts` 与项目范围内的 `.ts`, 并按源码种类和 package type 产出 `.mjs/.cjs/.js`
+* `新增` 编译器已接入 AutoJs6 执行链, 可点击的编译诊断与运行时栈映射, 多文件项目, dynamic import 映射, Tasker/定时入口及 APK Builder 加密项目内存流程; 打包产物只含编译后的 JS/map, 不含 TS 源码
+* `新增` Ace 编辑器的声明与 TypeScript 6.0.3 行为现已和执行前编译保持一致
+* `新增` controlled tsconfig revision 4 为 Rhino 与 NodeNext 新增项目内 `baseUrl`/`paths` 路径别名; 解析仅限冻结 snapshot, 生成 specifier 会改写为显式运行时相对模块, revision 2/3 身份保持精确兼容
+* `新增` Node ESM `.mts` 与根 `type: module` `.ts` 项目现已支持顶层 `await`; controlled ES2022 配置会产出带配对 Source Map 的 `.mjs/.js`, 可由 Node.js Runtime 插件直接执行
+* `新增` 新增受控 Node workspace package boundary, 支持 `packages/<name>` 与 `packages/@scope/<name>`; 同一项目中的 `.ts` 可按最近 `package.json.type` 混用 ESM 与 CommonJS, `scripts` 继续禁止
+* `新增` 兼容 Node Runtime 现以 V8 native linker 执行 ESM 入口与 dynamic `import()`, 支持循环依赖, 可变导出及 re-export live binding; 四模块 `.mts` 图可从 `initial=1` 更新为 `updated=42`
+* `新增` 新增独立配额的只读 `node_modules` 依赖层与 bare/scoped package 解析, 支持子路径 `exports`, `types`/`import`/`require` 条件及 `types`/`typings`/`module`/`main`/`index` 回退, 并以 dayjs + zod 完整 Program 验收; 同一精确依赖层现可进入运行时, Rhino 选择 CommonJS/JSON `require` 入口并为 ESM-only 提供稳定错误, Node 通过不回写依赖的私有 workspace overlay 执行 ESM/CJS/dual package
+* `优化` 新增确定性的跨执行缓存复用; 实测命中耗时 18-63 ms, 有界输入 batching 在观测设备上降低 ingress 成本 40%-57%
+* `优化` 普通输出上限提升到 512 artifacts, 单个 JavaScript 或 map 16 MiB, 合计 64 MiB; 普通 caller 输入升级到 revision 3 的 4096 files, 单文件 8 MiB, 合计 64 MiB, 插件内置声明不占 caller 配额, revision 2 旧宿主继续兼容 512 files / 8 MiB
+* `优化` 冷项目 ingress 进一步采用最多 6 条中间帧且最多 4 条 payload chunk 的 batching; 固定 109 文件用例从 97 降至 68 个 envelopes, 四组 Android/WebView 的 compiler 与 ingress 中位数均改善
+
 # v0.5.0
 
 ###### 2026/07/27

@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Движок TypeScript</string>
+    <string name="plugin_description">Полный frontend компилятора проектов TypeScript для AutoJs6</string>
+    <string name="plugin_instruction">Предоставляет компиляцию TypeScript перед выполнением, diagnostics и Source Maps для проектов Rhino и Node.js. Rhino не требует Node.js Runtime; профили Node требуют этот плагин.</string>
+</resources>

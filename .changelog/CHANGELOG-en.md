@@ -4,6 +4,30 @@
 
 ******
 
+# v0.6.0
+
+###### 2026/08/28
+
+* `Hint` Project compilation is now enabled for AutoJs6 6.8.0 Alpha7 (build 5253) or later; Node profiles additionally require the Node.js Runtime plugin, while Rhino profiles do not
+* `Hint` Compilation and execution use one exact startup snapshot; bare/scoped npm packages now resolve during compilation and load at runtime through Rhino CommonJS or the Node.js Runtime plugin
+* `Hint` Android 7.0 / API 24 requires Chrome/WebView 119 or newer; stock old API 24/25 providers are unsupported and fail closed
+* `Feature` Added dependency-layer policy revision 2 and resolver policy revision 4: host archives and the production Worker deterministically reject `.node`, `binding.gyp`, `gypfile`, and install lifecycle hooks with stable native/install-script errors and pure JavaScript/WASM guidance
+* `Feature` Added an offline real-package acceptance matrix for dayjs 1.11.13, lodash 4.17.21, zod 4.1.5, uuid 13.0.0, and nanoid 5.1.5 across Rhino and Node profiles; resolver policy revision 3 now falls back from runtime JavaScript to installed `@types` without overriding bundled declarations
+* `Feature` Synchronized dependency package types between the compiler and Ace: package `types`/`typings`, TypeScript 6 `typesVersions`, nested declaration imports, and installed `@types` now enter one frozen type layer; dayjs completion, hover, and strict TS2322 diagnostics match across Rhino and Node profiles
+* `Feature` Promoted `compilerAvailable`, `projectCompilation`, `semanticDiagnostics`, and `sourceMapV3` together (capability mask 15), with full TypeScript Program compilation, structured diagnostics, and paired external Source Map v3 output
+* `Feature` Added public Rhino `.ts/.tsx` project compilation with UTF-8 paths and native AutoJs6 TSX UI lowering, and extended controlled tsconfig revision 3 to both Rhino and NodeNext with 20 boolean options plus profile-scoped `target`/`lib`; revision 2 Rhino requests remain compatible
+* `Feature` Added public NodeNext revision 2 compilation for `.mts/.cts` and project-scoped `.ts`, emitting `.mjs/.cjs/.js` according to source kind and package type
+* `Feature` Integrated the compiler into AutoJs6 execution, clickable compile diagnostics and runtime stack mapping, multi-file projects, dynamic import mapping, Tasker/scheduled entry points, and APK Builder's in-memory encrypted-project flow; packages contain compiled JS/maps and no TS sources
+* `Feature` Aligned Ace editor declarations and TypeScript 6.0.3 behavior with execution-time compilation
+* `Feature` Added controlled tsconfig revision 4 project-local `baseUrl`/`paths` aliases for Rhino and NodeNext; resolution is confined to the frozen snapshot, emitted specifiers become explicit runtime-relative modules, and revision 2/3 identities remain exactly compatible
+* `Feature` Enabled top-level `await` for Node ESM `.mts` and root `type: module` `.ts` projects; controlled ES2022 settings emit `.mjs/.js` with paired Source Maps for direct execution by the Node.js Runtime plugin
+* `Feature` Added controlled Node workspace package boundaries under `packages/<name>` and `packages/@scope/<name>`; the nearest `package.json.type` can mix ESM and CommonJS `.ts` in one project, while `scripts` remain forbidden
+* `Feature` Compatible Node Runtime builds now execute ESM entries and dynamic `import()` through the V8 native linker, preserving cyclic dependencies, mutable exports, and re-export live bindings; a four-module `.mts` graph updates from `initial=1` to `updated=42`
+* `Feature` Added a separately quotaed read-only `node_modules` dependency layer and bare/scoped package resolution, including subpath `exports`, `types`/`import`/`require` conditions, `types`/`typings`/`module`/`main`/`index` fallbacks, and full Program acceptance for dayjs plus zod; the exact layer now reaches runtime, where Rhino selects CommonJS/JSON `require` entries with stable ESM-only errors and Node executes ESM/CJS/dual packages through a private workspace overlay that never writes dependencies back
+* `Improvement` Added deterministic cross-execution cache reuse; measured hits complete in 18-63 ms, and bounded input batching reduced ingress cost by 40%-57% on observed devices
+* `Improvement` Raised ordinary output limits to 512 artifacts, 16 MiB per JavaScript or map, and 64 MiB aggregate, and promoted ordinary caller input to revision 3 with 4096 files, 8 MiB per file, and 64 MiB aggregate; built-in declarations remain outside caller quota and revision 2 hosts retain their 512-file/8 MiB compatibility path
+* `Improvement` Further reduced cold project ingress by batching up to six middle frames while retaining a four-payload-chunk ceiling; the fixed 109-file fixture fell from 97 to 68 envelopes and both compiler and ingress medians improved across four Android/WebView combinations
+
 # v0.5.0
 
 ###### 2026/07/27

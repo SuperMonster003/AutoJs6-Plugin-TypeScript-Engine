@@ -4,6 +4,30 @@
 
 ******
 
+# v0.6.0
+
+###### 2026/08/28
+
+* `تلميح` اصبح تجميع المشاريع مفعلا في AutoJs6 6.8.0 Alpha7 (build 5253) او احدث; وتتطلب ملفات Node ايضا plugin من Node.js Runtime بينما لا تتطلبه ملفات Rhino
+* `تلميح` يستخدم التجميع والتنفيذ exact snapshot واحدة عند البدء; يتم حل bare/scoped npm packages اثناء التجميع وتحميلها وقت التشغيل عبر Rhino CommonJS او ملحق Node.js Runtime
+* `تلميح` يتطلب Android 7.0 / API 24 متصفح Chrome/WebView 119 او احدث; موفرو API 24/25 القدامى المرفقون مع النظام غير مدعومين ويفشلون بشكل مغلق
+* `ميزة` أضيفت dependency-layer policy revision 2 وresolver policy revision 4: ترفض أرشيفات المضيف وproduction Worker بشكل حتمي `.node` و`binding.gyp` و`gypfile` وخطافات دورة حياة التثبيت مع أخطاء native/install-script مستقرة وإرشادات لبدائل JavaScript الخالصة/WASM
+* `ميزة` أضيفت مصفوفة قبول دون اتصال للحزم الفعلية dayjs 1.11.13 وlodash 4.17.21 وzod 4.1.5 وuuid 13.0.0 وnanoid 5.1.5 عبر ملفي Rhino وNode؛ وأصبحت سياسة resolver بالمراجعة 3 تنتقل من JavaScript وقت التشغيل إلى `@types` المثبتة من دون تجاوز التصريحات المضمّنة
+* `ميزة` تمت مزامنة انواع packages بين compiler وAce: تدخل package `types`/`typings` وTypeScript 6 `typesVersions` وnested declaration imports و`@types` المثبتة الان في frozen type layer واحدة; تتطابق dayjs completion وhover وstrict TS2322 diagnostics في Rhino وNode profiles
+* `ميزة` تم تفعيل `compilerAvailable` و`projectCompilation` و`semanticDiagnostics` و`sourceMapV3` معا (capability mask 15), مع تجميع TypeScript Program كامل وstructured diagnostics وملفات Source Map v3 خارجية متطابقة
+* `ميزة` تمت اضافة تجميع مشاريع Rhino `.ts/.tsx` العام مع مسارات UTF-8 وAutoJs6 native TSX UI lowering; ويطبق controlled tsconfig revision 3 على Rhino وNodeNext مع 20 boolean options وخياري `target`/`lib` المقيدين بالprofile, مع بقاء طلبات Rhino revision 2 متوافقة
+* `ميزة` تمت اضافة تجميع NodeNext revision 2 العام لملفات `.mts/.cts` و`.ts` ضمن المشروع مع انتاج `.mjs/.cjs/.js` حسب source kind وpackage type
+* `ميزة` تم دمج compiler مع تنفيذ AutoJs6 وclickable compile diagnostics وruntime stack mapping والمشاريع متعددة الملفات وdynamic import mapping ومداخل Tasker/الجدولة ومسار APK Builder للمشاريع المشفرة في الذاكرة; وتحتوي الحزم على JS/maps المجمعة دون مصادر TS
+* `ميزة` تمت مواءمة declarations لمحرر Ace وسلوك TypeScript 6.0.3 مع التجميع قبل التنفيذ
+* `ميزة` يضيف controlled tsconfig revision 4 aliases محلية للمشروع عبر `baseUrl`/`paths` في Rhino وNodeNext; وتبقى resolution داخل frozen snapshot, وتعاد كتابة emitted specifiers كruntime-relative modules صريحة, مع توافق دقيق لهويات revision 2/3
+* `ميزة` تم تفعيل top-level `await` لمشاريع Node ESM بمدخل `.mts` او `.ts` مع `type: module` في الجذر; وينتج اعداد controlled ES2022 ملفات `.mjs/.js` مع Source Maps متطابقة للتنفيذ المباشر بواسطة plugin من Node.js Runtime
+* `ميزة` تمت اضافة package boundaries خاضعة للتحكم لworkspace في Node ضمن `packages/<name>` و`packages/@scope/<name>`; ويمكن لاقرب `package.json.type` مزج `.ts` بنمط ESM وCommonJS في مشروع واحد, مع بقاء `scripts` محظورة
+* `ميزة` تنفذ إصدارات Node Runtime المتوافقة الآن مداخل ESM و dynamic `import()` عبر رابط V8 الأصلي مع الحفاظ على التبعيات الدورية وعمليات التصدير القابلة للتغيير و live binding عبر إعادة التصدير; ينتقل رسم `.mts` من أربع وحدات من `initial=1` إلى `updated=42`
+* `ميزة` أضيفت طبقة اعتماديات `node_modules` للقراءة فقط وبحصة مستقلة مع حل bare/scoped packages, بما يشمل subpath `exports` وشروط `types`/`import`/`require` وfallback `types`/`typings`/`module`/`main`/`index` واختبار Program كامل لـ dayjs + zod; تصل exact layer نفسها الآن الى runtime حيث يختار Rhino مداخل CommonJS/JSON `require` مع اخطاء مستقرة لـ ESM-only وينفذ Node حزم ESM/CJS/dual عبر private workspace overlay لا يعيد كتابة الاعتماديات
+* `تحسين` تمت اضافة deterministic cross-execution cache reuse; وتكتمل hits المقاسة خلال 18-63 ms كما خفض bounded input batching كلفة ingress بنسبة 40%-57% على الاجهزة المرصودة
+* `تحسين` رفعت حدود الاخراج العادية الى 512 artifacts و16 MiB لكل JavaScript او map و64 MiB اجمالا، كما رفعت ordinary caller input الى revision 3 بسعة 4096 files و8 MiB لكل file و64 MiB اجمالا؛ وتبقى declarations المدمجة خارج caller quota بينما يحتفظ hosts revision 2 بمسار التوافق 512 files / 8 MiB
+* `تحسين` تم خفض cold project ingress اكثر عبر batching لما يصل الى ستة middle frames مع بقاء الحد الاقصى اربعة payload chunks; وانخفض fixture الثابت المكون من 109 files من 97 الى 68 envelopes وتحسن وسيط compiler وingress عبر اربع مجموعات Android/WebView
+
 # v0.5.0
 
 ###### 2026/07/27

@@ -4,6 +4,30 @@
 
 ******
 
+# v0.6.0
+
+###### 2026/08/28
+
+* `ヒント` AutoJs6 6.8.0 Alpha7 (build 5253) 以降で project compilation を有効化; Node profile では Node.js Runtime plugin も必要だが Rhino profile では不要
+* `ヒント` compile と execution は起動時の同一 exact snapshot を使用; bare/scoped npm package は compile 時に解決され, Rhino CommonJS または Node.js Runtime plugin により runtime で load される
+* `ヒント` Android 7.0 / API 24 では Chrome/WebView 119 以降が必要; API 24/25 に同梱された旧 provider は非対応で fail closed になる
+* `追加` dependency-layer policy revision 2 と resolver policy revision 4 を追加: host archive と production Worker は `.node`, `binding.gyp`, `gypfile`, install lifecycle hook を安定した native/install-script error と pure JavaScript/WASM の案内付きで決定的に拒否します
+* `追加` Rhino と Node の両 profile で dayjs 1.11.13, lodash 4.17.21, zod 4.1.5, uuid 13.0.0, nanoid 5.1.5 を検証するオフライン実パッケージ受け入れマトリクスを追加し, resolver policy revision 3 では同梱宣言を上書きせず runtime JavaScript からインストール済み `@types` へフォールバックできるようにしました
+* `追加` compiler と Ace の dependency package type を同期: package `types`/`typings`, TypeScript 6 `typesVersions`, nested declaration import, installed `@types` が同じ frozen type layer に入り, dayjs completion, hover, strict TS2322 diagnostic が Rhino/Node profile で一致
+* `追加` `compilerAvailable`, `projectCompilation`, `semanticDiagnostics`, `sourceMapV3` を同時に有効化 (capability mask 15); 完全な TypeScript Program compile, structured diagnostics, 対応する external Source Map v3 output を提供
+* `追加` UTF-8 path と AutoJs6 native TSX UI lowering に対応した public Rhino `.ts/.tsx` project compilation を追加; controlled tsconfig revision 3 は Rhino と NodeNext の両方で 20 個の boolean option と profile-scoped `target`/`lib` を提供し, revision 2 Rhino request も引き続き互換
+* `追加` `.mts/.cts` と project-scoped `.ts` に対応する public NodeNext revision 2 compilation を追加し, source kind と package type に応じて `.mjs/.cjs/.js` を出力
+* `追加` compiler を AutoJs6 execution, clickable compile diagnostics, runtime stack mapping, multi-file project, dynamic import mapping, Tasker/scheduled entry, APK Builder の encrypted-project in-memory flow に統合; package には compile 済み JS/map のみを含み TS source は含めない
+* `追加` Ace editor declarations と TypeScript 6.0.3 behavior を execution 前 compile に一致させた
+* `追加` controlled tsconfig revision 4 で Rhino と NodeNext に project-local `baseUrl`/`paths` alias を追加; resolution は frozen snapshot 内に限定し, emit specifier は明示的な runtime-relative module に書き換え, revision 2/3 identity は完全互換を維持
+* `追加` Node ESM `.mts` および root が `type: module` の `.ts` project で top-level `await` を有効化; controlled ES2022 設定から対応する Source Map 付きの `.mjs/.js` を出力し, Node.js Runtime plugin で直接実行可能
+* `追加` `packages/<name>` と `packages/@scope/<name>` に controlled Node workspace package boundary を追加; 同一 project の `.ts` は nearest `package.json.type` により ESM と CommonJS を混在でき, `scripts` は引き続き禁止
+* `追加` 対応 Node Runtime は ESM entry と dynamic `import()` を V8 native linker で実行し, 循環依存, 可変 export, re-export live binding を保持; 4 module の `.mts` graph は `initial=1` から `updated=42` に更新可能
+* `追加` 独立 quota の read-only `node_modules` dependency layer と bare/scoped package resolution を追加; subpath `exports`, `types`/`import`/`require` condition, `types`/`typings`/`module`/`main`/`index` fallback, dayjs + zod の full Program acceptance を含む; 同じ exact layer が runtime に渡され, Rhino は CommonJS/JSON `require` entry を選択して ESM-only を stable error にし, Node は dependency を write-back しない private workspace overlay で ESM/CJS/dual package を実行
+* `改善` deterministic cross-execution cache reuse を追加; 実測 hit は 18-63 ms で完了し, bounded input batching により観測 device の ingress cost を 40%-57% 削減
+* `改善` ordinary output limit を 512 artifacts, JavaScript または map ごとに 16 MiB, aggregate 64 MiB へ拡大し, ordinary caller input を revision 3 の 4096 files, file ごとに 8 MiB, aggregate 64 MiB へ昇格; built-in declarations は caller quota の対象外で, revision 2 host の 512 files / 8 MiB compatibility path も維持
+* `改善` cold project ingress は middle frame を最大 6 条にまとめつつ payload chunk を最大 4 条に維持; 固定 109-file fixture は 97 から 68 envelopes へ減少し, 4 組の Android/WebView で compiler と ingress の median が改善
+
 # v0.5.0
 
 ###### 2026/07/27

@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">TypeScript Engine</string>
-    <string name="plugin_description">用于 AutoJs6 的完整 TypeScript 编译前端</string>
-    <string name="plugin_instruction">R1 已部署受限 WebView/Worker compiler host 和真实 golden 探针. 项目编译将在 R2 启用.</string>
+    <string name="plugin_description">AutoJs6 完整 TypeScript 项目编译前端</string>
+    <string name="plugin_instruction">为 Rhino 和 Node.js 项目提供执行前 TypeScript 编译, 诊断和 Source Map. Rhino 无需 Node.js Runtime; Node 配置需要对应插件.</string>
 </resources>

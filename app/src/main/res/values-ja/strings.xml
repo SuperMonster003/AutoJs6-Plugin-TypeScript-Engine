@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">TypeScript エンジン</string>
+    <string name="plugin_description">AutoJs6 向けの完全な TypeScript project compiler frontend</string>
+    <string name="plugin_instruction">Rhino および Node.js project に execution 前の TypeScript compile, diagnostics, Source Map を提供します. Rhino は Node.js Runtime を必要とせず, Node profile では同 plugin が必要です.</string>
+</resources>

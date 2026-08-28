@@ -4,6 +4,30 @@
 
 ******
 
+# v0.6.0
+
+###### 2026/08/28
+
+* `Indication` La compilation de projets est maintenant activee pour AutoJs6 6.8.0 Alpha7 (build 5253) ou version ulterieure; les profils Node exigent aussi le plugin Node.js Runtime, contrairement aux profils Rhino
+* `Indication` La compilation et l'execution utilisent un unique snapshot exact du demarrage; les packages npm bare/scoped sont resolus a la compilation puis charges au runtime par Rhino CommonJS ou le plugin Node.js Runtime
+* `Indication` Android 7.0 / API 24 exige Chrome/WebView 119 ou une version ulterieure; les anciens providers livres avec API 24/25 ne sont pas pris en charge et echouent de maniere fermee
+* `Fonctionnalité` Ajout de la révision 2 de la politique de couche de dépendances et de la révision 4 de la politique du resolver: les archives de l'hôte et le Worker de production rejettent de façon déterministe `.node`, `binding.gyp`, `gypfile` et les hooks du cycle d'installation avec des erreurs native/install-script stables et des conseils JavaScript pur/WASM
+* `Fonctionnalité` Ajout d'une matrice d'acceptation hors ligne avec les paquets réels dayjs 1.11.13, lodash 4.17.21, zod 4.1.5, uuid 13.0.0 et nanoid 5.1.5 dans les profils Rhino et Node ; la révision 3 de la politique du resolver bascule désormais du JavaScript d'exécution vers les `@types` installés sans remplacer les déclarations fournies
+* `Fonctionnalité` Synchronisation des types de packages entre le compilateur et Ace: `types`/`typings`, `typesVersions` de TypeScript 6, imports de declarations imbriques et `@types` installes utilisent maintenant une meme couche gelee; completion dayjs, hover et diagnostic strict TS2322 sont identiques dans les profils Rhino et Node
+* `Fonctionnalité` Activation conjointe de `compilerAvailable`, `projectCompilation`, `semanticDiagnostics` et `sourceMapV3` (capability mask 15), avec compilation TypeScript Program complete, diagnostics structures et sorties Source Map v3 externes associees
+* `Fonctionnalité` Ajout de la compilation publique de projets Rhino `.ts/.tsx` avec chemins UTF-8 et lowering UI TSX natif AutoJs6; controlled tsconfig revision 3 s'applique a Rhino et NodeNext avec 20 options booleennes et `target`/`lib` limites par profile, tout en conservant la compatibilite des requetes Rhino revision 2
+* `Fonctionnalité` Ajout de la compilation publique NodeNext revision 2 pour `.mts/.cts` et `.ts` limite au projet, avec emission `.mjs/.cjs/.js` selon le type de source et le package type
+* `Fonctionnalité` Integration du compilateur dans l'execution AutoJs6, avec diagnostics cliquables, mapping des piles runtime, projets multifichiers, mapping dynamic import, entrees Tasker/planifiees et flux en memoire des projets chiffres d'APK Builder; les packages contiennent le JS et les maps compiles sans sources TS
+* `Fonctionnalité` Alignement des declarations de l'editeur Ace et du comportement TypeScript 6.0.3 sur la compilation avant execution
+* `Fonctionnalité` Controlled tsconfig revision 4 ajoute des alias `baseUrl`/`paths` internes au projet pour Rhino et NodeNext; la resolution reste dans le snapshot fige, les specifiers emis deviennent des modules relatifs runtime explicites et les identites revision 2/3 restent exactement compatibles
+* `Fonctionnalité` Activation du top-level `await` pour les projets Node ESM `.mts` et `.ts` avec `type: module` a la racine; la configuration controlled ES2022 emet `.mjs/.js` avec des Source Maps associees pour execution directe par le plugin Node.js Runtime
+* `Fonctionnalité` Ajout de limites package controlees de workspace Node sous `packages/<name>` et `packages/@scope/<name>`; les `.ts` d'un meme projet peuvent melanger ESM et CommonJS selon le `package.json.type` le plus proche, tandis que `scripts` reste interdit
+* `Fonctionnalité` Les builds Node Runtime compatibles executent maintenant les entrees ESM et dynamic `import()` via le linker natif V8, en preservant les dependances cycliques, les exports mutables et les live bindings reexportes; un graphe `.mts` de quatre modules passe de `initial=1` a `updated=42`
+* `Fonctionnalité` Ajout d'une couche de dependances `node_modules` read-only a quota separe et de la resolution bare/scoped, avec subpath `exports`, conditions `types`/`import`/`require`, fallbacks `types`/`typings`/`module`/`main`/`index` et validation Program complete de dayjs + zod; cette meme couche exacte atteint maintenant le runtime, ou Rhino choisit les entrees CommonJS/JSON `require` avec des erreurs ESM-only stables et Node execute les packages ESM/CJS/dual via un workspace overlay prive qui ne reecrit jamais les dependances
+* `Amélioration` Ajout d'un cache deterministe reutilisable entre executions; les hits mesures prennent 18-63 ms et le batching borne des entrees reduit le cout d'ingress de 40%-57% sur les appareils observes
+* `Amélioration` Relevement des limites de sortie ordinaires a 512 artifacts, 16 MiB par JavaScript ou map et 64 MiB au total, ainsi que de l'entree caller ordinaire en revision 3 a 4096 files, 8 MiB par file et 64 MiB au total; les declarations integrees restent hors quota caller et les hosts revision 2 conservent le chemin compatible 512 files / 8 MiB
+* `Amélioration` Nouvelle reduction de l'ingress a froid en regroupant jusqu'a six frames intermediaires tout en limitant les payload chunks a quatre; le fixture fixe de 109 files passe de 97 a 68 envelopes et les medianes compiler/ingress s'ameliorent sur quatre combinaisons Android/WebView
+
 # v0.5.0
 
 ###### 2026/07/27
