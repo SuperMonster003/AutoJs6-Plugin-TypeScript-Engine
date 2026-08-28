@@ -141,6 +141,7 @@ class TypeScriptWebViewCompilerHost(
     private var timeoutRecoveryEpoch = 0
     private var timeoutRecoveryPending = false
     private var timeoutRecoveryAttempted = false
+    private var residentSessionDiscardRequested = false
     private var fatalTeardownPending = false
     private var externalTeardownReported = false
     private var externalTeardownObserver: (() -> Unit)? = null
@@ -202,6 +203,18 @@ class TypeScriptWebViewCompilerHost(
         R2ProjectCompilationEvidenceSnapshot? = null
 
     fun snapshot(): CompilerHostSnapshot = currentSnapshot
+
+    /** Drops every Worker-owned project cache at the next safe realm boundary. */
+    internal fun discardResidentProjectSessionsForMemoryPressure() {
+        synchronized(stateLock) {
+            residentSessionDiscardRequested = true
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            discardIdleResidentSessionOnMain()
+        } else if (!mainHandler.post { discardIdleResidentSessionOnMain() } && !closed) {
+            markExternalTeardownRequired()
+        }
+    }
 
     internal fun installExternalTeardownObserver(observer: () -> Unit) {
         val notifyImmediately = synchronized(stateLock) {
@@ -526,6 +539,7 @@ class TypeScriptWebViewCompilerHost(
     internal fun compileProjectUntilElapsedRealtimeDeadline(
         handle: R2HostProjectOperationHandle,
         snapshot: R2ProjectInputSnapshot,
+        projectSessionAuthority: R2ProjectSessionAuthority? = null,
         deadlineAtElapsedRealtimeNanos: Long,
         projectExecutionObserver: ((R2ProjectExecutionEvent) -> Unit)? = null,
     ): R2ProjectCompilationOutcome {
@@ -548,6 +562,7 @@ class TypeScriptWebViewCompilerHost(
             dispatchOnMain = true,
             workerSpinMilliseconds = 0,
             workerSpinPhase = null,
+            projectSessionAuthority = projectSessionAuthority,
             absoluteDeadlineAtElapsedRealtimeNanos =
                 deadlineAtElapsedRealtimeNanos,
             projectExecutionObserver = projectExecutionObserver,
@@ -777,6 +792,7 @@ class TypeScriptWebViewCompilerHost(
         workerSpinPhase: R2ProjectExecutionPhase?,
         workerAdmissionLimits: R2ProjectSnapshotLimits? = null,
         workerInputQuotaAuthority: R2WorkerInputQuotaAuthority? = null,
+        projectSessionAuthority: R2ProjectSessionAuthority? = null,
         absoluteDeadlineAtElapsedRealtimeNanos: Long? = null,
         projectExecutionObserver: ((R2ProjectExecutionEvent) -> Unit)? = null,
     ): R2ProjectCompilationOutcome {
@@ -852,6 +868,7 @@ class TypeScriptWebViewCompilerHost(
                     workerSpinMilliseconds = workerSpinMilliseconds,
                     workerSpinPhase = workerSpinPhase,
                     workerInputQuotaAuthority = selectedWorkerInputQuotaAuthority,
+                    projectSessionAuthority = projectSessionAuthority,
                 ),
             )
         }.getOrElse { error ->
@@ -935,6 +952,7 @@ class TypeScriptWebViewCompilerHost(
                     projectSnapshot = snapshot,
                     operationHandle = handle,
                     projectInputFramer = inputFramer,
+                    projectSessionAuthority = projectSessionAuthority,
                     deadlineAt = deadlineAt,
                     deadlineAtElapsedRealtimeNanos =
                         deadlineAtElapsedRealtimeNanos,
@@ -1920,7 +1938,7 @@ class TypeScriptWebViewCompilerHost(
             compilerVersion = message.evidence.compilerVersion,
             lastError = null,
         )
-        completePending(
+        val completed = completePending(
             pending,
             CompilerHostProbeOutcome(
                 succeeded = true,
@@ -1930,6 +1948,9 @@ class TypeScriptWebViewCompilerHost(
                 evidence = message.evidence,
             ),
         )
+        if (completed) {
+            discardIdleResidentSessionOnMain()
+        }
     }
 
     private fun handleProjectInputAckOnMain(
@@ -2868,11 +2889,9 @@ class TypeScriptWebViewCompilerHost(
     }
 
     /**
-     * A project result is not terminally published until its exact WebView realm has retired.
-     *
-     * The Worker already severs Program/VFS references in its `finally`, but WebView/V8 controls
-     * when that realm's allocator pages are reclaimed. Retiring the exact session here gives every
-     * project a deterministic realm boundary; the next operation lazily creates a fresh session.
+     * Legacy projects retain their deterministic realm boundary. An explicitly opted-in T3
+     * project publishes after the Worker result boundary while keeping the exact healthy realm
+     * resident; its cache identity is service-derived and project scoped.
      */
     private fun completeProjectAfterSessionTeardownOnMain(
         pending: PendingProbe,
@@ -2888,6 +2907,24 @@ class TypeScriptWebViewCompilerHost(
                 pending.webViewSessionGeneration == webViewSessionGeneration
         }
         if (!exactSessionStillOwned) return
+
+        val mayRetainResidentSession = synchronized(stateLock) {
+            pending.projectSessionAuthority != null &&
+                !residentSessionDiscardRequested
+        }
+        if (mayRetainResidentSession) {
+            timeoutRecoveryAttempted = false
+            currentSnapshot = currentSnapshot.copy(
+                status = TypeScriptCompilerContract.STATUS_READY,
+                compilerVersion = compilerVersion,
+                lastError = null,
+            )
+            completePendingProject(
+                pending = pending,
+                outcome = outcome,
+            )
+            return
+        }
 
         val release = destroySessionOnMain()
         if (!release.cleanupProven) {
@@ -3549,6 +3586,9 @@ class TypeScriptWebViewCompilerHost(
             }
             nativePort = null
             workerGeneration = 0
+            synchronized(stateLock) {
+                residentSessionDiscardRequested = false
+            }
             return CompilerSessionRelease(
                 nativePortClosed = nativePortClosed,
                 webViewDestroyed = true,
@@ -3611,6 +3651,7 @@ class TypeScriptWebViewCompilerHost(
         workerReady = false
         workerGeneration = 0
         synchronized(stateLock) {
+            residentSessionDiscardRequested = false
             pendingProbe
                 ?.takeIf { pending -> pending.sessionToken === token }
                 ?.let { pending ->
@@ -3623,6 +3664,31 @@ class TypeScriptWebViewCompilerHost(
             nativePortClosed = nativePortClosed,
             webViewDestroyed = true,
         )
+    }
+
+    private fun discardIdleResidentSessionOnMain() {
+        checkMainThread()
+        val shouldDiscard = synchronized(stateLock) {
+            residentSessionDiscardRequested && pendingProbe == null
+        }
+        if (!shouldDiscard || closed) return
+        val release = destroySessionOnMain()
+        if (!release.cleanupProven) {
+            if (!mainHandler.postDelayed(
+                    { discardIdleResidentSessionOnMain() },
+                    SESSION_TEARDOWN_RETRY_MILLIS,
+                )
+            ) {
+                markExternalTeardownRequired()
+            }
+            return
+        }
+        if (!externalTeardownRequired()) {
+            currentSnapshot = currentSnapshot.copy(
+                status = TypeScriptCompilerContract.STATUS_BOOTSTRAP,
+                lastError = null,
+            )
+        }
     }
 
     private fun terminateRendererBeforeDispatchForTestingOnMain(view: WebView): Boolean {
@@ -3940,6 +4006,7 @@ class TypeScriptWebViewCompilerHost(
         val projectSnapshot: R2ProjectInputSnapshot? = null,
         val operationHandle: R2HostProjectOperationHandle? = null,
         val projectInputFramer: R2ProjectInputTransport? = null,
+        val projectSessionAuthority: R2ProjectSessionAuthority? = null,
         val deadlineAt: Long? = null,
         val deadlineAtElapsedRealtimeNanos: Long? = null,
         val projectExecutionObserver:

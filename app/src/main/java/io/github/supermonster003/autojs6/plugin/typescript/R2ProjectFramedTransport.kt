@@ -74,6 +74,7 @@ internal class R2ProjectInputFramer(
     private val workerSpinMilliseconds: Int = 0,
     private val workerSpinPhase: R2ProjectExecutionPhase? = null,
     private val workerInputQuotaAuthority: R2WorkerInputQuotaAuthority? = null,
+    private val projectSessionAuthority: R2ProjectSessionAuthority? = null,
 ) : R2ProjectInputTransport {
 
     private val files = snapshot.fileInventory.toList()
@@ -196,6 +197,13 @@ internal class R2ProjectInputFramer(
         declaredTotalBytes,
         declaredDependencyLayerBytes,
     )
+    private val projectSessionFields: Array<Pair<String, Any>> =
+        projectSessionAuthority?.let { authority ->
+            arrayOf(
+                "projectSessionRevision" to authority.revision,
+                "projectSessionKey" to authority.key,
+            )
+        } ?: emptyArray()
     private val inputAuthorityFields: Array<Pair<String, Any>> = arrayOf(
         "inputArchiveSchemaRevision" to acceptedInputAuthority.schemaRevision,
         "inputQuotaRevision" to selectedWorkerInputQuotaAuthority.revision,
@@ -209,6 +217,7 @@ internal class R2ProjectInputFramer(
             acceptedInputAuthority.declarationInventoryFingerprint,
         "declarationFileCount" to acceptedInputAuthority.declarationFileCount,
         "declarationByteLength" to acceptedInputAuthority.declarationByteLength,
+        *projectSessionFields,
     )
     private val dependencyResolverFields: Array<Pair<String, Any>> = dependencyLayer?.let { layer ->
         arrayOf(

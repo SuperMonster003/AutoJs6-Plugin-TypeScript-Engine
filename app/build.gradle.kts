@@ -1108,6 +1108,42 @@ val verifyR2ProjectCompilerDesktop =
         )
     }
 
+val verifyT3ResidentSessions =
+    tasks.register<Exec>("verifyT3ResidentSessions") {
+        group = "verification"
+        description =
+            "Proves T3 project isolation, legacy cold fallback, and affected-module reuse."
+        dependsOn(generateTypeScriptDistribution)
+        val workerFile =
+            compilerHostSourceAssetDirectory.file("compiler-worker.js")
+        val compilerFile = generatedTypeScriptDistributionDirectory.map {
+            it.file("lib/typescript.js")
+        }
+        val fixtureFile = layout.projectDirectory.file(
+            "src/test/resources/r2-project-compiler/provisional-rhino.json",
+        )
+        val harnessFile = layout.projectDirectory.file(
+            "src/test/scripts/verify-r2-project-compiler.js",
+        )
+        inputs.files(
+            workerFile,
+            compilerFile,
+            fixtureFile,
+            harnessFile,
+            r2InputArchiveAuthorityHarness,
+        )
+        environment("R2_T3_ONLY", "1")
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            "--max-old-space-size=512",
+            harnessFile.asFile.absolutePath,
+            workerFile.asFile.absolutePath,
+            compilerFile.get().asFile.absolutePath,
+            fixtureFile.asFile.absolutePath,
+            typeScriptVersion,
+        )
+    }
+
 val verifyR2M2C8DeclarationProgramLayering =
     tasks.register<Exec>("verifyR2M2C8DeclarationProgramLayering") {
         group = "verification"

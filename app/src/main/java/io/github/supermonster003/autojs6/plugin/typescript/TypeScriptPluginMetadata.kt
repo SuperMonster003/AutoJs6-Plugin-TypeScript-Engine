@@ -173,6 +173,10 @@ object TypeScriptPluginMetadata {
             TypeScriptR2Contract.INPUT_ARCHIVE_SCHEMA_REVISION,
         )
         putInt(
+            TypeScriptR2Contract.KEY_PROJECT_SESSION_REVISION,
+            TypeScriptR2Contract.PROJECT_SESSION_REVISION,
+        )
+        putInt(
             TypeScriptPluginCapabilityKeys.OUTPUT_ARCHIVE_TRANSPORT_VERSION,
             TypeScriptCompilerContract.OUTPUT_ARCHIVE_TRANSPORT_VERSION,
         )

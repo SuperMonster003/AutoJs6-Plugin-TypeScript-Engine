@@ -159,6 +159,21 @@ internal class R2CompilationCoordinator(
                 "R2 compilation authority is invalid: ${error.safeMessage()}",
             )
         }
+        val projectSessionAuthority = try {
+            controls.projectSessionRevision?.let { revision ->
+                R2ProjectSessionAuthority.derive(
+                    callingUid = callingUid,
+                    projectId = request.projectId,
+                    revision = revision,
+                )
+            }
+        } catch (error: IllegalArgumentException) {
+            return rejected(
+                request.requestId,
+                TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+                "R2 project session authority is invalid: ${error.safeMessage()}",
+            )
+        }
         val hostHandle = try {
             compilerHost.newProjectOperationHandle()
         } catch (error: Throwable) {
@@ -311,6 +326,7 @@ internal class R2CompilationCoordinator(
                 callbackBinder = callbackBinder,
                 deathRecipient = deathRecipient,
                 hostHandle = hostHandle,
+                projectSessionAuthority = projectSessionAuthority,
                 workerSpinMilliseconds = controls.workerSpinMilliseconds,
                 workerSpinPhase = controls.workerSpinPhase,
                 expandedWorkerCapacity = controls.expandedWorkerCapacity,
@@ -718,6 +734,7 @@ internal class R2CompilationCoordinator(
                 compilerHost.compileProjectUntilElapsedRealtimeDeadline(
                     handle = job.hostHandle,
                     snapshot = adapted.snapshot,
+                    projectSessionAuthority = job.projectSessionAuthority,
                     deadlineAtElapsedRealtimeNanos =
                         job.deadlineAtElapsedRealtimeNanos,
                     projectExecutionObserver = { event ->
@@ -1476,6 +1493,7 @@ internal class R2CompilationCoordinator(
         val callbackBinder: IBinder,
         val deathRecipient: IBinder.DeathRecipient,
         val hostHandle: R2HostProjectOperationHandle,
+        val projectSessionAuthority: R2ProjectSessionAuthority?,
         val workerSpinMilliseconds: Int,
         val workerSpinPhase: R2ProjectExecutionPhase?,
         val expandedWorkerCapacity: Boolean,

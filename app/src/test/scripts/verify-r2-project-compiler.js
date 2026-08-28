@@ -186,8 +186,8 @@ const verifyP3bWorkerSourcePolicy = () => {
         "Worker compiler host does not expose its per-job SourceFile cache.",
     );
     assert(
-        /sourceFile\.version\s*=\s*\"0\"/.test(compilerHostSource),
-        "Worker cached SourceFiles do not carry the stable builder version.",
+        /sourceFile\.version\s*=\s*record\.sha256/.test(compilerHostSource),
+        "Worker cached SourceFiles do not carry the accepted content version.",
     );
 
     const compileSource = workerBinding("compileProject").toString();
@@ -1130,6 +1130,7 @@ const compile = async (
     project,
     {
         inputQuotaRevision = null,
+        projectSessionKey = null,
         workerSpinMilliseconds = 0,
         workerSpinPhase = null,
     } = {},
@@ -1182,6 +1183,12 @@ const compile = async (
             profileRevision: expectedProfileAuthority.profileRevision,
             profileSchemaRevision: expectedProfileAuthority.profileSchemaRevision,
             ...revisionTwoStartAuthority,
+            ...(projectSessionKey === null
+                ? {}
+                : {
+                      projectSessionKey,
+                      projectSessionRevision: 1,
+                  }),
             targetProfile: project.targetProfile,
             totalBytes,
             workerSpinMilliseconds,
@@ -4292,8 +4299,9 @@ const verifyP3bLazySourceFileIdentityAndVersion = async () => {
                         "Compiler host returned different SourceFiles for one canonical path.",
                     );
                     assert(
-                        first?.version === "0",
-                        "Compiler host cached SourceFile has no stable builder version.",
+                        typeof first?.version === "string" &&
+                            /^[0-9a-f]{64}$/.test(first.version),
+                        "Compiler host cached SourceFile has no accepted content version.",
                     );
                     assert(
                         sourceFileCreations === creationsAfterFirstRead,
@@ -4318,6 +4326,199 @@ const verifyP3bLazySourceFileIdentityAndVersion = async () => {
     }
     assert(inspectedCompilerHost, "Desktop golden did not inspect the compiler host.");
     verifySuccess(result);
+};
+
+const t3TwentyModuleSnapshot = (lastValue) => {
+    const declarations = fixture.commonFiles.filter((file) =>
+        file.path.startsWith("/declarations/"),
+    );
+    const sources = Array.from({ length: 20 }, (_, index) => {
+        const name = index.toString().padStart(2, "0");
+        const previous = (index - 1).toString().padStart(2, "0");
+        const typeBallast = Array.from(
+            { length: 600 },
+            (_unused, typeIndex) =>
+                `interface Shape${name}_${typeIndex} { ` +
+                `readonly key: "${name}-${typeIndex}"; ` +
+                "readonly tuple: readonly [number, string, boolean]; }",
+        ).join("\n");
+        const executable =
+            index === 0
+                ? "export const value00 = 1;\n"
+                : index === 19
+                  ? `import { value${previous} } from "./module-${previous}";\n` +
+                    `export const value${name} = value${previous} + ${lastValue};\n`
+                  : `import { value${previous} } from "./module-${previous}";\n` +
+                    `export const value${name} = value${previous} + 1;\n`;
+        return {
+            path: `/sources/module-${name}.ts`,
+            text: `${typeBallast}\n${executable}`,
+        };
+    });
+    return {
+        files: declarations.concat(sources),
+        rootNames: sources.map((source) => source.path),
+        targetProfile: fixture.targetProfile,
+    };
+};
+
+const verifyT3ResidentProjectSessionIncrementality = async () => {
+    const originalTs = global.ts;
+    const originalCreateIncrementalProgram =
+        originalTs.createIncrementalProgram;
+    const runs = [];
+    global.ts = new Proxy(originalTs, {
+        get(target, property, receiver) {
+            if (property === "createIncrementalProgram") {
+                return (configuration) => {
+                    const run = {
+                        emittedOutputs: 0,
+                        reusedBuilder:
+                            typeof configuration.createProgram === "function",
+                    };
+                    runs.push(run);
+                    const writeFile = configuration.host.writeFile;
+                    configuration.host.writeFile = (...args) => {
+                        run.emittedOutputs += 1;
+                        return writeFile(...args);
+                    };
+                    return originalCreateIncrementalProgram(configuration);
+                };
+            }
+            return Reflect.get(target, property, receiver);
+        },
+    });
+
+    const projectSessionKey = digestBytes(
+        Buffer.from("t3-resident-project-a", "utf8"),
+    );
+    const otherProjectSessionKey = digestBytes(
+        Buffer.from("t3-resident-project-b", "utf8"),
+    );
+    const thirdProjectSessionKey = digestBytes(
+        Buffer.from("t3-resident-project-c", "utf8"),
+    );
+    const fourthProjectSessionKey = digestBytes(
+        Buffer.from("t3-resident-project-d", "utf8"),
+    );
+    let cold;
+    let warm;
+    let isolated;
+    let thirdProject;
+    let fourthProject;
+    let evictedReplay;
+    let legacyFirst;
+    let legacySecond;
+    try {
+        cold = await compile(
+            "desktop-t3-resident-cold",
+            t3TwentyModuleSnapshot(1),
+            { projectSessionKey },
+        );
+        warm = await compile(
+            "desktop-t3-resident-warm",
+            t3TwentyModuleSnapshot(2),
+            { projectSessionKey },
+        );
+        isolated = await compile(
+            "desktop-t3-resident-isolated-project",
+            t3TwentyModuleSnapshot(2),
+            { projectSessionKey: otherProjectSessionKey },
+        );
+        thirdProject = await compile(
+            "desktop-t3-resident-third-project",
+            t3TwentyModuleSnapshot(2),
+            { projectSessionKey: thirdProjectSessionKey },
+        );
+        fourthProject = await compile(
+            "desktop-t3-resident-fourth-project",
+            t3TwentyModuleSnapshot(2),
+            { projectSessionKey: fourthProjectSessionKey },
+        );
+        evictedReplay = await compile(
+            "desktop-t3-resident-evicted-replay",
+            t3TwentyModuleSnapshot(2),
+            { projectSessionKey },
+        );
+        legacyFirst = await compile(
+            "desktop-t3-legacy-cold-one",
+            t3TwentyModuleSnapshot(2),
+        );
+        legacySecond = await compile(
+            "desktop-t3-legacy-cold-two",
+            t3TwentyModuleSnapshot(3),
+        );
+    } finally {
+        global.ts = originalTs;
+    }
+
+    assert(runs.length === 8, "T3 verifier observed an unexpected Program count.");
+    const expectedOutputCount = 40;
+    assert(
+        runs[0].emittedOutputs === expectedOutputCount &&
+            !runs[0].reusedBuilder,
+        "T3 cold session did not execute one full cold emit.",
+    );
+    assert(
+        runs[1].reusedBuilder &&
+            runs[1].emittedOutputs <= expectedOutputCount * 0.3,
+        "T3 warm session did not reuse the builder and affected-module emit.",
+    );
+    assert(
+        !runs[2].reusedBuilder &&
+            runs[2].emittedOutputs === expectedOutputCount,
+        "T3 leaked resident state across project session identities.",
+    );
+    assert(
+        !runs[3].reusedBuilder &&
+            !runs[4].reusedBuilder &&
+            !runs[5].reusedBuilder &&
+            runs[3].emittedOutputs === expectedOutputCount &&
+            runs[4].emittedOutputs === expectedOutputCount &&
+            runs[5].emittedOutputs === expectedOutputCount,
+        "T3 did not evict the oldest project after the three-session bound.",
+    );
+    assert(
+        !runs[6].reusedBuilder &&
+            !runs[7].reusedBuilder &&
+            runs[6].emittedOutputs === expectedOutputCount &&
+            runs[7].emittedOutputs === expectedOutputCount,
+        "T3 changed the legacy fully cold compilation path.",
+    );
+    for (const compilation of [
+        cold,
+        warm,
+        isolated,
+        thirdProject,
+        fourthProject,
+        evictedReplay,
+        legacyFirst,
+        legacySecond,
+    ]) {
+        assert(
+            compilation.result.diagnostics.length === 0 &&
+                !compilation.result.emitSkipped &&
+                compilation.result.outputs.length === expectedOutputCount,
+            "T3 compilation lost the complete output inventory.",
+        );
+    }
+    const warmModule = warm.result.outputs.find(
+        (output) => output.path === "/outputs/module-19.js",
+    );
+    assert(
+        warmModule?.text.includes("value18 + 2"),
+        "T3 warm compilation returned a stale changed-module output.",
+    );
+    const reduction =
+        cold.endElapsedMilliseconds === 0
+            ? 0
+            : 1 - warm.endElapsedMilliseconds / cold.endElapsedMilliseconds;
+    process.stdout.write(
+        `T3 resident session: cold=${cold.endElapsedMilliseconds} ms, ` +
+            `warm=${warm.endElapsedMilliseconds} ms, ` +
+            `warm-emits=${runs[1].emittedOutputs}/${expectedOutputCount}, ` +
+            `compile-reduction=${(reduction * 100).toFixed(1)}%.\n`,
+    );
 };
 
 const verifyP3bIncrementalDiagnosticCap = async () => {
@@ -5679,6 +5880,10 @@ const verifyCompilerPageStateMachine = () => {
         await verifyWorkerRejectsEveryTamperedAcceptedInputAuthorityField();
         return;
     }
+    if (process.env.R2_T3_ONLY === "1") {
+        await verifyT3ResidentProjectSessionIncrementality();
+        return;
+    }
     if (process.env.R2_X2_ONLY === "1") {
         await verifyX2UnifiedNoEmitDiagnostics();
         process.stdout.write(
@@ -5736,6 +5941,13 @@ const verifyCompilerPageStateMachine = () => {
         "P3b-a lazy SourceFile cache identity and version",
         async () => {
             await verifyP3bLazySourceFileIdentityAndVersion();
+        },
+        failures,
+    );
+    await runGolden(
+        "T3 project-scoped resident session and affected-module emit",
+        async () => {
+            await verifyT3ResidentProjectSessionIncrementality();
         },
         failures,
     );

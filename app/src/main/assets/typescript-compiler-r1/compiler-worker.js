@@ -125,6 +125,9 @@ const maximumDiagnosticsBytes = 512 * 1024;
 const maximumRelatedInformationPerDiagnostic = 1000;
 const maximumRelatedInformationTotal = 1000;
 const maximumProjectResultBytes = 144 * 1024 * 1024;
+const projectSessionRevision = 1;
+const maximumResidentProjectSessions = 3;
+const maximumResidentProjectSessionBytes = 64 * 1024 * 1024;
 const sha256Pattern = /^[0-9a-f]{64}$/;
 const compareCodeUnits = (left, right) =>
     left < right ? -1 : left > right ? 1 : 0;
@@ -5641,6 +5644,7 @@ const createProjectCompilerHost = (
     resolutionSession = null,
     isNodeRevisionTwoProject = false,
     defaultLibraryPath = "/declarations/lib.d.ts",
+    changedSourceFilePaths = new Set(),
 ) => {
     if (
         defaultLibraryPath !== "/declarations/lib.d.ts" &&
@@ -5659,15 +5663,23 @@ const createProjectCompilerHost = (
     getDirectories: vfs.getDirectories,
     getNewLine: () => "\n",
     getSourceFile: (fileName, languageVersion) => {
-        const cached = sourceFileCache.get(fileName);
-        if (cached !== undefined) {
-            return cached;
-        }
         const record =
             vfs.readRecord(fileName) ??
             resolutionSession?.readGrantedPackageTarget(fileName);
         if (record === undefined) {
             return undefined;
+        }
+        const cached = sourceFileCache.get(fileName);
+        if (cached !== undefined && cached.version === record.sha256) {
+            if (
+                !isNodeRevisionTwoProject ||
+                cached.impliedNodeFormat ===
+                    (resolutionSession.impliedModuleFormatFor(fileName) === "esm"
+                        ? ts.ModuleKind.ESNext
+                        : ts.ModuleKind.CommonJS)
+            ) {
+                return cached;
+            }
         }
         const sourceFile = isNodeRevisionTwoProject
             ? createNodeRevisionTwoSourceFile(
@@ -5682,10 +5694,12 @@ const createProjectCompilerHost = (
                   languageVersion,
                   true,
               );
-        // Builder programs require a stable version on every SourceFile. R2-S1
-        // creates a fresh program per job and deliberately does not share state.
-        sourceFile.version = "0";
+        // Builder programs use the accepted content digest as the exact change token. Legacy
+        // jobs still create a new cache; opted-in T3 sessions can therefore reuse unchanged
+        // SourceFiles without mistaking a same-path edit for the previous version.
+        sourceFile.version = record.sha256;
         sourceFileCache.set(fileName, sourceFile);
+        changedSourceFilePaths.add(fileName);
         if (
             isNodeRevisionTwoProject
                 ? isNodeRevisionTwoExecutableSourcePath(fileName)
@@ -5711,8 +5725,7 @@ const createProjectCompilerHost = (
                       !path.endsWith(".cjs.map")
                     : !path.endsWith(".js") && !path.endsWith(".js.map")
             ) ||
-            outputs.has(path) ||
-            outputs.size >= maximumOutputFiles
+            (!outputs.has(path) && outputs.size >= maximumOutputFiles)
         ) {
             throw new Error("TypeScript attempted to emit an unsupported output.");
         }
@@ -5720,13 +5733,19 @@ const createProjectCompilerHost = (
         const maximumFileBytes = path.endsWith(".map")
             ? maximumSourceMapBytes
             : maximumJavaScriptBytes;
+        const replacedOutput = outputs.get(path);
+        const replacedOutputBytes = replacedOutput === undefined
+            ? 0
+            : new TextEncoder().encode(replacedOutput.text).byteLength;
         if (
             outputBytes > maximumFileBytes ||
-            outputBudget.bytes + outputBytes > maximumOutputBytes
+            outputBudget.bytes - replacedOutputBytes + outputBytes >
+                maximumOutputBytes
         ) {
             throw new Error("TypeScript output exceeds the byte limit.");
         }
-        outputBudget.bytes += outputBytes;
+        outputBudget.bytes =
+            outputBudget.bytes - replacedOutputBytes + outputBytes;
         outputs.set(path, {
             sourcePaths: (sourceFiles || [])
                 .map((sourceFile) => sourceFile.fileName)
@@ -6582,10 +6601,82 @@ const emitProjectBuilder = (builder, beforeTransformer) =>
               { before: [beforeTransformer] },
           ]);
 
+const residentProjectSessions = new Map();
+let residentProjectSessionBytes = 0;
+
+const releaseResidentProjectSession = (entry) => {
+    if (entry === null || typeof entry !== "object") return;
+    entry.builder = null;
+    entry.sourceFileCache?.clear();
+    entry.outputs?.clear();
+    entry.sourceFileCache = null;
+    entry.outputs = null;
+    entry.retainedBytes = 0;
+};
+
+const takeResidentProjectSession = (session) => {
+    const entry = residentProjectSessions.get(session.key);
+    if (entry === undefined) return null;
+    residentProjectSessions.delete(session.key);
+    residentProjectSessionBytes -= entry.retainedBytes;
+    if (
+        entry.revision !== session.revision ||
+        entry.compilerAuthority !== session.compilerAuthority
+    ) {
+        releaseResidentProjectSession(entry);
+        return null;
+    }
+    return entry;
+};
+
+const storeResidentProjectSession = (key, entry) => {
+    const displaced = residentProjectSessions.get(key);
+    if (displaced !== undefined) {
+        residentProjectSessions.delete(key);
+        residentProjectSessionBytes -= displaced.retainedBytes;
+        releaseResidentProjectSession(displaced);
+    }
+    if (entry.retainedBytes > maximumResidentProjectSessionBytes) {
+        releaseResidentProjectSession(entry);
+        return false;
+    }
+    residentProjectSessions.set(key, entry);
+    residentProjectSessionBytes += entry.retainedBytes;
+    while (
+        residentProjectSessions.size > maximumResidentProjectSessions ||
+        residentProjectSessionBytes > maximumResidentProjectSessionBytes
+    ) {
+        const oldest = residentProjectSessions.entries().next().value;
+        if (oldest === undefined) break;
+        const [oldestKey, oldestEntry] = oldest;
+        residentProjectSessions.delete(oldestKey);
+        residentProjectSessionBytes -= oldestEntry.retainedBytes;
+        releaseResidentProjectSession(oldestEntry);
+    }
+    return residentProjectSessions.get(key) === entry;
+};
+
+const residentProjectSessionRetainedBytes = (project, outputs) => {
+    const dependencyBytes = project.dependencyLayer?.byteLength ?? 0;
+    const packageTargetBytes = Array.isArray(project.packageTargetFiles)
+        ? project.packageTargetFiles.reduce(
+              (total, file) => total + file.byteLength,
+              0,
+          )
+        : 0;
+    const outputBytes = Array.from(outputs.values()).reduce(
+        (total, output) =>
+            total + new TextEncoder().encode(output.text).byteLength,
+        0,
+    );
+    return project.totalBytes + dependencyBytes + packageTargetBytes + outputBytes;
+};
+
 const compileProject = async (project, frameToken = null) => {
-    const outputs = new Map();
+    let outputs = new Map();
     const outputBudget = { bytes: 0 };
-    const sourceFileCache = new Map();
+    let sourceFileCache = new Map();
+    const changedSourceFilePaths = new Set();
     const isControlledProject = matchesControlledTsConfigAuthority(project);
     const isRhinoRevisionTwoProject =
         matchesProvisionalRhinoRevision2ProfileAuthority(project) ||
@@ -6601,6 +6692,8 @@ const compileProject = async (project, frameToken = null) => {
     let host = null;
     let program = null;
     let resolutionSession = null;
+    let residentSessionCacheEntry = null;
+    let residentSessionCacheCommitted = false;
     let vfs = null;
     try {
         vfs = createReadonlyProjectVfs(project);
@@ -6682,6 +6775,36 @@ const compileProject = async (project, frameToken = null) => {
                 ? createProvisionalRhinoRevision2CompilerOptions()
                 : createProvisionalRhinoCompilerOptions();
         const options = createDependencyAwareCompilerOptions(vfs, baseOptions);
+        const residentProjectSession = project.residentProjectSession ?? null;
+        const hasResidentProjectSession =
+            residentProjectSession !== null &&
+            typeof residentProjectSession === "object" &&
+            residentProjectSession.revision === projectSessionRevision &&
+            typeof residentProjectSession.key === "string" &&
+            sha256Pattern.test(residentProjectSession.key) &&
+            typeof residentProjectSession.compilerAuthority === "string" &&
+            residentProjectSession.compilerAuthority.length > 0;
+        if (
+            project.residentProjectSession !== undefined &&
+            project.residentProjectSession !== null &&
+            !hasResidentProjectSession
+        ) {
+            throw new Error("Resident project session authority is malformed.");
+        }
+        if (hasResidentProjectSession) {
+            residentSessionCacheEntry = takeResidentProjectSession(
+                residentProjectSession,
+            );
+            if (residentSessionCacheEntry !== null) {
+                sourceFileCache = residentSessionCacheEntry.sourceFileCache;
+                outputs = new Map(residentSessionCacheEntry.outputs);
+                outputBudget.bytes = Array.from(outputs.values()).reduce(
+                    (total, output) =>
+                        total + new TextEncoder().encode(output.text).byteLength,
+                    0,
+                );
+            }
+        }
         resolutionSession = isNodeRevisionTwoProject
             ? createNodeRevisionTwoResolutionSession(vfs, options)
             : isControlledProject
@@ -6698,6 +6821,7 @@ const compileProject = async (project, frameToken = null) => {
             project.targetProfile === provisionalRhinoProfileAuthority.targetProfile
                 ? "/declarations/lib.es2018.d.ts"
                 : "/declarations/lib.d.ts",
+            changedSourceFilePaths,
         );
         if (controlledRevision4) {
             installControlledPathAliasResolver(
@@ -6712,11 +6836,31 @@ const compileProject = async (project, frameToken = null) => {
             "parse",
             Math.max(1, vfs.sourcePaths.length),
         );
-        builder = ts.createIncrementalProgram({
+        const incrementalConfiguration = {
             host,
             options,
             rootNames: vfs.compilerRootNames,
-        });
+        };
+        if (residentSessionCacheEntry !== null) {
+            const previousBuilder = residentSessionCacheEntry.builder;
+            incrementalConfiguration.createProgram = (
+                rootNames,
+                nextOptions,
+                nextHost,
+                _oldProgram,
+                configFileParsingDiagnostics,
+                projectReferences,
+            ) =>
+                ts.createEmitAndSemanticDiagnosticsBuilderProgram(
+                    rootNames,
+                    nextOptions,
+                    nextHost,
+                    previousBuilder,
+                    configFileParsingDiagnostics,
+                    projectReferences,
+                );
+        }
+        builder = ts.createIncrementalProgram(incrementalConfiguration);
         program = builder.getProgram();
         if (
             typeof program.getRootFileNames === "function" &&
@@ -6758,7 +6902,14 @@ const compileProject = async (project, frameToken = null) => {
         const hasResolutionFailures =
             resolutionSession?.hasFailures() === true;
         diagnosticCollector.consume("options", program.getOptionsDiagnostics());
-        for (const sourceFile of program.getSourceFiles()) {
+        const diagnosticSourceFiles = residentSessionCacheEntry === null
+            ? program.getSourceFiles()
+            : program
+                  .getSourceFiles()
+                  .filter((sourceFile) =>
+                      changedSourceFilePaths.has(sourceFile.fileName),
+                  );
+        for (const sourceFile of diagnosticSourceFiles) {
             diagnosticCollector.consume(
                 "syntactic",
                 program.getSyntacticDiagnostics(sourceFile),
@@ -6771,22 +6922,56 @@ const compileProject = async (project, frameToken = null) => {
             "semantic",
             Math.max(1, vfs.sourcePaths.length),
         );
-        for (const sourceFile of program.getSourceFiles()) {
-            if (!hasResolutionFailures) {
+        if (
+            residentSessionCacheEntry !== null &&
+            !hasResolutionFailures &&
+            typeof builder.getSemanticDiagnosticsOfNextAffectedFile === "function"
+        ) {
+            let affectedResult;
+            while (
+                (affectedResult =
+                    builder.getSemanticDiagnosticsOfNextAffectedFile()) !==
+                undefined
+            ) {
                 diagnosticCollector.consume(
                     "semantic",
-                    program.getSemanticDiagnostics(sourceFile),
+                    affectedResult.result || [],
                 );
+                const affected = affectedResult.affected;
+                if (
+                    affected !== program &&
+                    (
+                        isNodeRevisionTwoProject
+                            ? isNodeRevisionTwoExecutableSourcePath(
+                                  affected.fileName,
+                              )
+                            : isExecutableProjectSourcePath(affected.fileName)
+                    )
+                ) {
+                    advanceProjectExecutionProgress(
+                        project.execution,
+                        "semantic",
+                    );
+                }
             }
-            if (
-                isNodeRevisionTwoProject
-                    ? isNodeRevisionTwoExecutableSourcePath(sourceFile.fileName)
-                    : isExecutableProjectSourcePath(sourceFile.fileName)
-            ) {
-                advanceProjectExecutionProgress(
-                    project.execution,
-                    "semantic",
-                );
+        } else {
+            for (const sourceFile of program.getSourceFiles()) {
+                if (!hasResolutionFailures) {
+                    diagnosticCollector.consume(
+                        "semantic",
+                        program.getSemanticDiagnostics(sourceFile),
+                    );
+                }
+                if (
+                    isNodeRevisionTwoProject
+                        ? isNodeRevisionTwoExecutableSourcePath(sourceFile.fileName)
+                        : isExecutableProjectSourcePath(sourceFile.fileName)
+                ) {
+                    advanceProjectExecutionProgress(
+                        project.execution,
+                        "semantic",
+                    );
+                }
             }
         }
         completeProjectExecutionPhase(project.execution, "semantic");
@@ -6797,6 +6982,8 @@ const compileProject = async (project, frameToken = null) => {
         );
         let emitResult;
         if (diagnosticCollector.errorCount() > 0) {
+            outputs.clear();
+            outputBudget.bytes = 0;
             emitResult = {
                 diagnostics: [],
                 emitSkipped: true,
@@ -6828,6 +7015,31 @@ const compileProject = async (project, frameToken = null) => {
                     : isExecutableProjectSourcePath,
             )
             .sort(compareCodeUnits);
+        const reachableExecutableSourcePathSet = new Set(
+            reachableExecutableSourcePaths,
+        );
+        for (const [path, output] of outputs) {
+            const onlySource = output.sourcePaths[0];
+            const expectedModulePath =
+                typeof onlySource === "string" &&
+                reachableExecutableSourcePathSet.has(onlySource)
+                    ? expectedGeneratedModulePath(
+                          onlySource,
+                          isNodeRevisionTwoProject,
+                      )
+                    : null;
+            if (
+                output.sourcePaths.length !== 1 ||
+                expectedModulePath === null ||
+                (path !== expectedModulePath &&
+                    path !== `${expectedModulePath}.map`)
+            ) {
+                outputBudget.bytes -= new TextEncoder().encode(
+                    output.text,
+                ).byteLength;
+                outputs.delete(path);
+            }
+        }
         if (
             resolutionSession !== null &&
             program.getSourceFiles().some(
@@ -6992,6 +7204,41 @@ const compileProject = async (project, frameToken = null) => {
             result.effectiveOptionsRevision = controlledEffectiveOptions.revision;
             result.rootNames = vfs.rootNames.slice();
         }
+        if (
+            hasResidentProjectSession &&
+            errorCount === 0 &&
+            !emitResult.emitSkipped
+        ) {
+            const reachableProgramPaths = new Set(
+                program.getSourceFiles().map((sourceFile) => sourceFile.fileName),
+            );
+            for (const path of sourceFileCache.keys()) {
+                if (!reachableProgramPaths.has(path)) {
+                    sourceFileCache.delete(path);
+                }
+            }
+            const entry = residentSessionCacheEntry ?? {
+                builder: null,
+                compilerAuthority: residentProjectSession.compilerAuthority,
+                outputs: null,
+                retainedBytes: 0,
+                revision: residentProjectSession.revision,
+                sourceFileCache: null,
+            };
+            entry.builder = builder;
+            entry.compilerAuthority = residentProjectSession.compilerAuthority;
+            entry.outputs = outputs;
+            entry.retainedBytes = residentProjectSessionRetainedBytes(
+                project,
+                outputs,
+            );
+            entry.revision = residentProjectSession.revision;
+            entry.sourceFileCache = sourceFileCache;
+            residentSessionCacheCommitted = storeResidentProjectSession(
+                residentProjectSession.key,
+                entry,
+            );
+        }
         return result;
     } finally {
         program = null;
@@ -7001,8 +7248,14 @@ const compileProject = async (project, frameToken = null) => {
         resolutionSession = null;
         diagnosticCollector?.release();
         diagnosticCollector = null;
-        sourceFileCache.clear();
-        outputs.clear();
+        if (!residentSessionCacheCommitted) {
+            if (residentSessionCacheEntry !== null) {
+                releaseResidentProjectSession(residentSessionCacheEntry);
+            } else {
+                sourceFileCache.clear();
+                outputs.clear();
+            }
+        }
         if (vfs !== null) {
             vfs.release();
             vfs = null;
@@ -8765,6 +9018,40 @@ const requireInputFrame = (message, expectedKind) => {
     return state;
 };
 
+const projectSessionVolatileStartKeys = new Set([
+    "callerInventoryFingerprint",
+    "declarationByteLength",
+    "declarationFileCount",
+    "fileCount",
+    "inputArchiveSchemaRevision",
+    "inputQuotaRevision",
+    "kind",
+    "largestFileBytes",
+    "projectSessionKey",
+    "projectSessionRevision",
+    "requestId",
+    "retainedFileCount",
+    "retainedInventoryFingerprint",
+    "sequence",
+    "totalBytes",
+    "workerSpinMilliseconds",
+    "workerSpinPhase",
+]);
+
+const deriveProjectSessionCompilerAuthority = (message) =>
+    JSON.stringify(
+        Object.keys(message)
+            .filter(
+                (key) =>
+                    !projectSessionVolatileStartKeys.has(key) &&
+                    !key.endsWith("Canonical") &&
+                    !key.endsWith("ByteLength") &&
+                    !key.endsWith("FileCount"),
+            )
+            .sort(compareCodeUnits)
+            .map((key) => [key, message[key]]),
+    );
+
 const acceptProjectInputStart = async (message, frameToken) => {
     const legacyKeys = [
         "callerInventoryFingerprint",
@@ -8805,14 +9092,30 @@ const acceptProjectInputStart = async (message, frameToken) => {
         "dependencyResolverPolicyRevision",
         "dependencyResolverPolicyFingerprint",
     ];
+    const projectSessionKeys = [
+        "projectSessionKey",
+        "projectSessionRevision",
+    ];
     const hasAnyDependencyResolverField = dependencyResolverKeys.some((key) =>
         Object.prototype.hasOwnProperty.call(message, key),
     );
+    const hasAnyProjectSessionField = projectSessionKeys.some((key) =>
+        Object.prototype.hasOwnProperty.call(message, key),
+    );
+    const hasProjectSession =
+        hasAnyProjectSessionField &&
+        message.projectSessionRevision === projectSessionRevision &&
+        typeof message.projectSessionKey === "string" &&
+        sha256Pattern.test(message.projectSessionKey);
     const hasExactStartKeys = (keys) => hasExactKeys(
         message,
-        hasAnyDependencyResolverField
-            ? keys.concat(dependencyResolverKeys)
-            : keys,
+        keys
+            .concat(
+                hasAnyDependencyResolverField
+                    ? dependencyResolverKeys
+                    : [],
+            )
+            .concat(hasAnyProjectSessionField ? projectSessionKeys : []),
     );
     const nodeRevision2Keys = legacyKeys.concat([
         "entryPath",
@@ -9152,6 +9455,7 @@ const acceptProjectInputStart = async (message, frameToken) => {
               : ordinaryRetainedInputGuardrail;
     if (
         projectOperationActive(frameToken) ||
+        (hasAnyProjectSessionField && !hasProjectSession) ||
         (!isConfigNoneStart &&
             !isRhinoRevision2Start &&
             !hasControlledConfig &&
@@ -9412,6 +9716,15 @@ const acceptProjectInputStart = async (message, frameToken) => {
         paths: new Set(),
         profileRevision: message.profileRevision,
         profileSchemaRevision: message.profileSchemaRevision,
+        projectSessionCompilerAuthority: hasProjectSession
+            ? deriveProjectSessionCompilerAuthority(message)
+            : null,
+        projectSessionKey: hasProjectSession
+            ? message.projectSessionKey
+            : null,
+        projectSessionRevision: hasProjectSession
+            ? message.projectSessionRevision
+            : null,
         requestId: message.requestId,
         retainedFileCount: message.retainedFileCount,
         retainedInventoryFingerprint: message.retainedInventoryFingerprint,
@@ -10347,6 +10660,14 @@ const acceptProjectInputEnd = async (message, frameToken) => {
         state.controlledConfig?.ignoredProperties ?? Object.freeze([]);
     const runtimeCapabilitiesFingerprint =
         state.runtimeCapabilitiesFingerprint;
+    const residentProjectSession =
+        state.projectSessionRevision === projectSessionRevision
+            ? Object.freeze({
+                  compilerAuthority: state.projectSessionCompilerAuthority,
+                  key: state.projectSessionKey,
+                  revision: state.projectSessionRevision,
+              })
+            : null;
     const packageTargetFiles = state.packageTargetFiles.slice();
     const packageTargetTextHolders = state.packageTargetTextHolders.slice();
     const packageTargetTokenCount = state.packageTargetTokenCount;
@@ -10389,6 +10710,9 @@ const acceptProjectInputEnd = async (message, frameToken) => {
     state.packageTargets?.filePaths?.clear();
     state.packageTargets = null;
     state.runtimeCapabilitiesFingerprint = null;
+    state.projectSessionCompilerAuthority = null;
+    state.projectSessionKey = null;
+    state.projectSessionRevision = null;
     state.controlledConfig = null;
     const compilerTotalBytes = state.files.reduce(
         (total, file) => total + file.byteLength,
@@ -10414,6 +10738,7 @@ const acceptProjectInputEnd = async (message, frameToken) => {
         pathChars: state.pathChars,
         profileRevision: state.profileRevision,
         profileSchemaRevision: state.profileSchemaRevision,
+        residentProjectSession,
         rootNames: rootNames.slice(),
         targetProfile: state.targetProfile,
         tokenCount: state.tokenCount,

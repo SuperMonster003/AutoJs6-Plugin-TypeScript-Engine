@@ -20,6 +20,7 @@ import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.zip.CRC32
 import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
+import org.autojs.plugin.typescript.api.TypeScriptR2Contract
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -288,6 +289,164 @@ class R2ProjectCompilerInstrumentationTest {
                 successorGeneration > firstGeneration,
             )
             assertRetiredProjectSession(host.lifecycleTelemetryForTesting())
+        }
+    }
+
+    @Test
+    fun residentProjectSessionReusesOneRealmAndDropsItUnderMemoryPressure() {
+        val fixture = loadFixture()
+        val interactiveSession = R2ProjectSessionAuthority.derive(
+            callingUid = context.applicationInfo.uid,
+            projectId = "t3-interactive-project",
+            revision = TypeScriptR2Contract.PROJECT_SESSION_REVISION,
+        )
+        val incrementalSession = R2ProjectSessionAuthority.derive(
+            callingUid = context.applicationInfo.uid,
+            projectId = "t3-incremental-project",
+            revision = TypeScriptR2Contract.PROJECT_SESSION_REVISION,
+        )
+        val isolatedSession = R2ProjectSessionAuthority.derive(
+            callingUid = context.applicationInfo.uid,
+            projectId = "t3-isolated-project",
+            revision = TypeScriptR2Contract.PROJECT_SESSION_REVISION,
+        )
+
+        withCompilerHost(timeoutSeconds = T3_RESIDENT_TEST_TIMEOUT_SECONDS) { host ->
+            val interactiveCold = host.compileResidentT3Snapshot(
+                snapshot = fixture.t3ModuleSnapshot(
+                    lastValue = 1,
+                    sourceFileCount = T3_INTERACTIVE_SOURCE_FILE_COUNT,
+                    typesPerSource = T3_INTERACTIVE_TYPES_PER_SOURCE,
+                ),
+                authority = interactiveSession,
+            )
+            assertSuccessfulT3Compilation(
+                outcome = interactiveCold.outcome,
+                sourceFileCount = T3_INTERACTIVE_SOURCE_FILE_COUNT,
+                expectedLastValue = 1,
+            )
+            assertEquals(
+                "An opted-in project must keep its healthy WebView realm resident.",
+                null,
+                host.lastRetiredSessionGenerationForTesting(),
+            )
+
+            val interactiveWarmRuns = (2..6).map { lastValue ->
+                host.compileResidentT3Snapshot(
+                    snapshot = fixture.t3ModuleSnapshot(
+                        lastValue = lastValue,
+                        sourceFileCount = T3_INTERACTIVE_SOURCE_FILE_COUNT,
+                        typesPerSource = T3_INTERACTIVE_TYPES_PER_SOURCE,
+                    ),
+                    authority = interactiveSession,
+                ).also { run ->
+                    assertSuccessfulT3Compilation(
+                        outcome = run.outcome,
+                        sourceFileCount = T3_INTERACTIVE_SOURCE_FILE_COUNT,
+                        expectedLastValue = lastValue,
+                    )
+                }
+            }
+            val interactiveWarmP50Millis = interactiveWarmRuns
+                .map { run -> run.elapsedMillis }
+                .sorted()[interactiveWarmRuns.size / 2]
+            assertTrue(
+                "T3 warm p50 must include transport and remain below one second: " +
+                    "$interactiveWarmP50Millis ms.",
+                interactiveWarmP50Millis < T3_WARM_P50_LIMIT_MILLIS,
+            )
+
+            val incrementalCold = host.compileResidentT3Snapshot(
+                snapshot = fixture.t3ModuleSnapshot(
+                    lastValue = 1,
+                    sourceFileCount = T3_INCREMENTAL_SOURCE_FILE_COUNT,
+                    typesPerSource = T3_INCREMENTAL_TYPES_PER_SOURCE,
+                ),
+                authority = incrementalSession,
+            )
+            assertSuccessfulT3Compilation(
+                outcome = incrementalCold.outcome,
+                sourceFileCount = T3_INCREMENTAL_SOURCE_FILE_COUNT,
+                expectedLastValue = 1,
+            )
+            val incrementalWarmRuns = (2..4).map { lastValue ->
+                host.compileResidentT3Snapshot(
+                    snapshot = fixture.t3ModuleSnapshot(
+                        lastValue = lastValue,
+                        sourceFileCount = T3_INCREMENTAL_SOURCE_FILE_COUNT,
+                        typesPerSource = T3_INCREMENTAL_TYPES_PER_SOURCE,
+                    ),
+                    authority = incrementalSession,
+                ).also { run ->
+                    assertSuccessfulT3Compilation(
+                        outcome = run.outcome,
+                        sourceFileCount = T3_INCREMENTAL_SOURCE_FILE_COUNT,
+                        expectedLastValue = lastValue,
+                    )
+                }
+            }
+            val incrementalWarmP50Millis = incrementalWarmRuns
+                .map { run -> run.compilerElapsedMillis }
+                .sorted()[incrementalWarmRuns.size / 2]
+            val incrementalReduction =
+                1.0 -
+                    incrementalWarmP50Millis /
+                    incrementalCold.compilerElapsedMillis
+            assertTrue(
+                "T3 module cache did not reduce the 20-file compiler phase by more than 70%: " +
+                    "cold=${incrementalCold.compilerElapsedMillis} ms " +
+                    "warmP50=$incrementalWarmP50Millis ms.",
+                incrementalReduction > T3_MINIMUM_COMPILE_REDUCTION,
+            )
+
+            val isolated = host.compileResidentT3Snapshot(
+                snapshot = fixture.t3ModuleSnapshot(
+                    lastValue = 41,
+                    sourceFileCount = T3_INCREMENTAL_SOURCE_FILE_COUNT,
+                    typesPerSource = T3_INCREMENTAL_TYPES_PER_SOURCE,
+                ),
+                authority = isolatedSession,
+            )
+            assertSuccessfulT3Compilation(
+                outcome = isolated.outcome,
+                sourceFileCount = T3_INCREMENTAL_SOURCE_FILE_COUNT,
+                expectedLastValue = 41,
+            )
+            assertEquals(
+                "A second project must not retire or replace the shared healthy realm.",
+                null,
+                host.lastRetiredSessionGenerationForTesting(),
+            )
+
+            onMain {
+                host.discardResidentProjectSessionsForMemoryPressure()
+            }
+            val retiredGeneration = requireNotNull(
+                host.lastRetiredSessionGenerationForTesting(),
+            )
+            assertTrue(retiredGeneration > 0)
+            assertRetiredProjectSession(host.lifecycleTelemetryForTesting())
+            Log.i(
+                T3_LOG_TAG,
+                "T3_RESIDENT_SESSION_PASS api=${Build.VERSION.SDK_INT} " +
+                    "webView=" +
+                    "${androidx.webkit.WebViewCompat.getCurrentWebViewPackage(context)?.versionName} " +
+                    "interactiveFiles=$T3_INTERACTIVE_SOURCE_FILE_COUNT " +
+                    "interactiveColdMs=${interactiveCold.elapsedMillis} " +
+                    "interactiveWarmMs=" +
+                    "${interactiveWarmRuns.joinToString(",") { it.elapsedMillis.toString() }} " +
+                    "interactiveWarmP50Ms=$interactiveWarmP50Millis " +
+                    "incrementalFiles=$T3_INCREMENTAL_SOURCE_FILE_COUNT " +
+                    "incrementalColdCompilerMs=" +
+                    "${incrementalCold.compilerElapsedMillis} " +
+                    "incrementalWarmCompilerMs=" +
+                    "${incrementalWarmRuns.joinToString(",") { it.compilerElapsedMillis.toString() }} " +
+                    "incrementalWarmCompilerP50Ms=$incrementalWarmP50Millis " +
+                    "incrementalReductionPercent=" +
+                    "${(incrementalReduction * 100.0).toInt()} " +
+                    "isolatedOverallMs=${isolated.elapsedMillis} " +
+                    "retiredGeneration=$retiredGeneration",
+            )
         }
     }
 
@@ -3397,6 +3556,150 @@ class R2ProjectCompilerInstrumentationTest {
         )
     }
 
+    private fun JSONObject.t3ModuleSnapshot(
+        lastValue: Int,
+        sourceFileCount: Int,
+        typesPerSource: Int,
+    ): R2ProjectSnapshot {
+        require(sourceFileCount in 2..99)
+        require(typesPerSource > 0)
+        val files = mutableListOf<R2ProjectTextFile>()
+        val commonFiles = getJSONArray("commonFiles")
+        repeat(commonFiles.length()) { index ->
+            val file = commonFiles.getJSONObject(index)
+            if (file.getString("path").startsWith("/declarations/")) {
+                files += R2ProjectTextFile(
+                    path = file.getString("path"),
+                    text = file.getString("text"),
+                )
+            }
+        }
+        val roots = ArrayList<String>(sourceFileCount)
+        repeat(sourceFileCount) { index ->
+            val name = index.toString().padStart(2, '0')
+            val path = "/sources/module-$name.ts"
+            roots += path
+            val executable = when (index) {
+                0 -> "export const value00 = 1;\n"
+                sourceFileCount - 1 -> {
+                    val previous = (index - 1).toString().padStart(2, '0')
+                    "import { value$previous } from \"./module-$previous\";\n" +
+                        "export const value$name = value$previous + $lastValue;\n"
+                }
+                else -> {
+                    val previous = (index - 1).toString().padStart(2, '0')
+                    "import { value$previous } from \"./module-$previous\";\n" +
+                        "export const value$name = value$previous + 1;\n"
+                }
+            }
+            val source = buildString {
+                val unchangedTypeCount =
+                    if (index == sourceFileCount - 1) 0 else typesPerSource
+                repeat(unchangedTypeCount) { typeIndex ->
+                    append("interface Shape")
+                    append(name)
+                    append('_')
+                    append(typeIndex)
+                    append(" { readonly key: \"")
+                    append(name)
+                    append('-')
+                    append(typeIndex)
+                    append("\"; readonly tuple: readonly [number, string, boolean]; }\n")
+                }
+                append(executable)
+            }
+            files += R2ProjectTextFile(path = path, text = source)
+        }
+        return R2ProjectSnapshot.create(
+            files = files,
+            rootNames = roots,
+            limits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION,
+        )
+    }
+
+    private fun TypeScriptWebViewCompilerHost.compileResidentT3Snapshot(
+        snapshot: R2ProjectSnapshot,
+        authority: R2ProjectSessionAuthority,
+    ): T3CompilationRun {
+        val startedAt = SystemClock.elapsedRealtimeNanos()
+        val phaseEvents = CopyOnWriteArrayList<R2ProjectExecutionEvent.Phase>()
+        return try {
+            val outcome = compileProjectUntilElapsedRealtimeDeadline(
+                handle = newProjectOperationHandle(),
+                snapshot = snapshot,
+                projectSessionAuthority = authority,
+                deadlineAtElapsedRealtimeNanos = Math.addExact(
+                    startedAt,
+                    TimeUnit.MILLISECONDS.toNanos(
+                        TypeScriptCompilerContract.MAX_TIMEOUT_MS,
+                    ),
+                ),
+                projectExecutionObserver = { event ->
+                    if (event is R2ProjectExecutionEvent.Phase) {
+                        phaseEvents += event
+                    }
+                },
+            )
+            val ingressCompletedAt = phaseEvents.singleOrNull { event ->
+                event.phase == R2ProjectExecutionPhase.INGRESS &&
+                    event.state == R2ProjectExecutionPhaseState.COMPLETED
+            }?.observedAtElapsedRealtimeNanos
+            val emitCompletedAt = phaseEvents.singleOrNull { event ->
+                event.phase == R2ProjectExecutionPhase.EMIT &&
+                    event.state == R2ProjectExecutionPhaseState.COMPLETED
+            }?.observedAtElapsedRealtimeNanos
+            check(ingressCompletedAt != null && emitCompletedAt != null) {
+                "T3 compilation did not publish every phase: " +
+                    "succeeded=${outcome.succeeded} code=${outcome.errorCode} " +
+                    "message=${outcome.errorMessage} events=$phaseEvents"
+            }
+            val compilerElapsedNanos =
+                emitCompletedAt - ingressCompletedAt
+            check(compilerElapsedNanos > 0L)
+            T3CompilationRun(
+                outcome = outcome,
+                elapsedMillis = TimeUnit.NANOSECONDS.toMillis(
+                    SystemClock.elapsedRealtimeNanos() - startedAt,
+                ),
+                compilerElapsedMillis =
+                    compilerElapsedNanos.toDouble() /
+                        TimeUnit.MILLISECONDS.toNanos(1L).toDouble(),
+            )
+        } finally {
+            snapshot.close()
+        }
+    }
+
+    private fun assertSuccessfulT3Compilation(
+        outcome: R2ProjectCompilationOutcome,
+        sourceFileCount: Int,
+        expectedLastValue: Int,
+    ) {
+        assertTrue(outcome.errorMessage.orEmpty(), outcome.succeeded)
+        val compilation = requireNotNull(outcome.compilation)
+        assertFalse(compilation.emitSkipped)
+        assertTrue(compilation.diagnostics.isEmpty())
+        assertEquals(sourceFileCount, compilation.executableModules.size)
+        assertEquals(sourceFileCount, compilation.sourceMaps.size)
+        val finalName = (sourceFileCount - 1).toString().padStart(2, '0')
+        val previousName = (sourceFileCount - 2).toString().padStart(2, '0')
+        val changedModule = compilation.outputs.single { output ->
+            output.path == "/outputs/module-$finalName.js"
+        }
+        assertTrue(
+            "T3 returned a stale changed-module output.",
+            changedModule.text.contains(
+                "value$previousName + $expectedLastValue",
+            ),
+        )
+    }
+
+    private data class T3CompilationRun(
+        val outcome: R2ProjectCompilationOutcome,
+        val elapsedMillis: Long,
+        val compilerElapsedMillis: Double,
+    )
+
     private fun JSONObject.declarationErrorSnapshot(): R2ProjectSnapshot =
         R2ProjectSnapshot.create(
             files = listOf(
@@ -4237,6 +4540,14 @@ class R2ProjectCompilerInstrumentationTest {
         const val CAPACITY_TEST_TIMEOUT_SECONDS = 180L
         const val ACTIVE_RENDERER_CAPACITY_TEST_TIMEOUT_SECONDS = 300L
         const val REPEATED_RESOURCE_TEST_TIMEOUT_SECONDS = 900L
+        const val T3_RESIDENT_TEST_TIMEOUT_SECONDS = 180L
+        const val T3_INTERACTIVE_SOURCE_FILE_COUNT = 10
+        const val T3_INTERACTIVE_TYPES_PER_SOURCE = 20
+        const val T3_INCREMENTAL_SOURCE_FILE_COUNT = 20
+        const val T3_INCREMENTAL_TYPES_PER_SOURCE = 600
+        const val T3_WARM_P50_LIMIT_MILLIS = 1_000L
+        const val T3_MINIMUM_COMPILE_REDUCTION = 0.70
+        const val T3_LOG_TAG = "T3ResidentSession"
         const val CAPACITY_PHASE_WAIT_SECONDS = 150L
         const val SUCCESSOR_RENDERER_OBSERVATION_SPIN_MILLIS = 10_000
         const val EXACT_CALLER_FILE_COUNT = 9

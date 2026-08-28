@@ -119,6 +119,7 @@ internal data class R2CompilationControls(
     val rawConfigAuthority: R2RawProjectConfigAuthority? = null,
     val packageMetadataAuthority: R2PackageMetadataAuthority? = null,
     val dependencyLayerAuthority: R2DependencyLayerAuthority? = null,
+    val projectSessionRevision: Int? = null,
     val workerSpinMilliseconds: Int = 0,
     val workerSpinPhase: R2ProjectExecutionPhase? = null,
     val expandedWorkerCapacity: Boolean = false,
@@ -178,6 +179,16 @@ internal data class R2CompilationControls(
                     ),
         ) {
             "Public dependency layers require the current Rhino or Node revision-2 authority."
+        }
+        require(
+            projectSessionRevision == null ||
+                (
+                    origin == R2CompilationControlOrigin.PUBLIC_PREVIEW &&
+                        projectSessionRevision ==
+                        TypeScriptR2Contract.PROJECT_SESSION_REVISION
+                    ),
+        ) {
+            "Resident project sessions require the supported public session revision."
         }
         require(
             when (origin) {
@@ -285,6 +296,7 @@ internal data class R2PublicCompilationMetadata(
     val dependencyLayerFingerprint: String? = null,
     val dependencyResolverPolicyRevision: Int? = null,
     val dependencyResolverPolicyFingerprint: String? = null,
+    val projectSessionRevision: Int? = null,
 )
 
 internal enum class R2PublicCompilationDisposition {
@@ -338,6 +350,7 @@ internal object R2PublicCompilationProtocol {
         TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_POLICY_FINGERPRINT,
         TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_INVENTORY_FINGERPRINT,
         TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_FINGERPRINT,
+        TypeScriptR2Contract.KEY_PROJECT_SESSION_REVISION,
     )
 
     /** Formal authority shared by the public and same-UID debug control planes. */
@@ -410,6 +423,14 @@ internal object R2PublicCompilationProtocol {
             metadata.declarationProfileFingerprint ?: return malformed()
         val runtimeCapabilitiesFingerprint =
             metadata.runtimeCapabilitiesFingerprint ?: return malformed()
+
+        if (
+            metadata.projectSessionRevision != null &&
+            metadata.projectSessionRevision !=
+            TypeScriptR2Contract.PROJECT_SESSION_REVISION
+        ) {
+            return unsupportedAuthority()
+        }
 
         if (targetProfile.isEmpty() || configKind.isEmpty()) return malformed()
         val configFieldPresence = listOf(
@@ -675,6 +696,7 @@ internal object R2PublicCompilationProtocol {
                                 null
                             },
                         dependencyLayerAuthority = dependencyLayerAuthority,
+                        projectSessionRevision = metadata.projectSessionRevision,
                     ),
                 )
             }
@@ -764,6 +786,7 @@ internal object R2PublicCompilationProtocol {
                                 null
                             },
                         dependencyLayerAuthority = dependencyLayerAuthority,
+                        projectSessionRevision = metadata.projectSessionRevision,
                     ),
                 )
             }

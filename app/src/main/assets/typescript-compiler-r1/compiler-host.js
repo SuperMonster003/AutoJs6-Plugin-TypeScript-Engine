@@ -78,6 +78,10 @@
             "nodePackageTargetSchemaRevision",
         ]),
     );
+    const projectSessionStartKeys = Object.freeze([
+        "projectSessionKey",
+        "projectSessionRevision",
+    ]);
     const maximumProjectExecutionProgressUnits = 2 * 4_608;
     const projectExecutionPhases = Object.freeze([
         "ingress",
@@ -821,15 +825,21 @@
             }
             return;
         }
+        const hasExactExtendedStartKeys = (expectedKeys) =>
+            hasExactKeys(message, expectedKeys) ||
+            hasExactKeys(
+                message,
+                expectedKeys.concat(projectSessionStartKeys),
+            );
         const usesExtendedProjectInputStartEnvelope =
             (
-                hasExactKeys(message, nodeRevisionTwoPackageFormatStartKeys) ||
-                hasExactKeys(
-                    message,
+                hasExactExtendedStartKeys(
+                    nodeRevisionTwoPackageFormatStartKeys,
+                ) ||
+                hasExactExtendedStartKeys(
                     nodeRevisionTwoProgramPackageFormatStartKeys,
                 ) ||
-                hasExactKeys(
-                    message,
+                hasExactExtendedStartKeys(
                     nodeRevisionTwoProgramPackageTargetStartKeys,
                 )
             ) &&

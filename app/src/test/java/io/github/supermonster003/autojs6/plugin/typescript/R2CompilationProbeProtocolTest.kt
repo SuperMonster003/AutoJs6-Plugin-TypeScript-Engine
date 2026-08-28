@@ -121,6 +121,7 @@ class R2CompilationProbeProtocolTest {
                 TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_POLICY_FINGERPRINT,
                 TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_INVENTORY_FINGERPRINT,
                 TypeScriptR2Contract.KEY_DEPENDENCY_LAYER_FINGERPRINT,
+                TypeScriptR2Contract.KEY_PROJECT_SESSION_REVISION,
             ),
             R2PublicCompilationProtocol.PUBLIC_METADATA_KEYS,
         )
@@ -364,6 +365,37 @@ class R2CompilationProbeProtocolTest {
         assertEquals(
             R2CompilationProfileRegistry.PROVISIONAL_RHINO.runtimeCapabilitiesFingerprint,
             controls.runtimeCapabilitiesFingerprint,
+        )
+    }
+
+    @Test
+    fun supportedProjectSessionRevisionIsExplicitAndUnknownRevisionFailsClosed() {
+        val enabled = classifyPublic(
+            validPublicMetadata().copy(
+                projectSessionRevision = TypeScriptR2Contract.PROJECT_SESSION_REVISION,
+            ),
+        )
+        assertEquals(
+            R2PublicCompilationDisposition.ACCEPTED_CONFIG_NONE,
+            enabled.disposition,
+        )
+        assertEquals(
+            TypeScriptR2Contract.PROJECT_SESSION_REVISION,
+            requireNotNull(enabled.controls).projectSessionRevision,
+        )
+
+        val unsupported = classifyPublic(
+            validPublicMetadata().copy(
+                projectSessionRevision = TypeScriptR2Contract.PROJECT_SESSION_REVISION + 1,
+            ),
+        )
+        assertEquals(
+            R2PublicCompilationDisposition.UNSUPPORTED_AUTHORITY,
+            unsupported.disposition,
+        )
+        assertEquals(
+            TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
+            unsupported.errorCode,
         )
     }
 

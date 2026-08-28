@@ -57,6 +57,7 @@ class TypeScriptPluginMetadataTest {
             TypeScriptR2Contract.DEPENDENCY_RESOLVER_POLICY_FINGERPRINT,
             R2DependencyResolverPolicy.fingerprint,
         )
+        assertEquals(1, TypeScriptR2Contract.PROJECT_SESSION_REVISION)
         assertArrayEquals(
             arrayOf(".ts"),
             TypeScriptCompilerContract.RHINO_SUPPORTED_EXTENSIONS,

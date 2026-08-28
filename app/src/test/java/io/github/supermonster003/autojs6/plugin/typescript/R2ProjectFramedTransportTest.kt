@@ -37,6 +37,47 @@ class R2ProjectFramedTransportTest {
     }
 
     @Test
+    fun residentSessionAddsOnlyTheTrustedRevisionAndOpaqueKeyToProjectStart() {
+        val snapshot = R2ProjectSnapshot.create(
+            files = listOf(
+                R2ProjectTextFile("/declarations/lib.d.ts", ""),
+                R2ProjectTextFile("/sources/main.ts", "export {};\n"),
+            ),
+            rootNames = listOf("/sources/main.ts"),
+        )
+        val session = R2ProjectSessionAuthority.derive(
+            callingUid = 10_001,
+            projectId = "resident-project",
+            revision = TypeScriptR2Contract.PROJECT_SESSION_REVISION,
+        )
+        val legacy = R2ProjectInputFramer("resident-legacy", snapshot)
+        val resident = R2ProjectInputFramer(
+            requestId = "resident-enabled",
+            snapshot = snapshot,
+            projectSessionAuthority = session,
+        )
+        try {
+            val legacyStart = parseFrame(legacy.nextFrame())
+            val residentStart = parseFrame(resident.nextFrame())
+            assertFalse(legacyStart.containsKey("projectSessionRevision"))
+            assertFalse(legacyStart.containsKey("projectSessionKey"))
+            assertEquals(
+                legacyStart.keys + setOf("projectSessionRevision", "projectSessionKey"),
+                residentStart.keys,
+            )
+            assertEquals(
+                TypeScriptR2Contract.PROJECT_SESSION_REVISION,
+                residentStart.intValue("projectSessionRevision"),
+            )
+            assertEquals(session.key, residentStart["projectSessionKey"])
+        } finally {
+            legacy.release()
+            resident.release()
+            snapshot.close()
+        }
+    }
+
+    @Test
     fun ordinaryAndTestOnlyExpandedWorkerQuotaAuthoritiesStaySeparated() {
         val snapshot = R2ProjectSnapshot.create(
             files = listOf(

@@ -630,6 +630,13 @@ class TypeScriptCompilerPluginService : Service() {
         return binder
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (::compilerHost.isInitialized) {
+            compilerHost.discardResidentProjectSessionsForMemoryPressure()
+        }
+    }
+
     override fun onDestroy() {
         if (quarantinedBySupervisorFence) {
             quarantineReleaseWatcherActive.set(false)
@@ -1565,6 +1572,9 @@ class TypeScriptCompilerPluginService : Service() {
                     ),
                     dependencyResolverPolicyFingerprint = optionalPublicR2Value<String>(
                         TypeScriptR2Contract.KEY_DEPENDENCY_RESOLVER_POLICY_FINGERPRINT,
+                    ),
+                    projectSessionRevision = optionalPublicR2Value<Int>(
+                        TypeScriptR2Contract.KEY_PROJECT_SESSION_REVISION,
                     ),
                 ),
                 expectedDeclarationProfileFingerprint =
