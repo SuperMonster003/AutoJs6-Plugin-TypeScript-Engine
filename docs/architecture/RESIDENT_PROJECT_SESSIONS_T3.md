@@ -146,7 +146,7 @@ combined 191,542 KiB；这是活动编译 realm 的历史观察值，不是空�
 
 | 启动预热 | 首次用户编译 bind + prewarm | 首次路径等待迁移 | core compiler cold | core compiler warm | 下降 |
 |---:|---:|---:|---:|---:|---:|
-| 1,643 ms | 39 ms | 97.6% | 528 ms | 156 ms | 70.5% |
+| 1,626 ms | 45 ms | 97.2% | 539 ms | 156 ms | 71.1% |
 
 仪器输出为 `OK (1 test)`，日志 schema 为
 `typescript-startup-prewarm-acceptance schema=1`。该结果完成 T3-2，并同时证明宿主

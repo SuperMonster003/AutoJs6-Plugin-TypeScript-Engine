@@ -442,8 +442,8 @@ install/lifecycle script (本来也不存在执行路径)。原 S9 的"可否决
       完整冷编译。该保守策略参考 API 35 既有 8 文件 active-realm 观察值：compiler
       service / renderer median PSS 为 90,458 / 95,241 KiB，合计 191,542 KiB（不是
       空预热的精确 PSS）。Xiaomi 23046RP50C / API 35 真机宿主验收中，后台预热
-      1,643 ms 后首次用户编译 bind/prewarm 仅 39 ms，等待迁移 97.6%；同一 10 文件
-      项目改动叶模块后 core compiler 从 528 ms 降至 156 ms（70.5%），输出包含新值。
+      1,626 ms 后首次用户编译 bind/prewarm 仅 45 ms，等待迁移 97.2%；同一 10 文件
+      项目改动叶模块后 core compiler 从 539 ms 降至 156 ms（71.1%），输出包含新值。
       宿主实现、兼容与资源生命周期见
       [T3 常驻项目会话](docs/architecture/RESIDENT_PROJECT_SESSIONS_T3.md)。
 - [x] **T3-3 模块级增量缓存**: 跨执行缓存从"全项目未变才命中"细化到
