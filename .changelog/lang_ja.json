@@ -29,6 +29,7 @@
         "独立 quota の read-only `node_modules` dependency layer と bare/scoped package resolution を追加; subpath `exports`, `types`/`import`/`require` condition, `types`/`typings`/`module`/`main`/`index` fallback, dayjs + zod の full Program acceptance を含む; 同じ exact layer が runtime に渡され, Rhino は CommonJS/JSON `require` entry を選択して ESM-only を stable error にし, Node は dependency を write-back しない private workspace overlay で ESM/CJS/dual package を実行"
       ],
       "improvement": [
+        "明示的 opt-in のプロジェクト session revision 1 を追加: service が caller/project ごとに導出した identity で有界 Worker realm を保持し, digest-versioned SourceFile, incremental builder, 未変更 output を実行間で再利用; legacy request は完全 cold のままで, メモリ pressure 時は全 session を破棄",
         "deterministic cross-execution cache reuse を追加; 実測 hit は 18-63 ms で完了し, bounded input batching により観測 device の ingress cost を 40%-57% 削減",
         "ordinary output limit を 512 artifacts, JavaScript または map ごとに 16 MiB, aggregate 64 MiB へ拡大し, ordinary caller input を revision 3 の 4096 files, file ごとに 8 MiB, aggregate 64 MiB へ昇格; built-in declarations は caller quota の対象外で, revision 2 host の 512 files / 8 MiB compatibility path も維持",
         "cold project ingress は middle frame を最大 6 条にまとめつつ payload chunk を最大 4 条に維持; 固定 109-file fixture は 97 から 68 envelopes へ減少し, 4 組の Android/WebView で compiler と ingress の median が改善"

@@ -29,6 +29,7 @@
         "新增獨立配額的唯讀 `node_modules` 相依層與 bare/scoped package 解析, 支援子路徑 `exports`, `types`/`import`/`require` 條件及 `types`/`typings`/`module`/`main`/`index` fallback, 並以 dayjs + zod 完整 Program 驗收; 同一精確相依層現可進入執行階段, Rhino 選擇 CommonJS/JSON `require` 入口並為 ESM-only 提供穩定錯誤, Node 透過不回寫相依套件的私有 workspace overlay 執行 ESM/CJS/dual package"
       ],
       "improvement": [
+        "新增明確 opt-in 的專案工作階段 revision 1: 服務按 caller/project 衍生身分, 在有界 Worker realm 中跨執行重用摘要版本化 SourceFile, 增量 builder 與未變輸出; 舊請求仍完全冷編譯, 記憶體壓力會丟棄全部工作階段",
         "新增確定性的跨執行 cache 復用; 實測命中耗時 18-63 ms, 有界輸入 batching 在觀測裝置上降低 ingress 成本 40%-57%",
         "一般輸出上限提升至 512 artifacts, 單個 JavaScript 或 map 16 MiB, 合計 64 MiB; 一般 caller 輸入升級至 revision 3 的 4096 files, 單檔案 8 MiB, 合計 64 MiB, 外掛內建 declarations 不占 caller 配額, revision 2 舊宿主繼續相容 512 files / 8 MiB",
         "冷專案 ingress 進一步採用最多 6 條中間 frame 且最多 4 條 payload chunk 的 batching; 固定 109-file 測試從 97 降至 68 個 envelopes, 四組 Android/WebView 的 compiler 與 ingress 中位數均改善"

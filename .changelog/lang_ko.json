@@ -29,6 +29,7 @@
         "별도 quota의 read-only `node_modules` dependency layer와 bare/scoped package resolution을 추가함; subpath `exports`, `types`/`import`/`require` condition, `types`/`typings`/`module`/`main`/`index` fallback 및 dayjs + zod full Program acceptance를 포함함; 동일한 exact layer가 runtime에 전달되어 Rhino는 CommonJS/JSON `require` entry를 선택하고 ESM-only를 stable error로 처리하며 Node는 dependency를 write-back하지 않는 private workspace overlay에서 ESM/CJS/dual package를 실행함"
       ],
       "improvement": [
+        "명시적 opt-in 프로젝트 session revision 1 추가: service가 caller/project별로 파생한 identity로 제한된 Worker realm을 유지하고 digest-versioned SourceFile, incremental builder, 변경되지 않은 output을 실행 간 재사용; legacy request는 완전 cold 경로를 유지하며 메모리 압력 시 모든 session 폐기",
         "deterministic cross-execution cache reuse를 추가함; 측정된 hit는 18-63 ms에 완료되고 bounded input batching은 관측 device의 ingress cost를 40%-57% 줄임",
         "ordinary output limit을 512 artifacts, JavaScript 또는 map당 16 MiB, aggregate 64 MiB로 높이고 ordinary caller input을 revision 3의 4096 files, file당 8 MiB, aggregate 64 MiB로 승격함; built-in declarations는 caller quota에서 제외되며 revision 2 host의 512 files / 8 MiB compatibility path도 유지함",
         "cold project ingress에서 middle frame을 최대 6개로 batching하되 payload chunk는 최대 4개로 유지함; 고정 109-file fixture가 97에서 68 envelopes로 줄었고 4개 Android/WebView 조합에서 compiler와 ingress median이 모두 개선됨"

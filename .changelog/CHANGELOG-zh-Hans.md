@@ -24,6 +24,7 @@
 * `新增` 新增受控 Node workspace package boundary, 支持 `packages/<name>` 与 `packages/@scope/<name>`; 同一项目中的 `.ts` 可按最近 `package.json.type` 混用 ESM 与 CommonJS, `scripts` 继续禁止
 * `新增` 兼容 Node Runtime 现以 V8 native linker 执行 ESM 入口与 dynamic `import()`, 支持循环依赖, 可变导出及 re-export live binding; 四模块 `.mts` 图可从 `initial=1` 更新为 `updated=42`
 * `新增` 新增独立配额的只读 `node_modules` 依赖层与 bare/scoped package 解析, 支持子路径 `exports`, `types`/`import`/`require` 条件及 `types`/`typings`/`module`/`main`/`index` 回退, 并以 dayjs + zod 完整 Program 验收; 同一精确依赖层现可进入运行时, Rhino 选择 CommonJS/JSON `require` 入口并为 ESM-only 提供稳定错误, Node 通过不回写依赖的私有 workspace overlay 执行 ESM/CJS/dual package
+* `优化` 新增显式 opt-in 的项目会话 revision 1: 服务按 caller/project 派生身份, 在有界 Worker realm 中跨执行复用摘要版本化 SourceFile, 增量 builder 与未变输出; 旧请求仍完全冷编译, 内存压力会丢弃全部会话
 * `优化` 新增确定性的跨执行缓存复用; 实测命中耗时 18-63 ms, 有界输入 batching 在观测设备上降低 ingress 成本 40%-57%
 * `优化` 普通输出上限提升到 512 artifacts, 单个 JavaScript 或 map 16 MiB, 合计 64 MiB; 普通 caller 输入升级到 revision 3 的 4096 files, 单文件 8 MiB, 合计 64 MiB, 插件内置声明不占 caller 配额, revision 2 旧宿主继续兼容 512 files / 8 MiB
 * `优化` 冷项目 ingress 进一步采用最多 6 条中间帧且最多 4 条 payload chunk 的 batching; 固定 109 文件用例从 97 降至 68 个 envelopes, 四组 Android/WebView 的 compiler 与 ingress 中位数均改善

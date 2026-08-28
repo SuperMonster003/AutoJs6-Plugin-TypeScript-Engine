@@ -10,7 +10,9 @@ smoke 串成一个可复核流程。所有远端发布动作都不在本手册�
 - 只接受形如 ``6.x.y`` 的稳定版, 不接受 ``dev``、``beta``、``rc`` 或浮动 tag。
 - TypeScript 7.x 使用不同的原生编译器架构, 不能按普通 distribution lock 升级处理。
   如需评估 7.x, 必须先单独决定 Android/WebView 装载方式、产物供应链、API 兼容面、
-  内存预算和回滚方案。
+  内存预算和回滚方案。7.0.2 的 T3-4 原型已完成并因缺少 programmatic API 决定
+  no-go；数据与重新开启条件见
+  [T3 TypeScript 7 原生后端评估](../roadmap/T3_TYPESCRIPT_7_NATIVE_EVALUATION.md)。
 - ``tools/prepare-typescript-upgrade.mjs`` 是唯一允许联网的准备步骤。它只读取 npm
   官方 registry, 将报告、候选 lock 和 tarball 写入已忽略的
   ``build/reports/typescript-upgrade/preflight/``, 不修改受版本控制的源码。

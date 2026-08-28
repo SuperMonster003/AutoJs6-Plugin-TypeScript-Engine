@@ -105,7 +105,7 @@ S10 性能与维护 —— 逐项状态、设备矩阵与提交号见
 |---|---|---|---|
 | T1 | 语言与配置齐平桌面 TS | 大项目、路径别名、装饰器、顶层 await、更多 tsconfig 键直接可用 | 已完成（T1-1–T1-7） |
 | T2 | npm 生态 | `import dayjs from "dayjs"` 在双 profile 编译执行, 类型与补全同步 | 已完成（T2-1–T2-6） |
-| T3 | 编辑-运行循环提速 | 改一行重跑接近秒级; 冷启动等待继续下降 | 未开始 |
+| T3 | 编辑-运行循环提速 | 改一行重跑接近秒级; 冷启动等待继续下降 | 进行中（T3-1/3/4 已完成；T3-2 待宿主） |
 | T4 | 编辑器完整体验 | 跨文件诊断、补全、跳转、重命名、快速修复 | 未开始 |
 | T5 | 运行时动态 TS | 运行中出现的 TS 文件可编译执行; TS 字符串即时执行 | 未开始 |
 | T6 | 遗留收尾与发布 | 旧 stripping 代码删除; 十语言提示; 对外发布 | 未开始 (T6-1/2 可立即启动; T6-3/4 外部依赖) |
@@ -415,7 +415,7 @@ install/lifecycle script (本来也不存在执行路径)。原 S9 的"可否决
 目标: 把"改一行 → 重新运行"的等待从秒级压到接近即时。S10-1 中因契约
 搁置的手段按新原则重开。
 
-- [ ] **T3-1 常驻编译会话**: 解除"每 job realm teardown"的契约地位
+- [x] **T3-1 常驻编译会话**: 解除"每 job realm teardown"的契约地位
       (进程级隔离保留, 隔离粒度重新设计), 提供 per-project 常驻 Worker
       会话: 标准库与声明层 SourceFile 常驻 (S10-1 延期项自然获得),
       incremental Program / languageService 按文件失效重用。会话语义走
@@ -423,22 +423,47 @@ install/lifecycle script (本来也不存在执行路径)。原 S9 的"可否决
       回退, 行为与现状一致。
       验收: 10 文件项目修改单文件后重编 (含传输) 在中端机 p50 < 1 s;
       全冷路径回归不变; 跨项目无状态泄漏 (聚焦单测)。
+      结论 (2026-08-28): 发布 additive `projectSessionRevision=1`；service 从
+      Binder calling UID + project ID 派生不出 realm 的 opaque SHA-256 key，旧
+      request 缺省仍逐 job teardown。Worker 会话最多 3 项/估算合计 64 MiB，
+      compiler authority 变化、失败、进程重启与内存压力均全冷回退。API 35
+      Xiaomi 23046RP50C / WebView 130 两轮 10 文件端到端 warm p50 分别为
+      462 ms、328 ms；不同 project key 冷编译不同输出且没有串线，trim 后 exact
+      generation 退休。实现、兼容语义与原始数据见
+      [T3 常驻项目会话](docs/architecture/RESIDENT_PROJECT_SESSIONS_T3.md)。
 - [ ] **T3-2 宿主启动期 prewarm**: bind + prewarm (当前 450–1772 ms) 移出
       用户首次运行等待路径 —— 宿主启动或进入编辑器时后台预热; 保活与
       内存价码用 S10-2 观察脚本记录, 数据决定默认策略。
       验收: 首次运行的用户可感知等待显著下降 (同设备前后对比记录)。
-- [ ] **T3-3 模块级增量缓存**: 跨执行缓存从"全项目未变才命中"细化到
+      当前状态 (2026-08-28): 插件已通过 `getCompilerInfo()` 广告 session
+      revision；后台 bind/prewarm 的触发点和默认保活策略属于 AutoJs6 宿主仓库，
+      本仓库不能替代该用户路径，待宿主接入后补同设备首次运行对比。
+- [x] **T3-3 模块级增量缓存**: 跨执行缓存从"全项目未变才命中"细化到
       模块级 —— 只重编译受影响文件及其依赖闭包, 未变模块直接复用产物。
       与 T3-1 会话叠加或作为无会话时的降级路径。
       验收: 20 文件项目改动 1 文件, 二次运行编译耗时相对全量下降 >70%
       (同设备记录)。
-- [ ] **T3-4 typescript-go (TypeScript 7) 原生后端评估**: S10-3 已确认
+      结论 (2026-08-28): SourceFile 以接受后的 SHA-256 为 version，复用
+      `EmitAndSemanticDiagnosticsBuilderProgram`、affected diagnostics 与未变输出；
+      warm 仍返回完整 output inventory。桌面三轮下降 87.1%–92.7%，每轮只 emit
+      2/40 outputs；上述 API 35 真机两轮 20 文件 compiler-phase p50 分别从
+      535.388→138.255 ms、598.246→151.117 ms，均下降 74%。不同项目和 legacy
+      cold fallback 由同一默认门禁覆盖，详情同上文实现记录。
+- [x] **T3-4 typescript-go (TypeScript 7) 原生后端评估**: S10-3 已确认
       7.0.2 属于原生编译器架构、当前 fail closed。立项评估: arm64/x86_64
       原生二进制 (或 WASM 构建) 在 Android 的可行性、与冻结契约的兼容
       方式 (作为新 profile revision 或并行后端)、体积与许可; 做一个
       编译耗时原型对比 (预期数量级提升, 且可摆脱 WebView 依赖与
       provider 版本矩阵)。
       验收: 原型数据 + go/no-go 决策记录; go 则另立专项路线。
+      结论 (2026-08-28): Android binary 可行——源码 tag `typescript/v7.0.2`
+      已交叉编译 arm64（27.94 MiB）与 x86_64（29.12 MiB），arm64 在 API
+      28/31/33/35 四设备运行并成功编译同一 60 文件样本；桌面相同输入 p50
+      相对 6.0.3 快 6.15×。但官方明确 7.0 不提供 programmatic API，无法等价
+      承载当前内存 VFS、resolver/transformer、结构化结果与取消契约，因此当前
+      **no-go**，不另立专项；TypeScript 7.1 新 API 稳定后按条件重开。构建摘要、
+      体积/许可、四设备数据与重开条件见
+      [T3-4 原生后端评估](docs/roadmap/T3_TYPESCRIPT_7_NATIVE_EVALUATION.md)。
 
 ## T4 编辑器完整体验
 

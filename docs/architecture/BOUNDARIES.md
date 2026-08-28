@@ -18,6 +18,8 @@
 - 在插件私有进程内加载固定版本 TypeScript compiler.
 - 解析受控 `tsconfig` 和 AutoJs6 强制 compiler profile.
 - 执行项目级类型检查和 emit.
+- 对显式 opt-in 的同 UID/per-project 请求保留有界 Worker 增量状态；session identity
+  由 service 派生，宿主仍须每次提交完整只读 snapshot.
 - 输出 JS, Source Map, diagnostics 和 compilation manifest.
 - 不执行生成的 JavaScript.
 - 不发现或调用 Node Runtime.
@@ -27,6 +29,10 @@ R1 的 [Restricted Compiler Host](COMPILER_HOST_R1.md) 只运行固定单文件 
 host page 不加载 TypeScript, 专用 Worker 不访问 DOM 或原生 bridge, emitted JS
 不在生产 compiler host 内执行. R1 的内存 VFS 消息不接收项目输入, 也不是 R2
 archive/manifest/diagnostics contract.
+
+R2 生产项目编译与 T3 可选常驻 realm 的当前边界见
+[T3 常驻项目会话](RESIDENT_PROJECT_SESSIONS_T3.md)。常驻状态不跨 compiler 进程、
+不持久化、不暴露 AST/Program，并在失败、内存压力或进程重启时全冷回退。
 
 ### Rhino adapter
 
