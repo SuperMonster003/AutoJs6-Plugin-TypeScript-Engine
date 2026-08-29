@@ -623,7 +623,7 @@ for (const fixture of projects) {
                 project.node.backend === "embedded" &&
                 project.node.timeoutMs === 30000 &&
                 JSON.stringify(project.node.permissions) ===
-                    JSON.stringify(["toast", "app", "device"]),
+                    JSON.stringify(["toast", "app.query", "device"]),
             `${fixture.id} Node project authority drifted.`,
         );
         const packageFiles = projectFiles.filter((fileName) =>

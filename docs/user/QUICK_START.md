@@ -71,7 +71,7 @@ toast(message);
   "node": {
     "backend": "embedded",
     "timeoutMs": 30000,
-    "permissions": ["toast", "app", "device"]
+    "permissions": ["toast", "app.query", "device"]
   }
 }
 ```

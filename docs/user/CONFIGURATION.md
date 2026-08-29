@@ -394,7 +394,7 @@ option 默认都是 warning `910002` 后忽略。warning 最多逐项报告 64 �
   "node": {
     "backend": "embedded",
     "timeoutMs": 30000,
-    "permissions": ["toast", "app", "device"]
+    "permissions": ["toast", "app.query", "device"]
   }
 }
 ```
