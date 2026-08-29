@@ -4,7 +4,7 @@ AutoJs6 的完整 TypeScript 编译前端插件. 插件负责把 TypeScript 项�
 JavaScript, Source Map 和结构化诊断, 最终 JavaScript 仍由 AutoJs6 选择的
 Rhino 或 Node.js 引擎执行.
 
-> 当前状态 (2026-08-28): v0.6.0 源码候选已开启完整项目编译 capability
+> 当前状态 (2026-08-29): v0.6.0 源码候选已开启完整项目编译 capability
 > (mask `15`)。AutoJs6 的执行前编译、诊断跳转、运行时栈映射、缓存、后台入口、
 > APK 打包与 Ace 编辑器一致性均已接通。当前源码已重新构建正式签名 APK，并通过
 > release 资产门禁与 API 35 的 T1-2–T1-6 公开 Binder 验收；T1-5/T1-6 另由
@@ -19,7 +19,9 @@ Rhino 或 Node.js 引擎执行.
 > 并让 Ace 发布同一诊断。dependency resolver revision 4 保留 runtime JS 到 installed
 > `@types` 的模块类型回退并绑定该边界。dayjs、zod 与 dual package
 > 已在 API 35 通过真实宿主 Binder 编译/执行/类型诊断。按项目 owner
-> 决定，宿主发布前不创建本项目 GitHub Release 或
+> 决定，T6-1 已删除 Node legacy TypeScript stripping，T6-2 已将宿主 TSX 运行时
+> 29 条校验提示补齐全部十语言；剩余 T6-3/T6-4 随宿主候选与发布节奏执行。
+> 宿主发布前不创建本项目 GitHub Release 或
 > 插件市场条目；这不阻塞仓库内后续 Roadmap 的继续部署。当前工作清单以
 > [ROADMAP.md](ROADMAP.md) (T 时代路线) 为准，S 时代逐项归档见
 > [docs/roadmap/ROADMAP_LEGACY_S_ERA.md](docs/roadmap/ROADMAP_LEGACY_S_ERA.md)。
