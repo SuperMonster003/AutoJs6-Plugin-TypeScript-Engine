@@ -160,5 +160,6 @@ v18 的当前边界；宿主全量回归现为 1716 tests、0 failed、4 skipped
   [T4-3 auto-import 与 quick fix](AUTO_IMPORT_QUICK_FIX_T4_3.md)。
 - T4-4 的 project rename 必须新增可审核的多文件变更事务，不能把当前只读 bridge 扩成
   任意路径写接口。
-- T4-5 可复用本项 snapshot identity 做增量刷新与防抖，但任何缓存命中都不能绕过完整性
-  校验或让旧 project/profile 状态跨文档泄漏。
+- T4-5 已复用本项 snapshot identity 完成增量刷新与防抖；同拓扑更新会先完整读取全部兄弟文件,
+  结构变化或读取失败则重建, 不让旧 project/profile 状态跨文档泄漏。见
+  [T4-5 保存即诊断](SAVE_DIAGNOSTICS_T4_5.md)。

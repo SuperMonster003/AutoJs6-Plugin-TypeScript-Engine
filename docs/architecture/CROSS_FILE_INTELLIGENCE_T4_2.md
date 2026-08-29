@@ -176,5 +176,6 @@ generation、文本 revision、请求 generation 与 editor identity 任一变�
   [T4-3 auto-import 与 quick fix](AUTO_IMPORT_QUICK_FIX_T4_3.md)。
 - T4-4 的跨文件 rename 需要新的多文件预览、内容身份与原子提交协议，不能复用定义目标
   callback 直接写文件。
-- T4-5 若缓存宿主复验结果，缓存键必须包含 source/dependency inventory fingerprint、目标
-  SHA-256 与文档 identity；命中缓存仍不得绕过当前 buffer 一致性检查。
+- T4-5 已沿用本项的 source/dependency inventory 与文档 identity, 仅在源码 URI 拓扑不变时
+  原地更新常驻服务, 且始终以当前 buffer 为活动文档权威；见
+  [T4-5 保存即诊断](SAVE_DIAGNOSTICS_T4_5.md)。

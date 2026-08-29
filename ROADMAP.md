@@ -106,7 +106,7 @@ S10 性能与维护 —— 逐项状态、设备矩阵与提交号见
 | T1 | 语言与配置齐平桌面 TS | 大项目、路径别名、装饰器、顶层 await、更多 tsconfig 键直接可用 | 已完成（T1-1–T1-7） |
 | T2 | npm 生态 | `import dayjs from "dayjs"` 在双 profile 编译执行, 类型与补全同步 | 已完成（T2-1–T2-6） |
 | T3 | 编辑-运行循环提速 | 改一行重跑接近秒级; 冷启动等待继续下降 | 已完成（T3-1–T3-4） |
-| T4 | 编辑器完整体验 | 跨文件诊断、补全、跳转、重命名、快速修复 | 进行中（T4-1–T4-4 已完成） |
+| T4 | 编辑器完整体验 | 跨文件诊断、补全、跳转、重命名、快速修复 | 已完成（T4-1–T4-5） |
 | T5 | 运行时动态 TS | 运行中出现的 TS 文件可编译执行; TS 字符串即时执行 | 未开始 |
 | T6 | 遗留收尾与发布 | 旧 stripping 代码删除; 十语言提示; 对外发布 | 未开始 (T6-1/2 可立即启动; T6-3/4 外部依赖) |
 
@@ -537,10 +537,22 @@ install/lifecycle script (本来也不存在执行路径)。原 S9 的"可否决
       diagnostics 为 0。生产 TypeScript 6.0.3 又以 Rhino/CommonJS 与 Node/NodeNext 独立直编译
       该三文件结果, 两者均 0 error 且各 emit 3 JS + 3 source maps。契约、回滚边界与完整证据见
       [T4-4 跨文件重命名](docs/architecture/PROJECT_RENAME_T4_4.md)。
-- [ ] **T4-5 保存即诊断**: 增量语言服务常驻编辑会话 (复用 T3-1 思路或
+- [x] **T4-5 保存即诊断**: 增量语言服务常驻编辑会话 (复用 T3-1 思路或
       Ace 内建 LS), 保存/停顿即刷新诊断; 大项目设防抖与预算, 不阻塞
       输入。
       验收: 中端机 20 文件项目保存后诊断刷新 < 1 s。
+      完成 (2026-08-29): Ace 内建 TypeScript 6.0.3 Language Service 现常驻编辑
+      会话。普通输入采用 450 ms generation 防抖, 过期 timer 不能发布; 宿主仅在
+      精确 revision 保存成功后触发同文档项目重捕获, 以 75 ms 合并重复请求并在后台
+      executor 读取完整 contract 2 快照。源码 URI 拓扑不变时, Ace 事务式读取全部
+      兄弟文件, 只更新变化文本及 script version, 保持活动 buffer 权威和同一 service
+      instance; 拓扑、profile、依赖或任一来源变化不可证明时安全重建。保存 snapshot
+      应用后使用 50 ms 调度, 同时保留 512 文件 / 单文件 512 KiB / 总计 8 MiB、
+      524,288 UTF-16 code units 活动文档、100 条诊断及连续两次 1 s 慢操作熔断预算。Xiaomi
+      23046RP50C / API 35 的真实 20 文件跨 APK 用例在保存完成后 201 ms 发布
+      TS2322, 包含保存共 234 ms, 诊断计算 18 ms, service revision 始终为 1;
+      最终 Ace 真机 8/8、宿主真机 4/4 通过。完整数据流、取消语义、限制与证据见
+      [T4-5 保存即诊断](docs/architecture/SAVE_DIAGNOSTICS_T4_5.md)。
 
 ## T5 运行时动态 TS
 

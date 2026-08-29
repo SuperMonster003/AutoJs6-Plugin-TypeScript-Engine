@@ -236,7 +236,8 @@ class loader、contract 4 callback、host authorizer 与真实 WebView 完成同
 
 - T4-4 的跨文件 rename 需要多文件预览、每个 base/result 内容身份、宿主逐文件授权、冲突检测
   与原子提交/回滚协议；contract 4 的单文档布尔 callback 不可复用为 rename 写通道。
-- T4-5 仍需针对保存/停顿刷新建立明确 debounce、预算与中端机 20-file `< 1 s` 证据；本项
-  只证明 codefix 请求和写回不会绕过现有 Language Service 生命周期。
+- T4-5 已在本项既有 Language Service 生命周期上完成保存/停顿刷新, 并以 generation、
+  资源预算与 20-file `< 1 s` 真机证据收口；见
+  [T4-5 保存即诊断](SAVE_DIAGNOSTICS_T4_5.md)。
 - 若未来增加更多 codefix，必须按稳定 action kind 单独扩充 ABI 与宿主 policy；不能放宽为
   “TypeScript 返回什么就执行什么”，也不能允许 `commands` 或 `isNewFile`。

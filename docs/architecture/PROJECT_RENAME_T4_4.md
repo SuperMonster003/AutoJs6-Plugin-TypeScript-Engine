@@ -305,8 +305,9 @@ Service 诊断严格为 0。
 
 ## 后续边界
 
-- T4-5 仍需为保存/停顿诊断建立常驻会话、debounce、取消、项目预算和中端机 20-file `< 1 s`
-  证据；T4-4 成功后的 `setDocumentPath` 只保证新 snapshot 被刷新，不等于完成该性能目标。
+- T4-5 已把 T4-4 成功后的 `setDocumentPath` 收紧为 exact-save 触发, 并补齐常驻服务、
+  generation 取消、450/75/50 ms 调度与项目预算；20-file 真机保存后诊断为 201 ms。见
+  [T4-5 保存即诊断](SAVE_DIAGNOSTICS_T4_5.md)。
 - 若未来开放单文件 rename、Unicode identifier、file/module rename 或依赖源码 refactor，需要单独
   扩展 ABI、预览和事务 policy；不能通过放宽当前字符串字段绕过 contract 5。
 - 若未来要求对外部进程也具备真正的多文件瞬时可见性，需要不同存储模型，例如版本目录加单指针
