@@ -57,7 +57,7 @@
 | S4 | Node profile、项目级能力与原生 TSX | `.mts/.cts`、多文件项目、tsconfig 常用项、TSX UI DSL | 进行中 (S4-1、S4-3、S4-4、S4-6 已完成；S4-2 主执行路径已迁移, 删除旧实现待办) |
 | S5 | 周边整合: 缓存、打包、编辑器 | 二次运行快、APK 打包、Ace 提示一致 | 已完成 (5/5) |
 | S6 | 发布收尾: 版本、日志、正式 APK | 用户可安装含完整 TS 能力的正式版本 | 进行中 (4/6；本地产物与四设备门禁已完成，远端随宿主发布延期) |
-| S7 | 文档、模板与分发 | 新用户凭文档与模板即可上手 | 进行中 (S7-1/2/3/5 完成；S7-4 本地交付待宿主实机；S7-6 宿主侧待办) |
+| S7 | 文档、模板与分发 | 新用户凭文档与模板即可上手 | 已完成 (6/6；S7-4/S7-6 分别由 T6-3/T6-2 闭环) |
 | S8 | 真实项目能力扩容 | 配置/配额/monorepo/ESM 循环按需解锁 | 未开始 |
 | S9 | npm 受控生态 | 纯 JS npm 包可导入 | 未开始 (Post-GA) |
 | S10 | 性能、升级与维护 | 冷编译更快; TS 版本可升级 | 已完成 (5/5) |
@@ -72,8 +72,8 @@ S4/S5 在 S2 跑通后即可按需插队。唯一硬前提: **S2 之前必须完
 
 S6+ 依赖关系: S6-5 本地正式 APK 已存在；2026-08-25 owner 明确决定宿主项目
 先发布，本项目在此之前不创建远端 Release/索引，因此 S6-6 与依赖真实发布周期的
-S6-2 合理延期，不再阻塞仓库内主线。S7 文档和本地模板可直接推进，只有 S7-4 的
-“宿主 UI 零修改真机运行”终验随宿主候选等待。S8 各项由真实用户反馈触发,
+S6-2 合理延期，不再阻塞仓库内主线。S7 文档和本地模板已直接推进；原等待宿主候选的
+S7-4 后由 T6-3 于 2026-08-29 完成，S7-6 也由 T6-2 同日闭环。S8 各项由真实用户反馈触发,
 无固定顺序; S9 整体是可否决的 Post-GA 探索; S10 与所有阶段并行,
 按发版节奏例行执行。
 验证基线沿用 S1-6: 本地一律 `gradlew check --offline`, 仅
@@ -714,7 +714,7 @@ CHANGELOG 停在 v0.5.0 (2026-07-27, 仍写着 `compilerAvailable=false`),
       `TypeScriptCompilerContract` 抽取 13 个插件终态、固定核对 4 个宿主运行时终态，
       并从 `TypeScriptR2Contract`、配置 policy 与 resolver enum 抽取其余清单；
       新增/漂移未文档化时 fail。
-- [ ] **S7-4 项目模板**: 发布三个可直接运行的模板仓库/压缩包 —
+- [x] **S7-4 项目模板**: 发布三个可直接运行的模板仓库/压缩包 —
       Rhino 单文件+UI (含 TSX)、Rhino 多文件项目、Node ESM/CJS
       项目; 各含 project.json、tsconfig.json 与 3+ 真实 API 调用。
       验收: 三个模板在真机全部零修改跑通。
@@ -725,7 +725,10 @@ CHANGELOG 停在 v0.5.0 (2026-07-27, 仍写着 `compilerAvailable=false`),
       source 做 Program type-check + JS/map emit，并校验 package boundary/API inventory。
       新门禁已纳入默认 `check`；本轮 `gradlew check --offline` 以 117 个 actionable
       tasks（7 executed、110 up-to-date）通过，Rhino/Node Worker smoke 同时为绿。
-      因宿主尚未发布，本项仍保持未勾选，待可安装宿主候选上按原目录零修改真机终验。
+      后续 T6-3 已在当前 AutoJs6 源码构建候选上完成原目录终验：20 个文件本地/设备
+      SHA-256 全部一致，Rhino TSX、Rhino 多文件、Node ESM/CJS 四个 project 全部
+      真机通过；候选身份、运行回执与修复闭环见
+      [T6-3 模板宿主真机终验](../architecture/TEMPLATE_HOST_ACCEPTANCE_T6_3.md)。
 - [x] **S7-5 StackTrace 与 Source Map 契约文档**: 明确 Node 到
       文件/行/列、Rhino 到文件/行 (column=null); release APK map
       默认无 `sourcesContent`; 隐私边界 (日志不含源码)。
@@ -734,14 +737,15 @@ CHANGELOG 停在 v0.5.0 (2026-07-27, 仍写着 `compilerAvailable=false`),
       定位精度，exact → 唯一最长路径后缀 → 唯一 basename 的多文件选图规则，
       歧义/损坏 map 的 fail-closed 行为，发布 APK 剥离 `sourcesContent` 以及日志、
       diagnostics、map 的隐私边界；内容与宿主 S3-C/S4-1 当前实现逐项核对。
-- [ ] **S7-6 多语言 strings 核对**: 插件与宿主新增的用户可见提示
+- [x] **S7-6 多语言 strings 核对**: 插件与宿主新增的用户可见提示
       (安装指引、编译失败、TSX 拒绝等) 在十语言 strings 补全,
       至少 zh-Hans/en 人工校对。
       验收: 无 hardcoded 中文/英文残留在用户可见路径。
       当前进度: 插件市场说明已从旧 R1 占位文案更新为完整编译能力，并补齐
       ar/en/es/fr/ja/ko/ru/zh-Hans/zh-Hant-HK/zh-Hant-TW 十语言资源；宿主既有
-      安装/编译失败提示也覆盖十语言。宿主 TSX 运行时仍存在 hardcoded 提示，
-      因此本项保持未勾选，待宿主侧统一资源化后验收。
+      安装/编译失败提示也覆盖十语言。后续 T6-2 已将宿主 TSX 运行时 29 条提示全部
+      资源化并完成十语言门禁与 zh-Hans/en 人工校对，见
+      [T6-2 TSX 运行时十语言提示](../architecture/TSX_RUNTIME_LOCALIZATION_T6_2.md)。
 
 ## S8 真实项目能力扩容
 

@@ -20,7 +20,8 @@ Rhino 或 Node.js 引擎执行.
 > `@types` 的模块类型回退并绑定该边界。dayjs、zod 与 dual package
 > 已在 API 35 通过真实宿主 Binder 编译/执行/类型诊断。按项目 owner
 > 决定，T6-1 已删除 Node legacy TypeScript stripping，T6-2 已将宿主 TSX 运行时
-> 29 条校验提示补齐全部十语言；剩余 T6-3/T6-4 随宿主候选与发布节奏执行。
+> 29 条校验提示补齐全部十语言；T6-3 又在当前宿主源码候选上将三套模板原目录零修改
+> 真机跑通，现仅剩 T6-4 随宿主发布节奏执行。
 > 宿主发布前不创建本项目 GitHub Release 或
 > 插件市场条目；这不阻塞仓库内后续 Roadmap 的继续部署。当前工作清单以
 > [ROADMAP.md](ROADMAP.md) (T 时代路线) 为准，S 时代逐项归档见
