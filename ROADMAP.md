@@ -108,11 +108,11 @@ S10 性能与维护 —— 逐项状态、设备矩阵与提交号见
 | T3 | 编辑-运行循环提速 | 改一行重跑接近秒级; 冷启动等待继续下降 | 已完成（T3-1–T3-4） |
 | T4 | 编辑器完整体验 | 跨文件诊断、补全、跳转、重命名、快速修复 | 已完成（T4-1–T4-5） |
 | T5 | 运行时动态 TS | 运行中出现的 TS 文件可编译执行; TS 字符串即时执行 | 已完成（T5-1–T5-2） |
-| T6 | 遗留收尾与发布 | 旧 stripping 代码删除; 十语言提示; 对外发布 | 未开始 (T6-1/2 可立即启动; T6-3/4 外部依赖) |
+| T6 | 遗留收尾与发布 | 旧 stripping 代码删除; 十语言提示; 对外发布 | 进行中（T6-1 已完成；T6-2 待执行；T6-3/4 外部依赖） |
 
 依赖关系: T1 优先启动 —— T1-1 配额与 T1-3 别名解析是 T2 的基础设施;
-T2、T3、T4 相互独立可并行; T5-1 依赖 T3-1 的常驻编译会话; T6-1/T6-2
-不依赖任何阶段, 可立即执行; T6-3/T6-4 等待宿主项目发布节奏。
+T2、T3、T4 相互独立可并行; T5-1 依赖 T3-1 的常驻编译会话; T6-1 已完成，
+T6-2 不依赖其他阶段、可立即执行; T6-3/T6-4 等待宿主项目发布节奏。
 各阶段内部条目无强顺序, 按实现便利插队即可。
 
 ---
@@ -602,13 +602,20 @@ install/lifecycle script (本来也不存在执行路径)。原 S9 的"可否决
 
 目标: 清空 S 时代尾款; 对外发布保持外部依赖项原状。
 
-- [ ] **T6-1 删除 legacy stripping** (原 S4-2 尾项/S6-2): 原定"发布观察期
+- [x] **T6-1 删除 legacy stripping** (原 S4-2 尾项/S6-2): 原定"发布观察期
       满后删除", 但项目未发布、观察对象为空集, 按新原则直接执行 —— 删除
       Node Runtime 的 `legacyTypeScriptStrippingEnabled` 兼容键、正则
       erasure 实现与专属兼容测试。
       验收: Node Runtime 仓库不再包含 stripping 代码路径, 一致性套件
       全绿; 原始 `.ts/.mts/.cts` 继续稳定返回
-      `ERR_AUTOJS6_TYPESCRIPT_COMPILER_REQUIRED`。
+      `ERR_AUTOJS6_TYPESCRIPT_COMPILER_REQUIRED`。— 2026-08-29 完成：删除 802 行
+      `NodeTypeScriptStripper`、请求常量、宿主发送点、provider 私有明文准备协议及专属
+      测试；用无转译能力的单一 source policy 锁定入口、module source、provider 与 native
+      边界。修复编译读取与执行 admission 的次序后，snapshot/provider v3 按需编译保持
+      可用，而 raw TypeScript 直达路径统一 fail closed。Node JVM/构建/镜像/样例门禁
+      全绿，Android 9/12/15 三台真机完整 conformance 各 10/10、合计 30/30；宿主契约
+      镜像与请求构造同步通过。设计、兼容边界与设备证据见
+      [T6-1 legacy stripping 退役](docs/architecture/LEGACY_STRIPPING_REMOVAL_T6_1.md)。
 - [ ] **T6-2 十语言 strings 收尾** (原 S7-6): 宿主 TSX 运行时残留的
       hardcoded 提示资源化, 十语言补全, zh-Hans/en 人工校对。
       验收: 用户可见路径无 hardcoded 中文/英文残留。
