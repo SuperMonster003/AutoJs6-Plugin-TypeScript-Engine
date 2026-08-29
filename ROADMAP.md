@@ -107,7 +107,7 @@ S10 性能与维护 —— 逐项状态、设备矩阵与提交号见
 | T2 | npm 生态 | `import dayjs from "dayjs"` 在双 profile 编译执行, 类型与补全同步 | 已完成（T2-1–T2-6） |
 | T3 | 编辑-运行循环提速 | 改一行重跑接近秒级; 冷启动等待继续下降 | 已完成（T3-1–T3-4） |
 | T4 | 编辑器完整体验 | 跨文件诊断、补全、跳转、重命名、快速修复 | 已完成（T4-1–T4-5） |
-| T5 | 运行时动态 TS | 运行中出现的 TS 文件可编译执行; TS 字符串即时执行 | 未开始 |
+| T5 | 运行时动态 TS | 运行中出现的 TS 文件可编译执行; TS 字符串即时执行 | 已完成（T5-1–T5-2） |
 | T6 | 遗留收尾与发布 | 旧 stripping 代码删除; 十语言提示; 对外发布 | 未开始 (T6-1/2 可立即启动; T6-3/4 外部依赖) |
 
 依赖关系: T1 优先启动 —— T1-1 配额与 T1-3 别名解析是 T2 的基础设施;
@@ -580,11 +580,23 @@ install/lifecycle script (本来也不存在执行路径)。原 S9 的"可否决
       `ERR_AUTOJS6_TYPESCRIPT_COMPILATION_FAILED`, 运行异常精确映射到
       `late-stack.mts:3` 且不泄漏 `.mjs` 帧。协议、安全边界与证据见
       [T5-1 运行时 TypeScript 按需编译](docs/architecture/ON_DEMAND_TYPESCRIPT_T5_1.md)。
-- [ ] **T5-2 TS 字符串即时执行**: engines 层提供执行 TypeScript 源字符串
+- [x] **T5-2 TS 字符串即时执行**: engines 层提供执行 TypeScript 源字符串
       的入口 (新 API 或现有入口自动识别), 即时编译执行, 诊断与栈映射
       同标准; 控制台/日志面板可交互执行 TS 片段。
       验收: `engines.execScript` 等价入口传入 TS 字符串直接运行; 控制台
       输入一行 TS 得到求值结果。
+      完成 (2026-08-29): 宿主 `engines.execScript(name, source)` 在名称为
+      `.ts/.tsx/.mts/.cts` 时自动建立有稳定语义身份的内存 TypeScript source,
+      复用既有独立 compiler archive、缓存、诊断和 Source Map 执行准备链路;
+      `.ts/.tsx` 固定进入 Rhino, `.mts/.cts` 固定进入 Node, declaration 与非规范
+      单文件名在执行前拒绝, 普通 JavaScript 行为不变。Loop-based Rhino execution
+      现将最终求值结果传回 listener。完整日志页和编辑器日志底部面板共用单行输入,
+      显示输入及 `=>` 结果并保留当前脚本工作目录。Xiaomi 23046RP50C / Android 15
+      真机最终 4/4 核心验收及独立控制台端到端验收通过: Rhino 内存 TS 返回 42,
+      `.mts` 内存 TS 经 Node 执行并打印 42, TS2322 阻止执行, 运行异常映射到
+      `inline-runtime.ts:3`, 控制台打印 `=> 42`。
+      设计、兼容边界与证据见
+      [T5-2 TypeScript 字符串即时执行](docs/architecture/IN_MEMORY_TYPESCRIPT_T5_2.md)。
 
 ## T6 遗留收尾与发布
 
