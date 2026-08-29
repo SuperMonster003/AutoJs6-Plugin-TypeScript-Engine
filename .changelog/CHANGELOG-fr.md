@@ -6,11 +6,12 @@
 
 # v0.6.0
 
-###### 2026/08/28
+###### 2026/08/29
 
 * `Indication` La compilation de projets est maintenant activee pour AutoJs6 6.8.0 Alpha7 (build 5253) ou version ulterieure; les profils Node exigent aussi le plugin Node.js Runtime, contrairement aux profils Rhino
 * `Indication` La compilation et l'execution utilisent un unique snapshot exact du demarrage; les packages npm bare/scoped sont resolus a la compilation puis charges au runtime par Rhino CommonJS ou le plugin Node.js Runtime
 * `Indication` Android 7.0 / API 24 exige Chrome/WebView 119 ou une version ulterieure; les anciens providers livres avec API 24/25 ne sont pas pris en charge et echouent de maniere fermee
+* `Fonctionnalité` Les projets Node TypeScript adossés au compilateur peuvent désormais compiler à la demande les fichiers `.ts/.mts/.cts` créés pendant l'exécution: Node transfère la source via un PFD borné par le nombre d'octets et SHA-256, l'hôte réutilise la session de projet résidente, les diagnostics de types et la remise en correspondance des piles par Source Map sont conservés, et les sorties de chemin, liens symboliques et cibles ambiguës restent refusés
 * `Fonctionnalité` Ajout de la révision 2 de la politique de couche de dépendances et de la révision 4 de la politique du resolver: les archives de l'hôte et le Worker de production rejettent de façon déterministe `.node`, `binding.gyp`, `gypfile` et les hooks du cycle d'installation avec des erreurs native/install-script stables et des conseils JavaScript pur/WASM
 * `Fonctionnalité` Ajout d'une matrice d'acceptation hors ligne avec les paquets réels dayjs 1.11.13, lodash 4.17.21, zod 4.1.5, uuid 13.0.0 et nanoid 5.1.5 dans les profils Rhino et Node ; la révision 3 de la politique du resolver bascule désormais du JavaScript d'exécution vers les `@types` installés sans remplacer les déclarations fournies
 * `Fonctionnalité` Synchronisation des types de packages entre le compilateur et Ace: `types`/`typings`, `typesVersions` de TypeScript 6, imports de declarations imbriques et `@types` installes utilisent maintenant une meme couche gelee; completion dayjs, hover et diagnostic strict TS2322 sont identiques dans les profils Rhino et Node

@@ -7,13 +7,14 @@
   "changelog_label_dependency": "Dependencia",
   "$data": {
     "v0.6.0": {
-      "released_date": "2026/08/28",
+      "released_date": "2026/08/29",
       "hint": [
         "La compilacion de proyectos ya esta habilitada para AutoJs6 6.8.0 Alpha7 (build 5253) o posterior; los perfiles Node tambien requieren el plugin Node.js Runtime, mientras que los perfiles Rhino no",
         "La compilacion y la ejecucion usan un unico snapshot exacto del inicio; los paquetes npm bare/scoped se resuelven al compilar y se cargan en runtime mediante Rhino CommonJS o el plugin Node.js Runtime",
         "Android 7.0 / API 24 requiere Chrome/WebView 119 o posterior; los proveedores antiguos incluidos con API 24/25 no son compatibles y fallan de forma cerrada"
       ],
       "feature": [
+        "Los proyectos Node TypeScript respaldados por el compilador ahora pueden compilar bajo demanda archivos `.ts/.mts/.cts` creados durante la ejecución: Node transfiere la fuente mediante un PFD acotado por bytes y SHA-256, el host reutiliza la sesión residente del proyecto, se conservan los diagnósticos de tipos y el mapeo de pila con Source Map, y siguen rechazados el escape de ruta, los enlaces simbólicos y los destinos ambiguos",
         "Se añadieron la revisión 2 de la política de capa de dependencias y la revisión 4 de la política del resolver: los archivos del host y el Worker de producción rechazan de forma determinista `.node`, `binding.gyp`, `gypfile` y hooks del ciclo de instalación con errores native/install-script estables y orientación hacia JavaScript puro/WASM",
         "Se añadió una matriz de aceptación sin conexión con paquetes reales para dayjs 1.11.13, lodash 4.17.21, zod 4.1.5, uuid 13.0.0 y nanoid 5.1.5 en los perfiles Rhino y Node; la revisión 3 de la política del resolver ahora recurre del JavaScript de ejecución a los `@types` instalados sin reemplazar las declaraciones incluidas",
         "Sincronizados los tipos de paquetes entre el compilador y Ace: `types`/`typings`, `typesVersions` de TypeScript 6, imports de declaraciones anidadas y `@types` instalados usan ahora una misma capa congelada; el completado de dayjs, hover y el diagnostico strict TS2322 coinciden en los perfiles Rhino y Node",

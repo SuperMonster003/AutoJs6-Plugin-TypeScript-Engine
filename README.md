@@ -98,7 +98,10 @@ toast(message);
 
 ## 已知边界
 
-- 编译输入冻结在执行开始时的项目 snapshot；运行中才出现的外部 TS 文件会被拒绝。
+- compiler-backed Node 项目可在运行中创建并动态导入项目根内的 `.ts/.mts/.cts`:
+  Node Runtime 会 no-follow 精确读取文件, 宿主以项目内存 overlay 复用常驻编译会话,
+  并继续提供类型诊断与 Source Map 栈映射。Rhino 动态文件、声明文件、符号链接、路径
+  逃逸、歧义目标及 raw TypeScript 直派仍 fail closed。
 - npm bare/scoped package 与 package `exports` 从编译到执行共用启动时冻结的 exact
   dependency layer。Rhino 装载 CommonJS/JSON 与 dual-package 的 `require` 分支，ESM-only
   package 返回稳定错误并提示切换 Node profile；Node 通过不可变私有 workspace overlay
@@ -573,8 +576,9 @@ AutoJs6 host
   [R2 Normal/Shipping Release Natural Parse Timeout](docs/architecture/SHIPPING_RELEASE_NATURAL_PARSE_TIMEOUT_R2.md).
 - 首个 GA 的 Rhino profile 支持 `.ts/.tsx`, Node profile 支持项目范围内的
   `.ts` 以及 `.mts/.cts`.
-- 当前版本只编译执行前 snapshot; 运行中出现的 TS 文件按需编译在
-  Roadmap T5 实现.
+- compiler-backed Node 项目除了执行前 snapshot, 也支持项目运行中创建的
+  `.ts/.mts/.cts` 按需编译; Rhino 动态文件与 TypeScript 源字符串即时执行仍分别属于
+  当前边界和 Roadmap T5-2.
 - StackTrace 契约为 Node 文件/行/列, Rhino 文件/行; 两者编译诊断均到列.
 
 ## Roadmap

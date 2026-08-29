@@ -14,8 +14,9 @@ TypeScript 数字码、`NODE_RESOLUTION_*` 对应的数字码，或 `CONFIG_*` �
 | 稳定错误码 | 何时触发 | 用户侧处理 |
 |---|---|---|
 | `ERR_AUTOJS6_TYPESCRIPT_COMPILER_REQUIRED` | 原始 TypeScript 到达 Rhino/Node 执行层，但宿主没有提供已编译模块；运行时禁止用 stripping 兜底 | 安装/启用与宿主版本匹配的 TypeScript Engine Plugin；确认插件 capability mask 为 15；不要把 `.ts` 直接交给旧宿主或旧 Node Runtime |
-| `ERR_AUTOJS6_TYPESCRIPT_SNAPSHOT_MODULE_NOT_FOUND` | 运行中的 `require()`/`import()` 指向执行开始时未进入 snapshot，或没有生成模块映射的 TypeScript 文件 | 在点击运行前把目标文件放入项目；检查相对路径、扩展名和大小写；运行中临时下载/生成的 TS 当前不支持 |
+| `ERR_AUTOJS6_TYPESCRIPT_SNAPSHOT_MODULE_NOT_FOUND` | 运行中的 `require()`/`import()` 既未命中执行开始时的 snapshot，也不能由 execution-scoped provider 按需编译；旧 v1/v2 provider、Rhino 动态文件和不存在的目标仍走此路径 | 检查相对路径、扩展名和大小写；按需编译只接受 compiler-backed Node 项目根内新建的 `.ts/.mts/.cts` 普通文件，声明文件、符号链接及越界路径不被接纳 |
 | `ERR_AUTOJS6_TYPESCRIPT_SNAPSHOT_MODULE_AMBIGUOUS` | 一个运行时 specifier 可对应多个 snapshot/生成模块，宿主拒绝猜测 | 消除仅大小写不同或重复 basename/路径后缀的文件；改用唯一、明确的相对路径 |
+| `ERR_AUTOJS6_TYPESCRIPT_COMPILATION_FAILED` | Node 项目运行中出现的 `.ts/.mts/.cts` 已进入按需编译，但 TypeScript 返回 error diagnostic，或没有产出与该源码精确配对的模块 | 按错误消息中的文件名、行列和 TS 编号修复动态源码；失败不会执行部分产物，修复后重新运行或改用新的明确模块路径 |
 | `ERR_AUTOJS6_TYPESCRIPT_UNSUPPORTED_EXTENSION` | Node 项目使用 `.tsx`，或入口/动态目标是当前 profile 不接受的 TypeScript 扩展名 | TSX 改用 Rhino `.tsx`；Node 使用 `.ts/.mts/.cts`，并按需要设置根 `package.json.type` |
 | `ERR_AUTOJS6_TYPESCRIPT_RUNTIME_DEPENDENCY_CHANGED` | `node_modules` 文件在编译完成后到运行时建立前发生路径、文件类型、size、SHA-256 或 UTF-8 内容变化 | 重新运行以建立新编译快照；不要在同一次启动的编译与执行之间改写或重新安装依赖 |
 | `ERR_AUTOJS6_TYPESCRIPT_RHINO_ESM_ONLY_DEPENDENCY` | Rhino 请求的包只提供 ESM/import 入口，或选中 `type: module` 下的 `.js` / `.mjs` / `.mts` | 将项目切换到 Node profile，或安装/选择该包明确提供的 CommonJS `require` 版本 |

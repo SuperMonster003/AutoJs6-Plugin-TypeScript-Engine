@@ -6,11 +6,12 @@
 
 # v0.6.0
 
-###### 2026/08/28
+###### 2026/08/29
 
 * `Примечание` Компиляция проектов теперь включена для AutoJs6 6.8.0 Alpha7 (build 5253) и новее; профили Node дополнительно требуют плагин Node.js Runtime, а профили Rhino нет
 * `Примечание` Компиляция и выполнение используют один exact snapshot момента запуска; bare/scoped npm packages разрешаются при компиляции и загружаются в runtime через Rhino CommonJS или плагин Node.js Runtime
 * `Примечание` Для Android 7.0 / API 24 требуется Chrome/WebView 119 или новее; старые providers из поставки API 24/25 не поддерживаются и завершаются по принципу fail closed
+* `Новое` Проекты Node TypeScript с compiler-backed запуском теперь компилируют созданные во время выполнения файлы `.ts/.mts/.cts` по требованию: Node передает исходник через PFD с ограничением по байтам и SHA-256, хост повторно использует resident project session, сохраняются диагностика типов и отображение стека Source Map, а выход за путь, символические ссылки и неоднозначные цели по-прежнему отклоняются
 * `Новое` Добавлены dependency-layer policy revision 2 и resolver policy revision 4: архивы хоста и production Worker детерминированно отклоняют `.node`, `binding.gyp`, `gypfile` и hooks жизненного цикла установки со стабильными ошибками native/install-script и рекомендациями pure JavaScript/WASM
 * `Новое` Добавлена автономная матрица приемки реальных пакетов dayjs 1.11.13, lodash 4.17.21, zod 4.1.5, uuid 13.0.0 и nanoid 5.1.5 для профилей Rhino и Node; политика resolver revision 3 теперь переходит от исполняемого JavaScript к установленным `@types`, не перекрывая встроенные декларации
 * `Новое` Синхронизированы типы packages между compiler и Ace: package `types`/`typings`, TypeScript 6 `typesVersions`, вложенные imports declarations и установленные `@types` теперь входят в один frozen type layer; completion dayjs, hover и strict diagnostic TS2322 совпадают в профилях Rhino и Node

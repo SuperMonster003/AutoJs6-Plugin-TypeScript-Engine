@@ -6,11 +6,12 @@
 
 # v0.6.0
 
-###### 2026/08/28
+###### 2026/08/29
 
 * `안내` AutoJs6 6.8.0 Alpha7 (build 5253) 이상에서 project compilation을 활성화함; Node profile은 Node.js Runtime plugin도 필요하지만 Rhino profile은 필요하지 않음
 * `안내` compile과 execution은 시작 시점의 동일한 exact snapshot을 사용함; bare/scoped npm package는 compile 단계에서 resolve되고 Rhino CommonJS 또는 Node.js Runtime plugin을 통해 runtime에서 load됨
 * `안내` Android 7.0 / API 24에서는 Chrome/WebView 119 이상이 필요함; API 24/25에 포함된 구형 provider는 지원하지 않으며 fail closed 처리됨
+* `추가` compiler-backed Node TypeScript project가 실행 중 생성된 `.ts/.mts/.cts` 파일을 이제 on-demand compile할 수 있습니다: Node는 byte count와 SHA-256으로 고정된 PFD를 통해 source를 host로 전달하고, host는 resident project session을 재사용하며, type diagnostics와 Source Map stack mapping을 유지하면서 path escape, symbolic link, ambiguous target을 계속 거부합니다
 * `추가` dependency-layer policy revision 2와 resolver policy revision 4를 추가함: host archive와 production Worker가 `.node`, `binding.gyp`, `gypfile`, 설치 lifecycle hook을 안정적인 native/install-script 오류 및 pure JavaScript/WASM 안내와 함께 결정적으로 거부합니다
 * `추가` Rhino 및 Node profile에서 dayjs 1.11.13, lodash 4.17.21, zod 4.1.5, uuid 13.0.0, nanoid 5.1.5를 검증하는 오프라인 실제 패키지 승인 매트릭스를 추가했으며, resolver policy revision 3은 번들 선언을 덮어쓰지 않고 런타임 JavaScript에서 설치된 `@types`로 폴백합니다
 * `추가` compiler와 Ace의 dependency package type을 동기화함: package `types`/`typings`, TypeScript 6 `typesVersions`, nested declaration import 및 installed `@types`가 동일한 frozen type layer에 포함되고 dayjs completion, hover, strict TS2322 diagnostic이 Rhino/Node profile에서 일치함

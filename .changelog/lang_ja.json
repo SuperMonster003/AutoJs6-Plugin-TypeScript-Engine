@@ -7,13 +7,14 @@
   "changelog_label_dependency": "依存関係",
   "$data": {
     "v0.6.0": {
-      "released_date": "2026/08/28",
+      "released_date": "2026/08/29",
       "hint": [
         "AutoJs6 6.8.0 Alpha7 (build 5253) 以降で project compilation を有効化; Node profile では Node.js Runtime plugin も必要だが Rhino profile では不要",
         "compile と execution は起動時の同一 exact snapshot を使用; bare/scoped npm package は compile 時に解決され, Rhino CommonJS または Node.js Runtime plugin により runtime で load される",
         "Android 7.0 / API 24 では Chrome/WebView 119 以降が必要; API 24/25 に同梱された旧 provider は非対応で fail closed になる"
       ],
       "feature": [
+        "compiler-backed Node TypeScript project は実行中に作成された `.ts/.mts/.cts` をオンデマンドでコンパイルできるようになりました: Node は byte count と SHA-256 で拘束された PFD を介して source を host に渡し, host は resident project session を再利用し, type diagnostics と Source Map stack mapping を維持しながら path escape, symbolic link, ambiguous target を引き続き拒否します",
         "dependency-layer policy revision 2 と resolver policy revision 4 を追加: host archive と production Worker は `.node`, `binding.gyp`, `gypfile`, install lifecycle hook を安定した native/install-script error と pure JavaScript/WASM の案内付きで決定的に拒否します",
         "Rhino と Node の両 profile で dayjs 1.11.13, lodash 4.17.21, zod 4.1.5, uuid 13.0.0, nanoid 5.1.5 を検証するオフライン実パッケージ受け入れマトリクスを追加し, resolver policy revision 3 では同梱宣言を上書きせず runtime JavaScript からインストール済み `@types` へフォールバックできるようにしました",
         "compiler と Ace の dependency package type を同期: package `types`/`typings`, TypeScript 6 `typesVersions`, nested declaration import, installed `@types` が同じ frozen type layer に入り, dayjs completion, hover, strict TS2322 diagnostic が Rhino/Node profile で一致",

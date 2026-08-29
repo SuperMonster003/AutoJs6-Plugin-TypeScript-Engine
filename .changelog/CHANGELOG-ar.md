@@ -6,11 +6,12 @@
 
 # v0.6.0
 
-###### 2026/08/28
+###### 2026/08/29
 
 * `تلميح` اصبح تجميع المشاريع مفعلا في AutoJs6 6.8.0 Alpha7 (build 5253) او احدث; وتتطلب ملفات Node ايضا plugin من Node.js Runtime بينما لا تتطلبه ملفات Rhino
 * `تلميح` يستخدم التجميع والتنفيذ exact snapshot واحدة عند البدء; يتم حل bare/scoped npm packages اثناء التجميع وتحميلها وقت التشغيل عبر Rhino CommonJS او ملحق Node.js Runtime
 * `تلميح` يتطلب Android 7.0 / API 24 متصفح Chrome/WebView 119 او احدث; موفرو API 24/25 القدامى المرفقون مع النظام غير مدعومين ويفشلون بشكل مغلق
+* `ميزة` تدعم مشاريع Node TypeScript المدعومة بالمترجم الآن ترجمة ملفات `.ts/.mts/.cts` التي تنشأ أثناء التشغيل عند الطلب: ينقل Node المصدر عبر PFD محدود وSHA-256 إلى المضيف, ويعيد استخدام جلسة المشروع المقيمة, ويحافظ على تشخيصات الأنواع وخرائط Source Map, مع استمرار رفض هروب المسار والروابط الرمزية والأهداف الملتبسة
 * `ميزة` أضيفت dependency-layer policy revision 2 وresolver policy revision 4: ترفض أرشيفات المضيف وproduction Worker بشكل حتمي `.node` و`binding.gyp` و`gypfile` وخطافات دورة حياة التثبيت مع أخطاء native/install-script مستقرة وإرشادات لبدائل JavaScript الخالصة/WASM
 * `ميزة` أضيفت مصفوفة قبول دون اتصال للحزم الفعلية dayjs 1.11.13 وlodash 4.17.21 وzod 4.1.5 وuuid 13.0.0 وnanoid 5.1.5 عبر ملفي Rhino وNode؛ وأصبحت سياسة resolver بالمراجعة 3 تنتقل من JavaScript وقت التشغيل إلى `@types` المثبتة من دون تجاوز التصريحات المضمّنة
 * `ميزة` تمت مزامنة انواع packages بين compiler وAce: تدخل package `types`/`typings` وTypeScript 6 `typesVersions` وnested declaration imports و`@types` المثبتة الان في frozen type layer واحدة; تتطابق dayjs completion وhover وstrict TS2322 diagnostics في Rhino وNode profiles

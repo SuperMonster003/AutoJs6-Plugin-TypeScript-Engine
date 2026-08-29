@@ -6,11 +6,12 @@
 
 # v0.6.0
 
-###### 2026/08/28
+###### 2026/08/29
 
 * `提示` 項目編譯現已面向 AutoJs6 6.8.0 Alpha7 (build 5253) 或更高版本啟用; Node profile 另需 Node.js Runtime 插件, Rhino profile 不需要
 * `提示` 編譯與執行現共用啟動時的一份精確 snapshot; npm 裸包/scoped package 可於編譯期解析, 並透過 Rhino CommonJS 或 Node.js Runtime 插件在執行期載入
 * `提示` Android 7.0 / API 24 需要 Chrome/WebView 119 或更高版本; API 24/25 系統預載的舊 provider 不受支援並會 fail closed
+* `新增` compiler-backed Node TypeScript 專案現可按需編譯執行期間建立的 `.ts/.mts/.cts`: Node 透過綁定精確位元組數及 SHA-256 的有界 PFD 將原始碼交給宿主, 宿主重用常駐專案會話, 保留類型診斷及 Source Map 堆疊映射, 並繼續拒絕路徑逃逸, 符號連結和歧義目標
 * `新增` 新增 dependency-layer policy revision 2 及 resolver policy revision 4: 宿主 archive 和 production Worker 以固定次序拒絕 `.node`, `binding.gyp`, `gypfile` 及安裝生命週期 hook, 傳回穩定 native/install-script 錯誤及純 JavaScript/WASM 替代指引
 * `新增` 離線真實套件驗收矩陣在 Rhino 與 Node profile 覆蓋 dayjs 1.11.13, lodash 4.17.21, zod 4.1.5, uuid 13.0.0 及 nanoid 5.1.5; resolver policy revision 3 現可由執行階段 JavaScript 回退至已安裝的 `@types`, 且不會覆蓋套件自帶宣告
 * `新增` 同步編譯器與 Ace 的依賴套件類型: package `types`/`typings`, TypeScript 6 `typesVersions`, 巢狀聲明匯入及已安裝 `@types` 現進入同一凍結類型層; dayjs 補全, hover 與 strict TS2322 診斷在 Rhino 和 Node profile 之間一致

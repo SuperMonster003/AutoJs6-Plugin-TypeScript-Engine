@@ -558,13 +558,28 @@ install/lifecycle script (本来也不存在执行路径)。原 S9 的"可否决
 
 目标: 运行中的动态性不再是被拒绝的边界 (原 S8-6 从"保持拒绝"改为实现)。
 
-- [ ] **T5-1 运行中出现的 TS 文件按需编译**: dynamic import 未命中
+- [x] **T5-1 运行中出现的 TS 文件按需编译**: dynamic import 未命中
       编译快照时, 不再返回 `ERR_AUTOJS6_TYPESCRIPT_SNAPSHOT_MODULE_NOT_FOUND`,
       而是触发按需编译 (复用 T3-1 常驻会话) 后继续执行; Source Map 与
       栈映射同标准; 路径逃逸与歧义仍是稳定错误; 编译失败给包含诊断的
       运行时错误。
       验收: 脚本运行中生成/下发一个新 `.ts` 文件并 `import()` 成功执行;
       类型错误的动态文件得到可读诊断而非崩溃。
+      完成 (2026-08-29): module-source provider 以独立于 runtime contract 2 的 additive
+      v3 增加 `compile_missing_typescript`。Node Runtime 只从执行专属私有 workspace
+      no-follow 精确读取新出现的 `.ts/.mts/.cts`, 通过带精确字节数与 SHA-256 的只读
+      PFD 交给宿主; 宿主不把源码写回项目, 而是把内存 overlay 加入完整项目 archive,
+      以相同项目身份复用 T3 resident compiler session 并关闭跨执行结果缓存。生成的
+      `.js/.mjs/.cjs` 经过路径与额度复验后进入运行时模块表, Source Map binding 与启动
+      snapshot 合并用于最终 V8 栈回映。普通 provider 操作仍保持 5 s 上限, v3 编译使用
+      独立 30 s 有界预算; compiler-backed Node 项目仅在没有显式 `nodeProjectTimeoutMs`
+      时把项目默认总预算提高到 30 s。v1/v2 provider、raw TypeScript 直派、Rhino 动态
+      文件与 T5-2 字符串执行语义均不变。Xiaomi 23046RP50C / API 35 最终产物的三项
+      真实跨 APK 验收分别在 19.372 s、17.251 s 与 19.517 s 通过: 动态 `.mts` 执行并
+      保持歧义/逃逸稳定错误, TS2322 返回
+      `ERR_AUTOJS6_TYPESCRIPT_COMPILATION_FAILED`, 运行异常精确映射到
+      `late-stack.mts:3` 且不泄漏 `.mjs` 帧。协议、安全边界与证据见
+      [T5-1 运行时 TypeScript 按需编译](docs/architecture/ON_DEMAND_TYPESCRIPT_T5_1.md)。
 - [ ] **T5-2 TS 字符串即时执行**: engines 层提供执行 TypeScript 源字符串
       的入口 (新 API 或现有入口自动识别), 即时编译执行, 诊断与栈映射
       同标准; 控制台/日志面板可交互执行 TS 片段。

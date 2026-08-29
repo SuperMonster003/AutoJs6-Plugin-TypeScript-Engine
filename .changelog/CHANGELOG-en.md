@@ -6,11 +6,12 @@
 
 # v0.6.0
 
-###### 2026/08/28
+###### 2026/08/29
 
 * `Hint` Project compilation is now enabled for AutoJs6 6.8.0 Alpha7 (build 5253) or later; Node profiles additionally require the Node.js Runtime plugin, while Rhino profiles do not
 * `Hint` Compilation and execution use one exact startup snapshot; bare/scoped npm packages now resolve during compilation and load at runtime through Rhino CommonJS or the Node.js Runtime plugin
 * `Hint` Android 7.0 / API 24 requires Chrome/WebView 119 or newer; stock old API 24/25 providers are unsupported and fail closed
+* `Feature` Compiler-backed Node TypeScript projects can now compile runtime-created `.ts/.mts/.cts` files on demand: Node transfers bounded source through a byte- and SHA-256-bound PFD, the host reuses the resident project session, type diagnostics and Source Map stack mapping are preserved, and path escape, symlinks, and ambiguous targets remain denied
 * `Feature` Added dependency-layer policy revision 2 and resolver policy revision 4: host archives and the production Worker deterministically reject `.node`, `binding.gyp`, `gypfile`, and install lifecycle hooks with stable native/install-script errors and pure JavaScript/WASM guidance
 * `Feature` Added an offline real-package acceptance matrix for dayjs 1.11.13, lodash 4.17.21, zod 4.1.5, uuid 13.0.0, and nanoid 5.1.5 across Rhino and Node profiles; resolver policy revision 3 now falls back from runtime JavaScript to installed `@types` without overriding bundled declarations
 * `Feature` Synchronized dependency package types between the compiler and Ace: package `types`/`typings`, TypeScript 6 `typesVersions`, nested declaration imports, and installed `@types` now enter one frozen type layer; dayjs completion, hover, and strict TS2322 diagnostics match across Rhino and Node profiles
