@@ -1,5 +1,8 @@
 # AutoJs6 TypeScript Engine Plugin
 
+16 KB 页大小对齐与自动构建门禁见 [docs/16kb.md](docs/16kb.md).
+当前源码版本为 0.6.1, 下文已发布或冻结的历史收据保持其原始版本身份.
+
 AutoJs6 的完整 TypeScript 编译前端插件. 插件负责把 TypeScript 项目转换为
 JavaScript, Source Map 和结构化诊断, 最终 JavaScript 仍由 AutoJs6 选择的
 Rhino 或 Node.js 引擎执行.

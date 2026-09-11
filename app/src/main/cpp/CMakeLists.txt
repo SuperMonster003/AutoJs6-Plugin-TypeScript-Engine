@@ -17,3 +17,9 @@ target_compile_options(
     -Werror
     -fvisibility=hidden
 )
+
+# Keep 16 KB alignment explicit when changing toolchains.
+target_link_options(autojs6_r2_fd_flags PRIVATE
+    "-Wl,-z,max-page-size=16384"
+    "-Wl,-z,common-page-size=16384"
+)

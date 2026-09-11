@@ -5,6 +5,7 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 rootProject.name = "autojs6-plugin-typescript-engine"
 
 pluginManagement {
+    providers.gradleProperty("autojs.buildPlugins.includeBuild").orNull?.let { includeBuild(it) }
     repositories {
         mavenLocal()
         gradlePluginPortal()
@@ -12,6 +13,7 @@ pluginManagement {
         google()
     }
     plugins {
+        id("io.github.supermonster003.autojs6-native-alignment") version "1.8.0"
         id("org.autojs.build.platform-versions") version "1.4.1"
         id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
     }

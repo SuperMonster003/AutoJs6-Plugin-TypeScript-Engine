@@ -6,6 +6,12 @@
   "changelog_label_improvement": "Улучшение",
   "changelog_label_dependency": "Зависимость",
   "$data": {
+    "v0.6.1": {
+      "released_date": "2026/09/11",
+      "improvement": [
+        "Проверка выравнивания страниц 16 KB для 64-битных нативных библиотек при сборке, включая контракт manifest и отчеты JSON"
+      ]
+    },
     "v0.6.0": {
       "released_date": "2026/08/29",
       "hint": [
