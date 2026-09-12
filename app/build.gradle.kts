@@ -879,20 +879,21 @@ val verifyS10Maintenance =
             "src/test/scripts/verify-s10-maintenance.js",
         )
         val repositoryDirectory = rootProject.layout.projectDirectory
+        val selectedAgpVersion = providers.systemProperty("gradle.agp.version")
+        val selectedKotlinVersion = providers.systemProperty("gradle.kotlin.version")
+        val selectedKspVersion = providers.systemProperty("gradle.ksp.version")
+        val selectedR8Version = providers.systemProperty("gradle.r8.version")
+            .orElse("AGP-bundled")
+        val selectedJavaVersion = providers.systemProperty("gradle.java.version.select")
+        val selectedJvmTarget = providers.systemProperty("gradle.jvm.target.effective")
         inputs.files(
             harnessFile,
             repositoryDirectory.file("ROADMAP.md"),
             repositoryDirectory.file("README.md"),
+            repositoryDirectory.file("settings.gradle.kts"),
             repositoryDirectory.file("version.properties"),
             repositoryDirectory.file("gradle/wrapper/gradle-wrapper.properties"),
             repositoryDirectory.file("gradle/libs.versions.toml"),
-            repositoryDirectory.file("gradle/data/agp-releases.list"),
-            repositoryDirectory.file("gradle/data/agp-gradle-compat.properties"),
-            repositoryDirectory.file("gradle/data/gradle-kotlin-compat.properties"),
-            repositoryDirectory.file("gradle/data/ksp-releases.properties"),
-            repositoryDirectory.file("gradle/data/ksp-agp-compat.properties"),
-            repositoryDirectory.file("gradle/data/kotlin-r8-compat.properties"),
-            repositoryDirectory.file("gradle/data/java-gradle-compat.properties"),
             repositoryDirectory.file("tools/observe-release-memory.ps1"),
             repositoryDirectory.file("docs/releases/v0.6.0.md"),
             layout.projectDirectory.file(
@@ -900,11 +901,25 @@ val verifyS10Maintenance =
                     "R2BinderCompilationInstrumentationTest.kt",
             ),
         )
+        inputs.property("selectedGradleVersion", gradle.gradleVersion)
+        inputs.property("selectedAgpVersion", selectedAgpVersion)
+        inputs.property("selectedKotlinVersion", selectedKotlinVersion)
+        inputs.property("selectedKspVersion", selectedKspVersion)
+        inputs.property("selectedR8Version", selectedR8Version)
+        inputs.property("selectedJavaVersion", selectedJavaVersion)
+        inputs.property("selectedJvmTarget", selectedJvmTarget)
         inputs.dir(repositoryDirectory.dir("docs/maintenance"))
         commandLine(
             providers.environmentVariable("NODE_BINARY").getOrElse("node"),
             harnessFile.asFile.absolutePath,
             repositoryDirectory.asFile.absolutePath,
+            gradle.gradleVersion,
+            selectedAgpVersion.get(),
+            selectedKotlinVersion.get(),
+            selectedKspVersion.get(),
+            selectedR8Version.get(),
+            selectedJavaVersion.get(),
+            selectedJvmTarget.get(),
         )
     }
 

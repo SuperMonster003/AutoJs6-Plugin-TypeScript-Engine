@@ -7,20 +7,19 @@ rootProject.name = "autojs6-plugin-typescript-engine"
 pluginManagement {
     providers.gradleProperty("autojs.buildPlugins.includeBuild").orNull?.let { includeBuild(it) }
     repositories {
-        mavenLocal()
         gradlePluginPortal()
         mavenCentral()
         google()
     }
     plugins {
+        id("io.github.supermonster003.autojs6-platform-versions") version "1.8.0"
         id("io.github.supermonster003.autojs6-native-alignment") version "1.8.0"
-        id("org.autojs.build.platform-versions") version "1.4.1"
         id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
     }
 }
 
 plugins {
-    id("org.autojs.build.platform-versions")
+    id("io.github.supermonster003.autojs6-platform-versions")
     // @Hint by SuperMonster003 on Sep 14, 2025.
     //  ! Enable JDK auto-resolution/download capability for build modules.
     //  ! zh-CN: 让构建模块具备 JDK 自动解析/下载能力.

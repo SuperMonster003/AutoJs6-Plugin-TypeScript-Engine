@@ -48,6 +48,40 @@
       ],
       "result": "pass",
       "decision": "No dependency version change is required by the checked-in compatibility snapshot."
+    },
+    {
+      "id": "2026-09-02-central-platform",
+      "inspectedAt": "2026-09-02",
+      "mode": "central-platform-decision",
+      "networkUsed": false,
+      "authority": "io.github.supermonster003.autojs6-platform-versions:1.7.0",
+      "selected": {
+        "gradle": "9.6.1",
+        "agp": "9.4.0",
+        "kotlin": "2.3.21",
+        "ksp": "2.3.11",
+        "r8": "AGP-bundled",
+        "java": 21,
+        "jvmTarget": 21,
+        "compileSdk": 36,
+        "targetSdk": 36,
+        "minSdk": 24
+      },
+      "catalog": {
+        "commons-compress": "1.28.0",
+        "foojay-resolver-convention": "1.0.0",
+        "junit": "4.13.2",
+        "test-junit": "1.3.0",
+        "test-runner": "1.7.0",
+        "webkit": "1.14.0",
+        "xz": "1.12"
+      },
+      "evidence": [
+        ".\\gradlew.bat help --offline --console=plain",
+        ".\\gradlew.bat check --offline"
+      ],
+      "result": "pass",
+      "decision": "Build-tool versions come from the central platform plugin; this repository carries no compatibility-data authority."
     }
   ]
 }

@@ -7,9 +7,10 @@
   "changelog_label_dependency": "의존성",
   "$data": {
     "v0.6.1": {
-      "released_date": "2026/09/11",
+      "released_date": "2026/09/12",
       "improvement": [
-        "64비트 네이티브 라이브러리의 16 KB 페이지 정렬을 빌드 시 검증, manifest 계약 검사 및 JSON 보고서 지원"
+        "64비트 네이티브 라이브러리의 16 KB 페이지 정렬을 빌드 시 검증, manifest 계약 검사 및 JSON 보고서 지원",
+        "공유 Gradle 플랫폼 플러그인으로 빌드 도구 버전을 선택하고, 로컬 호환성 데이터를 제거하며 유지 관리 검사를 일치시킴"
       ]
     },
     "v0.6.0": {

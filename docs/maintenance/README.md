@@ -7,8 +7,8 @@
   PSS 观察与远端步骤的授权边界。
 - [WebView 支持策略](WEBVIEW_SUPPORT.md)：Android API 与 provider 是两条独立基线，
   当前最低支持 Chrome/WebView 119。
-- [依赖健康巡检](DEPENDENCY_HEALTH.md)：AGP/Kotlin/Gradle/KSP/R8/JDK 的季度检查
-  规则与首份本地巡检记录。
+- [依赖健康巡检](DEPENDENCY_HEALTH.md)：中央平台插件所选
+  AGP/Kotlin/Gradle/KSP/R8/JDK 的季度检查规则、当前决策与历史巡检记录。
 - [TypeScript 6.x 升级手册](UPGRADE.md)：官方 registry 预检、三摘要 lock、
   distribution/declarations 重建、条件式 profile 指纹、宿主缓存失效和设备 smoke。
 - [TypeScript 升级审计](typescript-upgrades/2026-08-25.json)：最新稳定 6.x
@@ -28,6 +28,7 @@
 
 日常 `gradlew check --offline` 会验证这些记录仍与代码中的 instrumentation identity、
 compiler/declaration distribution、Gradle wrapper、`version.properties`、
-`gradle/data` 兼容矩阵、issue 模板/采集隐私边界和文档一致。它不会连接设备、刷新
-网络元数据、上传 APK 或创建远端 issue。设备侧冷启动复跑需显式执行
+中央平台插件传入的实际版本决策、issue 模板/采集隐私边界和文档一致。消费仓不保存
+`gradle/data` 兼容矩阵；该数据只由中央平台仓库维护。日常门禁不会连接设备、刷新网络
+元数据、上传 APK 或创建远端 issue。设备侧冷启动复跑需显式执行
 `tools/observe-cold-start.ps1 -AllowInstall`，不属于默认 `check` 的副作用。

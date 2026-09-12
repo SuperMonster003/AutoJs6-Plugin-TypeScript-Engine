@@ -3,9 +3,30 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const [repositoryArgument] = process.argv.slice(2);
-if (!repositoryArgument) {
-    throw new Error("Usage: node verify-s10-maintenance.js <repository-root>");
+const [
+    repositoryArgument,
+    selectedGradle,
+    selectedAgp,
+    selectedKotlin,
+    selectedKsp,
+    selectedR8,
+    selectedJavaArgument,
+    selectedJvmTargetArgument,
+] = process.argv.slice(2);
+if (
+    !repositoryArgument ||
+    !selectedGradle ||
+    !selectedAgp ||
+    !selectedKotlin ||
+    !selectedKsp ||
+    !selectedR8 ||
+    !selectedJavaArgument ||
+    !selectedJvmTargetArgument
+) {
+    throw new Error(
+        "Usage: node verify-s10-maintenance.js <repository-root> " +
+            "<gradle> <agp> <kotlin> <ksp> <r8> <java> <jvm-target>",
+    );
 }
 
 const repositoryRoot = path.resolve(repositoryArgument);
@@ -36,25 +57,9 @@ const parseProperties = (source) => {
     }
     return result;
 };
-const numericVersion = (version) =>
-    version
-        .split(/[.-]/u)
-        .filter((part) => /^\d+$/u.test(part))
-        .map(Number);
-const compareVersions = (left, right) => {
-    const leftParts = numericVersion(left);
-    const rightParts = numericVersion(right);
-    const length = Math.max(leftParts.length, rightParts.length);
-    for (let index = 0; index < length; index += 1) {
-        const delta = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
-        if (delta !== 0) return delta;
-    }
-    return 0;
-};
-const versionFamily = (version) => version.split(".").slice(0, 2).join(".");
-
 const roadmap = readUtf8("ROADMAP.md");
 const readme = readUtf8("README.md");
+const settings = readUtf8("settings.gradle.kts");
 const releaseNotes = readUtf8("docs", "releases", "v0.6.0.md");
 const maintenanceIndex = readUtf8("docs", "maintenance", "README.md");
 const releaseChecklist = readUtf8(
@@ -216,59 +221,46 @@ const wrapperMatch = wrapperProperties.distributionUrl?.match(
     /gradle-([0-9]+(?:\.[0-9]+)+)-bin\.zip$/u,
 );
 assert(wrapperMatch, "Cannot resolve the Gradle wrapper version.");
-const selectedGradle = wrapperMatch[1];
-
-const agpReleaseLines = readUtf8("gradle", "data", "agp-releases.list")
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter((line) => /^\d+\.\d+\.\d+$/u.test(line));
-assert(agpReleaseLines.length > 0, "AGP release snapshot has no stable entry.");
-const selectedAgp = agpReleaseLines[0];
-const gradleKotlin = parseProperties(
-    readUtf8("gradle", "data", "gradle-kotlin-compat.properties"),
-);
-const gradleFamilyKey = `${versionFamily(selectedGradle)}.0`;
-const selectedKotlin = gradleKotlin[gradleFamilyKey];
-assert(selectedKotlin, `No Kotlin selection exists for Gradle ${gradleFamilyKey}.`);
-const kspReleases = parseProperties(
-    readUtf8("gradle", "data", "ksp-releases.properties"),
-);
-const selectedKsp = kspReleases[`${versionFamily(selectedKotlin)}.Z`];
-assert(selectedKsp, `No KSP selection exists for Kotlin ${selectedKotlin}.`);
-const kotlinR8 = parseProperties(
-    readUtf8("gradle", "data", "kotlin-r8-compat.properties"),
-);
-const selectedR8 = kotlinR8[versionFamily(selectedKotlin)];
-assert(selectedR8, `No R8 requirement exists for Kotlin ${selectedKotlin}.`);
-const agpGradle = parseProperties(
-    readUtf8("gradle", "data", "agp-gradle-compat.properties"),
-);
-const agpMinimumGradle = agpGradle[versionFamily(selectedAgp)];
-const kspAgp = parseProperties(
-    readUtf8("gradle", "data", "ksp-agp-compat.properties"),
-);
-const kspMinimumAgp = kspAgp[selectedKsp];
-const javaGradle = parseProperties(
-    readUtf8("gradle", "data", "java-gradle-compat.properties"),
-);
-const selectedJava = Number(versionProperties.JAVA_VERSION_MIN_SUGGESTED);
-const javaMinimumGradle = javaGradle[String(selectedJava)];
-
-assert(agpMinimumGradle, `No Gradle requirement exists for AGP ${selectedAgp}.`);
-assert(kspMinimumAgp, `No AGP requirement exists for KSP ${selectedKsp}.`);
-assert(javaMinimumGradle, `No Gradle requirement exists for Java ${selectedJava}.`);
 assert(
-    compareVersions(selectedGradle, agpMinimumGradle) >= 0,
-    `Gradle ${selectedGradle} is below AGP ${selectedAgp}'s ${agpMinimumGradle} floor.`,
+    wrapperMatch[1] === selectedGradle,
+    `Running Gradle ${selectedGradle} does not match wrapper ${wrapperMatch[1]}.`,
+);
+const selectedJava = Number(selectedJavaArgument);
+const selectedJvmTarget = Number(selectedJvmTargetArgument);
+assert(
+    Number.isInteger(selectedJava) && selectedJava > 0,
+    `Invalid selected Java version: ${selectedJavaArgument}.`,
 );
 assert(
-    compareVersions(selectedAgp, kspMinimumAgp) >= 0,
-    `AGP ${selectedAgp} is below KSP ${selectedKsp}'s ${kspMinimumAgp} floor.`,
+    Number.isInteger(selectedJvmTarget) && selectedJvmTarget > 0,
+    `Invalid JVM target: ${selectedJvmTargetArgument}.`,
 );
 assert(
-    compareVersions(selectedGradle, javaMinimumGradle) >= 0,
-    `Gradle ${selectedGradle} is below Java ${selectedJava}'s ${javaMinimumGradle} floor.`,
+    selectedJava === Number(versionProperties.JAVA_VERSION_MIN_SUGGESTED),
+    `Selected Java ${selectedJava} does not match the repository suggestion.`,
 );
+for (const [name, version] of Object.entries({
+    Gradle: selectedGradle,
+    AGP: selectedAgp,
+    Kotlin: selectedKotlin,
+    KSP: selectedKsp,
+})) {
+    assert(
+        /^\d+\.\d+(?:\.\d+)*(?:-[A-Za-z0-9.-]+)?$/u.test(version),
+        `Invalid ${name} version from the central platform decision: ${version}.`,
+    );
+}
+assert(
+    selectedR8 === "AGP-bundled" ||
+        /^\d+\.\d+(?:\.\d+)*(?:-[A-Za-z0-9.-]+)?$/u.test(selectedR8),
+    `Invalid R8 decision from the central platform plugin: ${selectedR8}.`,
+);
+const platformPluginMatch = settings.match(
+    /id\("io\.github\.supermonster003\.autojs6-platform-versions"\)\s+version\s+"([^"]+)"/u,
+);
+assert(platformPluginMatch, "Cannot resolve the central platform plugin version from settings.");
+const platformAuthority =
+    `io.github.supermonster003.autojs6-platform-versions:${platformPluginMatch[1]}`;
 for (const overrideName of [
     "OVERRIDDEN_ANDROID_GRADLE_PLUGIN_VERSION",
     "OVERRIDDEN_JAVA_VERSION",
@@ -315,8 +307,12 @@ const currentInspection = dependencyHistory.records.at(-1);
 assert(currentInspection.networkUsed === false, "The current offline inspection must record no network use.");
 assert(currentInspection.result === "pass", "The current dependency inspection must pass.");
 assert(
-    currentInspection.mode === "repository-compatibility-snapshot",
+    currentInspection.mode === "central-platform-decision",
     "The current inspection must not claim an upstream-latest audit.",
+);
+assert(
+    currentInspection.authority === platformAuthority,
+    `Dependency inspection authority drifted from ${platformAuthority}.`,
 );
 
 const expectedSelected = {
@@ -326,7 +322,7 @@ const expectedSelected = {
     ksp: selectedKsp,
     r8: selectedR8,
     java: selectedJava,
-    jvmTarget: selectedJava,
+    jvmTarget: selectedJvmTarget,
     compileSdk: Number(versionProperties.COMPILE_SDK_VERSION),
     targetSdk: Number(versionProperties.TARGET_SDK_VERSION),
     minSdk: Number(versionProperties.MIN_SDK_VERSION),
@@ -339,23 +335,6 @@ for (const [name, expected] of Object.entries(expectedSelected)) {
     assert(
         currentInspection.selected[name] === expected,
         `Dependency inspection ${name} drifted: expected ${expected}, received ${currentInspection.selected[name]}.`,
-    );
-}
-const expectedCompatibility = {
-    agpMinimumGradle,
-    gradleKotlinSelection: selectedKotlin,
-    kspMinimumAgp,
-    kotlinMinimumR8: selectedR8,
-    javaMinimumGradle,
-};
-assert(
-    exactKeys(currentInspection.compatibility, Object.keys(expectedCompatibility)),
-    "The current dependency inspection has an unexpected compatibility shape.",
-);
-for (const [name, expected] of Object.entries(expectedCompatibility)) {
-    assert(
-        currentInspection.compatibility[name] === expected,
-        `Dependency compatibility ${name} drifted: expected ${expected}, received ${currentInspection.compatibility[name]}.`,
     );
 }
 assert(
@@ -375,6 +354,7 @@ for (const [name, version] of Object.entries({
 for (const marker of [
     "每年 1/4/7/10 月",
     "repository compatibility snapshot",
+    "中央平台插件",
     "不声称这些 library 是上游最新版本",
     "help --offline --console=plain",
     "check --offline",

@@ -6,9 +6,10 @@
 
 # v0.6.1
 
-###### 2026/09/11
+###### 2026/09/12
 
 * `Improvement` Build verification of 16 KB page alignment for 64-bit native libraries, including manifest contract checks and JSON reports
+* `Improvement` Use the shared Gradle platform plugin to select build-tool versions, remove local compatibility data, and align maintenance checks
 
 # v0.6.0
 

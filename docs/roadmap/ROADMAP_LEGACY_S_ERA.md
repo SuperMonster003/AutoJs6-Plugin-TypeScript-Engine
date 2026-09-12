@@ -874,7 +874,7 @@ total 2.5–11.7 s, cache hit 18–63 ms, ingress 已优化 -40%–57%),
       Program release smoke 均通过 (`INSTRUMENTATION_CODE: -1`), 两台设备的
       helper 均已清理。结构化审计和防漂移 verifier 已纳入默认离线 `check`。
 - [x] **S10-4 依赖健康巡检**: AGP/Kotlin/Gradle 季度升级例行化
-      (gradle/data 兼容矩阵已内建); WebView 最低支持版本策略
+      (兼容矩阵已由中央平台插件内建); WebView 最低支持版本策略
       写入文档 (当前已知 Chrome 51/55 旧 provider 语法不兼容,
       Chrome 119+ 验证通过)。
       验收: 一次完整巡检记录 + WebView 支持策略文档化。

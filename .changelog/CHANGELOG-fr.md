@@ -6,9 +6,10 @@
 
 # v0.6.1
 
-###### 2026/09/11
+###### 2026/09/12
 
 * `Amélioration` Vérification à la compilation de l'alignement des pages de 16 KB des bibliothèques natives 64 bits, avec contrôle du contrat manifest et rapports JSON
+* `Amélioration` Utiliser le plugin de plateforme Gradle commun pour choisir les versions des outils de compilation, supprimer les données de compatibilité locales et aligner les contrôles de maintenance
 
 # v0.6.0
 
