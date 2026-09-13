@@ -12,7 +12,8 @@
         "Harmonisation de l'activation, des métadonnées, de la documentation traduite et de la collecte des APK signés"
       ],
       "fix": [
-        "Le centre des extensions peut activer un fournisseur nouvellement installé via une entrée protégée; les métadonnées suivent le paquet installé"
+        "Le centre des extensions peut activer un fournisseur nouvellement installé via une entrée protégée; les métadonnées suivent le paquet installé",
+        "Utiliser des dates de compilation en anglais indépendamment de la langue de la machine"
       ]
     },
     "v0.6.1": {

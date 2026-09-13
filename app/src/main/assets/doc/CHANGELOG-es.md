@@ -9,6 +9,7 @@
 ###### 2026/09/13
 
 * `Corrección` El centro de complementos puede activar un proveedor recién instalado mediante una entrada protegida; los metadatos reflejan el paquete instalado
+* `Corrección` Usar fechas de compilación en inglés independientemente del idioma de la máquina
 * `Mejora` Activación del host, metadatos, documentación traducida y recopilación de APK firmados conforme a las convenciones comunes
 
 # v0.6.1
