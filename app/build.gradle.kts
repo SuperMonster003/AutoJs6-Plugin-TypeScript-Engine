@@ -18174,7 +18174,7 @@ tasks.register<Sync>("appendDigestToReleasedFiles") {
     inputs.property("versionName", versions.appVersionName)
     inputs.property("versionCode", versions.appVersionCode)
     doFirst {
-        check(isSignsValid) { "Release signing configuration is missing or incomplete" }
+        check(signs.isValid) { "Release signing configuration is missing or incomplete" }
         val source = sourceDirectory.get().asFile
         val actualNames = source.listFiles { f -> f.isFile && f.extension == "apk" }
             .orEmpty().mapTo(mutableSetOf()) { it.name }
