@@ -9,6 +9,7 @@
 ###### 2026/09/13
 
 * `Fix` The plugin center can activate a newly installed provider through a protected entry; displayed metadata follows the installed package
+* `Fix` Use English build dates in plugin metadata regardless of the build machine locale
 * `Improvement` Host activation, plugin metadata, localized documentation and signed release collection follow the common plugin conventions
 
 # v0.6.1

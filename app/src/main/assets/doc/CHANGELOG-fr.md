@@ -9,6 +9,7 @@
 ###### 2026/09/13
 
 * `Correction` Le centre des extensions peut activer un fournisseur nouvellement installé via une entrée protégée; les métadonnées suivent le paquet installé
+* `Correction` Utiliser des dates de compilation en anglais indépendamment de la langue de la machine
 * `Amélioration` Harmonisation de l'activation, des métadonnées, de la documentation traduite et de la collecte des APK signés
 
 # v0.6.1
