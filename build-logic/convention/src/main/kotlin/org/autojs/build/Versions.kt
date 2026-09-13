@@ -39,7 +39,6 @@ class Versions @JvmOverloads constructor(
     val sdkVersionCompile = bp.requireInt("COMPILE_SDK_VERSION")
     val appVersionName = bp.requireString("VERSION_NAME")
     val appVersionCode = bp.requireInt("VERSION_BUILD")
-    val vscodeExtRequiredVersion = bp.requireString("VSCODE_EXT_REQUIRED_VERSION")
 
     val javaVersion: JavaVersion
         get() = JavaVersion.toVersion(javaVersionInt)
