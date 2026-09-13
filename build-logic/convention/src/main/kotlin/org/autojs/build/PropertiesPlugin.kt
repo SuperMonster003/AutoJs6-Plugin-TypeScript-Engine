@@ -28,9 +28,6 @@ import org.gradle.api.Project
  * props["COMPILE_SDK"]
  * props["TARGET_SDK"]
  *
- * props["PADDLE_OCR/NDK"]
- * props["PADDLE_OCR/CMAKE"]
- * props["PADDLE_OCR/OPENCV"]
  * ```
  */
 class PropertiesPlugin : Plugin<Project> {
