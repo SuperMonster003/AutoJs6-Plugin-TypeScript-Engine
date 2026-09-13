@@ -45,6 +45,11 @@ class ActivationContractInstrumentedTest {
             val info = IPluginInfoProvider.Stub.asInterface(remote).info
             val installed = manager.getPackageInfo(context.packageName, 0)
             assertEquals(installed.versionName, info.versionName)
+            val installedCode = if (android.os.Build.VERSION.SDK_INT >= 28) installed.longVersionCode else installed.versionCode.toLong()
+            assertEquals(installedCode, info.versionCode)
+            assertEquals(org.autojs.plugin.typescript.api.TypeScriptPluginIds.ID, info.id)
+            assertEquals(org.autojs.plugin.typescript.api.TypeScriptPluginIds.ENGINE, info.engine)
+            assertEquals(org.autojs.plugin.typescript.api.TypeScriptPluginIds.variant(BuildConfig.TYPESCRIPT_VERSION), info.variant)
             assertEquals(context.getString(R.string.app_name), info.name)
             assertEquals(context.getString(R.string.plugin_description), info.description)
             val supported = setOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
@@ -52,6 +57,7 @@ class ActivationContractInstrumentedTest {
             assertTrue(info.supportedAbis!!.all(supported::contains))
             assertTrue(info.supportedAbis!!.any { it in android.os.Build.SUPPORTED_ABIS })
             assertNotNull(info.capabilities)
+            assertTrue(info.capabilities!!.keySet().isNotEmpty())
         } finally { context.unbindService(connection) }
     }
 }
