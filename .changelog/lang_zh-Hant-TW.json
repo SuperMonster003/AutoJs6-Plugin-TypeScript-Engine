@@ -6,6 +6,15 @@
   "changelog_label_improvement": "改善",
   "changelog_label_dependency": "依賴",
   "$data": {
+    "v0.6.2": {
+      "released_date": "2026/09/13",
+      "improvement": [
+        "宿主啟用, 外掛中繼資料, 多語言文件與簽章發佈彙整遵循統一外掛規範"
+      ],
+      "fix": [
+        "外掛中心可透過受保護入口啟用新安裝的外掛, 顯示的中繼資料與實際安裝套件一致"
+      ]
+    },
     "v0.6.1": {
       "released_date": "2026/09/12",
       "improvement": [

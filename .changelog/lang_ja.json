@@ -6,6 +6,15 @@
   "changelog_label_improvement": "改善",
   "changelog_label_dependency": "依存関係",
   "$data": {
+    "v0.6.2": {
+      "released_date": "2026/09/13",
+      "improvement": [
+        "ホストからの有効化, メタデータ, 多言語文書および署名済み APK の収集を共通規約に統一"
+      ],
+      "fix": [
+        "プラグインセンターから保護された入口を通じて新規インストールを有効化でき, メタデータはインストール済みパッケージに追従"
+      ]
+    },
     "v0.6.1": {
       "released_date": "2026/09/12",
       "improvement": [

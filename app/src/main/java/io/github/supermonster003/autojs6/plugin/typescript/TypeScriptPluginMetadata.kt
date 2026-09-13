@@ -2,6 +2,7 @@ package io.github.supermonster003.autojs6.plugin.typescript
 
 import android.content.Context
 import android.os.Bundle
+import java.util.zip.ZipFile
 import org.autojs.plugin.common.api.PluginCapabilityKeys
 import org.autojs.plugin.common.api.PluginInfo
 import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
@@ -31,19 +32,40 @@ object TypeScriptPluginMetadata {
     internal val ADVERTISED_NODE_PROFILE_AUTHORITY: R2CompilationProfileAuthority
         get() = R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2
 
+    @Suppress("DEPRECATION")
+    private fun installedPackage(context: Context) = context.packageManager.getPackageInfo(context.packageName, 0)
+
+    @Suppress("DEPRECATION")
+    private fun installedVersionCode(context: Context): Long {
+        val info = installedPackage(context)
+        return if (android.os.Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+    }
+
+    private fun packagedAbis(context: Context): Array<String> {
+        val supported = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+        val archives = listOf(context.applicationInfo.sourceDir) + context.applicationInfo.splitSourceDirs.orEmpty()
+        val packaged = archives.flatMapTo(linkedSetOf()) { path ->
+            ZipFile(path).use { archive ->
+                supported.filter { abi -> archive.getEntry("lib/$abi/libautojs6_r2_fd_flags.so") != null }
+            }
+        }
+        check(packaged.isNotEmpty()) { "Installed TypeScript APK has no supported native helper" }
+        return supported.filter(packaged::contains).toTypedArray()
+    }
+
     fun pluginInfo(context: Context): PluginInfo = PluginInfo(
         name = context.getString(R.string.app_name),
         description = context.getString(R.string.plugin_description),
         instruction = context.getString(R.string.plugin_instruction),
         author = context.getString(R.string.plugin_author),
         collaborators = null,
-        versionName = BuildConfig.VERSION_NAME,
-        versionCode = BuildConfig.VERSION_CODE.toLong(),
+        versionName = requireNotNull(installedPackage(context).versionName) { "Installed plugin version is missing" },
+        versionCode = installedVersionCode(context),
         versionDate = BuildConfig.VERSION_DATE,
         id = TypeScriptPluginIds.ID,
         engine = TypeScriptPluginIds.ENGINE,
         variant = TypeScriptPluginIds.variant(BuildConfig.TYPESCRIPT_VERSION),
-        supportedAbis = null,
+        supportedAbis = packagedAbis(context),
         capabilities = capabilityBundle(bootstrapSnapshot(context)).apply {
             nodeDeclarationProfileFingerprint(context)?.let { fingerprint ->
                 putString(

@@ -1,0 +1,6 @@
+{
+  "language": "日本語",
+  "introduction": "TypeScript プロジェクトを Rhino と Node.js 向けにコンパイルし, 意味診断と Source Map を提供します.",
+  "installation": "互換性のある AutoJs6 と公式リリースの署名済み APK をインストールします. プラグインセンターで TypeScript Engine を有効化し, .ts または .tsx プロジェクトを実行します. Rhino に Node.js Runtime は不要ですが, Node.js プロジェクトには必要です.",
+  "compatibility": "Android 7 (API 24) 以降および Chrome/WebView 119 以降が必要です. TypeScript 6.0.3 を同梱しています. native npm addon, パッケージインストールスクリプト, emitDecoratorMetadata は非対応です. 公開配布は対応ホストのリリースに合わせます. 過去の検証は後続 APK の合格を意味しません."
+}

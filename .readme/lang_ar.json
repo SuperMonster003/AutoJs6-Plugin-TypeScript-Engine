@@ -1,0 +1,6 @@
+{
+  "language": "العربية",
+  "introduction": "يجمع مشاريع TypeScript لمحركي Rhino و Node.js مع تشخيصات دلالية و Source Maps.",
+  "installation": "ثبت APK الموقع من الإصدار الرسمي مع مضيف AutoJs6 متوافق. فعل TypeScript Engine في مركز الإضافات ثم شغل مشروع .ts أو .tsx. لا يحتاج Rhino إلى Node.js Runtime; تحتاجه مشاريع Node.js.",
+  "compatibility": "يتطلب Android 7 (API 24) أو أحدث و Chrome/WebView 119 أو أحدث. المترجم المضمن TypeScript 6.0.3. لا يدعم إضافات npm الأصلية أو سكربتات تثبيت الحزم أو emitDecoratorMetadata. يتبع النشر العام إصدار المضيف المتوافق; لا تعتمد السجلات التاريخية كل APK لاحق."
+}

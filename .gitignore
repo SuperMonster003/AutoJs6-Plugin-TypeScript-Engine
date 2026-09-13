@@ -28,3 +28,9 @@
 
 /local.properties
 /sign.properties
+
+*.keystore
+
+*.pre-platform-versions.bak
+
+__pycache__/

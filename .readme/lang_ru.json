@@ -1,0 +1,6 @@
+{
+  "language": "Русский",
+  "introduction": "Компилирует проекты TypeScript для Rhino и Node.js с семантической диагностикой и Source Maps.",
+  "installation": "Установите официальный подписанный APK вместе с совместимым AutoJs6. Активируйте TypeScript Engine в центре плагинов и запустите проект .ts или .tsx. Для Rhino не нужен Node.js Runtime; для проектов Node.js этот плагин необходим.",
+  "compatibility": "Нужны Android 7 (API 24) и Chrome/WebView 119 или новее. Включен TypeScript 6.0.3. Не поддерживаются нативные npm-модули, сценарии установки пакетов и emitDecoratorMetadata. Публичная публикация следует за совместимым хостом; исторические проверки не подтверждают каждый последующий APK."
+}

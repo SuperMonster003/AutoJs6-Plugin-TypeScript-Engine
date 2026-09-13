@@ -1,0 +1,6 @@
+{
+  "language": "Français",
+  "introduction": "Compile des projets TypeScript pour Rhino et Node.js avec diagnostics sémantiques et Source Maps.",
+  "installation": "Installez le fichier APK signé officiel avec un hôte AutoJs6 compatible. Activez TypeScript Engine dans le centre des extensions, puis exécutez un projet .ts ou .tsx. Rhino fonctionne sans Node.js Runtime; les projets Node.js nécessitent cette extension.",
+  "compatibility": "Nécessite Android 7 (API 24) et Chrome/WebView 119 ou versions ultérieures. Le compilateur inclus est TypeScript 6.0.3. Les addons npm natifs, scripts de cycle d’installation et emitDecoratorMetadata ne sont pas pris en charge. La diffusion publique suit celle de l’hôte compatible; les essais historiques ne valident pas chaque APK ultérieur."
+}

@@ -6,6 +6,15 @@
   "changelog_label_improvement": "优化",
   "changelog_label_dependency": "依赖",
   "$data": {
+    "v0.6.2": {
+      "released_date": "2026/09/13",
+      "improvement": [
+        "宿主激活, 插件元数据, 多语言文档与签名发布归集遵循统一插件规范"
+      ],
+      "fix": [
+        "插件中心可通过受保护入口激活新安装的插件, 显示的元数据与实际安装包一致"
+      ]
+    },
     "v0.6.1": {
       "released_date": "2026/09/12",
       "improvement": [
