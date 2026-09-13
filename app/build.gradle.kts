@@ -1,3 +1,4 @@
+import java.util.zip.CRC32
 import com.android.build.api.variant.FilterConfiguration
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
@@ -274,6 +275,15 @@ android {
                 "R2_EXTERNAL_CAPACITY_EVIDENCE_DEFLATED_SCOPE",
                 "\"deflated-expanded-exact-64-v1\"",
             )
+        }
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+            isUniversalApk = true
         }
     }
 
@@ -18151,5 +18161,53 @@ tasks {
     }.configureEach {
         dependsOn(generateTypeScriptDistribution)
         dependsOn(generateR2DeclarationDistribution)
+    }
+}
+
+tasks.register<Sync>("appendDigestToReleasedFiles") {
+    group = "distribution"
+    description = "Collects the current signed release APKs with CRC32 filenames."
+    dependsOn("assembleRelease")
+    val sourceDirectory = layout.buildDirectory.dir("outputs/apk/release")
+    val expectedNames = setOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86", "universal").mapTo(mutableSetOf()) { "${rootProject.name}-v${versions.appVersionName}-$it.apk" }
+    val destinationDirectory = layout.projectDirectory.dir("releases/${versions.appVersionName}")
+    inputs.property("versionName", versions.appVersionName)
+    inputs.property("versionCode", versions.appVersionCode)
+    doFirst {
+        check(isSignsValid) { "Release signing configuration is missing or incomplete" }
+        val source = sourceDirectory.get().asFile
+        val actualNames = source.listFiles { f -> f.isFile && f.extension == "apk" }
+            .orEmpty().mapTo(mutableSetOf()) { it.name }
+        check(actualNames == expectedNames) { "Release APK set differs: expected $expectedNames, found $actualNames" }
+        @Suppress("UNCHECKED_CAST")
+        val metadata = groovy.json.JsonSlurper().parse(source.resolve("output-metadata.json")) as Map<String, Any?>
+        val elements = metadata["elements"] as List<*>
+        check(elements.size == expectedNames.size)
+        elements.forEach { entry ->
+            val item = entry as Map<*, *>
+            check(item["outputFile"] in expectedNames)
+            check(item["versionName"] == versions.appVersionName)
+            check((item["versionCode"] as Number).toInt() == versions.appVersionCode)
+        }
+        val javaExecutable = File(System.getProperty("java.home"), "bin/java" + if (System.getProperty("os.name").startsWith("Windows")) ".exe" else "")
+        val verifier = File(androidComponents.sdkComponents.sdkDirectory.get().asFile, "build-tools/${android.buildToolsVersion}/lib/apksigner.jar")
+        check(verifier.isFile) { "Android SDK APK signature verifier is unavailable" }
+        expectedNames.forEach { name ->
+            val process = ProcessBuilder(javaExecutable.path, "-jar", verifier.path, "verify", source.resolve(name).path)
+                .redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+            check(process.waitFor() == 0) { "Invalid release APK signature: $name: $output" }
+        }
+    }
+    from(sourceDirectory)
+    into(destinationDirectory)
+    include("*.apk")
+    rename { name ->
+        val crc = CRC32()
+        sourceDirectory.get().file(name).asFile.inputStream().use { input ->
+            val buffer = ByteArray(65536)
+            while (true) { val size = input.read(buffer); if (size < 0) break; crc.update(buffer, 0, size) }
+        }
+        "${name.removeSuffix(".apk")}-${crc.value.toString(16).uppercase().padStart(8, '0')}.apk"
     }
 }

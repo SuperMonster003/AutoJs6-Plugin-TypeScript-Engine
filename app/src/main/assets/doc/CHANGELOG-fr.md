@@ -4,6 +4,13 @@
 
 ******
 
+# v0.6.2
+
+###### 2026/09/13
+
+* `Correction` Le centre des extensions peut activer un fournisseur nouvellement installé via une entrée protégée; les métadonnées suivent le paquet installé
+* `Amélioration` Harmonisation de l'activation, des métadonnées, de la documentation traduite et de la collecte des APK signés
+
 # v0.6.1
 
 ###### 2026/09/12

@@ -6,6 +6,15 @@
   "changelog_label_improvement": "Amélioration",
   "changelog_label_dependency": "Dépendance",
   "$data": {
+    "v0.6.2": {
+      "released_date": "2026/09/13",
+      "improvement": [
+        "Harmonisation de l'activation, des métadonnées, de la documentation traduite et de la collecte des APK signés"
+      ],
+      "fix": [
+        "Le centre des extensions peut activer un fournisseur nouvellement installé via une entrée protégée; les métadonnées suivent le paquet installé"
+      ]
+    },
     "v0.6.1": {
       "released_date": "2026/09/12",
       "improvement": [

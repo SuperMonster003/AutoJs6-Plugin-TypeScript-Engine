@@ -1,0 +1,6 @@
+{
+  "language": "简体中文",
+  "introduction": "为 Rhino 和 Node.js 编译 TypeScript 项目, 提供语义诊断与 Source Map.",
+  "installation": "安装官方发行页的签名 APK 和兼容的 AutoJs6, 在插件中心激活或启用 TypeScript Engine, 再运行 .ts 或 .tsx 项目. Rhino 无需 Node.js Runtime; Node.js 项目需要安装对应运行时插件.",
+  "compatibility": "需要 Android 7 (API 24) 及以上, 同时需要 Chrome/WebView 119 及以上. 内置 TypeScript 6.0.3. 不支持 native npm addon, 包安装生命周期脚本和 emitDecoratorMetadata. 公开分发随兼容宿主的发布安排; 历史验收记录不代表后续每个 APK 已通过验收."
+}

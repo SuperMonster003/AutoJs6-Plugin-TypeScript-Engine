@@ -6,6 +6,15 @@
   "changelog_label_improvement": "Mejora",
   "changelog_label_dependency": "Dependencia",
   "$data": {
+    "v0.6.2": {
+      "released_date": "2026/09/13",
+      "improvement": [
+        "Activación del host, metadatos, documentación traducida y recopilación de APK firmados conforme a las convenciones comunes"
+      ],
+      "fix": [
+        "El centro de complementos puede activar un proveedor recién instalado mediante una entrada protegida; los metadatos reflejan el paquete instalado"
+      ]
+    },
     "v0.6.1": {
       "released_date": "2026/09/12",
       "improvement": [
