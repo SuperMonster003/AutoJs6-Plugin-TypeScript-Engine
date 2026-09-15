@@ -6,6 +6,12 @@
   "changelog_label_improvement": "Mejora",
   "changelog_label_dependency": "Dependencia",
   "$data": {
+    "v0.6.3": {
+      "released_date": "2026/09/15",
+      "improvement": [
+        "compileSdk y targetSdk suben a 37 (Android 17); el comportamiento del plugin no depende del nuevo objetivo"
+      ]
+    },
     "v0.6.2": {
       "released_date": "2026/09/13",
       "improvement": [
