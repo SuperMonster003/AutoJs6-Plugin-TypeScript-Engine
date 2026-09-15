@@ -208,7 +208,9 @@ class R2BinderCompilationInstrumentationTest {
                     ),
                 )
                 assertEquals(
-                    R2ControlledTsConfigPolicy.fingerprint,
+                    R2ControlledTsConfigPolicy.fingerprintForRevision(
+                        TypeScriptR2Contract.CONTROLLED_TSCONFIG_POLICY_REVISION,
+                    ),
                     compilerInfo.getString(
                         TypeScriptR2Contract.KEY_CONFIG_POLICY_FINGERPRINT,
                     ),
@@ -2528,7 +2530,11 @@ class R2BinderCompilationInstrumentationTest {
                     },
                 )
                 revisionTwoCallback.markStartReturned()
-                assertRejectedInvalid(revisionTwoTicket, fixture.requestId)
+                assertRejectedInvalid(
+                    revisionTwoTicket,
+                    fixture.requestId,
+                    TypeScriptCompilerContract.ERROR_CONTRACT_MISMATCH,
+                )
                 assertEquals(OUTPUT_SENTINEL, fixture.output.readText())
 
                 val privateFallbackMutations: List<(Bundle) -> Unit> = listOf(
@@ -3324,6 +3330,26 @@ class R2BinderCompilationInstrumentationTest {
 
             val diagnosticsEnvelope = R2StrictJson.parseObject(diagnosticsBytes)
             assertEquals(X2_DIAGNOSTICS_ENVELOPE_KEYS, diagnosticsEnvelope.keys)
+            assertEquals(TypeScriptR2Contract.DIAGNOSTICS_SCHEMA, diagnosticsEnvelope["schema"])
+            mapOf(
+                "revision" to TypeScriptR2Contract.DIAGNOSTICS_SCHEMA_REVISION,
+                "diagnosticsQuotaRevision" to TypeScriptR2Contract.DIAGNOSTICS_QUOTA_REVISION,
+                "lineBase" to TypeScriptR2Contract.DIAGNOSTICS_LINE_BASE,
+                "columnBase" to TypeScriptR2Contract.DIAGNOSTICS_COLUMN_BASE,
+                "diagnosticCount" to 1,
+                "relatedInformationCount" to 0,
+            ).forEach { (key, expected) ->
+                assertEquals(
+                    key,
+                    expected.toLong(),
+                    (diagnosticsEnvelope[key] as R2StrictJson.NumberToken).source.toLong(),
+                )
+            }
+            assertEquals("binder-project", diagnosticsEnvelope["projectId"])
+            assertEquals(
+                TypeScriptR2Contract.DIAGNOSTICS_POSITION_ENCODING,
+                diagnosticsEnvelope["positionEncoding"],
+            )
             assertEquals(fixture.requestId, diagnosticsEnvelope["requestId"])
             assertEquals(
                 fixture.profileAuthority.profile.contractValue,
@@ -3361,15 +3387,21 @@ class R2BinderCompilationInstrumentationTest {
                 (diagnostic["code"] as R2StrictJson.NumberToken).source.toLong(),
             )
             assertEquals(sourceCase.expectedMessage, diagnostic["message"])
-            assertEquals(X2_SOURCE_PATH, diagnostic["sourcePath"])
+            assertEquals(
+                R2DiagnosticsSchemaV1.sourceUri("binder-project", "/$X2_SOURCE_PATH"),
+                diagnostic["uri"],
+            )
+            assertEquals(emptyList<Any>(), diagnostic["relatedInformation"])
+            val range = diagnostic["range"] as Map<*, *>
+            assertEquals(setOf("start", "length", "line", "column"), range.keys)
             val start =
-                (diagnostic["start"] as R2StrictJson.NumberToken).source.toInt()
+                (range["start"] as R2StrictJson.NumberToken).source.toInt()
             val length =
-                (diagnostic["length"] as R2StrictJson.NumberToken).source.toInt()
+                (range["length"] as R2StrictJson.NumberToken).source.toInt()
             val line =
-                (diagnostic["line"] as R2StrictJson.NumberToken).source.toInt()
+                (range["line"] as R2StrictJson.NumberToken).source.toInt()
             val column =
-                (diagnostic["column"] as R2StrictJson.NumberToken).source.toInt()
+                (range["column"] as R2StrictJson.NumberToken).source.toInt()
             assertEquals(sourceCase.expectedStart, start)
             assertEquals(sourceCase.expectedLength, length)
             assertEquals(sourceCase.expectedLine, line)
@@ -4103,11 +4135,12 @@ class R2BinderCompilationInstrumentationTest {
     private fun assertRejectedInvalid(
         ticket: Bundle,
         requestId: String,
+        errorCode: String = TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
     ) {
         assertEquals(requestId, ticket.getString(TypeScriptCompilerContract.KEY_REQUEST_ID))
         assertFalse(ticket.getBoolean(TypeScriptCompilerContract.KEY_ACCEPTED, true))
         assertEquals(
-            TypeScriptCompilerContract.ERROR_INVALID_REQUEST,
+            errorCode,
             ticket.getString(TypeScriptCompilerContract.KEY_ERROR_CODE),
         )
     }
@@ -4463,24 +4496,29 @@ class R2BinderCompilationInstrumentationTest {
         val X2_DIAGNOSTICS_ENVELOPE_KEYS = setOf(
             "schema",
             "revision",
+            "diagnosticsQuotaRevision",
             "requestId",
+            "projectId",
             "targetProfile",
             "profileSchemaRevision",
             "profileRevision",
             "configSchemaRevision",
             "configKind",
+            "positionEncoding",
+            "lineBase",
+            "columnBase",
+            "diagnosticCount",
+            "relatedInformationCount",
             "diagnostics",
         )
         val X2_SOURCE_DIAGNOSTIC_KEYS = setOf(
             "phase",
+            "uri",
+            "range",
             "category",
             "code",
             "message",
-            "sourcePath",
-            "start",
-            "length",
-            "line",
-            "column",
+            "relatedInformation",
         )
         val CHROMIUM_PROCESS_PROC_FILES = setOf("statm", "status")
         val CHROMIUM_PROCESS_PROC_TARGET =
