@@ -2356,6 +2356,87 @@ class R2ProjectFramedTransportTest {
     }
 
     @Test
+    fun framedResultParserAcceptsCallerDeclarationDiagnosticsAndRelatedInformation() {
+        val declarationPath = "/sources/types.d.ts"
+        listOf(
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO_REVISION_1 to
+                strictDiagnosticResultPayload(),
+            R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_1 to
+                strictNodeDiagnosticResultPayload(),
+        ).forEach { (authority, payload) ->
+            val snapshot = R2ProjectSnapshot.create(
+                files = listOf(
+                    R2ProjectTextFile("/sources/main.ts", "export const value = 1;\n"),
+                    R2ProjectTextFile(declarationPath, "export interface Broken { value: ; }\n"),
+                    R2ProjectTextFile("/declarations/lib.d.ts", ""),
+                ),
+                rootNames = listOf("/sources/main.ts"),
+                profileAuthority = authority,
+                limits = R2ProjectSnapshotLimits.ORDINARY_COMPILATION,
+            )
+            snapshot.use {
+                val declarationDiagnostic = payload
+                    .replace("\"phase\":\"semantic\"", "\"phase\":\"syntactic\"")
+                    .replace("\"code\":2322", "\"code\":1110")
+                    .replace("/sources/main.ts", declarationPath)
+                val parsed = CompilerHostProtocol.parseFramedProjectResult(
+                    requestId = "caller-declaration-diagnostic",
+                    generation = 4,
+                    payload = declarationDiagnostic.toByteArray(StandardCharsets.UTF_8),
+                    exactSnapshot = snapshot,
+                ).compilation
+                assertEquals(declarationPath, parsed.diagnostics.single().sourcePath)
+                assertTrue(parsed.emitSkipped)
+                assertTrue(parsed.outputs.isEmpty())
+
+                val related = "\"relatedInformation\":[{\"category\":3,\"code\":6500," +
+                    "\"column\":1,\"length\":1,\"line\":1,\"message\":\"Declaration.\"," +
+                    "\"sourcePath\":\"$declarationPath\",\"start\":0}],"
+                val relatedPayload = payload.replace("\"phase\":", related + "\"phase\":")
+                val relatedResult = CompilerHostProtocol.parseFramedProjectResult(
+                    requestId = "caller-declaration-related-information",
+                    generation = 4,
+                    payload = relatedPayload.toByteArray(StandardCharsets.UTF_8),
+                    exactSnapshot = snapshot,
+                ).compilation
+                assertEquals(
+                    declarationPath,
+                    relatedResult.diagnostics.single().relatedInformation.single().sourcePath,
+                )
+                assertFalse(R2ProjectSourceKindAdmission.isExecutableSourcePath(declarationPath, authority))
+                assertFails {
+                    CompilerHostProtocol.parseFramedProjectResult(
+                        requestId = "unaccepted-caller-declaration",
+                        generation = 4,
+                        payload = declarationDiagnostic.replace(declarationPath, "/sources/missing.d.ts")
+                            .toByteArray(StandardCharsets.UTF_8),
+                        exactSnapshot = snapshot,
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun framedResultParserRejectsCallerDeclarationPathEscapes() {
+        listOf(
+            "/outputs/types.d.ts",
+            "/sources/../types.d.ts",
+            "/sources/node_modules/pkg/types.d.ts",
+            "/sources/types.d.mts",
+        ).forEach { path ->
+            assertFails {
+                CompilerHostProtocol.parseFramedProjectResult(
+                    requestId = "invalid-caller-declaration-path",
+                    generation = 4,
+                    payload = strictDiagnosticResultPayload().replace("/sources/main.ts", path)
+                        .toByteArray(StandardCharsets.UTF_8),
+                )
+            }
+        }
+    }
+
+    @Test
     fun framedResultParserRetainsStrictBoundedRelatedInformation() {
         val relatedJson =
             "\"relatedInformation\":[{" +
