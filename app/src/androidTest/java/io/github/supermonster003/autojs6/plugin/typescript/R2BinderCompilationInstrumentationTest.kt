@@ -15,8 +15,6 @@ import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.supermonster003.autojs6.plugin.typescript.archive.ZipArchiveV1Limits
-import io.github.supermonster003.autojs6.plugin.typescript.archive.ZipArchiveV1Exception
-import io.github.supermonster003.autojs6.plugin.typescript.archive.ZipArchiveV1FailureKind
 import io.github.supermonster003.autojs6.plugin.typescript.archive.ZipArchiveV1Validator
 import java.io.Closeable
 import java.io.File
@@ -1786,9 +1784,9 @@ class R2BinderCompilationInstrumentationTest {
     fun storedContainerCapacityAcceptsMetadataAwareLimitAndRejectsPlusOne() {
         exerciseCapacityBoundaryPair(
             rejectedBoundary =
-                R2CapacityArchiveBoundary.STORED_CONTAINER_PLUS_ONE,
+                R2CapacityArchiveBoundary.STORED_CALLER_PLUS_ONE,
             acceptedBoundary =
-                R2CapacityArchiveBoundary.STORED_CONTAINER_INCLUSIVE,
+                R2CapacityArchiveBoundary.STORED_CALLER_INCLUSIVE,
         )
     }
 
@@ -1796,9 +1794,9 @@ class R2BinderCompilationInstrumentationTest {
     fun deflatedCapacityAcceptsMetadataAwareExpandedLimitAndRejectsPlusOne() {
         exerciseCapacityBoundaryPair(
             rejectedBoundary =
-                R2CapacityArchiveBoundary.DEFLATED_UNCOMPRESSED_PLUS_ONE,
+                R2CapacityArchiveBoundary.DEFLATED_CALLER_PLUS_ONE,
             acceptedBoundary =
-                R2CapacityArchiveBoundary.DEFLATED_UNCOMPRESSED_INCLUSIVE,
+                R2CapacityArchiveBoundary.DEFLATED_CALLER_INCLUSIVE,
         )
     }
 
@@ -1893,11 +1891,11 @@ class R2BinderCompilationInstrumentationTest {
                         "resource-capacity-boundary-${cycleIndex + 1}",
                     ),
                     boundary =
-                        R2CapacityArchiveBoundary.STORED_CONTAINER_INCLUSIVE,
+                        R2CapacityArchiveBoundary.STORED_CALLER_INCLUSIVE,
                 ).use { fixture ->
                     assertEquals(
-                        R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
-                        fixture.containerBytes,
+                        TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES,
+                        fixture.sourceDescriptors.sumOf { it.size },
                     )
                     val output = createCapacityOutput()
                     try {
@@ -2120,11 +2118,11 @@ class R2BinderCompilationInstrumentationTest {
                 context = context,
                 requestId = newRequestId("natural-ingress-timeout"),
                 boundary =
-                    R2CapacityArchiveBoundary.STORED_CONTAINER_INCLUSIVE,
+                    R2CapacityArchiveBoundary.STORED_CALLER_INCLUSIVE,
             ).use { fixture ->
                 assertEquals(
-                    R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
-                    fixture.containerBytes,
+                    TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES,
+                    fixture.sourceDescriptors.sumOf { it.size },
                 )
                 val output = createCapacityOutput()
                 try {
@@ -2795,6 +2793,11 @@ class R2BinderCompilationInstrumentationTest {
         assertEquals(fixture.containerBytes, fixture.input.length())
         val sourceBytes =
             fixture.sourceDescriptors.sumOf { descriptor -> descriptor.size }
+        assertEquals(
+            TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES +
+                fixture.boundary.quotaDeltaBytes,
+            sourceBytes,
+        )
         val manifestBytes = fixture.uncompressedBytes - sourceBytes
         assertTrue(
             manifestBytes in 1L..TypeScriptCompilerContract.MAX_MANIFEST_BYTES,
@@ -2805,19 +2808,10 @@ class R2BinderCompilationInstrumentationTest {
                     1L..TypeScriptCompilerContract.MAX_SINGLE_FILE_BYTES,
             )
         }
-        val validationLimits =
-            if (fixture.boundary.quotaDeltaBytes == 0L) {
-                ZipArchiveV1Limits.INPUT
-            } else {
-                ZipArchiveV1Limits.INPUT.copy(
-                    maximumContainerBytes =
-                        R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES + 1L,
-                    maximumTotalUncompressedBytes =
-                        R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES + 1L,
-                )
-            }
+        // Even caller-limit-plus-one is a valid ZIP within the dependency-aware transport
+        // allowance. The Binder test must prove rejection by ordinary caller admission.
         val validation = RandomAccessFile(fixture.input, "r").use { input ->
-            ZipArchiveV1Validator.validateImmutable(input, validationLimits)
+            ZipArchiveV1Validator.validateImmutable(input, ZipArchiveV1Limits.INPUT)
         }
         assertEquals(fixture.containerBytes, validation.containerBytes)
         assertEquals(fixture.uncompressedBytes, validation.uncompressedBytes)
@@ -2847,42 +2841,8 @@ class R2BinderCompilationInstrumentationTest {
                 assertEquals(descriptor.compressedSize, entry.compressedBytes)
                 assertEquals(descriptor.crc32, entry.crc32)
             }
-        if (fixture.boundary.quotaDeltaBytes > 0L) {
-            val productionFailure = try {
-                RandomAccessFile(fixture.input, "r").use { input ->
-                    ZipArchiveV1Validator.validateImmutable(
-                        input,
-                        ZipArchiveV1Limits.INPUT,
-                    )
-                }
-                null
-            } catch (failure: ZipArchiveV1Exception) {
-                failure
-            }
-            assertNotNull(productionFailure)
-            assertEquals(
-                ZipArchiveV1FailureKind.QUOTA,
-                requireNotNull(productionFailure).kind,
-            )
-        }
-        when (fixture.boundary.compression) {
-            R2CapacityZipCompression.STORED -> assertEquals(
-                R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES +
-                    fixture.boundary.quotaDeltaBytes,
-                fixture.containerBytes,
-            )
-            R2CapacityZipCompression.DEFLATED -> {
-                assertEquals(
-                    R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES +
-                        fixture.boundary.quotaDeltaBytes,
-                    fixture.uncompressedBytes,
-                )
-                assertTrue(
-                    fixture.containerBytes <=
-                        R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
-                )
-            }
-        }
+        assertTrue(fixture.containerBytes <= R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES)
+        assertTrue(fixture.uncompressedBytes <= R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES)
     }
 
     private fun assertCapacityOutput(

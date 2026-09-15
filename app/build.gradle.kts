@@ -14023,8 +14023,8 @@ val verifyR2P3bB2bResourceSourcePolicy =
                 markers = listOf(
                     "fun repeatedCapacityBoundaryBinderJobsReachCompilerPssFdAndTransientCleanupPlateau()",
                     "repeat(REPEATED_RESOURCE_CYCLE_COUNT)",
-                    "R2CapacityArchiveBoundary.STORED_CONTAINER_INCLUSIVE",
-                    "R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES",
+                    "R2CapacityArchiveBoundary.STORED_CALLER_INCLUSIVE",
+                    "TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES",
                     "processResourceProbe.requireIdentity(compilerPid)",
                     "processResourceProbe.awaitR2TransientFileDescriptors(",
                     "processResourceProbe.awaitStableFileDescriptors(",
@@ -14382,8 +14382,8 @@ val verifyR2P3bB2eNaturalIngressTimeoutSourcePolicy =
                 label = "Binder natural timeout",
                 method = binderMethod,
                 markers = listOf(
-                    "R2CapacityArchiveBoundary.STORED_CONTAINER_INCLUSIVE",
-                    "R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES",
+                    "R2CapacityArchiveBoundary.STORED_CALLER_INCLUSIVE",
+                    "TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES",
                     "timeoutMs =",
                     "NATURAL_INGRESS_BINDER_TIMEOUT_MILLIS,",
                     "publicAcknowledgement(fixture.requestId, token)",
