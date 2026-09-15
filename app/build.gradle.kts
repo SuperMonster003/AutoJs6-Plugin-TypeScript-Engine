@@ -13732,12 +13732,21 @@ tasks.register("verifyR2PublicPreviewSourcePolicy") {
                 "const maximumTokensPerFile = 65_536;",
                 "const maximumProjectTokens = 262_144;",
                 "const countSourceTokens = (text) => {",
-                "const createDirectoryIndex = (initialPaths = []) => {",
-                "sourceFile.version = \"0\";",
+                "sourceFile.version = record.sha256;",
                 "const createDiagnosticCollector = () => {",
                 "record.text = \"\";",
             ),
         )
+        val directoryIndexSignature = Regex(
+            """const\s+createDirectoryIndex\s*=\s*\(\s*""" +
+                """initialPaths\s*=\s*\[\s*]\s*,\s*""" +
+                """pathCharacterLimit\s*=\s*maximumProjectPathChars\s*,?\s*""" +
+                """\)\s*=>\s*\{""",
+        )
+        check(directoryIndexSignature.containsMatchIn(workerSource)) {
+            "R2-P3b-a Worker directory index must default initialPaths to [] and " +
+                "pathCharacterLimit to maximumProjectPathChars."
+        }
         requireSourceMarkers(
             label = "unified pre-emit diagnostic stop",
             source = workerSource,
