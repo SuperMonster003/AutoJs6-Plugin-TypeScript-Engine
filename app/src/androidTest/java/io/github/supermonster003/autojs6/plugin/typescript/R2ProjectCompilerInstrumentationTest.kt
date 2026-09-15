@@ -89,7 +89,7 @@ class R2ProjectCompilerInstrumentationTest {
 
             val declarationErrorFixture = fixture.getJSONObject("declarationError")
             val declarationError = host.compileProject(
-                snapshot = declarationErrorFixture.declarationErrorSnapshot(),
+                snapshot = declarationErrorFixture.declarationErrorSnapshot(fixture),
                 timeoutMs = TypeScriptCompilerContract.DEFAULT_TIMEOUT_MS,
             )
 
@@ -97,7 +97,11 @@ class R2ProjectCompilerInstrumentationTest {
             val declarationDiagnostics = requireNotNull(declarationError.compilation)
             assertTrue(declarationDiagnostics.emitSkipped)
             assertTrue(declarationDiagnostics.outputs.isEmpty())
-            assertEquals(1, declarationDiagnostics.diagnostics.size)
+            assertEquals(
+                declarationDiagnostics.diagnostics.toString(),
+                1,
+                declarationDiagnostics.diagnostics.size,
+            )
             assertDiagnostic(
                 expected = declarationErrorFixture.getJSONObject("diagnostic"),
                 actual = declarationDiagnostics.diagnostics.singleOrNull(),
@@ -3700,13 +3704,15 @@ class R2ProjectCompilerInstrumentationTest {
         val compilerElapsedMillis: Double,
     )
 
-    private fun JSONObject.declarationErrorSnapshot(): R2ProjectSnapshot =
+    private fun JSONObject.declarationErrorSnapshot(fixture: JSONObject): R2ProjectSnapshot =
         R2ProjectSnapshot.create(
-            files = listOf(
-                R2ProjectTextFile(
-                    path = DEFAULT_LIBRARY_PATH,
-                    text = getString("libraryText"),
-                ),
+            files = fixture.declarationFiles().map { file ->
+                if (file.path == getJSONObject("diagnostic").getString("sourcePath")) {
+                    R2ProjectTextFile(path = file.path, text = getString("libraryText"))
+                } else {
+                    file
+                }
+            } + listOf(
                 R2ProjectTextFile(
                     path = MAIN_SOURCE_PATH,
                     text = getString("mainSource"),
@@ -3716,17 +3722,7 @@ class R2ProjectCompilerInstrumentationTest {
         )
 
     private fun JSONObject.projectFilesSnapshot(fixture: JSONObject): R2ProjectSnapshot {
-        val defaultLibrary = fixture.getJSONArray("commonFiles")
-            .let { commonFiles ->
-                List(commonFiles.length(), commonFiles::getJSONObject)
-            }
-            .single { file -> file.getString("path") == DEFAULT_LIBRARY_PATH }
-        val files = mutableListOf(
-            R2ProjectTextFile(
-                path = defaultLibrary.getString("path"),
-                text = defaultLibrary.getString("text"),
-            ),
-        )
+        val files = fixture.declarationFiles().toMutableList()
         val fixtureFiles = getJSONArray("files")
         repeat(fixtureFiles.length()) { index ->
             val file = fixtureFiles.getJSONObject(index)
@@ -3743,6 +3739,15 @@ class R2ProjectCompilerInstrumentationTest {
 
     private fun org.json.JSONArray.stringList(): List<String> =
         List(length(), this::getString)
+
+    private fun JSONObject.declarationFiles(): List<R2ProjectTextFile> {
+        val commonFiles = getJSONArray("commonFiles")
+        return List(commonFiles.length(), commonFiles::getJSONObject)
+            .filter { file -> file.getString("path").startsWith("/declarations/") }
+            .map { file ->
+                R2ProjectTextFile(path = file.getString("path"), text = file.getString("text"))
+            }
+    }
 
     private fun waitForPending(host: TypeScriptWebViewCompilerHost) {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(
@@ -4524,7 +4529,6 @@ class R2ProjectCompilerInstrumentationTest {
     private companion object {
         const val FIXTURE_PATH =
             "r2-project-compiler/provisional-rhino.json"
-        const val DEFAULT_LIBRARY_PATH = "/declarations/lib.d.ts"
         const val MAIN_SOURCE_PATH = "/sources/main.ts"
         const val MAIN_THREAD_BLOCK_TIMEOUT_SECONDS = 10L
         const val MAIN_THREAD_TIMEOUT_SECONDS = 10L

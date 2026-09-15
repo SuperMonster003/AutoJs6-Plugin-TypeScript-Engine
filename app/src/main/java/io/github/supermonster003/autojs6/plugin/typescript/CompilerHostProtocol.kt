@@ -1095,10 +1095,17 @@ internal object CompilerHostProtocol {
                 path.startsWith("/declarations/") &&
                     path.isSupportedDeclarationPath() ||
                     path.startsWith("/sources/") &&
-                    R2ProjectSourceKindAdmission.isExecutableSourcePath(
-                        path,
-                        profileAuthority,
-                    ) ||
+                    (
+                        R2ProjectSourceKindAdmission.isExecutableSourcePath(
+                            path,
+                            profileAuthority,
+                        ) ||
+                            path.isSupportedDeclarationPath() &&
+                            R2ProjectSourceKindAdmission.sourcePathRejection(
+                                path,
+                                profileAuthority,
+                            ) == null
+                        ) ||
                     phase == R2ProjectDiagnosticPhase.RESOLUTION &&
                     path.startsWith("/packages/") &&
                     path.isSupportedResolutionTargetPath(isNodeRevisionTwo)
