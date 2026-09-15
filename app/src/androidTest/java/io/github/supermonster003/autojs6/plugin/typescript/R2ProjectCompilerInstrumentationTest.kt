@@ -1008,6 +1008,36 @@ class R2ProjectCompilerInstrumentationTest {
             }
 
             var lastTerminatedGeneration = 0
+            var lastRetiredSessionGeneration = 0
+            fun assertHardStopped(label: String) {
+                val retiredSession = host.lastRetiredSessionGenerationForTesting() ?: 0
+                val terminated = host.lastTerminatedWorkerGenerationForTesting()
+                val proof = if (retiredSession > lastRetiredSessionGeneration) {
+                    // A slow replacement-ready acknowledgement can retire the whole WebView.
+                    // Worker generations restart in its successor, after exact session cleanup.
+                    assertRetiredProjectSession(onMain { host.lifecycleTelemetryForTesting() })
+                    lastTerminatedGeneration = 0
+                    "session-retired"
+                } else {
+                    assertEquals(lastRetiredSessionGeneration, retiredSession)
+                    assertTrue(
+                        "$label did not terminate a new Worker: terminated=$terminated " +
+                            "previous=$lastTerminatedGeneration retiredSession=$retiredSession",
+                        terminated != null && terminated > lastTerminatedGeneration,
+                    )
+                    lastTerminatedGeneration = requireNotNull(terminated)
+                    "worker-acknowledged"
+                }
+                lastRetiredSessionGeneration = retiredSession
+                Log.i(
+                    PHASE_LOG_TAG,
+                    "PHASE_ENTRY_STOP $label proof=$proof retiredSession=$retiredSession " +
+                        "lastTerminatedWorkerGeneration=$terminated",
+                )
+            }
+
+            // INGRESS spins before project-start acknowledgement, so no file cursor can open.
+            // Every later phase has consumed the input; both paths must release the transport.
             R2ProjectExecutionPhase.ordered.forEach { phase ->
                 warmReplacementWorker(
                     "${phase.protocolValue} cancellation proof",
@@ -1048,13 +1078,10 @@ class R2ProjectCompilerInstrumentationTest {
                     telemetry = requireNotNull(
                         host.lastProjectInputTransportTelemetryForTesting(),
                     ),
-                    expectedComplete = true,
+                    expectedComplete = phase != R2ProjectExecutionPhase.INGRESS,
+                    expectedOpenedCursors = phase != R2ProjectExecutionPhase.INGRESS,
                 )
-                val terminated = requireNotNull(
-                    host.lastTerminatedWorkerGenerationForTesting(),
-                )
-                assertTrue(terminated > lastTerminatedGeneration)
-                lastTerminatedGeneration = terminated
+                assertHardStopped("cancel phase=${phase.protocolValue}")
             }
 
             R2ProjectExecutionPhase.ordered.forEach { phase ->
@@ -1087,13 +1114,10 @@ class R2ProjectCompilerInstrumentationTest {
                     telemetry = requireNotNull(
                         host.lastProjectInputTransportTelemetryForTesting(),
                     ),
-                    expectedComplete = true,
+                    expectedComplete = phase != R2ProjectExecutionPhase.INGRESS,
+                    expectedOpenedCursors = phase != R2ProjectExecutionPhase.INGRESS,
                 )
-                val terminated = requireNotNull(
-                    host.lastTerminatedWorkerGenerationForTesting(),
-                )
-                assertTrue(terminated > lastTerminatedGeneration)
-                lastTerminatedGeneration = terminated
+                assertHardStopped("timeout phase=${phase.protocolValue}")
             }
 
             warmReplacementWorker("post-fault recovery")
@@ -1114,6 +1138,7 @@ class R2ProjectCompilerInstrumentationTest {
                     "cancelPhases=${R2ProjectExecutionPhase.ordered.size} " +
                     "timeoutPhases=${R2ProjectExecutionPhase.ordered.size} " +
                     "timeoutMs=$PHASE_TIMEOUT_MILLIS " +
+                    "lastRetiredSessionGeneration=$lastRetiredSessionGeneration " +
                     "lastTerminatedWorkerGeneration=$lastTerminatedGeneration",
             )
         } finally {
@@ -4355,10 +4380,16 @@ class R2ProjectCompilerInstrumentationTest {
     private fun assertReleasedInputCursors(
         telemetry: R2ProjectInputTransportTelemetry,
         expectedComplete: Boolean,
+        expectedOpenedCursors: Boolean = true,
     ) {
-        assertEquals(expectedComplete, telemetry.complete)
-        assertTrue(
-            "Project input transport did not open any accepted file cursor: $telemetry",
+        assertEquals(
+            "Unexpected input completion state: $telemetry",
+            expectedComplete,
+            telemetry.complete,
+        )
+        assertEquals(
+            "Unexpected input cursor opening state: $telemetry",
+            expectedOpenedCursors,
             telemetry.openedCursorCount > 0,
         )
         assertEquals(

@@ -1802,6 +1802,13 @@ class R1AcceptedLifecycleInstrumentationTest {
         try {
             quarantinedBinding = bindCompilerWhileQuarantined()
 
+            // JobScheduler dispatch and compiler rebinding have separate deadlines. Wait for
+            // the owner to clear the fence before timing the replacement compiler's binding.
+            val owner = awaitSupervisorOwnerRecord(
+                oldIdentity = absentOldEpoch,
+                expectedOutcome =
+                    R2CompilerProcessSupervisorOwnerOutcome.RECONCILED,
+            )
             val recoveredBinder = quarantinedBinding.awaitBinder()
             assertTrue(recoveredBinder.pingBinder())
             assertFalse(R2CompilerProcessQuarantine.hasMarker(context))
@@ -1812,11 +1819,6 @@ class R1AcceptedLifecycleInstrumentationTest {
             )
             assertNotEquals(absentOldEpoch, recoveredEpoch)
 
-            val owner = awaitSupervisorOwnerRecord(
-                oldIdentity = absentOldEpoch,
-                expectedOutcome =
-                    R2CompilerProcessSupervisorOwnerOutcome.RECONCILED,
-            )
             assertEquals(
                 R2CompilerProcessSupervisorOwnerOutcome.RECONCILED,
                 owner.outcome,
@@ -2732,11 +2734,12 @@ class R1AcceptedLifecycleInstrumentationTest {
                 RetainedExactWorkFaultMode
                     .OVERLAPPED_OWNER_AND_COMPILER_DEATH -> {
                     /*
-                     * Remove the only external auto-create binding before firing either fault.
-                     * Revalidate every durable/live input, then release two kill workers from one
-                     * latch. Neither worker waits for the other process to disappear.
+                     * Keep the compiler bound through validation and both kill signals. Unbinding
+                     * a poisoned service first can trigger onDestroy and kill its process while
+                     * the FD probe is still sampling. Release the binding immediately after the
+                     * signals, before observing JobScheduler redelivery. Neither kill worker waits
+                     * for the other process to disappear.
                      */
-                    poisonedSession.close()
                     assertTrue(poisonedSession.rawBinder.isBinderAlive)
                     oldFdEvidence.assertActive()
                     assertExactSupervisorOwnerLive(
@@ -2761,6 +2764,7 @@ class R1AcceptedLifecycleInstrumentationTest {
                         expectedOwner = firstOwner,
                         expectedCompiler = capturedOldEpoch,
                     )
+                    poisonedSession.close()
                     overlappedKillEvidence = evidence
                     ownerKillInitiationNanos =
                         evidence.ownerKillInitiationNanos
