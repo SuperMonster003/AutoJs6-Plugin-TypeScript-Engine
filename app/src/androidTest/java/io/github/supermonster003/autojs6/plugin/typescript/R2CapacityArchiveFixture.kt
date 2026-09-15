@@ -12,29 +12,29 @@ import org.autojs.plugin.typescript.api.TypeScriptCompilerContract
 import org.autojs.plugin.typescript.api.TypeScriptR2Contract
 
 /**
- * Boundary selected by a capacity instrumentation test.
+ * Ordinary caller-byte boundary selected by a capacity instrumentation test.
  *
- * STORED archives bind the container quota because ZIP headers make the container slightly larger
- * than its expanded payload. DEFLATED archives instead bind the expanded-byte quota while
- * retaining enough compression to remain below the container cap.
+ * Both ZIP encodings carry exactly the ordinary caller limit, or one byte more. The manifest and
+ * ZIP records do not consume caller bytes. The larger transport allowance also admits dependency
+ * payloads and must not be used to size this fixture, which contains only caller sources.
  */
 internal enum class R2CapacityArchiveBoundary(
     val compression: R2CapacityZipCompression,
     internal val quotaDeltaBytes: Long,
 ) {
-    STORED_CONTAINER_INCLUSIVE(
+    STORED_CALLER_INCLUSIVE(
         compression = R2CapacityZipCompression.STORED,
         quotaDeltaBytes = 0L,
     ),
-    STORED_CONTAINER_PLUS_ONE(
+    STORED_CALLER_PLUS_ONE(
         compression = R2CapacityZipCompression.STORED,
         quotaDeltaBytes = 1L,
     ),
-    DEFLATED_UNCOMPRESSED_INCLUSIVE(
+    DEFLATED_CALLER_INCLUSIVE(
         compression = R2CapacityZipCompression.DEFLATED,
         quotaDeltaBytes = 0L,
     ),
-    DEFLATED_UNCOMPRESSED_PLUS_ONE(
+    DEFLATED_CALLER_PLUS_ONE(
         compression = R2CapacityZipCompression.DEFLATED,
         quotaDeltaBytes = 1L,
     ),
@@ -118,44 +118,44 @@ internal class R2CapacityArchiveFixture private constructor(
                 boundary = boundary,
             ).build()
 
-        fun storedContainerInclusive(
+        fun storedCallerInclusive(
             context: Context,
             requestId: String,
         ): R2CapacityArchiveFixture =
             create(
                 context = context,
                 requestId = requestId,
-                boundary = R2CapacityArchiveBoundary.STORED_CONTAINER_INCLUSIVE,
+                boundary = R2CapacityArchiveBoundary.STORED_CALLER_INCLUSIVE,
             )
 
-        fun storedContainerPlusOne(
+        fun storedCallerPlusOne(
             context: Context,
             requestId: String,
         ): R2CapacityArchiveFixture =
             create(
                 context = context,
                 requestId = requestId,
-                boundary = R2CapacityArchiveBoundary.STORED_CONTAINER_PLUS_ONE,
+                boundary = R2CapacityArchiveBoundary.STORED_CALLER_PLUS_ONE,
             )
 
-        fun deflatedUncompressedInclusive(
+        fun deflatedCallerInclusive(
             context: Context,
             requestId: String,
         ): R2CapacityArchiveFixture =
             create(
                 context = context,
                 requestId = requestId,
-                boundary = R2CapacityArchiveBoundary.DEFLATED_UNCOMPRESSED_INCLUSIVE,
+                boundary = R2CapacityArchiveBoundary.DEFLATED_CALLER_INCLUSIVE,
             )
 
-        fun deflatedUncompressedPlusOne(
+        fun deflatedCallerPlusOne(
             context: Context,
             requestId: String,
         ): R2CapacityArchiveFixture =
             create(
                 context = context,
                 requestId = requestId,
-                boundary = R2CapacityArchiveBoundary.DEFLATED_UNCOMPRESSED_PLUS_ONE,
+                boundary = R2CapacityArchiveBoundary.DEFLATED_CALLER_PLUS_ONE,
             )
 
         private class Builder(
@@ -281,60 +281,19 @@ internal class R2CapacityArchiveFixture private constructor(
                 val fixedSourceBytes = fixedSources.sumExact {
                     it.metrics.uncompressedBytes
                 }
-                val targetPayloadBytes = when (compression) {
-                    R2CapacityZipCompression.STORED -> {
-                        val targetContainerBytes = Math.addExact(
-                            R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
-                            boundary.quotaDeltaBytes,
-                        )
-                        Math.subtractExact(
-                            targetContainerBytes,
-                            zipRecordOverheadBytes(
-                                listOf(R2InputArchiveSchemaV1.REQUEST_MANIFEST_PATH) +
-                                    sourceSpecs.map(SourceSpec::path),
-                            ),
-                        )
-                    }
-                    R2CapacityZipCompression.DEFLATED -> Math.addExact(
-                        R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES,
-                        boundary.quotaDeltaBytes,
-                    )
-                }
-
-                var candidateSize = Math.subtractExact(
-                    TypeScriptCompilerContract.MAX_SINGLE_FILE_BYTES,
-                    INITIAL_MANIFEST_SIZE_ALLOWANCE_BYTES,
+                val targetSourceBytes = Math.addExact(
+                    TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES,
+                    boundary.quotaDeltaBytes,
                 )
-                repeat(MAXIMUM_FIXED_POINT_ATTEMPTS) {
-                    val lastSource = sourceEntry(
-                        spec = adjustableSpec,
-                        size = candidateSize,
-                    )
-                    val sources = (fixedSources + lastSource).sortedBy { source ->
-                        source.spec.path
-                    }
-                    val manifest = renderManifest(sources)
-                    val requiredSize = Math.subtractExact(
-                        Math.subtractExact(targetPayloadBytes, fixedSourceBytes),
-                        manifest.size.toLong(),
-                    )
-                    require(requiredSize >= lastSource.payload.minimumSize) {
-                        "R2 capacity boundary leaves no room for a valid final TypeScript source."
-                    }
-                    require(
-                        requiredSize <= TypeScriptCompilerContract.MAX_SINGLE_FILE_BYTES,
-                    ) {
-                        "R2 capacity boundary requires a source above the single-file limit."
-                    }
-                    if (requiredSize == candidateSize) {
-                        return ResolvedSources(
-                            sources = sources,
-                            manifest = manifest,
-                        )
-                    }
-                    candidateSize = requiredSize
+                val lastSource = sourceEntry(
+                    spec = adjustableSpec,
+                    size = Math.subtractExact(targetSourceBytes, fixedSourceBytes),
+                )
+                val sources = (fixedSources + lastSource).sortedBy { source ->
+                    source.spec.path
                 }
-                error("R2 capacity manifest/source-size fixed point did not converge.")
+                check(sources.sumExact { it.metrics.uncompressedBytes } == targetSourceBytes)
+                return ResolvedSources(sources = sources, manifest = renderManifest(sources))
             }
 
             private fun sourceEntry(
@@ -444,37 +403,11 @@ internal class R2CapacityArchiveFixture private constructor(
                 uncompressedBytes: Long,
                 expectedContainerBytes: Long,
             ) {
-                when (compression) {
-                    R2CapacityZipCompression.STORED -> {
-                        val target = Math.addExact(
-                            R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
-                            boundary.quotaDeltaBytes,
-                        )
-                        check(expectedContainerBytes == target) {
-                            "STORED R2 capacity fixture does not bind the container boundary."
-                        }
-                        check(
-                            uncompressedBytes <=
-                                R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES,
-                        ) {
-                            "STORED R2 capacity fixture unexpectedly exceeds expanded bytes."
-                        }
-                    }
-                    R2CapacityZipCompression.DEFLATED -> {
-                        val target = Math.addExact(
-                            R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES,
-                            boundary.quotaDeltaBytes,
-                        )
-                        check(uncompressedBytes == target) {
-                            "DEFLATED R2 capacity fixture does not bind the expanded boundary."
-                        }
-                        check(
-                            expectedContainerBytes <=
-                                R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES,
-                        ) {
-                            "DEFLATED R2 capacity fixture also exceeds the container boundary."
-                        }
-                    }
+                check(uncompressedBytes <= R2_INPUT_ARCHIVE_MAXIMUM_EXPANDED_BYTES) {
+                    "R2 caller capacity fixture exceeds the expanded transport allowance."
+                }
+                check(expectedContainerBytes <= R2_INPUT_ARCHIVE_MAXIMUM_CONTAINER_BYTES) {
+                    "R2 caller capacity fixture exceeds the container transport allowance."
                 }
             }
         }
@@ -1047,10 +980,11 @@ private fun ByteArray.toLowerHex(): String {
 private const val PROJECT_ID = "capacity-project"
 private const val ENTRY_PATH = "sources/main.ts"
 private const val ENTRY_SOURCE_URI = "autojs://source/project/main.ts"
-private const val CAPACITY_PADDING_DECLARATION_COUNT = 8
+private const val CAPACITY_PADDING_DECLARATION_COUNT =
+    ((TypeScriptR2Contract.MAX_ORDINARY_COMPILATION_INPUT_BYTES +
+        TypeScriptCompilerContract.MAX_SINGLE_FILE_BYTES - 1L) /
+        TypeScriptCompilerContract.MAX_SINGLE_FILE_BYTES).toInt()
 private const val MAIN_SOURCE_BYTES = 4L * 1024L
-private const val INITIAL_MANIFEST_SIZE_ALLOWANCE_BYTES = 4L * 1024L
-private const val MAXIMUM_FIXED_POINT_ATTEMPTS = 8
 
 private const val MEDIUM_ENTROPY_BLOCK_BYTES = 8 * 1024
 private const val MEDIUM_ENTROPY_ALPHABET =
