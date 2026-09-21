@@ -1352,7 +1352,7 @@ internal class R2CompilerProcessProcfs(
             ?.takeIf(R2CompilerProcessEpochIdentity::isCanonicalBootId)
 
     private fun currentBootId(): String? =
-        bootIdProvider?.invoke() ?: readKernelBootId()
+        if (bootIdProvider != null) bootIdProvider.invoke() else readKernelBootId()
 
     companion object {
 
