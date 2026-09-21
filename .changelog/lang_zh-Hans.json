@@ -9,99 +9,99 @@
     "v0.6.3": {
       "released_date": "2026/09/19",
       "improvement": [
-        "将 compileSdk 与 targetSdk 提升到 37 (Android 17), 插件行为不受新目标版本影响"
+        "compileSdk/targetSdk 升级至 37 (Android 17)"
       ],
       "fix": [
-        "AGP 9.1 构建时的 SDK XML v4 解析警告及 JVM 单元测试组装任务误触发 APK 原生库对齐检查的问题 (共享构建插件 1.8.3)"
+        "AGP 9.1 构建时的 SDK XML v4 解析警告, 以及 JVM 单元测试误触发 APK 原生库对齐检查的问题 (共享构建插件 1.8.3)"
       ]
     },
     "v0.6.2": {
       "released_date": "2026/09/13",
       "improvement": [
-        "宿主激活, 插件元数据, 多语言文档与签名发布归集遵循统一插件规范"
+        "统一宿主激活流程, 插件信息及多语言文档, 并完善签名发布校验"
       ],
       "fix": [
-        "插件中心可通过受保护入口激活新安装的插件, 显示的元数据与实际安装包一致",
-        "插件元数据的构建日期固定使用英文, 不受构建机器语言影响"
+        "新安装插件的激活及插件信息显示问题",
+        "插件信息中的构建日期受构建环境语言影响, 未统一使用英文格式的问题"
       ]
     },
     "v0.6.1": {
       "released_date": "2026/09/12",
       "improvement": [
-        "构建阶段校验 64 位原生库的 16 KB 页大小对齐, 检查 manifest 契约并输出 JSON 报告",
+        "构建阶段校验 64 位原生库的 16 KB 内存页对齐及 Manifest 配置, 并输出校验报告",
         "由公共 Gradle 平台插件统一决定构建工具版本, 移除本地兼容性数据并同步维护检查"
       ]
     },
     "v0.6.0": {
       "released_date": "2026/08/29",
       "hint": [
-        "项目编译现已面向 AutoJs6 6.8.0 Alpha7 (build 5253) 或更高版本启用; Node profile 还需要 Node.js Runtime 插件, Rhino profile 不需要",
-        "编译与执行现共用启动时的一份精确快照; npm 裸包/scoped package 可在编译期解析, 并通过 Rhino CommonJS 或 Node.js Runtime 插件在运行期装载",
-        "Android 7.0 / API 24 需要 Chrome/WebView 119 或更高版本; API 24/25 系统自带的旧 provider 不受支持并会 fail closed"
+        "项目编译需要 AutoJs6 6.8.0 Alpha7 (构建 5253) 或更高版本, Node 模式另需 Node.js Runtime 插件, Rhino 模式无需安装",
+        "编译及执行共用启动时的项目快照, npm 普通包及作用域包可在编译期解析, 并通过 Rhino CommonJS 或 Node.js Runtime 加载",
+        "Android 7.0/7.1 需要 Chrome/WebView 119 或更高版本, 系统自带的旧版 WebView 不受支持"
       ],
       "feature": [
-        "compiler-backed Node TypeScript 项目现可按需编译运行中创建的 `.ts/.mts/.cts`: Node 通过绑定精确字节数与 SHA-256 的有界 PFD 将源码交给宿主, 宿主复用常驻项目会话, 保留类型诊断与 Source Map 栈映射, 并继续拒绝路径逃逸, 符号链接和歧义目标",
-        "新增 dependency-layer policy revision 2 与 resolver policy revision 4: 宿主 archive 和 production Worker 以固定顺序拒绝 `.node`, `binding.gyp`, `gypfile` 与安装生命周期 hook, 返回稳定 native/install-script 错误及纯 JavaScript/WASM 替代指引",
-        "离线真实包验收矩阵在 Rhino 与 Node profile 中覆盖 dayjs 1.11.13, lodash 4.17.21, zod 4.1.5, uuid 13.0.0 和 nanoid 5.1.5; resolver policy revision 3 现可从运行时 JavaScript 回退到已安装的 `@types`, 且不会覆盖包自带声明",
-        "同步编译器与 Ace 的依赖包类型: package `types`/`typings`, TypeScript 6 `typesVersions`, 嵌套声明导入和已安装 `@types` 现进入同一冻结类型层; dayjs 补全, hover 与 strict TS2322 诊断在 Rhino 和 Node profile 间一致",
-        "同时启用 `compilerAvailable`, `projectCompilation`, `semanticDiagnostics` 和 `sourceMapV3` (capability mask 15), 提供完整 TypeScript Program 编译, 结构化诊断与配对的外部 Source Map v3 输出",
-        "新增公开 Rhino `.ts/.tsx` 项目编译, 支持 UTF-8 路径与原生 AutoJs6 TSX UI lowering; controlled tsconfig revision 3 同时覆盖 Rhino 和 NodeNext, 提供 20 个 boolean 选项及按 profile 限定的 `target`/`lib`, revision 2 Rhino 请求保持兼容",
-        "新增公开 NodeNext revision 2 编译, 支持 `.mts/.cts` 与项目范围内的 `.ts`, 并按源码种类和 package type 产出 `.mjs/.cjs/.js`",
-        "编译器已接入 AutoJs6 执行链, 可点击的编译诊断与运行时栈映射, 多文件项目, dynamic import 映射, Tasker/定时入口及 APK Builder 加密项目内存流程; 打包产物只含编译后的 JS/map, 不含 TS 源码",
-        "Ace 编辑器的声明与 TypeScript 6.0.3 行为现已和执行前编译保持一致",
-        "controlled tsconfig revision 4 为 Rhino 与 NodeNext 新增项目内 `baseUrl`/`paths` 路径别名; 解析仅限冻结 snapshot, 生成 specifier 会改写为显式运行时相对模块, revision 2/3 身份保持精确兼容",
-        "Node ESM `.mts` 与根 `type: module` `.ts` 项目现已支持顶层 `await`; controlled ES2022 配置会产出带配对 Source Map 的 `.mjs/.js`, 可由 Node.js Runtime 插件直接执行",
-        "新增受控 Node workspace package boundary, 支持 `packages/<name>` 与 `packages/@scope/<name>`; 同一项目中的 `.ts` 可按最近 `package.json.type` 混用 ESM 与 CommonJS, `scripts` 继续禁止",
-        "兼容 Node Runtime 现以 V8 native linker 执行 ESM 入口与 dynamic `import()`, 支持循环依赖, 可变导出及 re-export live binding; 四模块 `.mts` 图可从 `initial=1` 更新为 `updated=42`",
-        "新增独立配额的只读 `node_modules` 依赖层与 bare/scoped package 解析, 支持子路径 `exports`, `types`/`import`/`require` 条件及 `types`/`typings`/`module`/`main`/`index` 回退, 并以 dayjs + zod 完整 Program 验收; 同一精确依赖层现可进入运行时, Rhino 选择 CommonJS/JSON `require` 入口并为 ESM-only 提供稳定错误, Node 通过不回写依赖的私有 workspace overlay 执行 ESM/CJS/dual package"
+        "Node TypeScript 项目支持按需编译运行期间创建的 .ts/.mts/.cts 文件, 保留类型诊断及 Source Map 栈映射 (拒绝越界路径, 符号链接及歧义目标)",
+        "项目依赖层拒绝原生扩展及安装脚本, 返回明确错误并提供纯 JavaScript/WASM 替代指引",
+        "依赖解析支持在包未提供声明时使用已安装的 @types, 并补充 dayjs/lodash/zod/uuid/nanoid 的兼容性记录",
+        "编译器及 Ace 共享依赖包类型声明, 支持 types/typings/typesVersions, 嵌套声明及 @types, 保持补全与编译诊断一致",
+        "完整 TypeScript 项目编译, 支持结构化语法/类型诊断及外部 Source Map v3",
+        "Rhino .ts/.tsx 项目编译, 支持 UTF-8 路径及 AutoJs6 TSX UI 转换, Rhino/NodeNext 可配置布尔选项和限定的 target/lib (兼容旧版 Rhino 请求)",
+        "NodeNext 项目编译, 支持 .mts/.cts/.ts 并按模块类型输出 .mjs/.cjs/.js",
+        "宿主执行链支持多文件项目, 可点击诊断, 栈映射, 动态导入及定时/Tasker 入口, APK Builder 可打包编译后的 JS 和 Source Map (不包含 TypeScript 源码)",
+        "Ace 编辑器的声明与 TypeScript 6.0.3 行为已和执行前编译保持一致",
+        "Rhino/NodeNext 项目支持 baseUrl/paths 路径别名, 编译后改写为运行时相对模块路径 (仅解析项目快照内的文件)",
+        "Node ESM 项目支持顶层 await, 输出可由 Node.js Runtime 直接执行的 JavaScript 及 Source Map",
+        "Node 工作区支持普通包及作用域包, 按最近的 package.json 类型在项目内混用 ESM/CommonJS (不运行包脚本)",
+        "Node ESM 入口及动态导入支持原生链接, 循环依赖, 可变导出及重导出的实时绑定",
+        "只读 node_modules 依赖层, 支持普通包/作用域包, 子路径导出及类型入口解析, Rhino 可运行 CommonJS/JSON, Node 可运行 ESM/CommonJS/双格式包 (Rhino 明确拒绝仅 ESM 的包)"
       ],
       "improvement": [
-        "新增显式 opt-in 的项目会话 revision 1: 服务按 caller/project 派生身份, 在有界 Worker realm 中跨执行复用摘要版本化 SourceFile, 增量 builder 与未变输出; 旧请求仍完全冷编译, 内存压力会丢弃全部会话",
-        "新增确定性的跨执行缓存复用; 实测命中耗时 18-63 ms, 有界输入 batching 在观测设备上降低 ingress 成本 40%-57%",
-        "普通输出上限提升到 512 artifacts, 单个 JavaScript 或 map 16 MiB, 合计 64 MiB; 普通 caller 输入升级到 revision 3 的 4096 files, 单文件 8 MiB, 合计 64 MiB, 插件内置声明不占 caller 配额, revision 2 旧宿主继续兼容 512 files / 8 MiB",
-        "冷项目 ingress 进一步采用最多 6 条中间帧且最多 4 条 payload chunk 的 batching; 固定 109 文件用例从 97 降至 68 个 envelopes, 四组 Android/WebView 的 compiler 与 ingress 中位数均改善"
+        "可选项目会话支持跨执行复用未变化的源码及编译输出, 内存紧张时释放缓存 (旧请求仍使用冷编译)",
+        "跨执行复用编译缓存, 通过批量传输减少项目输入开销",
+        "项目输入上限提升至 4096 个文件, 单文件 8 MiB, 总计 64 MiB; 输出上限提升至 512 个文件, 单文件 16 MiB, 总计 64 MiB (内置声明不占输入配额, 兼容旧版宿主)",
+        "改进冷启动项目的批量传输, 减少消息数量及编译准备开销"
       ]
     },
     "v0.5.0": {
       "released_date": "2026/07/27",
       "hint": [
-        "R1 全部退出门禁现已完成, 包括 API 24/25 Chrome 119 modern-provider runtime matrix; `compilerAvailable=false` 仍为权威状态, 因为生产项目编译属于 R2"
+        "运行时预热验证已完成, 包含 API 24/25 的 Chrome 119 环境 (compilerAvailable=false, 尚不提供项目编译)"
       ],
       "fix": [
-        "service destruction 先完成 WebView, Worker, MessagePort, ServiceWorker client, pending request 和 Handler callback 清理, 再发布 close report 并唤醒等待方; 同时消除 deadline 与终态 publication 的竞态",
-        "`/proc` 与 FD 观测绑定 `(pid,starttime)`, 对不可用或部分 shell 输出 fail closed, 并避免进程退出轮询触发 UiAutomation finish 竞态"
+        "服务关闭时清理未完成即通知调用方, 以及超时与执行结束通知竞争的问题",
+        "进程及文件描述符观测误用已退出进程信息的问题, 同时避免设备测试清理时的竞争"
       ],
       "improvement": [
-        "Android 12 和 Android 13 真机各验证 10 个 cold compiler process 与 100 次 hot prewarm; compiler service FD 最终精确回到 baseline, 且不残留 staging archive",
-        "API 33 与 WebView 109 通过 none, Node-only, Ace-only 和 Node+Ace 四种安装态; 静态门禁禁止 production source, manifest 和 direct dependency 发现或依赖 Node/Ace"
+        "补充 Android 12/13 的冷启动及预热循环验证, 检查文件描述符及临时归档释放",
+        "补充独立安装及与 Node.js Runtime/Ace Editor 组合安装的兼容性检查, 保持编译插件的独立性"
       ]
     },
     "v0.4.0": {
       "released_date": "2026/07/27",
       "hint": [
-        "`compilerAvailable=false` 在 v0.4.0 中仍为权威状态: API 24 只通过 Bundle/FD transport 门禁, 旧 WebView 无法解析原始 TypeScript 6.0.3 compiler JavaScript; API 24/25 modern-provider matrix 仍待完成"
+        "项目编译仍不可用 (compilerAvailable=false), Android 7 已验证数据传输, 系统旧版 WebView 无法加载 TypeScript 6.0.3, 新版 WebView 尚待验证"
       ],
       "fix": [
-        "Binder 在反序列化前拒绝 Bundle raw transport 中的 FD, 并在 prewarm, compilation 和 cancellation 拒绝路径释放传输副本",
-        "Bundle metadata 校验仅接受实际运行时类型为 `String[]` 的字符串数组, 并拒绝顶层 null value, Parcelable array, Binder, Serializable 和 nested Bundle",
-        "以 epoch 合并 timeout recovery 执行, 防止 stale recovery 销毁替换 session; 确定性连续 1 ms timeout 门禁验证排队 probe 可恢复"
+        "无效编译请求中的文件描述符未及时拒绝及释放的问题",
+        "请求元数据接受非预期类型的问题, 严格校验字符串数组并拒绝空值及不支持的对象类型",
+        "过期的超时恢复任务错误关闭新会话的问题"
       ],
       "improvement": [
-        "Android 12 和 Android 13 真机通过真实 WebView renderer 退出门禁: 首次退出只重试一次, 第二次退出稳定失败, 随后的普通 probe 可恢复",
-        "Android 12 和 Android 13 真机各完成 10 轮 `:typescript_compiler` 进程重启并保持 distribution/declarations fingerprints 稳定; API 24 另通过 6 项 Bundle/FD transport 门禁"
+        "补充 Android 12/13 的 WebView 渲染进程退出验证, 首次失败重试一次, 再次失败后明确报错并允许后续请求恢复",
+        "补充编译进程反复重启及 API 24 数据传输验证, 检查编译器和声明文件的摘要一致性"
       ]
     },
     "v0.3.0": {
       "released_date": "2026/07/27",
       "hint": [
-        "`compilerAvailable=false` 在 v0.3.0 中仍为权威状态: R1 prewarm 仅执行受限 compiler host golden 探针, R2 完成前仍不可进行项目编译"
+        "仅提供受限编译器预热验证, 尚不支持项目编译 (compilerAvailable=false)"
       ],
       "feature": [
-        "独立 `:typescript_compiler` 进程中的 WebView/Worker compiler host 使用私有 HTTPS asset origin, 精确资源 allowlist, WebMessagePort 和收紧的 network, file, content, storage 及 window 权限",
-        "R1 prewarm 实际加载 TypeScript 6.0.3 并校验 runtime version, enum emit, 结构化语法诊断, Source Map v3, 固定输出 fingerprints 和无 inline source content"
+        "独立进程中的 WebView/Worker 编译环境, 使用私有资源地址并限制网络, 文件及存储访问",
+        "TypeScript 6.0.3 编译器预热, 校验版本, 基础编译, 语法诊断及 Source Map 输出"
       ],
       "improvement": [
-        "Android 12 和 Android 13 真机门禁覆盖每台设备 100 次热探针及超时后的 Worker 重建恢复, Android 13 还通过独立 helper 验证 minified release, 同时保持全部项目编译能力为 false"
+        "补充 Android 12/13 的预热及超时恢复验证, 并检查混淆后的发行构建 (项目编译仍未开放)"
       ],
       "dependency": [
         "附加 AndroidX WebKit 版本 1.14.0"
@@ -110,12 +110,12 @@
     "v0.2.0": {
       "released_date": "2026/07/27",
       "hint": [
-        "`compilerAvailable=false` 在 v0.2.0 中仍为权威状态: R1 仅准备并验证 compiler distribution 和 IPC/FD transport, R2 完成前仍不可进行项目编译"
+        "仅准备并校验编译器及进程间传输, 尚不支持项目编译 (compilerAvailable=false)"
       ],
       "feature": [
-        "TypeScript 6.0.3 官方发行包管线验证 SHA-1, SHA-256 和 SRI SHA-512 三种摘要, 通过严格 tar entry allowlist 安全提取文件, 并生成 canonical `distribution.json` 以及 compiler, standard libraries, generator 和 distribution fingerprints",
-        "Debug/release APK 内容门禁依据 `distribution.json` 重新验证实际打包字节, 确保 APK 仅包含一份 allowlist 内的 `lib/typescript.js`, 且 declarations, license 和 third-party notice 完整一致",
-        "Instrumentation 覆盖真实远程 `:typescript_compiler` 进程的 Binder 服务发现/能力和 R0 同步拒绝, 验证拒绝后调用方持有的 FD 仍然有效, 且无效或共享 descriptor 在有界短观察窗内未触发 callback"
+        "TypeScript 6.0.3 官方发行包校验及提取流程, 核对 SHA-1/SHA-256/SRI SHA-512 并生成编译器, 标准库及分发文件的摘要清单",
+        "安装包内容校验, 检查编译器唯一性及声明, 许可证和第三方说明的完整性",
+        "远程编译服务的发现及拒绝路径检查, 验证无效请求不会破坏调用方文件描述符"
       ],
       "dependency": [
         "附加 AndroidX Test Runner 版本 1.7.0",
@@ -125,13 +125,13 @@
     "v0.1.0": {
       "released_date": "2026/07/27",
       "hint": [
-        "`compilerAvailable=false` 表示 R0 仅提供插件发现和临时编译协议, 尚不能编译或执行 TypeScript"
+        "仅提供插件发现及临时编译协议, 尚不能编译或执行 TypeScript (compilerAvailable=false)"
       ],
       "feature": [
-        "独立的 AutoJs6 TypeScript 编译前端插件工程, 精确锁定 TypeScript 6.0.3, 并与 Node.js Runtime 插件保持零依赖",
-        "通过受 `org.autojs.permission.PLUGIN` 保护的 `org.autojs.plugin.INFO` 和 `org.autojs.plugin.typescript.COMPILER` 服务提供插件发现与编译能力协商",
-        "编译服务运行于独立的 `:typescript_compiler` 进程, 临时 Binder envelope 使用小型 `Bundle` 元数据和 `ParcelFileDescriptor` 输入/输出 archive",
-        "R0 自动化门禁覆盖 API contract, admission/rejection, compiler distribution lock, Node Runtime 独立性, Lint 和 universal APK 内容"
+        "独立 TypeScript 编译前端插件, 锁定 TypeScript 6.0.3, 不依赖 Node.js Runtime 插件",
+        "受插件权限保护的发现及编译能力查询服务",
+        "独立编译服务进程, 通过元数据及文件描述符传递输入输出",
+        "自动检查编译契约, 请求校验, 编译器锁定及安装包内容"
       ]
     }
   }
