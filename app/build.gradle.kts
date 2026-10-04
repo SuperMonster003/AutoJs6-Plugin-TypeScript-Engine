@@ -1102,7 +1102,9 @@ val verifyR2ProjectCompilerDesktop =
         description =
             "Runs the provisional R2 project compiler and P3b-a capacity golden " +
                 "in a constrained desktop Node worker shim."
-        dependsOn(generateTypeScriptDistribution)
+        dependsOn(generateTypeScriptDistribution, generateR2DeclarationDistribution)
+        inputs.dir(generatedR2DeclarationDistributionDirectory)
+        environment("R2_GENERATED_DECLARATIONS_DIR", generatedR2DeclarationDistributionDirectory.get().asFile.absolutePath)
         val workerFile =
             compilerHostSourceAssetDirectory.file("compiler-worker.js")
         val compilerFile = generatedTypeScriptDistributionDirectory.map {
@@ -2214,8 +2216,8 @@ private fun verifyR2DeclarationDistributionInApk(
     check(expectedFiles.size == manifestFiles.size) {
         "R2 declaration manifest contains duplicate paths."
     }
-    check(expectedFiles.size == 116) {
-        "Expected 116 R2 declaration distribution files, found ${expectedFiles.size}."
+    check(expectedFiles.size == 118) {
+        "Expected 118 R2 declaration distribution files, found ${expectedFiles.size}."
     }
     listOf(
         "layers/common/binding.json",
@@ -10654,6 +10656,7 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                     countingDomain["byteCountIncludes"] == countedInputs &&
                     countingDomain["excludes"] == listOf(
                         "plugin-owned-trusted-declarations",
+                        "independent-node-modules-dependency-layer",
                         "request-manifest-json",
                         "zip-container-bytes",
                         "framing-and-base64-overhead",
@@ -10695,7 +10698,7 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
             val profileOccupancy = fixture["profileDeclarationOccupancy"] as
                 List<Map<String, Any?>>
             val expectedProfileOccupancy = linkedMapOf(
-                "rhino" to listOf(51L, 882_657L, 159L, 4_667_415L),
+                "rhino" to listOf(53L, 956_181L, 161L, 4_740_939L),
                 "node" to listOf(59L, 246_572L, 167L, 4_031_330L),
             )
             check(
@@ -10790,17 +10793,17 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                     "maximumSingleFileBytes",
                     "promotesOrdinaryCompilationQuota",
                 ) &&
-                    transport["authority"] == "ordinary-caller-and-archive-validation" &&
-                    (transport["maximumArchiveFiles"] as Number).toInt() == 4_097 &&
+                    transport["authority"] == "ordinary-caller-plus-independent-dependency-layer" &&
+                    (transport["maximumArchiveFiles"] as Number).toInt() == 12_289 &&
                     (transport["maximumArchiveContainerBytes"] as Number).toLong() ==
-                    65L * 1024L * 1024L &&
+                    140L * 1024L * 1024L &&
                     (transport["maximumArchiveExpandedBytes"] as Number).toLong() ==
-                    64L * 1024L * 1024L + 512L * 1024L &&
+                    (64L + 64L + 4L) * 1024L * 1024L &&
                     (transport["maximumSingleFileBytes"] as Number).toLong() ==
                     8L * 1024L * 1024L &&
                     transport["promotesOrdinaryCompilationQuota"] == true
             ) {
-                "T1-1 archive overhead allowance drifted from the caller quota."
+                "T1-1 caller quota and independent dependency transport allowance drifted."
             }
 
             @Suppress("UNCHECKED_CAST")
@@ -10875,6 +10878,12 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
                     "const val MAX_ORDINARY_COMPILATION_INPUT_ARCHIVE_EXPANDED_BYTES =",
                     "const val MAX_ORDINARY_COMPILATION_INPUT_ARCHIVE_BYTES = " +
                         "65L * 1024L * 1024L",
+                    "const val MAX_DEPENDENCY_LAYER_FILES = 8_192",
+                    "const val MAX_DEPENDENCY_LAYER_BYTES = 64L * 1024L * 1024L",
+                    "const val MAX_INPUT_ARCHIVE_WITH_DEPENDENCIES_FILES =",
+                    "const val MAX_INPUT_ARCHIVE_WITH_DEPENDENCIES_EXPANDED_BYTES =",
+                    "const val MAX_INPUT_ARCHIVE_WITH_DEPENDENCIES_BYTES = " +
+                        "140L * 1024L * 1024L",
                     "const val LEGACY_ORDINARY_COMPILATION_INPUT_QUOTA_REVISION = 2",
                     "const val LEGACY_MAX_ORDINARY_COMPILATION_INPUT_FILES = 512",
                     "const val LEGACY_MAX_ORDINARY_COMPILATION_SINGLE_FILE_BYTES = " +
@@ -11145,9 +11154,11 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
             logger.lifecycle(
                 "T1-1 ordinary input quota verified: revision 3 caller=4096 files, " +
                     "8 MiB single, 64 MiB total; revision 2 remains compatible; " +
-                    "Rhino declarations=159/4667415 and Node declarations=167/4031330 " +
-                    "remain outside caller accounting; archive metadata receives one entry, " +
-                    "512 KiB expanded, and 1 MiB container overhead; " +
+                    "Rhino declarations=161/4740939 and Node declarations=167/4031330 " +
+                    "remain outside caller accounting; the ordinary no-dependency envelope " +
+                    "retains one metadata entry, 512 KiB expanded, and 1 MiB container overhead; " +
+                    "combined dependency transport=12289 files, 132 MiB expanded, " +
+                    "140 MiB container; " +
                     "quota rejection is pre-dispatch with empty-output contract; " +
                     "compiler capability mask=15",
             )

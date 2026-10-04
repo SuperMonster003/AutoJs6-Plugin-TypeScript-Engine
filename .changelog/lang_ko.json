@@ -6,6 +6,12 @@
   "changelog_label_improvement": "개선",
   "changelog_label_dependency": "의존성",
   "$data": {
+    "v0.6.4": {
+      "released_date": "2026/10/04",
+      "improvement": [
+        "일치하는 로컬 AutoJs6 호스트에서 Rhino 프로젝트의 Compose UI TSX 속성과 콜백을 검사할 수 있습니다. 기존 XML TSX도 계속 사용할 수 있습니다"
+      ]
+    },
     "v0.6.3": {
       "released_date": "2026/09/19",
       "improvement": [

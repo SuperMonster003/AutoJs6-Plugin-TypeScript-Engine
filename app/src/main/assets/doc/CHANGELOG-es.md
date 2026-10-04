@@ -4,6 +4,12 @@
 
 ******
 
+# v0.6.4
+
+###### 2026/10/04
+
+* `Mejora` Los proyectos Rhino comprueban propiedades y callbacks TSX de Compose UI con el host local AutoJs6 correspondiente; el TSX XML existente sigue disponible
+
 # v0.6.3
 
 ###### 2026/09/19

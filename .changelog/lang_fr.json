@@ -6,6 +6,12 @@
   "changelog_label_improvement": "Amélioration",
   "changelog_label_dependency": "Dépendance",
   "$data": {
+    "v0.6.4": {
+      "released_date": "2026/10/04",
+      "improvement": [
+        "Les projets Rhino vérifient les propriétés et rappels TSX de Compose UI avec le build local AutoJs6 correspondant; le TSX XML existant reste disponible"
+      ]
+    },
     "v0.6.3": {
       "released_date": "2026/09/19",
       "improvement": [

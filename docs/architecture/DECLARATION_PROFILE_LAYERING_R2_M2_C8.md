@@ -1,5 +1,36 @@
 # R2-M2-C8 Declaration Profile Layering
 
+> **Compose TSX local integration (2026-10-04, 0.6.4).** The current generator is
+> revision 5. The public Rhino npm tarball remains exactly `@sm003/autojs6-dts@2.1.3`,
+> with its existing URL, digests and conversion lock. Two separately attributed,
+> plugin-bundled declaration modules supplement that projection: the complete
+> Compose API and its 29 generated JSX intrinsic names. They also declare the
+> `compose`, `$compose` and `ComposeError` globals. The source snapshot, version,
+> commit and normalized source hashes are in
+> `build-logic/convention/src/main/resources/r2-compose/source.json`; this is local
+> integration content, not a claim that declaration package 4.31.0 is on npm.
+> `tools/sync-compose-declarations.py --declarations <checkout> --check` verifies
+> the explicit maintenance source. Normal Gradle builds consume only repository
+> resources, with LF enforced for reproducible hashes on Windows and Unix.
+>
+> The Rhino layer now has 53 files / 956,181 bytes; common + Rhino has 161 files /
+> 4,740,939 bytes. The complete distribution owns 118 files. The Node layer and
+> compiler profile/wire options are unchanged. Supplement output joins the normal
+> layer/profile fingerprint and exact packaged-file inventory, while its source
+> notice is also bound by the distribution fingerprint. The source kind explicitly
+> identifies an npm projection with a plugin supplement. Generator and runtime
+> loader require the new identity and inventory together.
+>
+> TypeScript has one global JSX expression type. The former XML-only `JSX.Element`
+> brand would reject Compose factory return values and mislabel namespaced Compose
+> expressions. The new projection matches the editor package by leaving that
+> expression type unspecified. XML and Compose attributes, callbacks and ordinary
+> API calls keep their precise declarations; mixed trees and fragment cardinality
+> are enforced by the matching host. Namespace-tag attribute completion in the
+> bundled TypeScript 6.0.3 remains limited; member tags are the recommended editor
+> form. The historical counts and generator identities below describe their dated
+> implementations and are not the current distribution.
+
 > **S3-A1/A2 现行 authority（2026-08-23）。** 提交 `12db299` 与 `6b85685`
 > 已取代本页下方记录的 C8/v1 初始实现：当前资产根为
 > `assets/r2-declarations/v2/`, manifest schema 2 / generator 3；release package 为
