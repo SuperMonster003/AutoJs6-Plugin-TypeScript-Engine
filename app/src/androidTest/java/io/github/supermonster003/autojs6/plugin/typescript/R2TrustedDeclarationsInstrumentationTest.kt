@@ -48,7 +48,7 @@ class R2TrustedDeclarationsInstrumentationTest {
         assertEquals(setOf("common", "node"), node.layerFingerprints.keys)
         assertEquals(listOf("/declarations/rhino/index.d.ts"), rhino.compilerRootNames)
         assertEquals(listOf("/declarations/node/index.d.ts"), node.compilerRootNames)
-        assertEquals(common.files.size + 51, rhino.files.size)
+        assertEquals(common.files.size + 53, rhino.files.size)
         assertEquals(common.files.size + 59, node.files.size)
         assertNotNull(rhino.filesByArchivePath["declarations/rhino/index.d.ts"])
         assertNotNull(node.filesByArchivePath["declarations/node/index.d.ts"])

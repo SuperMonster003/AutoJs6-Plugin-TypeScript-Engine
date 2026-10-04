@@ -6,6 +6,12 @@
   "changelog_label_improvement": "優化",
   "changelog_label_dependency": "依賴",
   "$data": {
+    "v0.6.4": {
+      "released_date": "2026/10/04",
+      "improvement": [
+        "Rhino 專案可檢查 Compose UI TSX 元件屬性與回呼, 需要匹配的本地 AutoJs6 宿主; 舊 XML TSX 繼續可用"
+      ]
+    },
     "v0.6.3": {
       "released_date": "2026/09/19",
       "improvement": [

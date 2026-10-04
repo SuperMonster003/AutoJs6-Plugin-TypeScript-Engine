@@ -1042,6 +1042,44 @@ const tsxSnapshot = (
     targetProfile: "rhino",
 });
 
+// Use the same complete generated Rhino layer and standard libraries as the APK.
+// Deliberately do not inject a permissive JSX/Compose stub into this regression.
+const composeTsxSnapshot = () => {
+    const project = tsxSnapshot(
+        '"ui";\n' +
+        'let callbackCalls = 0;\n' +
+        'const callback = (): number => ++callbackCalls;\n' +
+        'function isComposeFailure(value: unknown): value is Internal.ComposeError { return value instanceof ComposeError; }\n' +
+        'const testRef = compose.ref<Internal.ComposeNode<"Button">>();\n' +
+        'const composeFixture = (\n' +
+        '  <compose.Column spacing={8}>\n' +
+        '    <><compose.Text text="factory" /><compose:Text text="namespace" /></>\n' +
+        '    <compose.Button ref={testRef} onClick={callback}>Run</compose.Button>\n' +
+        '    <compose.TextField value="Ada" label={<compose:Text text="Label" />} />\n' +
+        '  </compose.Column>\n' +
+        ');\n' +
+        'const legacyFixture = <vertical><><text text="Legacy" /><button onClick={callback}>Click</button></></vertical>;\n',
+    );
+    const declarationRoot = process.env.R2_GENERATED_DECLARATIONS_DIR || path.resolve(
+        path.dirname(fixturePath), "../../../../build/generated/r2DeclarationAssetsV2/assets/r2-declarations/v2",
+    );
+    const manifest = JSON.parse(fs.readFileSync(path.join(declarationRoot, "distribution.json"), "utf8"));
+    const rhinoFiles = manifest.layers.rhino.files.map((name) => ({
+        path: "/declarations/rhino/" + path.basename(name),
+        text: fs.readFileSync(path.join(declarationRoot, name), "utf8"),
+    }));
+    assert(rhinoFiles.some((file) => file.path.endsWith("/compose.d.ts")) &&
+        rhinoFiles.some((file) => file.path.endsWith("/compose-jsx.d.ts")), "The real generated Rhino layer lacks Compose TSX declarations.");
+    const standardLibraries = fs.readdirSync(path.dirname(compilerPath))
+        .filter((name) => /^lib(?:\..+)?\.d\.ts$/.test(name)).sort().map((name) => ({
+            path: "/declarations/" + name,
+            text: fs.readFileSync(path.join(path.dirname(compilerPath), name), "utf8"),
+        }));
+    assert(standardLibraries.length === manifest.layers.common.fileCount, "The real common declaration inventory drifted.");
+    project.files = standardLibraries.concat(rhinoFiles, project.files.filter((file) => file.path.startsWith("/sources/")));
+    return project;
+};
+
 const digestBytes = (bytes) =>
     crypto.createHash("sha256").update(bytes).digest("hex");
 
@@ -1608,6 +1646,73 @@ const verifyTsxAttributeDiagnostic = (result) => {
             diagnostic.message.includes("texxt"),
         `Invalid TSX attribute diagnostic drifted: ${JSON.stringify(diagnostic)}.`,
     );
+};
+
+const verifyComposeTsxSuccess = (result) => {
+    assert(result.tsVersion === expectedVersion, "Compose TSX compiler version mismatch.");
+    assert(result.compilerApi === "createIncrementalProgram", "Compose TSX bypassed the real project compiler.");
+    assert(
+        !result.emitSkipped && result.diagnostics.length === 0,
+        `Compose TSX did not emit cleanly: ${JSON.stringify(result.diagnostics)}`,
+    );
+    const outputs = new Map(result.outputs.map((output) => [output.path, output.text]));
+    assert(outputs.size === 2 && outputs.has("/outputs/main.js.map"), "Compose TSX output inventory drifted.");
+    const javaScript = outputs.get("/outputs/main.js");
+    assert(typeof javaScript === "string", "Compose TSX has no executable output.");
+    const emitted = ts.createSourceFile("main.js", javaScript, ts.ScriptTarget.ES2018, true, ts.ScriptKind.JS);
+    const directives = [];
+    for (const statement of emitted.statements) {
+        if (!ts.isExpressionStatement(statement) || !ts.isStringLiteral(statement.expression)) break;
+        directives.push(statement.expression.text);
+    }
+    assert(directives.includes("ui"), "The UI directive was lost from the emitted directive prologue.");
+    assert(javaScript.includes("__autojs6Tsx(compose.Column"), "Member tags no longer pass the factory reference.");
+    assert(javaScript.includes('__autojs6Tsx("compose:Text"'), "Namespace tags no longer pass their qualified string.");
+    assert(!javaScript.includes("React") && !javaScript.includes("jsx-runtime"), "Compose TSX escaped the classic host factory contract.");
+
+    const factories = Object.fromEntries(["Column", "Text", "Button", "TextField"].map((name) => [
+        name, function unexpectedDirectFactoryCall() { throw new Error(`Compiler directly called ${name}.`); },
+    ]));
+    const fragment = Symbol("host-fragment");
+    const sandbox = {
+        compose: { ...factories, ref: () => ({ current: null }) },
+        __autojs6TsxFragment: fragment,
+        __autojs6Tsx: (type, props, ...children) => ({ type, props, children }),
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(javaScript, sandbox, { filename: "compose-classic-compiler-output.js" });
+    const values = vm.runInContext("({ composeFixture, legacyFixture, callback, testRef })", sandbox);
+    const root = values.composeFixture;
+    assert(root.type === factories.Column && root.props.spacing === 8, "Compose factory identity or numeric props were changed.");
+    const [group, button, field] = root.children;
+    assert(group.type === fragment && group.children.length === 2, "Nested fragment order or identity was lost.");
+    assert(group.children[0].type === factories.Text && group.children[0].props.text === "factory", "Member Text tag lost its identity.");
+    assert(group.children[1].type === "compose:Text" && group.children[1].props.text === "namespace", "Qualified intrinsic tag was normalized incorrectly.");
+    assert(button.type === factories.Button && button.props.ref === values.testRef, "Ref object was copied or stringified during lowering.");
+    assert(button.props.onClick === values.callback && button.props.onClick() === 1, "Event callback identity was lost.");
+    assert(button.children.length === 1 && button.children[0] === "Run", "Compose text child changed during lowering.");
+    assert(field.type === factories.TextField && field.props.value === "Ada", "TextField props were changed.");
+    assert(field.props.label.type === "compose:Text" && field.props.label.props.text === "Label", "Nested slot TSX was not evaluated as a node-valued prop.");
+    const legacy = values.legacyFixture;
+    assert(legacy.type === "vertical" && legacy.children[0].type === fragment, "Legacy XML tags or fragments changed.");
+    const legacyChildren = legacy.children[0].children;
+    assert(legacyChildren[0].type === "text" && legacyChildren[1].type === "button", "Lowercase XML tags were routed as Compose factories.");
+    assert(legacyChildren[1].props.onClick === values.callback && legacyChildren[1].props.onClick() === 2, "Legacy XML event expression did not survive real compilation.");
+    const sourceMap = JSON.parse(outputs.get("/outputs/main.js.map"));
+    assert(sourceMap.version === 3 && sourceMap.mappings.length > 0 && sourceMap.sources.length === 1 &&
+        sourceMap.sources[0].endsWith("/sources/main.tsx"), "Compose TSX source mapping lost its source identity.");
+};
+
+const verifyComposeTsxCompilerContract = async () => {
+    const { result } = await compile("desktop-compose-tsx-classic", composeTsxSnapshot());
+    verifyComposeTsxSuccess(result);
+    const legacy = await compile("desktop-compose-tsx-legacy-successor", tsxSnapshot());
+    verifyTsxSuccess(legacy.result);
+    const invalid = await compile(
+        "desktop-compose-tsx-legacy-invalid-successor",
+        tsxSnapshot('const view = <text texxt="typo" />;\nvoid view;\n'),
+    );
+    verifyTsxAttributeDiagnostic(invalid.result);
 };
 
 const countSourceTokens = (text) => {
@@ -5864,6 +5969,11 @@ const verifyCompilerPageStateMachine = () => {
 };
 
 (async () => {
+    if (process.env.R2_COMPOSE_TSX_ONLY === "1") {
+        await verifyComposeTsxCompilerContract();
+        process.stdout.write(`Compose classic TSX compiler contract passed (TypeScript ${expectedVersion}; real Worker emit and executed output).\n`);
+        return;
+    }
     if (process.env.R2_S1_SMOKE_ONLY === "1") {
         const { result } = await compile(
             "s1-rhino-smoke",
@@ -5979,6 +6089,11 @@ const verifyCompilerPageStateMachine = () => {
             );
             verifyTsxAttributeDiagnostic(invalid.result);
         },
+        failures,
+    );
+    await runGolden(
+        "Compose classic TSX factory identity, namespace, slots, fragments and legacy XML",
+        verifyComposeTsxCompilerContract,
         failures,
     );
     await runGolden(

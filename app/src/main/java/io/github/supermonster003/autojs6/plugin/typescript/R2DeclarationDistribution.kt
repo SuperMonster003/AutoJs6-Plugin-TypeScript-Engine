@@ -589,7 +589,7 @@ private data class DeclarationGenerator(
         }
 
         private const val EXPECTED_ID = "autojs6-plugin-typescript-engine"
-        private const val EXPECTED_VERSION = 4
+        private const val EXPECTED_VERSION = 5
         private const val FINGERPRINT_DOMAIN =
             "autojs6.typescript.declarations.generator.v1\n"
         private val KEYS = setOf("id", "version", "fingerprint")
@@ -734,7 +734,7 @@ private data class RhinoDeclarationSource(
     companion object {
         fun parse(value: Map<String, Any?>): RhinoDeclarationSource {
             value.requireExactKeys(KEYS, "Rhino declaration source")
-            require(value.requireString("kind") == "npm-tarball-projection")
+            require(value.requireString("kind") == "npm-tarball-projection-with-plugin-supplement")
             require(value.requireString("package") == "@sm003/autojs6-dts")
             require(value.requireString("version") == "2.1.3")
             val source = value.requireString("source")
@@ -914,7 +914,7 @@ private data class DeclarationLayerDescriptor(
                     "Declaration layer $id does not match its fingerprint."
                 }
                 require(
-                    (id == "rhino" && fileCount == 51) ||
+                    (id == "rhino" && fileCount == 53) ||
                         (id == "node" && fileCount == 59),
                 ) { "Declaration layer $id has an unexpected frozen file count." }
             }

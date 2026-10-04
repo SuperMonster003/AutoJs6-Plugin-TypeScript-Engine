@@ -213,7 +213,7 @@ class R2DeclarationDistributionTest {
             "sha512-0k5z1il4at5C4uIDOAjFZmg6yTk8qsooahniDlc1flKOLl2AN6xTJELyddb+" +
                 "yv4HRrTXRpCruhSz4pY40aLTjQ=="
         const val RHINO_SOURCE =
-            "{\"kind\":\"npm-tarball-projection\",\"package\":\"@sm003/autojs6-dts\"," +
+            "{\"kind\":\"npm-tarball-projection-with-plugin-supplement\",\"package\":\"@sm003/autojs6-dts\"," +
                 "\"version\":\"2.1.3\",\"source\":\"$EXPECTED_RHINO_SOURCE\"," +
                 "\"sha1\":\"$EXPECTED_RHINO_SHA1\",\"sha256\":\"$EXPECTED_RHINO_SHA256\"," +
                 "\"integrity\":\"$EXPECTED_RHINO_INTEGRITY\"," +

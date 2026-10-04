@@ -12,6 +12,7 @@
 r2-declaration-sources/**/*.d.ts text eol=lf
 r2-declaration-sources/**/*.json text eol=lf
 r2-declaration-sources/**/LICENSE text eol=lf
+build-logic/convention/src/main/resources/r2-compose/*.d.ts text eol=lf
 gradlew text eol=lf
 *.jar binary
 *.aar binary

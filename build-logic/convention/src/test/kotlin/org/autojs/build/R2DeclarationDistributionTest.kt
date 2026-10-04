@@ -83,7 +83,7 @@ class R2DeclarationDistributionTest {
         @Suppress("UNCHECKED_CAST")
         val layers = manifest["layers"] as Map<String, Map<String, Any?>>
         assertEquals(108, (layers.getValue("common").getValue("fileCount") as Number).toInt())
-        assertEquals(51, (layers.getValue("rhino").getValue("fileCount") as Number).toInt())
+        assertEquals(53, (layers.getValue("rhino").getValue("fileCount") as Number).toInt())
         assertEquals(59, (layers.getValue("node").getValue("fileCount") as Number).toInt())
         @Suppress("UNCHECKED_CAST")
         val nodeFiles = layers.getValue("node").getValue("files") as List<String>
@@ -91,7 +91,7 @@ class R2DeclarationDistributionTest {
         val rhinoFiles = firstSnapshot.filterKeys { path ->
             path.startsWith("layers/rhino/") && path.endsWith(".d.ts")
         }
-        assertEquals(51, rhinoFiles.size)
+        assertEquals(53, rhinoFiles.size)
         listOf(
             "layers/rhino/app.d.ts",
             "layers/rhino/console.d.ts",
@@ -100,6 +100,8 @@ class R2DeclarationDistributionTest {
             "layers/rhino/storages.d.ts",
             "layers/rhino/threads.d.ts",
             "layers/rhino/ui.d.ts",
+            "layers/rhino/compose.d.ts",
+            "layers/rhino/compose-jsx.d.ts",
         ).forEach { path -> assertTrue("projection must contain $path", path in rhinoFiles) }
         val index = rhinoFiles.getValue("layers/rhino/index.d.ts")
             .toString(StandardCharsets.UTF_8)
@@ -123,6 +125,12 @@ class R2DeclarationDistributionTest {
             "Rhino TSX projection must reject unknown intrinsic tags and attributes",
             index.contains("[tagName: string]") || index.contains("[attribute: string]"),
         )
+        assertFalse("JSX expressions must not be branded as XML", index.contains("type Element = AutoJs6Tsx.Element;"))
+        val composeJsx = rhinoFiles.getValue("layers/rhino/compose-jsx.d.ts").toString(StandardCharsets.UTF_8)
+        assertTrue(composeJsx.contains("\"compose:Column\""))
+        assertTrue(composeJsx.contains("declare let compose: Internal.Compose;"))
+        assertTrue(firstSnapshot.getValue("notices/rhino-source.txt").toString(StandardCharsets.UTF_8)
+            .contains("local integration snapshot, not an npm release"))
         val projection = rhinoFiles.values.joinToString("\n") { bytes ->
             bytes.toString(StandardCharsets.UTF_8)
         }

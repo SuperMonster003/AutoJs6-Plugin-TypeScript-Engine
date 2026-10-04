@@ -52,6 +52,50 @@ Node 的 `.mts` 始终产出 ESM `.mjs`，`.cts` 始终产出 CommonJS `.cjs`；
 `.js` 语义仍由项目根 `package.json.type` 决定。修改 `target` 或 `lib` 不会改写这些
 module-kind 规则。
 
+## Compose TSX 的可用条件
+
+Compose TSX 对应 TypeScript Engine `0.6.4`, AutoJs6 `6.8.0` / 构建号 `5319`
+或以上, 以及 Compose UI `1.1.0` 本地开发预览. 两个插件都需要已安装, 已启用,
+并通过宿主的信任与兼容性检查. 普通 JavaScript Compose 工厂 API 的最低宿主仍为
+`5316`; 仅安装新版渲染器不会给旧宿主增加 TSX 接入.
+
+将源码保存为 `.tsx`, 通过 Rhino 的正常脚本入口运行. UI 页面在源码开头保留
+`"ui";`, 非 UI 脚本使用 `compose.floaty` 并授予宿主悬浮窗权限. Node profile
+不接受 `.tsx`. TypeScript 编译错误仍然 fail closed, 不会把原始 TSX 当作普通
+JavaScript 执行, 也不会回退到先前的编译结果.
+
+```tsx
+"ui";
+
+let count = compose.state(0);
+compose.mount(() => (
+    <>
+        <compose.Column padding={16} spacing={8}>
+            <compose:Text key="count" text={'Count: ' + count.value} />
+            <compose.Button key="increment" onClick={() => { count.value++; }}>
+                Increment
+            </compose.Button>
+        </compose.Column>
+    </>
+));
+```
+
+`<compose.Column>` 保留当前脚本的真实工厂引用, `<compose:Column>` 保留目录名称.
+小写 `<vertical>`, `<text>`, `<button>` 仍使用已有 XML UI 语义. 两种 UI 的节点不能
+混在同一树中, 错误为 `INVALID_ARGUMENT`; Compose 渲染失败保留上一个成功帧.
+任意用户函数不会作为 Compose 函数组件执行. Fragment 只在消费位置展开, 不自动
+创建容器; Compose 挂载根需要恰好一个节点, 单节点插槽最多一个节点.
+
+Rhino profile 继续使用 classic JSX 的 `__autojs6Tsx` 与 `__autojs6TsxFragment`
+宿主入口. 不需要配置 JSX factory 或引入 React; `jsx`, `jsxFactory`,
+`jsxFragmentFactory` 和 React runtime 选项仍不作为用户可改写的编译逃生门.
+本次配套为真实 Rhino 声明层增加 Compose 模块和 TSX 声明, 保留原有 TypeScript
+编译器, profile 与 Binder 协议. 声明由插件自身供应, 用户不需要在脚本中编写
+`declare const compose: any` 或复制测试声明来通过编译.
+
+完整组件, 插槽, 回调与生命周期说明见
+[Compose UI 模块参考](https://docs.autojs6.com/#/compose).
+
 ## 可直接使用的示例
 
 Rhino 示例：

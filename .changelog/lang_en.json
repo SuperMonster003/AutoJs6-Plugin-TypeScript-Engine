@@ -6,6 +6,12 @@
   "changelog_label_improvement": "Improvement",
   "changelog_label_dependency": "Dependency",
   "$data": {
+    "v0.6.4": {
+      "released_date": "2026/10/04",
+      "improvement": [
+        "Rhino projects recognize Compose UI TSX component properties and callbacks with the matching local AutoJs6 host; legacy XML TSX remains available"
+      ]
+    },
     "v0.6.3": {
       "released_date": "2026/09/19",
       "improvement": [
