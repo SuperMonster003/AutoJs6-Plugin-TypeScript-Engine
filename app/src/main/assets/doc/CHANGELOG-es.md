@@ -6,9 +6,10 @@
 
 # v0.6.4
 
-###### 2026/10/04
+###### 2026/10/05
 
 * `Mejora` Los proyectos Rhino comprueban propiedades y callbacks TSX de Compose UI con el host local AutoJs6 correspondiente; el TSX XML existente sigue disponible
+* `Mejora` Los iconos de información de la aplicación de Android comparten las imágenes y los fondos claros y oscuros de Icon Studio, conservando las imágenes transparentes del centro de plugins y las opciones del lanzador
 
 # v0.6.3
 

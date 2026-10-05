@@ -7,9 +7,10 @@
   "changelog_label_dependency": "依賴",
   "$data": {
     "v0.6.4": {
-      "released_date": "2026/10/04",
+      "released_date": "2026/10/05",
       "improvement": [
-        "Rhino 專案可檢查 Compose UI TSX 元件屬性與回呼, 需要相符的本機 AutoJs6 宿主; 舊 XML TSX 繼續可用"
+        "Rhino 專案可檢查 Compose UI TSX 元件屬性與回呼, 需要相符的本機 AutoJs6 宿主; 舊 XML TSX 繼續可用",
+        "Android 系統應用程式資訊圖示與圖示工作台共用圖稿及明暗底色, 保留外掛程式中心透明圖稿與現有啟動器選項"
       ]
     },
     "v0.6.3": {

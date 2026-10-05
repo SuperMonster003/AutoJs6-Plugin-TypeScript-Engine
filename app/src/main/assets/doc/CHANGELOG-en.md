@@ -6,9 +6,10 @@
 
 # v0.6.4
 
-###### 2026/10/04
+###### 2026/10/05
 
 * `Improvement` Rhino projects recognize Compose UI TSX component properties and callbacks with the matching local AutoJs6 host; legacy XML TSX remains available
+* `Improvement` Android App info icons share Icon Studio artwork and light/dark backgrounds while preserving transparent Plugin Center artwork and existing launcher choices
 
 # v0.6.3
 

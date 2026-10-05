@@ -7,9 +7,10 @@
   "changelog_label_dependency": "Dependencia",
   "$data": {
     "v0.6.4": {
-      "released_date": "2026/10/04",
+      "released_date": "2026/10/05",
       "improvement": [
-        "Los proyectos Rhino comprueban propiedades y callbacks TSX de Compose UI con el host local AutoJs6 correspondiente; el TSX XML existente sigue disponible"
+        "Los proyectos Rhino comprueban propiedades y callbacks TSX de Compose UI con el host local AutoJs6 correspondiente; el TSX XML existente sigue disponible",
+        "Los iconos de información de la aplicación de Android comparten las imágenes y los fondos claros y oscuros de Icon Studio, conservando las imágenes transparentes del centro de plugins y las opciones del lanzador"
       ]
     },
     "v0.6.3": {

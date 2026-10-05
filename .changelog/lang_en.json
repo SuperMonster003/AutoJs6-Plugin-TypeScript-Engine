@@ -7,9 +7,10 @@
   "changelog_label_dependency": "Dependency",
   "$data": {
     "v0.6.4": {
-      "released_date": "2026/10/04",
+      "released_date": "2026/10/05",
       "improvement": [
-        "Rhino projects recognize Compose UI TSX component properties and callbacks with the matching local AutoJs6 host; legacy XML TSX remains available"
+        "Rhino projects recognize Compose UI TSX component properties and callbacks with the matching local AutoJs6 host; legacy XML TSX remains available",
+        "Android App info icons share Icon Studio artwork and light/dark backgrounds while preserving transparent Plugin Center artwork and existing launcher choices"
       ]
     },
     "v0.6.3": {
