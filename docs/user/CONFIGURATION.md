@@ -96,6 +96,37 @@ Rhino profile 继续使用 classic JSX 的 `__autojs6Tsx` 与 `__autojs6TsxFragm
 完整组件, 插槽, 回调与生命周期说明见
 [Compose UI 模块参考](https://docs.autojs6.com/#/compose).
 
+与已有 XML UI 互嵌需要 TypeScript Engine `0.6.5`, AutoJs6 `6.8.0` / `5320`
+及支持 `android-view-interop-v1` 的 Compose UI `1.1.0` 渲染器. XML 树中的空
+`<compose>` 是容器, 用 `compose.attach(container, nodeOrRender)` 挂入 Compose
+内容. Compose 树中的 `compose.AndroidView` 则借用原生 View, 或接收在主线程
+执行的 View 工厂. 工厂可以返回 `ui.inflate` 创建的 XML TSX 控件:
+
+```tsx
+"ui";
+
+const count = compose.state(0);
+ui.layout(<vertical>
+    <text text="XML header" />
+    <compose id="slot" h={240} />
+</vertical>);
+const slot = ui.findView('slot');
+if (slot === null) throw new Error('Missing Compose container');
+const native = <compose.AndroidView view={() => ui.inflate(
+    <button text="Increment" textAllCaps={false} onClick={() => { count.value++; }} />
+)} />;
+compose.attach(slot, () => <compose.Column>
+    <compose.Text text={'Count: ' + count.value} />
+    {native}
+</compose.Column>);
+```
+
+同一原生 View 不能同时属于多个节点或会话, 也不能从已有父容器中被强行移走.
+关闭会话会卸下借用的 View, 不清空其监听器或销毁调用方的资源. XML 原生控件的
+回调继续使用原有 UI 事件规则. 这两个桥接点之外, 直接混合 XML 与 Compose 节点
+仍返回类型化错误. `<compose>` 不能带 XML 子节点, AndroidView 不能带 Compose
+子节点; JSX 表达式的全局类型精度有限, 宿主仍执行这些运行时校验.
+
 ## 可直接使用的示例
 
 Rhino 示例：

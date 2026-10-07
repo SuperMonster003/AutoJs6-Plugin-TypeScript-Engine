@@ -40,9 +40,9 @@
       "commonFiles": 108,
       "commonBytes": 3784758,
       "profileFiles": 53,
-      "profileBytes": 956181,
+      "profileBytes": 958981,
       "occupiedFiles": 161,
-      "occupiedBytes": 4740939,
+      "occupiedBytes": 4743739,
       "maximumCallerFilesBeforeOptionalMetadata": 4096,
       "maximumCallerBytesBeforeOptionalMetadata": 67108864
     },

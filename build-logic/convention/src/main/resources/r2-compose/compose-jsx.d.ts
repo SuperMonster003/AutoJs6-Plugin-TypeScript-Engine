@@ -39,3 +39,11 @@ declare namespace JSX {
     }
 }
 // </autojs6-compose-jsx:v1>
+// <autojs6-compose-interop-jsx:f2>
+// Generated from org.autojs.plugin.compose.api.interop.AndroidViewInteropV1; schema=1; contract=1; extension=1; feature=android-view-interop-v1; sha256=cbee120589a49e97f8bf5ea546b508f0a1f8b77b685e8affd8b03da67b838a37.
+declare namespace JSX {
+    interface IntrinsicElements {
+        "compose:AndroidView": Internal.ComposeProps<"AndroidView">;
+    }
+}
+// </autojs6-compose-interop-jsx:f2>

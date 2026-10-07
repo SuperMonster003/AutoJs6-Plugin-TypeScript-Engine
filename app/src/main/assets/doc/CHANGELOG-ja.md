@@ -4,6 +4,13 @@
 
 ******
 
+# v0.6.5
+
+###### 2026/10/07
+
+* `ヒント` 相互運用には対応する AutoJs6 6.8.0 / 5320 ホストと AndroidView 拡張対応の Compose UI が必要です. TSX には TypeScript Engine 0.6.5 も必要です. 基本 V1 描画の最小ホストは引き続き 5316 です
+* `改善` Compose UI TSX: XML `<compose>` コンテナと compose.attach は UI ページや既存のフローティングウィンドウに独立した Compose セッションを埋め込みます. compose.AndroidView は既存の Android View または同期ファクトリが返す View を表示します
+
 # v0.6.4
 
 ###### 2026/10/05

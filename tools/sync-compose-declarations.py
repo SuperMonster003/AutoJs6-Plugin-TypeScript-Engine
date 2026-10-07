@@ -17,17 +17,21 @@ def outputs(source: Path) -> dict[str, bytes]:
     declarations = source / "declarations/autojs6"
     module = (declarations / "aj6-int-compose.d.ts").read_text(encoding="utf-8").encode("utf-8")
     jsx = (declarations / "aj6-jsx-element-extension.d.ts").read_text(encoding="utf-8")
-    # Only the generated Compose region belongs to the supplement. The compiler
+    # Only the generated Compose regions belong to the supplement. The compiler
     # retains its existing, stricter XML intrinsic declarations.
-    block = re.search(r"(?ms)^// <autojs6-compose-jsx:v1>\n.*?^// </autojs6-compose-jsx:v1>", jsx)
-    if not block:
-        raise ValueError("The generated Compose JSX region is missing")
+    blocks = []
+    for marker in ("autojs6-compose-jsx:v1", "autojs6-compose-interop-jsx:f2"):
+        pattern = rf"(?ms)^// <{re.escape(marker)}>\n.*?^// </{re.escape(marker)}>"
+        matches = re.findall(pattern, jsx)
+        if len(matches) != 1:
+            raise ValueError(f"Expected exactly one generated Compose JSX region: {marker}")
+        blocks.append(matches[0].strip())
     jsx_module = (
         "// Local Compose UI supplement; XML intrinsics remain compiler-owned.\n"
         "declare let compose: Internal.Compose;\n"
         "declare let $compose: Internal.Compose;\n"
         "declare const ComposeError: Internal.ComposeErrorConstructor;\n"
-        + block.group(0).strip() + "\n"
+        + "\n".join(blocks) + "\n"
     ).encode("utf-8")
     version = json.loads((source / "package.json").read_text(encoding="utf-8"))["version"]
     commit = subprocess.check_output(

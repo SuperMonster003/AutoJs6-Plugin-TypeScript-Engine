@@ -1,5 +1,37 @@
 # R2-M2-C8 Declaration Profile Layering
 
+> **Compose interop integration (2026-10-07, 0.6.5).** Generator revision 6 adds the
+> independent F.2 JSX projection alongside the unchanged generated V1 region.
+> The real Rhino layer includes attach, AndroidView and its synchronous native
+> factory input. The compiler-owned XML map adds the empty `compose` container,
+> the supported textAllCaps aliases and the actual EventEmitter receiver for
+> native onClick callbacks. No catch-all intrinsic or attribute index is added.
+> The public 2.1.3 tarball lock, Node layer, compiler options and wire profiles
+> remain unchanged. The supplement identifies its separate local source version
+> and exact commit; it does not claim that all bundled Rhino APIs came from the
+> newer declaration package.
+>
+> The current Rhino layer is 53 files / 958981 bytes; common + Rhino is 161 files /
+> 4743739 bytes. The distribution still owns 118 files. Real Worker tests compile
+> and execute the interop lowering shape using these actual declarations, and
+> reject missing views, Promise/async factories, null containers and plain text
+> children. A single JSX expression still has the historical global any type;
+> actual XML element children and mixed-tree ownership remain runtime checks.
+> Counts and generator identities in the dated sections below are historical.
+>
+> Final local source is declarations 4.33.0 commit
+> `26dcf6cd6d4d175c179b49474d9b9ffc28939690`. The full real Worker suite, C8
+> Program/Worker isolation, current input quota, 534 selected app JVM cases
+> (529 plus five explicitly selected capability-fixture cases) and four
+> build-logic cases pass. Debug/androidTest, lint and five signed release APKs
+> pass. Debug lint has zero errors and seven existing warnings. The final
+> x86_64 release `...-v0.6.5-x86_64-6954E0DF.apk` is 3372133 bytes, SHA-256
+> `450568244d9eefab91093e23b0f17e2f8e7b025d12951c3dfbd5e929abad6503`.
+> With host 5320 and the signed F2 renderer, an owned API 35 x86_64 AVD passed
+> all seven real TSX scenarios, including the XML/AndroidView bridge. Ignored
+> logs are `app/build/compose-f2-final-*`; this is local evidence, not a remote
+> release or a new full physical-device matrix.
+
 > **Compose TSX local integration (2026-10-04, 0.6.4).** The current generator is
 > revision 5. The public Rhino npm tarball remains exactly `@sm003/autojs6-dts@2.1.3`,
 > with its existing URL, digests and conversion lock. Two separately attributed,

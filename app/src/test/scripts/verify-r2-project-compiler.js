@@ -1713,6 +1713,69 @@ const verifyComposeTsxCompilerContract = async () => {
         tsxSnapshot('const view = <text texxt="typo" />;\nvoid view;\n'),
     );
     verifyTsxAttributeDiagnostic(invalid.result);
+    await verifyComposeInteropCompilerContract();
+};
+
+const verifyComposeInteropCompilerContract = async () => {
+    const withSource = (source) => {
+        const project = composeTsxSnapshot();
+        project.files.find((file) => file.path === "/sources/main.tsx").text = source;
+        return project;
+    };
+    const source = `"ui";
+const nativeLayout = <vertical><compose id="slot" h={160} /></vertical>;
+ui.layout(nativeLayout);
+const native = <compose:AndroidView view={ui.inflate(<button text="Native" textAllCaps={false} onClick={function(view) {
+    const receiver: EventEmitter$ = this;
+    void receiver;
+    view.setText("Clicked");
+}} />)} />;
+const factory = <compose.AndroidView view={(context) => {
+    void context;
+    return ui.inflate(<text text="Factory" />);
+}} />;
+const embedded = compose.attach(ui.findView("slot")!, <compose.Column>{native}{factory}</compose.Column>);
+`;
+    const { result } = await compile("desktop-compose-interop", withSource(source));
+    assert(!result.emitSkipped && result.diagnostics.length === 0,
+        `Real Compose interop declarations failed: ${JSON.stringify(result.diagnostics)}`);
+    const javaScript = result.outputs.find((output) => output.path === "/outputs/main.js")?.text;
+    assert(typeof javaScript === "string" && javaScript.includes('__autojs6Tsx("compose"') &&
+        javaScript.includes('__autojs6Tsx("compose:AndroidView"') &&
+        javaScript.includes("__autojs6Tsx(compose.AndroidView"), "Interop tags lost their classic identities.");
+    const factories = Object.fromEntries(["Column", "AndroidView"].map((name) => [name, () => {
+        throw new Error(`Unexpected direct ${name} invocation during lowering.`);
+    }]));
+    const container = {}, sandbox = {
+        compose: { ...factories, attach: (target, node) => ({ target, node }) },
+        ui: { layout: () => {}, findView: () => container, inflate: (xml) => ({ xml }) },
+        __autojs6Tsx: (type, props, ...children) => ({ type, props, children }),
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(javaScript, sandbox, { filename: "compose-interop-output.js" });
+    const values = vm.runInContext("({ nativeLayout, native, factory, embedded })", sandbox);
+    assert(values.nativeLayout.children[0].type === "compose" && values.embedded.target === container,
+        "XML container identity or attach target was changed.");
+    assert(values.native.props.view.xml.type === "button" && values.factory.type === factories.AndroidView &&
+        values.factory.props.view({}).xml.type === "text", "View values/factories or ui.inflate input were stringified.");
+    let text = "";
+    values.native.props.view.xml.props.onClick.call({}, { setText: (value) => { text = value; } });
+    assert(text === "Clicked", "Inflated XML TSX click callback was lost.");
+    const invalidSources = [
+        // A single JSX expression has the historical global any type. Plain text
+        // remains statically rejectable; actual element children are host-checked.
+        'const x = <compose>invalid child</compose>;',
+        'const x = <compose:AndroidView />;',
+        'const x = <compose.AndroidView view={async () => ui.inflate("<text />")} />;',
+        'const x = <compose.AndroidView view={Promise.resolve(ui.inflate("<text />"))} />;',
+        'compose.attach(null, compose.Text({text:"invalid"}));',
+    ];
+    for (const [index, invalidSource] of invalidSources.entries()) {
+        const checked = await compile(`desktop-compose-interop-invalid-${index}`, withSource(invalidSource));
+        assert(checked.result.emitSkipped && checked.result.outputs.length === 0 &&
+            checked.result.diagnostics.some((item) => item.category === ts.DiagnosticCategory.Error),
+        `Interop invalid source ${index} was not rejected: ${JSON.stringify(checked.result.diagnostics)}`);
+    }
 };
 
 const countSourceTokens = (text) => {

@@ -4,6 +4,13 @@
 
 ******
 
+# v0.6.5
+
+###### 2026/10/07
+
+* `提示` 互操作需要匹配的 AutoJs6 6.8.0 / 5320 宿主與支援 AndroidView 擴充的 Compose UI 建構; TSX 另需 TypeScript Engine 0.6.5. 基礎 V1 渲染最低宿主仍為 5316
+* `優化` Compose UI TSX: XML `<compose>` 容器與 compose.attach 可在 UI 頁面或舊懸浮窗內嵌入獨立 Compose 工作階段; compose.AndroidView 可承載現有 Android View 或同步工廠傳回的 View
+
 # v0.6.4
 
 ###### 2026/10/05

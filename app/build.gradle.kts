@@ -10698,7 +10698,7 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
             val profileOccupancy = fixture["profileDeclarationOccupancy"] as
                 List<Map<String, Any?>>
             val expectedProfileOccupancy = linkedMapOf(
-                "rhino" to listOf(53L, 956_181L, 161L, 4_740_939L),
+                "rhino" to listOf(53L, 958_981L, 161L, 4_743_739L),
                 "node" to listOf(59L, 246_572L, 167L, 4_031_330L),
             )
             check(
@@ -11154,7 +11154,7 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
             logger.lifecycle(
                 "T1-1 ordinary input quota verified: revision 3 caller=4096 files, " +
                     "8 MiB single, 64 MiB total; revision 2 remains compatible; " +
-                    "Rhino declarations=161/4740939 and Node declarations=167/4031330 " +
+                    "Rhino declarations=161/4743739 and Node declarations=167/4031330 " +
                     "remain outside caller accounting; the ordinary no-dependency envelope " +
                     "retains one metadata entry, 512 KiB expanded, and 1 MiB container overhead; " +
                     "combined dependency transport=12289 files, 132 MiB expanded, " +

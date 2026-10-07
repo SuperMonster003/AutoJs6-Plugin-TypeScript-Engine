@@ -6,6 +6,15 @@
   "changelog_label_improvement": "Улучшение",
   "changelog_label_dependency": "Зависимость",
   "$data": {
+    "v0.6.5": {
+      "released_date": "2026/10/07",
+      "improvement": [
+        "Compose UI TSX: XML-контейнеры `<compose>` и compose.attach встраивают независимые сеансы Compose в UI-страницы или прежние плавающие окна; compose.AndroidView отображает готовый Android View либо результат синхронной фабрики"
+      ],
+      "hint": [
+        "Интеграция требует совместимый AutoJs6 6.8.0 / 5320 и сборку Compose UI с расширением AndroidView; для TSX также нужен TypeScript Engine 0.6.5. Минимум для базового V1 остается 5316"
+      ]
+    },
     "v0.6.4": {
       "released_date": "2026/10/05",
       "improvement": [

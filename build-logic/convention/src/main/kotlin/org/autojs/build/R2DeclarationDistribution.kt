@@ -66,7 +66,7 @@ object R2DeclarationDistribution {
 
     const val MANIFEST_FILE_NAME = "distribution.json"
     const val GENERATOR_ID = "autojs6-plugin-typescript-engine"
-    const val GENERATOR_VERSION = 5
+    const val GENERATOR_VERSION = 6
     const val MANIFEST_SCHEMA_VERSION = 2
 
     private val STABLE_TYPESCRIPT_6_VERSION = Regex("6\\.\\d+\\.\\d+")
@@ -704,7 +704,7 @@ object R2DeclarationDistribution {
         append("declare namespace AutoJs6Tsx {\n")
         append("  type Scalar = string | number | boolean;\n")
         append("  type TextChild = string | number | boolean | null | undefined;\n")
-        append("  type ClickHandler = (view: UI.View) => void;\n")
+        append("  type ClickHandler = (this: EventEmitter$, view: UI.View) => void;\n")
         append("  interface BaseAttributes {\n")
         append("    id?: string;\n")
         listOf(
@@ -755,6 +755,9 @@ object R2DeclarationDistribution {
             "size",
             "textColor",
             "textStyle",
+            "textAllCaps",
+            "allCaps",
+            "isAllCaps",
             "hint",
             "hintColor",
             "lines",
@@ -791,6 +794,7 @@ object R2DeclarationDistribution {
         // to the host; attributes and ordinary API calls remain precisely typed.
         append("  interface ElementChildrenAttribute { children: {}; }\n")
         append("  interface IntrinsicElements {\n")
+        append("    compose: AutoJs6Tsx.BaseAttributes & { children?: never };\n")
         listOf(
             "actionmenu",
             "appbar",

@@ -6,6 +6,15 @@
   "changelog_label_improvement": "تحسين",
   "changelog_label_dependency": "تبعية",
   "$data": {
+    "v0.6.5": {
+      "released_date": "2026/10/07",
+      "improvement": [
+        "Compose UI TSX: تدمج حاويات XML `<compose>` و compose.attach جلسات Compose مستقلة في صفحات UI أو النوافذ العائمة الحالية. يعرض compose.AndroidView عنصرا جاهزا من Android View أو عنصرا تعيده دالة إنشاء متزامنة"
+      ],
+      "hint": [
+        "يتطلب التكامل المضيف المطابق AutoJs6 6.8.0 / 5320 وبنية Compose UI تدعم امتداد AndroidView. يتطلب TSX أيضا TypeScript Engine 0.6.5. يبقى الحد الأدنى لعرض V1 الأساسي هو 5316"
+      ]
+    },
     "v0.6.4": {
       "released_date": "2026/10/05",
       "improvement": [
