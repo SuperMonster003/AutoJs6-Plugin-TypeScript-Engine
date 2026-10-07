@@ -6,6 +6,15 @@
   "changelog_label_improvement": "改善",
   "changelog_label_dependency": "依存関係",
   "$data": {
+    "v0.6.6": {
+      "released_date": "2026/10/07",
+      "improvement": [
+        "compose.dialog は更新と終了が可能なセッションを返し, UI スクリプトと通常のスクリプトでダイアログやモーダルボトムシートを表示できます"
+      ],
+      "hint": [
+        "独立ダイアログには AutoJs6 6.8.0 / 5321 と dialog-v1 対応の Compose UI が必要です. TSX には TypeScript Engine 0.6.6 も必要です. 非 UI スクリプトにはホストのオーバーレイ権限が必要です"
+      ]
+    },
     "v0.6.5": {
       "released_date": "2026/10/07",
       "improvement": [

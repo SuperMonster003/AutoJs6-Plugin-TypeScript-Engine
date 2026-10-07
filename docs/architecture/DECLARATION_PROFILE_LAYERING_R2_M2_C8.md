@@ -1,5 +1,30 @@
 # R2-M2-C8 Declaration Profile Layering
 
+> **Compose dialogs (2026-10-07, 0.6.6).** The local 4.34.0 supplement adds
+> `compose.dialog`, its alert/bottomSheet options and existing-session return type.
+> The generated transform and runtime identity remain revision 6: no transform,
+> compiler option, Node profile or public npm lock changed. Content hashes bind
+> the new declaration source. The current Rhino layer is 53 files / 959861 bytes;
+> common + Rhino is 161 files / 4744619 bytes, and the manifest still owns 118 files.
+> The real Worker regression checks default alert and reactive sheet calls,
+> preserved TSX/factory identities and eight invalid dialog input categories.
+> Dated F.2/F.1 identities and byte counts below remain historical.
+>
+> Final source is declarations 4.34.0 commit
+> `4512f0ef4a051c8286bd7a19cd3cd7f2d8cf50e6`. The full Worker, C8 Program/Worker
+> layering, current quota, 534 selected app JVM cases and four build-logic cases
+> pass. Debug/androidTest, lint and five signed release artifacts pass; lint has
+> zero errors and seven existing warnings. Final signed x86_64
+> `autojs6-plugin-typescript-engine-v0.6.6-x86_64-A20EA5C8.apk` is 3373593 bytes,
+> SHA-256 `9c917ee44bda498ec963d88a1790b883a36af8b124bb9825ed83b620605774cc`.
+> With clean host 5321 and the final signed renderer, an owned API 35 AVD passes
+> all eight real TSX scenarios plus five unchanged JS examples (13 cases).
+> This includes independent dialogs, state, real clicks and the normal close
+> callback receiver. Logs are `app/build/compose-f3-engine-final-gate.log` and the
+> host's `app/build/compose-f3-tsx-and-examples-final.log`; no remote publication
+> or new physical-device/performance matrix is implied.
+>
+
 > **Compose interop integration (2026-10-07, 0.6.5).** Generator revision 6 adds the
 > independent F.2 JSX projection alongside the unchanged generated V1 region.
 > The real Rhino layer includes attach, AndroidView and its synchronous native

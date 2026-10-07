@@ -1714,6 +1714,7 @@ const verifyComposeTsxCompilerContract = async () => {
     );
     verifyTsxAttributeDiagnostic(invalid.result);
     await verifyComposeInteropCompilerContract();
+    await verifyComposeDialogCompilerContract();
 };
 
 const verifyComposeInteropCompilerContract = async () => {
@@ -1775,6 +1776,62 @@ const embedded = compose.attach(ui.findView("slot")!, <compose.Column>{native}{f
         assert(checked.result.emitSkipped && checked.result.outputs.length === 0 &&
             checked.result.diagnostics.some((item) => item.category === ts.DiagnosticCategory.Error),
         `Interop invalid source ${index} was not rejected: ${JSON.stringify(checked.result.diagnostics)}`);
+    }
+};
+
+const verifyComposeDialogCompilerContract = async () => {
+    const withSource = (source) => {
+        const project = composeTsxSnapshot();
+        project.files.find((file) => file.path === "/sources/main.tsx").text = source;
+        return project;
+    };
+    const source = `
+const native = compose.AndroidView({view: context => ui.inflate("<text text='Native' />")});
+const popup = compose.dialog(() => <compose.Column>
+    <compose.Text text="Dialog" />{native}
+</compose.Column>, {type: 'bottomSheet', cancelable: false, theme: {dark: true}});
+const regular: Internal.Compose.Session = popup;
+regular.on('close', function() { const current: Internal.Compose.Session = this; void current; });
+regular.update(() => {});
+regular.post(() => regular.close());
+const alertSession = compose.dialog(<compose:Text text="Alert" />);
+`;
+    const { result } = await compile("desktop-compose-dialog", withSource(source));
+    assert(!result.emitSkipped && result.diagnostics.length === 0,
+        `Real dialog declarations failed: ${JSON.stringify(result.diagnostics)}`);
+    const javaScript = result.outputs.find((output) => output.path === "/outputs/main.js")?.text;
+    assert(typeof javaScript === "string" && javaScript.includes("compose.dialog("),
+        "Dialog calls did not survive real TSX compilation.");
+    const calls = [];
+    const session = {on() { return this; }, update(action) { action(); }, post() {}, close() {}};
+    const sandbox = {
+        compose: {
+            Column() {}, Text() {}, AndroidView: props => ({props}),
+            dialog: (root, options) => { calls.push({root: typeof root === "function" ? root() : root, options}); return session; },
+        },
+        ui: {inflate: xml => ({xml})},
+        __autojs6Tsx: (type, props, ...children) => ({type, props, children}),
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(javaScript, sandbox, {filename: "compose-dialog-output.js"});
+    assert(calls.length === 2 && calls[0].options.type === "bottomSheet" &&
+        calls[0].options.cancelable === false && calls[0].options.theme.dark === true &&
+        calls[1].root.type === "compose:Text", "Dialog options or TSX root identities changed.");
+    const invalidSources = [
+        'compose.dialog();',
+        'compose.dialog(compose.Text({text:"x"}), {type:"popup"});',
+        'compose.dialog(compose.Text({text:"x"}), {cancelable:"false"});',
+        'compose.dialog(compose.Text({text:"x"}), {raw:true});',
+        'compose.dialog(compose.Text({text:"x"}), {theme:{dark:"yes"}});',
+        'compose.dialog(async () => compose.Text({text:"x"}));',
+        'compose.dialog("<text/>");',
+        'compose.dialog(compose.Text({text:"x"})).then(() => {});',
+    ];
+    for (const [index, invalidSource] of invalidSources.entries()) {
+        const checked = await compile(`desktop-compose-dialog-invalid-${index}`, withSource(invalidSource));
+        assert(checked.result.emitSkipped && checked.result.outputs.length === 0 &&
+            checked.result.diagnostics.some(item => item.category === ts.DiagnosticCategory.Error),
+            `Invalid dialog source ${index} emitted: ${JSON.stringify(checked.result.diagnostics)}`);
     }
 };
 

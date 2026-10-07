@@ -4,6 +4,13 @@
 
 ******
 
+# v0.6.6
+
+###### 2026/10/07
+
+* `Hint` Independent dialogs require AutoJs6 6.8.0 / 5321 and Compose UI with dialog-v1 support; TSX also requires TypeScript Engine 0.6.6. Non-UI scripts need the host overlay permission
+* `Improvement` compose.dialog returns an updatable, closable session for dialogs and modal bottom sheets in UI or ordinary scripts
+
 # v0.6.5
 
 ###### 2026/10/07

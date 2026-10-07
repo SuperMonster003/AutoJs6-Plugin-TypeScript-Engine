@@ -6,6 +6,15 @@
   "changelog_label_improvement": "优化",
   "changelog_label_dependency": "依赖",
   "$data": {
+    "v0.6.6": {
+      "released_date": "2026/10/07",
+      "improvement": [
+        "compose.dialog 返回可更新和关闭的会话, 支持普通对话框与模态底部弹层, 可在 UI 或普通脚本中使用"
+      ],
+      "hint": [
+        "独立弹窗需要配套 AutoJs6 6.8.0 / 5321 与支持 dialog-v1 的 Compose UI; TSX 还需要 TypeScript Engine 0.6.6. 非 UI 脚本需要宿主悬浮窗权限"
+      ]
+    },
     "v0.6.5": {
       "released_date": "2026/10/07",
       "improvement": [

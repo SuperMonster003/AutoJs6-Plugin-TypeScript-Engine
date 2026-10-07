@@ -6,6 +6,15 @@
   "changelog_label_improvement": "تحسين",
   "changelog_label_dependency": "تبعية",
   "$data": {
+    "v0.6.6": {
+      "released_date": "2026/10/07",
+      "improvement": [
+        "تعيد compose.dialog جلسة قابلة للتحديث والإغلاق للحوارات واللوحات السفلية المشروطة في نصوص UI والنصوص العادية"
+      ],
+      "hint": [
+        "تتطلب الحوارات المستقلة AutoJs6 6.8.0 / 5321 وCompose UI مع دعم dialog-v1; ويتطلب TSX أيضا TypeScript Engine 0.6.6. تحتاج النصوص غير UI إلى إذن التراكب للمضيف"
+      ]
+    },
     "v0.6.5": {
       "released_date": "2026/10/07",
       "improvement": [

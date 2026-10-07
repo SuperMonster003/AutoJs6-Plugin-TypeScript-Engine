@@ -127,6 +127,28 @@ compose.attach(slot, () => <compose.Column>
 仍返回类型化错误. `<compose>` 不能带 XML 子节点, AndroidView 不能带 Compose
 子节点; JSX 表达式的全局类型精度有限, 宿主仍执行这些运行时校验.
 
+独立弹窗需要 TypeScript Engine `0.6.6`, AutoJs6 `6.8.0` / `5321`, 以及支持
+`dialog-v1` 的 Compose UI `1.1.0`. `compose.dialog(nodeOrRender, options?)`
+返回普通 `ComposeSession`, 可以更新内容, 注册 `close` 事件或主动关闭. `type`
+默认为 `alert`, 也可选 `bottomSheet`; `cancelable` 默认为 `true`, 设为 `false`
+时禁止返回键, 点击外部和下滑关闭, 但 `session.close()` 仍然有效.
+
+```tsx
+// Non-UI scripts require the host's existing overlay permission.
+const session: Internal.Compose.Session = compose.dialog(
+    <compose.Column spacing={12}>
+        <compose.Text text="Independent dialog" />
+        <compose.Button onClick={() => session.close()}>Close</compose.Button>
+    </compose.Column>,
+    {type: 'bottomSheet', cancelable: false},
+);
+```
+
+UI 脚本使用自己的 Activity 窗口; 非 UI 脚本需要宿主悬浮窗权限, 缺失时返回
+`PERMISSION_REQUIRED`, 不自动弹出授权界面. 弹窗不会替换现有页面或其他会话,
+与它们共享 8 个会话的上限. 普通脚本在弹窗存在期间保持运行, 关闭后释放这份
+保活; 脚本退出会关闭全部自有弹窗. 返回值不是 Promise.
+
 ## 可直接使用的示例
 
 Rhino 示例：

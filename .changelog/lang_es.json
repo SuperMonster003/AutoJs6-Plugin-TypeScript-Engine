@@ -6,6 +6,15 @@
   "changelog_label_improvement": "Mejora",
   "changelog_label_dependency": "Dependencia",
   "$data": {
+    "v0.6.6": {
+      "released_date": "2026/10/07",
+      "improvement": [
+        "compose.dialog devuelve una sesión que se puede actualizar y cerrar para diálogos y paneles inferiores modales en scripts UI o normales"
+      ],
+      "hint": [
+        "Los diálogos independientes requieren AutoJs6 6.8.0 / 5321 y Compose UI con dialog-v1; TSX también requiere TypeScript Engine 0.6.6. Los scripts sin UI necesitan el permiso de superposición del anfitrión"
+      ]
+    },
     "v0.6.5": {
       "released_date": "2026/10/07",
       "improvement": [

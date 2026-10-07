@@ -6,6 +6,15 @@
   "changelog_label_improvement": "개선",
   "changelog_label_dependency": "의존성",
   "$data": {
+    "v0.6.6": {
+      "released_date": "2026/10/07",
+      "improvement": [
+        "compose.dialog는 UI 또는 일반 스크립트에서 대화상자와 모달 하단 시트를 표시하고 업데이트 및 종료 가능한 세션을 반환합니다"
+      ],
+      "hint": [
+        "독립 대화상자에는 AutoJs6 6.8.0 / 5321과 dialog-v1을 지원하는 Compose UI가 필요합니다. TSX에는 TypeScript Engine 0.6.6도 필요합니다. UI가 아닌 스크립트에는 호스트의 오버레이 권한이 필요합니다"
+      ]
+    },
     "v0.6.5": {
       "released_date": "2026/10/07",
       "improvement": [
