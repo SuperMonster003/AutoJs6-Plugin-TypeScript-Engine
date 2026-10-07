@@ -1,5 +1,28 @@
 # R2-M2-C8 Declaration Profile Layering
 
+> **Compose V2 components (2026-10-07, 0.6.7).** The local 4.35.0 supplement adds
+> 25 V2 node types, 62 properties, slots, positional callbacks and TSX tags while
+> retaining the frozen V1 and F.2 regions. The generator/runtime identity is now
+> revision 7 because the JSX projection includes its independent V2 region.
+> The public npm tarball lock, compiler options, Node profile and caller quotas
+> are unchanged. Rhino is 53 files / 991341 bytes; common + Rhino is 161 files /
+> 4776099 bytes, with 118 manifest-owned files. Quota fixtures and independent
+> JVM/Gradle assertions are updated from the actual generated inventory.
+>
+> Full Worker verification compiles all 19 requested component families, executes
+> emitted factory/namespace identities and callbacks, and rejects 16 invalid V2
+> input categories. C8 Program/Worker layering, current quota checks, 534 selected
+> app JVM cases and four build-logic cases pass. Debug/androidTest and lint pass;
+> lint has zero errors and seven existing warnings. A real API 35 installation
+> passes both packaged declaration inventory cases. Final vendored provenance is
+> recorded in `build-logic/convention/src/main/resources/r2-compose/source.json`;
+> signed artifacts and final host TSX validation are recorded in the F.4 stage
+> evidence, `COMPOSE_V2_LOCAL_ACCEPTANCE.md`. The final signed compiler and renderer
+> pass all nine real TSX cases plus five unchanged JS examples (14 total). The
+> exact declaration source is `de51858b59ec88f75c56d94bcf4af600c54ff34f`.
+> The dated F.3/F.2/F.1 identities below remain historical.
+>
+
 > **Compose dialogs (2026-10-07, 0.6.6).** The local 4.34.0 supplement adds
 > `compose.dialog`, its alert/bottomSheet options and existing-session return type.
 > The generated transform and runtime identity remain revision 6: no transform,

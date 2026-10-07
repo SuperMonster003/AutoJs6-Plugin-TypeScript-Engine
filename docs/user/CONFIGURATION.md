@@ -149,6 +149,27 @@ UI 脚本使用自己的 Activity 窗口; 非 UI 脚本需要宿主悬浮窗权�
 与它们共享 8 个会话的上限. 普通脚本在弹窗存在期间保持运行, 关闭后释放这份
 保活; 脚本退出会关闭全部自有弹窗. 返回值不是 Promise.
 
+Compose UI V2 宽集组件需要 TypeScript Engine `0.6.7`, AutoJs6 `6.8.0` / `5322`
+及契约版本为 `2` 的 Compose UI `1.1.0` 本地构建. 上文的旧版本要求仅适用于
+对应的历史 V1 渲染器; 当前 V2 插件统一要求 5322 宿主. 新版声明包括导航,
+标签页, 菜单与底部弹层, 日期时间, 分页网格, 芯片, 徽标, 分段按钮, 搜索,
+提示和下拉刷新, 以及相应子项. 函数式工厂和 TSX 使用同一目录.
+
+```tsx
+const chipSelected = compose.state(false);
+compose.mount(() => <compose.FilterChip
+    label={<compose.Text text="Show completed" />}
+    selected={chipSelected.value}
+    onSelectedChange={value => { chipSelected.value = value; }}
+/>);
+```
+
+事件参数是直接的值, 例如 `onTimeChange(hour, minute)` 和 `onPageChange(page)`,
+不是包含这些字段的事件对象. 日期使用 UTC 零点毫秒数或 `null`, 年份范围为
+1583 至 9999. 导航与分段按钮的 item 有直接父项要求, 必填插槽不能省略.
+新宿主仍能使用 V1 渲染器的原有组件, 提交它不支持的 V2 组件时会返回
+`UNKNOWN_COMPONENT`. 完整属性和事件见配套的 Compose UI 组件参考.
+
 ## 可直接使用的示例
 
 Rhino 示例：

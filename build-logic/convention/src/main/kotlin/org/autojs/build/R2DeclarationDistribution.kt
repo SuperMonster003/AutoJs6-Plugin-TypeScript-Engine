@@ -66,7 +66,7 @@ object R2DeclarationDistribution {
 
     const val MANIFEST_FILE_NAME = "distribution.json"
     const val GENERATOR_ID = "autojs6-plugin-typescript-engine"
-    const val GENERATOR_VERSION = 6
+    const val GENERATOR_VERSION = 7
     const val MANIFEST_SCHEMA_VERSION = 2
 
     private val STABLE_TYPESCRIPT_6_VERSION = Regex("6\\.\\d+\\.\\d+")

@@ -4,6 +4,13 @@
 
 ******
 
+# v0.6.7
+
+###### 2026/10/08
+
+* `Indication` Les composants étendus de Compose UI V2 nécessitent AutoJs6 6.8.0 / 5322; TSX nécessite TypeScript Engine 0.6.7. Les nouveaux hôtes acceptent les composants existants des moteurs V1; les composants étendus nécessitent un moteur V2
+* `Amélioration` Déclarations TypeScript / TSX des propriétés, emplacements et événements des composants Compose UI V2
+
 # v0.6.6
 
 ###### 2026/10/07

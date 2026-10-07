@@ -6,6 +6,15 @@
   "changelog_label_improvement": "تحسين",
   "changelog_label_dependency": "تبعية",
   "$data": {
+    "v0.6.7": {
+      "released_date": "2026/10/08",
+      "improvement": [
+        "تعريفات TypeScript / TSX لخصائص وفتحات وأحداث مكونات Compose UI V2"
+      ],
+      "hint": [
+        "تتطلب مكونات Compose UI V2 الموسعة AutoJs6 6.8.0 / 5322; ويتطلب TSX الإصدار TypeScript Engine 0.6.7. يدعم المضيف الجديد مكونات محركات V1 القديمة; وتتطلب المكونات الموسعة محرك V2"
+      ]
+    },
     "v0.6.6": {
       "released_date": "2026/10/07",
       "improvement": [

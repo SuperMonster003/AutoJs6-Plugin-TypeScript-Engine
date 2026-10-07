@@ -1,11 +1,11 @@
 {
   "sourceRepository": "https://github.com/SuperMonster003/AutoJs6-TypeScript-Declarations",
-  "sourceVersion": "4.34.0",
-  "sourceCommit": "4512f0ef4a051c8286bd7a19cd3cd7f2d8cf50e6",
+  "sourceVersion": "4.35.0",
+  "sourceCommit": "de51858b59ec88f75c56d94bcf4af600c54ff34f",
   "distribution": "local integration snapshot, not an npm release",
   "license": "MPL-2.0",
   "files": {
-    "aj6-int-compose.d.ts": "692598c6821f7ae4e14269ef672279b1ee95af4e82e175ba31eeec7805cba4ec",
-    "compose-jsx.d.ts": "aa0c510fcd62be7708cb6bde9a7122077b5d9ddfdc3b6e75da12cf0a51cc5b0c"
+    "aj6-int-compose.d.ts": "48ef51f00e4d020b5963443ca6762790c0dae65ebdac6bca627eadd4c72563ec",
+    "compose-jsx.d.ts": "eb4eb20497e51faea04ee688e3818241fb73d99698778f43a8efc8511ea19b41"
   }
 }

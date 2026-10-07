@@ -6,6 +6,15 @@
   "changelog_label_improvement": "优化",
   "changelog_label_dependency": "依赖",
   "$data": {
+    "v0.6.7": {
+      "released_date": "2026/10/08",
+      "improvement": [
+        "Compose UI V2 组件的 TypeScript / TSX 属性, 插槽和事件声明"
+      ],
+      "hint": [
+        "Compose UI V2 宽集组件需要配套 AutoJs6 6.8.0 / 5322; TSX 配套需要 TypeScript Engine 0.6.7. 新宿主仍可使用旧 V1 渲染器的原有组件, 宽集组件需要 V2 渲染器"
+      ]
+    },
     "v0.6.6": {
       "released_date": "2026/10/07",
       "improvement": [

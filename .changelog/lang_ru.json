@@ -6,6 +6,15 @@
   "changelog_label_improvement": "Улучшение",
   "changelog_label_dependency": "Зависимость",
   "$data": {
+    "v0.6.7": {
+      "released_date": "2026/10/08",
+      "improvement": [
+        "Объявления TypeScript / TSX для свойств, слотов и событий компонентов Compose UI V2"
+      ],
+      "hint": [
+        "Расширенным компонентам Compose UI V2 нужен AutoJs6 6.8.0 / 5322; для TSX нужен TypeScript Engine 0.6.7. Новые хосты поддерживают существующие компоненты старых рендереров V1; расширенным компонентам нужен V2"
+      ]
+    },
     "v0.6.6": {
       "released_date": "2026/10/07",
       "improvement": [

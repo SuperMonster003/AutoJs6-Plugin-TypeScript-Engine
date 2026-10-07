@@ -589,7 +589,7 @@ private data class DeclarationGenerator(
         }
 
         private const val EXPECTED_ID = "autojs6-plugin-typescript-engine"
-        private const val EXPECTED_VERSION = 6
+        private const val EXPECTED_VERSION = 7
         private const val FINGERPRINT_DOMAIN =
             "autojs6.typescript.declarations.generator.v1\n"
         private val KEYS = setOf("id", "version", "fingerprint")

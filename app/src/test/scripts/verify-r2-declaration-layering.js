@@ -92,7 +92,7 @@ const generatorCanonical =
     `version\0${manifest.generator.version}\n`;
 assert(
     manifest.generator.id === "autojs6-plugin-typescript-engine" &&
-        manifest.generator.version === 6 &&
+        manifest.generator.version === 7 &&
         manifest.generator.fingerprint === sha256(generatorCanonical),
     "Declaration generator identity drifted.",
 );

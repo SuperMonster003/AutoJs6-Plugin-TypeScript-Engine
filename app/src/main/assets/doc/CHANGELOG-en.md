@@ -4,6 +4,13 @@
 
 ******
 
+# v0.6.7
+
+###### 2026/10/08
+
+* `Hint` The extended Compose UI V2 components require the matching AutoJs6 6.8.0 / 5322 host; companion TSX support requires TypeScript Engine 0.6.7. New hosts still support existing components in older V1 renderers; extended components require a V2 renderer
+* `Improvement` TypeScript / TSX properties, slots and event declarations for Compose UI V2 components
+
 # v0.6.6
 
 ###### 2026/10/07

@@ -1715,6 +1715,7 @@ const verifyComposeTsxCompilerContract = async () => {
     verifyTsxAttributeDiagnostic(invalid.result);
     await verifyComposeInteropCompilerContract();
     await verifyComposeDialogCompilerContract();
+    await verifyComposeWideCompilerContract();
 };
 
 const verifyComposeInteropCompilerContract = async () => {
@@ -1832,6 +1833,90 @@ const alertSession = compose.dialog(<compose:Text text="Alert" />);
         assert(checked.result.emitSkipped && checked.result.outputs.length === 0 &&
             checked.result.diagnostics.some(item => item.category === ts.DiagnosticCategory.Error),
             `Invalid dialog source ${index} emitted: ${JSON.stringify(checked.result.diagnostics)}`);
+    }
+};
+
+const verifyComposeWideCompilerContract = async () => {
+    const withSource = (source) => {
+        const project = composeTsxSnapshot();
+        project.files.find((file) => file.path === "/sources/main.tsx").text = source;
+        return project;
+    };
+    const source = `
+let wideSelected = false;
+let page = 0;
+let query = '';
+const label = compose.Text({text: 'Label'});
+const icon = compose.Icon({name: 'Filled.Home'});
+const examples = [
+ <compose.NavigationBar><compose.NavigationBarItem icon={icon} label={label} selected={true} /></compose.NavigationBar>,
+ <compose.NavigationRail><compose.NavigationRailItem icon={icon} /></compose.NavigationRail>,
+ <compose.NavigationDrawer open={false} drawerContent={compose.NavigationDrawerItem({label})}>{label}</compose.NavigationDrawer>,
+ <compose.TabRow selectedIndex={0}><compose:Tab text={label} /></compose.TabRow>,
+ <compose.ModalBottomSheet open={false} cancelable={false}>{label}</compose.ModalBottomSheet>,
+ <compose.DropdownMenu anchor={label}><compose.DropdownMenuItem text={label} /></compose.DropdownMenu>,
+ <compose.DatePicker selectedDateMillis={null} yearStart={2000} yearEnd={2100} displayMode="input" />,
+ <compose.TimePicker hour={23} minute={59} is24Hour={true} displayMode="picker" />,
+ <compose.HorizontalPager page={page} onPageChange={value => page = value}><compose.Text key="one" text="Page" /></compose.HorizontalPager>,
+ <compose.LazyVerticalGrid columns={2} contentPadding={[8, 4]}><compose.Text key="grid" text="Grid" /></compose.LazyVerticalGrid>,
+ <compose.AssistChip label={label} />,
+ <compose.FilterChip label={label} selected={wideSelected} onSelectedChange={value => wideSelected = value} />,
+ <compose.InputChip label={label} selected={false} />,
+ <compose.Badge text="3" visible={true}>{icon}</compose.Badge>,
+ <compose.SegmentedButton mode="multi"><compose.SegmentedButtonItem label={label} selected={true} /></compose.SegmentedButton>,
+ <compose.FloatingActionButton>{icon}</compose.FloatingActionButton>,
+ <compose.SearchBar query={query} expanded={false} onQueryChange={text => query = text}>{label}</compose.SearchBar>,
+ <compose.Tooltip tooltip={label} open={false}>{icon}</compose.Tooltip>,
+ <compose.PullToRefresh refreshing={false} onRefresh={() => {}}>{label}</compose.PullToRefresh>,
+];
+`;
+    const {result} = await compile("desktop-compose-wide-v2", withSource(source));
+    assert(!result.emitSkipped && result.diagnostics.length === 0,
+        `Real V2 declarations failed: ${JSON.stringify(result.diagnostics)}`);
+    const output = result.outputs.find(file => file.path === "/outputs/main.js")?.text;
+    assert(typeof output === "string" && output.includes('__autojs6Tsx("compose:Tab"') &&
+        output.includes("__autojs6Tsx(compose.HorizontalPager"), "V2 tag identities were changed.");
+    const names = ["Text", "Icon", "NavigationBar", "NavigationBarItem", "NavigationRail", "NavigationRailItem",
+        "NavigationDrawer", "NavigationDrawerItem", "TabRow", "Tab", "ModalBottomSheet", "DropdownMenu",
+        "DropdownMenuItem", "DatePicker", "TimePicker", "HorizontalPager", "LazyVerticalGrid", "AssistChip",
+        "FilterChip", "InputChip", "Badge", "SegmentedButton", "SegmentedButtonItem", "FloatingActionButton",
+        "SearchBar", "Tooltip", "PullToRefresh"];
+    const factories = Object.fromEntries(names.map(name => [name, props => ({name, props})]));
+    const sandbox = {compose: factories, __autojs6Tsx: (type, props, ...children) => ({type, props, children})};
+    vm.createContext(sandbox);
+    vm.runInContext(output, sandbox, {filename: "compose-wide-v2-output.js"});
+    const examples = vm.runInContext("examples", sandbox);
+    assert(examples.length === 19 && examples[0].type === factories.NavigationBar &&
+        examples[0].children[0].props.selected === true && examples[3].children[0].type === "compose:Tab" &&
+        examples[9].props.columns === 2, "V2 component properties or nesting changed during emission.");
+    examples[8].props.onPageChange(1);
+    examples[11].props.onSelectedChange(true);
+    examples[16].props.onQueryChange("find");
+    const state = vm.runInContext("({selected:wideSelected,page,query})", sandbox);
+    assert(state.selected && state.page === 1 && state.query === "find", "V2 callback payload access was lost.");
+    const invalidSources = [
+        'const x = <compose.NavigationBarItem />;',
+        'compose.NavigationDrawer({open:false});',
+        'compose.FilterChip({label:compose.Text({text:"x"}), selected:"yes"});',
+        'compose.DatePicker({selectedDateMillis:"today"});',
+        'compose.DatePicker({displayMode:"calendar"});',
+        'const x = <compose.TimePicker hour="12" />;',
+        'const x = <compose:HorizontalPager page="0" />;',
+        'compose.LazyVerticalGrid({columns:"auto"});',
+        'compose.SegmentedButton({mode:"range"});',
+        'compose.SearchBar({query:false});',
+        'compose.PullToRefresh({refreshing:"yes"});',
+        'compose.Tooltip({open:true});',
+        'compose.DropdownMenu({open:true});',
+        'compose.ModalBottomSheet({cancelable:"false"});',
+        'compose.Badge({visible:1});',
+        'compose.InputChip({label:compose.Text({}), onSelectedChange:(e:{selected:string}) => {}});',
+    ];
+    for (const [index, invalid] of invalidSources.entries()) {
+        const checked = await compile(`desktop-compose-wide-invalid-${index}`, withSource(invalid));
+        assert(checked.result.emitSkipped && checked.result.outputs.length === 0 &&
+            checked.result.diagnostics.some(item => item.category === ts.DiagnosticCategory.Error),
+            `V2 invalid source ${index} emitted: ${JSON.stringify(checked.result.diagnostics)}`);
     }
 };
 

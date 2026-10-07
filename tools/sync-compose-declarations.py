@@ -20,7 +20,7 @@ def outputs(source: Path) -> dict[str, bytes]:
     # Only the generated Compose regions belong to the supplement. The compiler
     # retains its existing, stricter XML intrinsic declarations.
     blocks = []
-    for marker in ("autojs6-compose-jsx:v1", "autojs6-compose-interop-jsx:f2"):
+    for marker in ("autojs6-compose-jsx:v1", "autojs6-compose-interop-jsx:f2", "autojs6-compose-jsx:v2"):
         pattern = rf"(?ms)^// <{re.escape(marker)}>\n.*?^// </{re.escape(marker)}>"
         matches = re.findall(pattern, jsx)
         if len(matches) != 1:

@@ -6,6 +6,15 @@
   "changelog_label_improvement": "개선",
   "changelog_label_dependency": "의존성",
   "$data": {
+    "v0.6.7": {
+      "released_date": "2026/10/08",
+      "improvement": [
+        "Compose UI V2 구성요소의 TypeScript / TSX 속성, 슬롯 및 이벤트 선언"
+      ],
+      "hint": [
+        "Compose UI V2 확장 구성요소에는 AutoJs6 6.8.0 / 5322가 필요합니다. TSX에는 TypeScript Engine 0.6.7이 필요합니다. 새 호스트는 기존 V1 렌더러의 구성요소도 지원합니다. 확장 구성요소에는 V2가 필요합니다"
+      ]
+    },
     "v0.6.6": {
       "released_date": "2026/10/07",
       "improvement": [
