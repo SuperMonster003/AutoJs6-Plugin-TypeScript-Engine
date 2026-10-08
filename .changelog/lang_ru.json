@@ -6,6 +6,15 @@
   "changelog_label_improvement": "Улучшение",
   "changelog_label_dependency": "Зависимость",
   "$data": {
+    "v0.6.8": {
+      "released_date": "2026/10/08",
+      "improvement": [
+        "Объявления TypeScript / TSX и проверка аргументов для compose.memo"
+      ],
+      "hint": [
+        "Для compose.memo нужен соответствующий хост AutoJs6 6.8.0 / 5323; для TSX нужен TypeScript Engine 0.6.8"
+      ]
+    },
     "v0.6.7": {
       "released_date": "2026/10/08",
       "improvement": [

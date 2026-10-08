@@ -1,5 +1,15 @@
 # R2-M2-C8 Declaration Profile Layering
 
+> **Compose memo fragments (2026-10-08, 0.6.8).** The local 4.36.0 supplement adds
+> `compose.memo(build, deps, options?)` and `ComposeMemoOptions` for the AutoJs6
+> 6.8.0 / 5323 render fragment cache. The generated transform and runtime identity
+> remain revision 7: no transform, compiler option, Node profile or public npm lock
+> changed. Content hashes bind the new declaration source. The current Rhino layer
+> is 53 files / 992257 bytes; common + Rhino is 161 files / 4777015 bytes, and the
+> manifest still owns 118 files. The real Worker regression compiles keyed memo rows
+> in a TSX render, executes the emitted calls and rejects six invalid memo inputs.
+> Dated V2/F.3/F.2/F.1 identities and byte counts below remain historical.
+>
 > **Compose V2 components (2026-10-07, 0.6.7).** The local 4.35.0 supplement adds
 > 25 V2 node types, 62 properties, slots, positional callbacks and TSX tags while
 > retaining the frozen V1 and F.2 regions. The generator/runtime identity is now

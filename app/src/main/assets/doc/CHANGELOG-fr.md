@@ -4,6 +4,13 @@
 
 ******
 
+# v0.6.8
+
+###### 2026/10/08
+
+* `Indication` compose.memo nécessite l'hôte AutoJs6 6.8.0 / 5323 correspondant; la prise en charge TSX nécessite TypeScript Engine 0.6.8
+* `Amélioration` Déclarations TypeScript / TSX et vérification des arguments pour compose.memo
+
 # v0.6.7
 
 ###### 2026/10/08

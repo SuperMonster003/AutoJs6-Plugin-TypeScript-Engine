@@ -4,6 +4,13 @@
 
 ******
 
+# v0.6.8
+
+###### 2026/10/08
+
+* `ヒント` compose.memo には対応する AutoJs6 6.8.0 / 5323 が必要です. TSX には TypeScript Engine 0.6.8 が必要です
+* `改善` compose.memo の TypeScript / TSX 宣言と引数チェック
+
 # v0.6.7
 
 ###### 2026/10/08

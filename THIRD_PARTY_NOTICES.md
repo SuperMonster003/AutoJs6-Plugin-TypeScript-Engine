@@ -11,8 +11,8 @@ R1 从经过 SHA-1, SHA-256 和 SRI SHA-512 验证的官方 npm tarball 生成
 
 Rhino 声明仍投影公开的 `@sm003/autojs6-dts@2.1.3` (MPL-2.0), tarball 来源及完整
 摘要由 `r2-declarations.lock.json` 锁定. Compose 补充声明来自同一维护者的
-`SuperMonster003/AutoJs6-TypeScript-Declarations` 本地 4.35.0 配套源码提交
-`de51858b59ec88f75c56d94bcf4af600c54ff34f` (MPL-2.0), 不表示该版本已发布到 npm.
+`SuperMonster003/AutoJs6-TypeScript-Declarations` 本地 4.36.0 配套源码提交
+`5102e03ec1635561e6f4a63c75a979f8a5b41cf6` (MPL-2.0), 不表示该版本已发布到 npm.
 完整 Compose API 及按目录生成的 JSX 映射以源码资源随仓库提供, 原作者说明保留.
 来源与两个规范化文件的 SHA-256 记录在
 `build-logic/convention/src/main/resources/r2-compose/source.json`.

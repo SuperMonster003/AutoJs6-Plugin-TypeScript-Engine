@@ -4,6 +4,13 @@
 
 ******
 
+# v0.6.8
+
+###### 2026/10/08
+
+* `Aviso` compose.memo requiere el host AutoJs6 6.8.0 / 5323 correspondiente; la compatibilidad TSX requiere TypeScript Engine 0.6.8
+* `Mejora` Declaraciones TypeScript / TSX y comprobación de argumentos para compose.memo
+
 # v0.6.7
 
 ###### 2026/10/08

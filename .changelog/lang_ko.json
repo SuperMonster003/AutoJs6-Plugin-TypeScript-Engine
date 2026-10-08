@@ -6,6 +6,15 @@
   "changelog_label_improvement": "개선",
   "changelog_label_dependency": "의존성",
   "$data": {
+    "v0.6.8": {
+      "released_date": "2026/10/08",
+      "improvement": [
+        "compose.memo의 TypeScript / TSX 선언 및 인수 검사"
+      ],
+      "hint": [
+        "compose.memo에는 대응하는 AutoJs6 6.8.0 / 5323이 필요하며, TSX에는 TypeScript Engine 0.6.8이 필요합니다"
+      ]
+    },
     "v0.6.7": {
       "released_date": "2026/10/08",
       "improvement": [

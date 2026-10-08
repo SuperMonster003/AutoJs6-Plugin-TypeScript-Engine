@@ -4,6 +4,13 @@
 
 ******
 
+# v0.6.8
+
+###### 2026/10/08
+
+* `안내` compose.memo에는 대응하는 AutoJs6 6.8.0 / 5323이 필요하며, TSX에는 TypeScript Engine 0.6.8이 필요합니다
+* `개선` compose.memo의 TypeScript / TSX 선언 및 인수 검사
+
 # v0.6.7
 
 ###### 2026/10/08

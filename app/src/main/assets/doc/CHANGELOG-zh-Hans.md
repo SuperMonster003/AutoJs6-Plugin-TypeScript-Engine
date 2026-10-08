@@ -4,6 +4,13 @@
 
 ******
 
+# v0.6.8
+
+###### 2026/10/08
+
+* `提示` compose.memo 需要配套 AutoJs6 6.8.0 / 5323; TSX 配套需要 TypeScript Engine 0.6.8
+* `优化` compose.memo 的 TypeScript / TSX 声明与参数检查
+
 # v0.6.7
 
 ###### 2026/10/08

@@ -170,6 +170,20 @@ compose.mount(() => <compose.FilterChip
 新宿主仍能使用 V1 渲染器的原有组件, 提交它不支持的 V2 组件时会返回
 `UNKNOWN_COMPONENT`. 完整属性和事件见配套的 Compose UI 组件参考.
 
+`compose.memo(build, deps, options?)` 需要 TypeScript Engine `0.6.8` 与 AutoJs6
+`6.8.0` / `5323`, 不改变 Compose UI 插件的要求. 它只能在渲染函数中调用,
+依赖值与 `build` 读取的 state 均未变化时返回上一次的节点, 不再执行 `build`.
+闭包中使用的普通值应列入 `deps`; 列表条目可用 `options.key` 匹配. 声明保留
+`build` 返回的节点类型, 依赖数组以外的值, 非节点结果和非字符串/数字 key
+会在编译时报错.
+
+```tsx
+const items = compose.state([{id: 'a', title: 'A'}]);
+compose.mount(() => <compose.LazyColumn>{items.value.map(item =>
+    compose.memo(() => <compose.Text key={item.id} text={item.title} />,
+        [item.id, item.title], {key: item.id}))}</compose.LazyColumn>);
+```
+
 ## 可直接使用的示例
 
 Rhino 示例：

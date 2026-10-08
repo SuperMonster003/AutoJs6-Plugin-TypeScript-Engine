@@ -6,6 +6,15 @@
   "changelog_label_improvement": "Improvement",
   "changelog_label_dependency": "Dependency",
   "$data": {
+    "v0.6.8": {
+      "released_date": "2026/10/08",
+      "improvement": [
+        "TypeScript / TSX declarations and argument checks for compose.memo"
+      ],
+      "hint": [
+        "compose.memo requires the matching AutoJs6 6.8.0 / 5323 host; companion TSX support requires TypeScript Engine 0.6.8"
+      ]
+    },
     "v0.6.7": {
       "released_date": "2026/10/08",
       "improvement": [

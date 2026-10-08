@@ -6,6 +6,15 @@
   "changelog_label_improvement": "改善",
   "changelog_label_dependency": "依賴",
   "$data": {
+    "v0.6.8": {
+      "released_date": "2026/10/08",
+      "improvement": [
+        "compose.memo 的 TypeScript / TSX 宣告與參數檢查"
+      ],
+      "hint": [
+        "compose.memo 需要配套 AutoJs6 6.8.0 / 5323; TSX 配套需要 TypeScript Engine 0.6.8"
+      ]
+    },
     "v0.6.7": {
       "released_date": "2026/10/08",
       "improvement": [

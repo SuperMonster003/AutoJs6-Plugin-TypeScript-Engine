@@ -1716,6 +1716,7 @@ const verifyComposeTsxCompilerContract = async () => {
     await verifyComposeInteropCompilerContract();
     await verifyComposeDialogCompilerContract();
     await verifyComposeWideCompilerContract();
+    await verifyComposeMemoCompilerContract();
 };
 
 const verifyComposeInteropCompilerContract = async () => {
@@ -1917,6 +1918,58 @@ const examples = [
         assert(checked.result.emitSkipped && checked.result.outputs.length === 0 &&
             checked.result.diagnostics.some(item => item.category === ts.DiagnosticCategory.Error),
             `V2 invalid source ${index} emitted: ${JSON.stringify(checked.result.diagnostics)}`);
+    }
+};
+
+const verifyComposeMemoCompilerContract = async () => {
+    const withSource = (source) => {
+        const project = composeTsxSnapshot();
+        project.files.find((file) => file.path === "/sources/main.tsx").text = source;
+        return project;
+    };
+    const source = `
+const items = compose.state([{id: 'a', title: 'A'}, {id: 'b', title: 'B'}]);
+const session = compose.mount(() => {
+    const rows = items.value.map(item => compose.memo(() => <compose.Text key={item.id} text={item.title} />,
+        [item.id, item.title], {key: item.id}));
+    const header: Internal.Compose.Node<'Text'> = compose.memo(() => compose.Text({text: 'Header'}), [], null);
+    return <compose.Column>{header}{rows}</compose.Column>;
+});
+`;
+    const {result} = await compile("desktop-compose-memo", withSource(source));
+    assert(!result.emitSkipped && result.diagnostics.length === 0,
+        `Real memo declarations failed: ${JSON.stringify(result.diagnostics)}`);
+    const output = result.outputs.find(file => file.path === "/outputs/main.js")?.text;
+    assert(typeof output === "string" && output.includes("compose.memo("), "memo calls did not survive real TSX compilation.");
+    const memoCalls = [];
+    const sandbox = {
+        compose: {
+            Column() {}, Text: props => ({type: "Text", props}),
+            state: value => ({value}),
+            mount: render => ({root: render()}),
+            memo: (build, deps, options) => { memoCalls.push({deps, options}); return build(); },
+        },
+        __autojs6Tsx: (type, props, ...children) => ({type, props, children}),
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(output, sandbox, {filename: "compose-memo-output.js"});
+    const root = vm.runInContext("session.root", sandbox);
+    assert(memoCalls.length === 3 && memoCalls[0].options.key === "a" && memoCalls[0].deps[1] === "A" &&
+        memoCalls[2].options === null && root.type === sandbox.compose.Column &&
+        root.children[1][1].props.text === "B", "memo arguments or fragment results changed during emission.");
+    const invalidSources = [
+        'compose.memo(() => compose.Text({}));',
+        'compose.memo(() => compose.Text({}), 1);',
+        'compose.memo(() => "text", []);',
+        'compose.memo(() => compose.Text({}), [], {key: true});',
+        'compose.memo(() => compose.Text({}), [], {cache: false});',
+        'compose.memo(async () => compose.Text({}), []);',
+    ];
+    for (const [index, invalid] of invalidSources.entries()) {
+        const checked = await compile(`desktop-compose-memo-invalid-${index}`, withSource(invalid));
+        assert(checked.result.emitSkipped && checked.result.outputs.length === 0 &&
+            checked.result.diagnostics.some(item => item.category === ts.DiagnosticCategory.Error),
+            `memo invalid source ${index} emitted: ${JSON.stringify(checked.result.diagnostics)}`);
     }
 };
 
