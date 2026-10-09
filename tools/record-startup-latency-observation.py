@@ -23,6 +23,7 @@ GROUP_PREFIXES = {
     "boot": "boot",
     "prewarm": "prewarm",
     "warmup": "warmup",
+    "asset": "asset",
 }
 FORBIDDEN_KEY = re.compile(r"path|request|uri|sourcename|sourcetext|identity", re.IGNORECASE)
 SKIPPED_FIELDS = {

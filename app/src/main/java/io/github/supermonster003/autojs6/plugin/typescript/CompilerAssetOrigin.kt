@@ -8,6 +8,7 @@ import android.webkit.WebResourceResponse
 import androidx.webkit.WebViewAssetLoader
 import java.io.ByteArrayInputStream
 import java.io.IOException
+import java.io.InputStream
 import java.nio.charset.StandardCharsets
 
 object CompilerAssetOrigin {
@@ -43,6 +44,7 @@ object CompilerAssetOrigin {
                 assetPath = "typescript/$compilerVersion/lib/typescript.js",
                 mimeType = JAVASCRIPT_MIME_TYPE,
                 contentSecurityPolicy = WORKER_CONTENT_SECURITY_POLICY,
+                telemetryName = "typescript",
             ),
             // Declaration preload bundles generated from the verified declaration distribution
             // (startup-latency L2-1). Each is served only after R2DeclarationWorkerBundleAuthority
@@ -53,18 +55,21 @@ object CompilerAssetOrigin {
                 mimeType = JAVASCRIPT_MIME_TYPE,
                 contentSecurityPolicy = WORKER_CONTENT_SECURITY_POLICY,
                 verifiedDeclarationBundle = true,
+                telemetryName = "common",
             ),
             "declarations-rhino.js" to AssetSpec(
                 assetPath = "$DECLARATION_BUNDLE_ASSET_ROOT/declarations-rhino.js",
                 mimeType = JAVASCRIPT_MIME_TYPE,
                 contentSecurityPolicy = WORKER_CONTENT_SECURITY_POLICY,
                 verifiedDeclarationBundle = true,
+                telemetryName = "rhino",
             ),
             "declarations-node.js" to AssetSpec(
                 assetPath = "$DECLARATION_BUNDLE_ASSET_ROOT/declarations-node.js",
                 mimeType = JAVASCRIPT_MIME_TYPE,
                 contentSecurityPolicy = WORKER_CONTENT_SECURITY_POLICY,
                 verifiedDeclarationBundle = true,
+                telemetryName = "node",
             ),
         )
         return WebViewAssetLoader.Builder()
@@ -122,6 +127,8 @@ object CompilerAssetOrigin {
         val mimeType: String,
         val contentSecurityPolicy: String,
         val verifiedDeclarationBundle: Boolean = false,
+        /** Startup-latency L2-2: fixed name for `typescript-compiler-asset` lines, or none. */
+        val telemetryName: String? = null,
     )
 
     private class ExactAssetPathHandler(
@@ -134,6 +141,17 @@ object CompilerAssetOrigin {
 
         override fun handle(path: String): WebResourceResponse {
             val asset = assets[path] ?: return forbiddenResponse()
+            val servedAtMs =
+                if (asset.telemetryName == null) -1L else R2CompilerAssetTelemetry.processUptimeMs()
+            fun observed(stream: InputStream): InputStream =
+                asset.telemetryName?.let { name ->
+                    R2CompilerAssetTelemetry.observe(
+                        asset = name,
+                        servedAtMs = servedAtMs,
+                        readyAtMs = R2CompilerAssetTelemetry.processUptimeMs(),
+                        stream = stream,
+                    )
+                } ?: stream
             if (asset.verifiedDeclarationBundle) {
                 // Fail closed: an unverifiable bundle is a 403, the Worker's importScripts
                 // throws, and the first project is refused on its inventory fingerprint.
@@ -145,7 +163,7 @@ object CompilerAssetOrigin {
                 return WebResourceResponse(
                     asset.mimeType,
                     StandardCharsets.UTF_8.name(),
-                    ByteArrayInputStream(bytes),
+                    observed(ByteArrayInputStream(bytes)),
                 ).apply {
                     responseHeaders = securityHeaders(asset.contentSecurityPolicy)
                 }
@@ -160,7 +178,7 @@ object CompilerAssetOrigin {
             return WebResourceResponse(
                 asset.mimeType,
                 StandardCharsets.UTF_8.name(),
-                stream,
+                observed(stream),
             ).apply {
                 responseHeaders = securityHeaders(asset.contentSecurityPolicy)
             }

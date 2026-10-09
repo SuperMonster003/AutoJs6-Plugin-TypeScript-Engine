@@ -206,7 +206,7 @@ function Invoke-ScriptRun {
     while ($true) {
         $lines = @(
             & adb -s $Serial logcat -d -v threadtime -s "$logTag`:I" "*:S" 2>$null |
-                Where-Object { $_ -match "typescript-(compile-perf|execution-perf|prewarm|warm-binding|compiler-boot|compiler-warmup|compiler-trim|compiler-realm-teardown|compiler-service-destroy)" }
+                Where-Object { $_ -match "typescript-(compile-perf|execution-perf|prewarm|warm-binding|compiler-boot|compiler-warmup|compiler-asset|compiler-trim|compiler-realm-teardown|compiler-service-destroy)" }
         )
         if (@($lines | Where-Object { $_ -match "typescript-execution-perf schema=" }).Count -ge 1) {
             break
@@ -233,6 +233,24 @@ function Invoke-ScriptRun {
         Select-Object -Last 1
     $prewarm = $lines | Where-Object { $_ -match "typescript-prewarm schema=" } | Select-Object -Last 1
     $warmup = $lines | Where-Object { $_ -match "typescript-compiler-warmup schema=" } | Select-Object -Last 1
+    # Startup-latency L2-2: one line per large Worker asset transfer, flattened to
+    # <asset><Field> (for example typescriptEndAtMs); the last transfer of each asset wins.
+    $asset = $null
+    foreach ($assetLine in @($lines | Where-Object { $_ -match "typescript-compiler-asset schema=" })) {
+        $assetFields = Parse-KeyValues $assetLine
+        $assetName = $assetFields["asset"]
+        if ([string]::IsNullOrWhiteSpace($assetName)) {
+            continue
+        }
+        if (-not $asset) {
+            $asset = [ordered]@{}
+        }
+        foreach ($assetKey in @("servedAtMs", "readyAtMs", "firstReadAtMs", "endAtMs", "bytes")) {
+            if ($assetFields.Contains($assetKey)) {
+                $asset[$assetName + $assetKey.Substring(0, 1).ToUpperInvariant() + $assetKey.Substring(1)] = $assetFields[$assetKey]
+            }
+        }
+    }
 
     $stopwatchMs = $null
     $stampDeadline = (Get-Date).AddSeconds(10)
@@ -274,6 +292,7 @@ function Invoke-ScriptRun {
         boot = if ($boot) { Parse-KeyValues $boot } else { $null }
         prewarm = if ($prewarm) { Parse-KeyValues $prewarm } else { $null }
         warmup = if ($warmup) { Parse-KeyValues $warmup } else { $null }
+        asset = $asset
         rawLines = @($lines)
     }
     return $sample
@@ -319,6 +338,15 @@ function Get-ScenarioMedians {
                 "sinceReadyMs", "startedAtMs", "loadedAtMs", "completedAtMs",
                 "commonImportMs", "commonVerifyMs", "rhinoImportMs", "rhinoVerifyMs",
                 "parsedFiles", "parsedBytes", "queuedFiles", "parseMs", "steps", "deferredSteps"
+            )
+        },
+        @{
+            name = "asset"
+            keys = @(
+                "typescriptServedAtMs", "typescriptReadyAtMs", "typescriptFirstReadAtMs",
+                "typescriptEndAtMs", "typescriptBytes",
+                "commonServedAtMs", "commonReadyAtMs", "commonFirstReadAtMs", "commonEndAtMs",
+                "rhinoServedAtMs", "rhinoReadyAtMs", "rhinoFirstReadAtMs", "rhinoEndAtMs"
             )
         }
     )

@@ -53,6 +53,19 @@ const bootTelemetry = readUtf8(
     "typescript",
     "R2CompilerBootTelemetry.kt",
 );
+const assetTelemetry = readUtf8(
+    "app",
+    "src",
+    "main",
+    "java",
+    "io",
+    "github",
+    "supermonster003",
+    "autojs6",
+    "plugin",
+    "typescript",
+    "R2CompilerAssetTelemetry.kt",
+);
 const workerSource = readUtf8(
     "app",
     "src",
@@ -79,6 +92,14 @@ assertIncludes(
     'const val WARM_UP_LOG_PREFIX = "typescript-compiler-warmup"',
     "R2CompilerBootTelemetry",
 );
+const assetSchemaMatch = assetTelemetry.match(/const val SCHEMA_REVISION = (\d+)/);
+assert(assetSchemaMatch, "R2CompilerAssetTelemetry must declare SCHEMA_REVISION.");
+const assetSchemaRevision = Number.parseInt(assetSchemaMatch[1], 10);
+assertIncludes(
+    assetTelemetry,
+    'const val LOG_PREFIX = "typescript-compiler-asset"',
+    "R2CompilerAssetTelemetry",
+);
 for (const marker of [
     "const workerBootstrapStartedAt = performance.now();",
     "bootstrapMs: workerBootstrapMs,",
@@ -95,6 +116,7 @@ for (const marker of [
     "typescript-execution-perf",
     "typescript-compiler-boot",
     "typescript-compiler-warmup",
+    "typescript-compiler-asset",
     "typescript-prewarm",
     "org.autojs.autojs.external.open.RunIntentActivity",
     'const RUN_MARKER = "run-[0-9A-Za-z]+";',
@@ -178,9 +200,12 @@ assert(
         "hostCompile",
         "hostExecution",
         "hostPrewarm",
+        "pluginAsset",
         "pluginBoot",
         "pluginWarmUp",
     ]) &&
+        observations.logSchemas.pluginAsset ===
+            `typescript-compiler-asset schema=${assetSchemaRevision}` &&
         observations.logSchemas.pluginBoot === `typescript-compiler-boot schema=${bootSchemaRevision}` &&
         observations.logSchemas.pluginWarmUp ===
             `typescript-compiler-warmup schema=${warmUpSchemaRevision}` &&
@@ -325,5 +350,6 @@ for (const observation of observations.observations) {
 
 process.stdout.write(
     `startup-latency observations verified: ${observations.observations.length} records, ` +
-        `boot schema ${bootSchemaRevision}, warm-up schema ${warmUpSchemaRevision}, gate=none\n`,
+        `boot schema ${bootSchemaRevision}, warm-up schema ${warmUpSchemaRevision}, ` +
+        `asset schema ${assetSchemaRevision}, gate=none\n`,
 );

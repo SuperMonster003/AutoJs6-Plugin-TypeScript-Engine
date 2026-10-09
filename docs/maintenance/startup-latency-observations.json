@@ -21,6 +21,7 @@
     "S3": 300
   },
   "logSchemas": {
+    "pluginAsset": "typescript-compiler-asset schema=1",
     "hostCompile": "typescript-compile-perf schema=3",
     "hostExecution": "typescript-execution-perf schema=1",
     "hostPrewarm": "typescript-prewarm schema=1",
