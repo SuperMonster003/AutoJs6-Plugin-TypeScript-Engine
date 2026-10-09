@@ -569,6 +569,7 @@ class TypeScriptCompilerPluginService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        R2CompilerBootTelemetry.serviceCreateStarted()
         if (R2CompilerProcessQuarantine.hasMarker(this)) {
             quarantinedBySupervisorFence = true
             startQuarantineReleaseWatcher()
@@ -613,6 +614,7 @@ class TypeScriptCompilerPluginService : Service() {
             transportProbeCoordinator =
                 CompilationTransportProbeCoordinator(admissionArbiter)
         }
+        R2CompilerBootTelemetry.serviceCreateCompleted()
     }
 
     override fun onBind(intent: Intent?): IBinder? {

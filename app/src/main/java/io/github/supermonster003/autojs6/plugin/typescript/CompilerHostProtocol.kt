@@ -121,6 +121,8 @@ internal object CompilerHostProtocol {
             "ready" -> CompilerHostMessage.Ready(
                 generation = generation,
                 compilerVersion = message.getString("tsVersion"),
+                // Boot telemetry only: an absent or malformed value never fails the message.
+                bootstrapMs = message.optLong("bootstrapMs", -1L).takeIf { it >= 0L },
             )
             else -> error("Unsupported compiler host message kind: $kind")
         }
@@ -1816,6 +1818,8 @@ internal sealed interface CompilerHostMessage {
     data class Ready(
         override val generation: Int,
         val compilerVersion: String,
+        /** Worker-measured `importScripts("typescript.js")` duration; telemetry only. */
+        val bootstrapMs: Long? = null,
     ) : CompilerHostMessage
 
     data class ProbeResult(

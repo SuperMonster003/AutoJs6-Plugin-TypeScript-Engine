@@ -1,6 +1,12 @@
 "use strict";
 
+// Boot telemetry only: the native host reports this duration once per process.
+const workerBootstrapStartedAt = performance.now();
 importScripts("typescript.js");
+const workerBootstrapMs = Math.max(
+    0,
+    Math.round(performance.now() - workerBootstrapStartedAt),
+);
 
 const flattenDiagnosticMessage = (messageText) =>
     ts.flattenDiagnosticMessageText(messageText, "\n");
@@ -11032,6 +11038,7 @@ self.onmessage = async (event) => {
 };
 
 self.postMessage({
+    bootstrapMs: workerBootstrapMs,
     kind: "ready",
     tsVersion: ts.version,
 });

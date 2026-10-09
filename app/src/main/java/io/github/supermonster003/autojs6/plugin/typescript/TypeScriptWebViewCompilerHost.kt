@@ -98,10 +98,13 @@ class TypeScriptWebViewCompilerHost(
     private val metadata
         get() = metadataResult.getOrNull()
     private val declarationProfileFingerprintResult = runCatching {
+        val loadStartedAt = SystemClock.elapsedRealtime()
         R2TrustedDeclarations.loadForProfile(
             context,
             R2CompilationProfileRegistry.PROVISIONAL_RHINO.profile,
-        ).profileFingerprint
+        ).profileFingerprint.also {
+            R2CompilerBootTelemetry.declarationLoaded(elapsedSince(loadStartedAt))
+        }
     }
 
     @Volatile
@@ -1557,6 +1560,7 @@ class TypeScriptWebViewCompilerHost(
             compilerVersion = distribution.version,
         )
         val createdWebView = WebView(context)
+        R2CompilerBootTelemetry.webViewCreated()
         webView = createdWebView
         currentSessionToken = CompilerSessionToken(
             generation = webViewSessionGeneration,
@@ -1825,6 +1829,7 @@ class TypeScriptWebViewCompilerHost(
         }
         workerGeneration = message.generation
         workerReady = true
+        R2CompilerBootTelemetry.workerReady(message.bootstrapMs)
         currentSnapshot = currentSnapshot.copy(
             status = TypeScriptCompilerContract.STATUS_READY,
             compilerVersion = message.compilerVersion,
@@ -3819,6 +3824,7 @@ class TypeScriptWebViewCompilerHost(
 
         override fun onPageFinished(view: WebView, url: String) {
             if (CompilerAssetOrigin.isEntryUri(Uri.parse(url))) {
+                R2CompilerBootTelemetry.pageReady()
                 installMessagePortOnMain(view)
             }
         }

@@ -1099,6 +1099,7 @@ internal object R2CompilerProcessSupervisorClient {
                         registrationInFlight.set(false)
                     }
                     if (accepted) {
+                        R2CompilerBootTelemetry.supervisorReady()
                         dispatchPoisonNotification()
                     } else {
                         scheduleRegistrationRetry()
