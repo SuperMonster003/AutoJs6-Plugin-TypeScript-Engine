@@ -1,7 +1,7 @@
 # AutoJs6 TypeScript Engine - 执行前耗时压缩线路图
 
 > 状态: L0 与 L1 完成, L2 进行中 (L2-1 完成; L2-7 方案 B 与 JSDoc 解析模式已落地, S1 5276 -> 4361 ms,
-> 未达该项验收线, 2026-10-09); L3-1 已随
+> 未达该项验收线; L2-2 打点评估完成, 数据不支持方案 A, 待 owner 确认, 2026-10-09); L3-1 已随
 > L2-1 的真机验收提前完成 (宿主保活绑定修复), L3-4 核查完成但未达标. 创建于 2026-10-09, 基于插件 v0.6.8 (commit `27e6100`) 与
 > sibling `AutoJs6` 宿主 (commit `7953ab502b`) 的源码调研.
 >
@@ -452,6 +452,22 @@ schema / caller 配额.
       确认无收益时放弃.
       验收: Worker ready p50 下降 >= 30% (Xiaomi); `THIRD_PARTY_NOTICES.md`
       与 license 条目不变; `check --offline` 全绿; 升级演练 (UPGRADE.md) 可照做.
+      评估 (2026-10-09, 插件 `04925e0`, 记录 `20261009-l2-api35-23046rp50c-asset-probe`):
+      - 新增 `typescript-compiler-asset schema=1` 遥测, 在原生资产入口记录 `typescript.js` 与声明
+        bundle 的受理, 就绪, 首字节与读完时刻 (进程内偏移). Xiaomi S1 五次: `typescript.js` 在
+        进程启动后 645-675 ms 被请求, 111-127 ms 内被 WebView 读完 (APK DEFLATE 解压 + 拦截管道,
+        一次离群 198 ms), 读完之后到 Worker ready 还有 660-683 ms. 即 `bootstrapMs` (约 790 ms) 中
+        约 85% 是 V8 编译与顶层执行, 传输只占约 15%.
+      - 方案 B 核实: 外层 IIFE 被 V8 立即编译, 内层函数本来就是懒编译, 没有可调的懒编译开关;
+        `WebViewAssetLoader` 拦截的响应不进 HTTP 缓存, 拿不到 V8 code cache.
+      - 方案 A 估算 (桌面 Node, 每次全新进程, 只测编译): 原文件 105-110 ms; 去注释与缩进 (-20%
+        字节) 103-113 ms, 没有收益; 用 TypeScript AST 做全局一致改名得到 3.4 MB 的近似压缩产物
+        (与 esbuild minify 体积相当, 仅供测量, 不可执行) 90-100 ms, 约 -12%. 按设备上编译执行
+        约 675 ms, 传输约 115 ms 推算, 压缩后 Worker 就绪约缩短 0.15 s (约 18%), 低于 30% 的
+        验收线; 还需要为构建引入一个需联网获取并锁定的压缩器依赖. 本机没有可离线使用的 esbuild
+        / terser, 未下载执行第三方压缩器做实测.
+      - 建议: 不实施方案 A, L2-2 以评估结论关闭; 是否为约 0.15 s 引入压缩器依赖由 owner 决定,
+        决定前本项保持未勾选. 传输段中 DEFLATE 解压的份额与 `noCompress` 的 APK 体积代价归 L2-5.
 - [ ] **L2-3 (插件) 输入传输剩余开销 (条件触发)**: L2-1 后只剩 caller 文件;
       若 10 文件项目 ingress 仍 > 150 ms, 评估 androidx.webkit
       `WebMessageCompat` ArrayBuffer (`WEB_MESSAGE_ARRAY_BUFFER`, 不可用时回退
@@ -558,6 +574,15 @@ schema / caller 配额.
 L2-7 一列 (记录 `20261009-l2-api35-23046rp50c-jsdoc-mode`) 之后 S1 4.4 s 的构成: 专用绑定 +
 等待 Worker 就绪 + 启动 probe 2.0 s (其中 `typescript.js` 约 0.8 s, L2-2), 原生每 job 固定开销
 0.5 s (L3-3), 声明层 parse 余量 0.7 s 与 semantic 0.8 s.
+
+L2 余量评估 (2026-10-09): 以记录 `20261009-l2-api35-23046rp50c-asset-probe` 为准, S1 4.3 s
+大致是: 进程启动到页面就绪约 0.6 s, `typescript.js` 传输约 0.12 s 与 V8 编译执行约 0.68 s,
+声明 bundle 导入与启动 probe 约 0.6 s, 原生 `beforeIngress` 约 0.5 s, 声明层 parse 余量约 0.7 s,
+semantic 约 0.8 s (其中大部分是 `skipLibCheck: false` 下对声明层的冷检查), emit 与输出约 0.2 s.
+L2 剩余可做的插件侧压缩 (L2-2 约 0.15 s, L2-7 剩余选项约 0.1-0.2 s, L3-3 的一部分) 合计不到 1 s,
+全冷进程 S1 <= 1.5 s 无法只靠冷路径压缩达到. 要让用户感知接近目标, 需要让 S1 少发生: L4 的
+常驻 / 半常驻策略 (L4-2, L4-3) 与 L4-4 更早的预热触发; 或在 L4 数据出来后与 owner 重新确认
+S1 目标的口径.
 
 ## 7. L3 热路径 (改动后重编)
 
@@ -697,6 +722,6 @@ L2-7 一列 (记录 `20261009-l2-api35-23046rp50c-jsdoc-mode`) 之后 S1 4.4 s �
 | 2026-10-09 | L2-1 预解析子项 | 真机未兑现 (parse 1431 -> 1611 ms), 转为 L2-7 单独立项, 先打点再二选一 |
 | 2026-10-09 | L2-7 方案 | 打点显示首个项目到达时 Worker 仍在校验 common bundle (约 1.0 s, 其中 token 计数约 0.5 s), 预热解析 0 文件; 选 (B) 原生侧校验 bundle 字节 + 构建期锁定 token 计数, 不改配额语义 |
 | 2026-10-09 | 预装声明的 JSDoc 解析 | 采用 tsc 默认的 `ParseForTypeErrors`, 只用于插件自有预装层; `setParentNodes` 保持 `true`; 诊断与产物一致性由桌面门禁保证 |
-| 待定 | L2-2 方案 A / B | L0-2 `bootstrapMs` 出来后决定 |
+| 2026-10-09 | L2-2 方案 A / B | 打点显示 `bootstrapMs` 约 85% 是 V8 编译执行; 桌面估算压缩只省约 12% 编译, 设备 Worker 就绪约 -18%, 低于 30% 验收线. 建议不实施方案 A, 待 owner 确认 |
 | 待定 | L4-3 保活默认值 | L4-1 / L4-2 数据出来后决定 |
 | 待定 | L2-5 资产 noCompress | L0 数据与 APK 体积对比后决定 |
