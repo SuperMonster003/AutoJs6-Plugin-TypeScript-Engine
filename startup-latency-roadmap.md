@@ -1,7 +1,7 @@
 # AutoJs6 TypeScript Engine - 执行前耗时压缩线路图
 
-> 状态: L0 与 L1 完成, L2 进行中 (L2-1 完成, 2026-10-09); L3-1 已随 L2-1 的真机验收提前
-> 完成 (宿主保活绑定修复), L3-4 核查完成但未达标. 创建于 2026-10-09, 基于插件 v0.6.8 (commit `27e6100`) 与
+> 状态: L0 与 L1 完成, L2 进行中 (L2-1 完成, L2-7 打点完成并已选定方案, 2026-10-09); L3-1 已随
+> L2-1 的真机验收提前完成 (宿主保活绑定修复), L3-4 核查完成但未达标. 创建于 2026-10-09, 基于插件 v0.6.8 (commit `27e6100`) 与
 > sibling `AutoJs6` 宿主 (commit `7953ab502b`) 的源码调研.
 >
 > 问题: 插件安装后运行 `.ts` 脚本, 从点击运行到脚本开始执行有数秒可感知停顿.
@@ -151,7 +151,7 @@ L1-1 与 L2-1 的目标; S3 已经满足 300 ms 目标. 原始样本见
 | --- | --- | --- | --- | --- | --- |
 | L0 | 测量基线与归因 | 插件 + 宿主 | 三场景可复现数据, 决定 L1/L2 顺序 | 无 | 完成 (2026-10-09) |
 | L1 | 零内存代价的快速收益 | 插件 + 宿主 | 去掉重复加载, 串行等待, 竞态; 进度提示 | L0 | 完成 (2026-10-09) |
-| L2 | 冷路径结构压缩 | 插件 | 声明层不再经传输; typescript.js 解析耗时下降 | L0, L1-1 | 进行中: L2-1 完成 (2026-10-09), L2-2 / L2-6 / L2-7 待做 |
+| L2 | 冷路径结构压缩 | 插件 | 声明层不再经传输; typescript.js 解析耗时下降 | L0, L1-1 | 进行中: L2-1 完成, L2-7 打点完成并选定方案 (2026-10-09), L2-2 / L2-6 待做 |
 | L3 | 热路径 (改动后重编) | 插件 + 宿主 | S2 达标 | L1, L2-1 | L3-1 完成, L3-4 核查完成 (2026-10-09); 其余未开始 |
 | L4 | 常驻策略 | 插件 + 宿主 | 以数据决定保活默认值 | L1, L2 | 未开始 |
 | L5 | 验收, 门禁与文档 | 插件 + 宿主 | 三设备前后对比, 回归门禁, 发布 | L1-L4 | 未开始 |
@@ -479,6 +479,29 @@ schema / caller 配额.
       异步, 首个 job 复用已完成的部分, 并把 bundle 校验挪到原生侧 (bundle 字节已由构建门禁
       锁定, Worker 只比对清单指纹). 两案都不改公开契约.
       验收: S1 `compilerParseMs` p50 < 400 ms 且 S1 `userWaitMs` 下降 >= 1 s; S2 不退化.
+      打点结论 (2026-10-09, 插件 `5fb93ce`, 记录 `20261009-l2-api35-23046rp50c-warmup-probe`):
+      - 复核 L2-1 代码先发现一个缺陷: 共享 `SourceFile` 缓存的键把 `getSourceFile` 的第二个参数
+        直接拼进模板串, 而 TypeScript 5+ 的 Program 传的是 `CreateSourceFileOptions` 对象, 键变成
+        `[object Object]`, 预热用数字目标写入的条目从未被任何 Program 命中. 已改为按路径 +
+        脚本目标 + implied module format 取键, 桌面门禁 `verifyL2DeclarationPreloadDesktop`
+        现在断言首个 Program 复用全部 83 个预热文件 (用旧键跑同一门禁会报 83 个重复解析).
+      - Worker 在首个 `projectInputStart` 上报一次 `declarationWarmUp` (原生记为
+        `typescript-compiler-warmup schema=1`). Xiaomi S1 五次: 首个项目在 Worker ready 后
+        932-1042 ms 到达, 此时预热仍处于 `loading`, 已解析文件 0; common bundle 的
+        `importScripts` 155-158 ms, Worker 内逐记录校验 823-824 ms (UTF-8 重编码 + SHA-256
+        327-345 ms, token 计数 473-493 ms), 其中三次首个项目到达时 common 层都还没校验完,
+        rhino 层尚未开始. 即 L2-1 的 Worker 侧校验独占了整个预热窗口, `compilerParseMs` 维持
+        1604-1729 ms, S1 `userWaitMs` p50 5427 (L2-1 记录 5276, 噪声内), S2 944 / S3 76 不变.
+      - 桌面 Node 统计: common 108 文件 86,329 token, rhino 53 文件 44,530 token, node 59 文件
+        39,167 token (`maximumProjectTokens` 262,144); 这些都是构建期常量.
+      - 决定: 采用 (B) 并补一项: 原生 `CompilerAssetOrigin` 在向 Worker 提供 bundle 前按
+        `bundles.json` 校验整文件 SHA-256, 且 `bundles.json` 的分发 / 标准库 / 层 / profile 指纹
+        必须与已逐字节校验的可信声明层一致; token 计数改为构建期由 Node 工具按 Worker 同一扫描
+        算法生成并提交的锁文件, 生成器把每条记录的 `tokenCount` 写入 bundle, `check` 门禁重算比对;
+        Worker 对预装记录只做形状 / 路径 / 指纹 / 配额校验, 不再重编码, 重哈希或扫描 token,
+        预热在 `importScripts` 后立即开始解析. 配额语义与指纹算法不变. 预期 S1 parse 约从 1.6 s
+        降到 0.8 s (约 1.0 s 窗口减去约 0.2 s 导入), 达不到 < 400 ms 的验收线; 剩余部分需要宿主
+        侧提前预热 (L4-4) 或在等待 Worker 就绪期间并行做输入暂存 (L3-3) 才能继续压缩.
 
 ### L2 中期小结 (2026-10-09, Xiaomi 23046RP50C / API 35, release 宿主 + 插件)
 
@@ -637,6 +660,7 @@ schema / caller 配额.
 | 2026-10-09 | L1-8 呈现形式 | 控制台 / 日志一行 (开始与完成各一行), 不加 Activity 加载态, 不用阶段回调 |
 | 2026-10-09 | 宿主保活绑定存活判定 | 租约已释放即视为死亡, 再以 `pingBinder()` 校验; 保活时长不变, 仍由 L4 数据决定 |
 | 2026-10-09 | L2-1 预解析子项 | 真机未兑现 (parse 1431 -> 1611 ms), 转为 L2-7 单独立项, 先打点再二选一 |
+| 2026-10-09 | L2-7 方案 | 打点显示首个项目到达时 Worker 仍在校验 common bundle (约 1.0 s, 其中 token 计数约 0.5 s), 预热解析 0 文件; 选 (B) 原生侧校验 bundle 字节 + 构建期锁定 token 计数, 不改配额语义 |
 | 待定 | L2-2 方案 A / B | L0-2 `bootstrapMs` 出来后决定 |
 | 待定 | L4-3 保活默认值 | L4-1 / L4-2 数据出来后决定 |
 | 待定 | L2-5 资产 noCompress | L0 数据与 APK 体积对比后决定 |
