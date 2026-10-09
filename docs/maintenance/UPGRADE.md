@@ -93,6 +93,21 @@ tarball 后, 全部后续命令加 ``--offline``:
 .\gradlew.bat :app:verifyR2DeclarationDistribution --offline --console=plain
 ```
 
+标准库或声明层字节变化后还要重新锁定 Worker 预装 bundle 的 token 计数 (startup-latency
+L2-7): 先生成两个 distribution, 再运行同步工具并提交根目录
+``r2-declaration-token-counts.lock.json``, 否则 ``generateR2DeclarationWorkerBundles`` 会以
+"Declaration token lock ... regenerate with tools/sync-declaration-token-counts.mjs" 失败:
+
+```powershell
+.\gradlew.bat :app:generateTypeScriptDistribution :app:generateR2DeclarationDistribution --offline --console=plain
+node tools\sync-declaration-token-counts.mjs `
+  --typescript-dir app\build\generated\typescriptCompilerAssets\assets\typescript\<version> `
+  --declarations-dir app\build\generated\r2DeclarationAssetsV2\assets\r2-declarations\v2 `
+  --worker app\src\main\assets\typescript-compiler-r1\compiler-worker.js `
+  --lock r2-declaration-token-counts.lock.json
+.\gradlew.bat :app:verifyR2DeclarationTokenCounts :app:verifyR2DeclarationWorkerBundles --offline --console=plain
+```
+
 声明指纹遵守内容身份, 不是版本计数器:
 
 - 标准库声明字节变化时, common layer 与受其影响的 Rhino/Node profile fingerprint

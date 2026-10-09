@@ -13,9 +13,8 @@ class R2DeclarationWarmUpProtocolTest {
             warmUpMessage(
                 state = "completed",
                 fields = "\"sinceReadyMs\":512,\"startedAtMs\":1,\"loadedAtMs\":298," +
-                    "\"completedAtMs\":489,\"commonImportMs\":95,\"commonVerifyMs\":180," +
-                    "\"commonDigestMs\":52,\"commonTokenMs\":120,\"rhinoImportMs\":18," +
-                    "\"rhinoVerifyMs\":40,\"rhinoDigestMs\":11,\"rhinoTokenMs\":27," +
+                    "\"completedAtMs\":489,\"commonImportMs\":95,\"commonVerifyMs\":18," +
+                    "\"rhinoImportMs\":18,\"rhinoVerifyMs\":4," +
                     "\"parsedFiles\":83,\"parsedBytes\":1536000,\"queuedFiles\":0," +
                     "\"parseMs\":160,\"steps\":14,\"deferredSteps\":0",
             ),
@@ -29,7 +28,7 @@ class R2DeclarationWarmUpProtocolTest {
         )
         assertEquals(512L, parsed.fields["sinceReadyMs"])
         assertEquals(489L, parsed.fields["completedAtMs"])
-        assertEquals(120L, parsed.fields["commonTokenMs"])
+        assertEquals(18L, parsed.fields["commonVerifyMs"])
         assertEquals(83L, parsed.fields["parsedFiles"])
         assertEquals(1_536_000L, parsed.fields["parsedBytes"])
         assertEquals(0L, parsed.fields["deferredSteps"])

@@ -3,8 +3,10 @@ package org.autojs.build
 import groovy.json.JsonSlurper
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
@@ -32,12 +34,17 @@ class R2DeclarationWorkerBundleException(
  * common bundle carries the 108 standard libraries, the Rhino and Node bundles carry their engine
  * layers. Each file record keeps the VFS path, UTF-8 byte length and SHA-256 that the native host
  * advertises in `declarationInventoryFingerprint`, so the Worker can prove the preloaded texts are
- * exactly the inventory the request was admitted against before any of them enters a project VFS.
- * Output is deterministic; [verify] regenerates it and rejects any byte that differs.
+ * exactly the inventory the request was admitted against before any of them enters a project VFS,
+ * plus the token count locked by `tools/sync-declaration-token-counts.mjs` (startup-latency L2-7)
+ * so the Worker admits the layers against its token budget without scanning them again. The
+ * native asset origin verifies each bundle's bytes against `bundles.json` before the Worker may
+ * import it. Output is deterministic; [verify] regenerates it and rejects any byte that differs.
  */
 object R2DeclarationWorkerBundles {
 
     const val SCHEMA_VERSION = 1
+    const val TOKEN_LOCK_SCHEMA_VERSION = 1
+    const val TOKEN_LOCK_TOOL = "tools/sync-declaration-token-counts.mjs"
     const val MANIFEST_FILE_NAME = "bundles.json"
     const val COMMON_LAYER = "common"
     const val RHINO_LAYER = "rhino"
@@ -54,9 +61,14 @@ object R2DeclarationWorkerBundles {
     fun generate(
         declarationDistributionDirectory: File,
         typescriptDistributionDirectory: File,
+        tokenCountLockFile: File,
         outputDirectory: File,
     ) {
-        val expected = reconstruct(declarationDistributionDirectory, typescriptDistributionDirectory)
+        val expected = reconstruct(
+            declarationDistributionDirectory,
+            typescriptDistributionDirectory,
+            tokenCountLockFile,
+        )
         val output = outputDirectory.toPath().toAbsolutePath().normalize()
         val parent = output.parent
             ?: fail("Worker bundle output must have a parent: $output")
@@ -79,9 +91,14 @@ object R2DeclarationWorkerBundles {
     fun verify(
         declarationDistributionDirectory: File,
         typescriptDistributionDirectory: File,
+        tokenCountLockFile: File,
         bundleDirectory: File,
     ) {
-        val expected = reconstruct(declarationDistributionDirectory, typescriptDistributionDirectory)
+        val expected = reconstruct(
+            declarationDistributionDirectory,
+            typescriptDistributionDirectory,
+            tokenCountLockFile,
+        )
         verifyDirectory(expected, bundleDirectory.toPath().toAbsolutePath().normalize())
     }
 
@@ -92,6 +109,7 @@ object R2DeclarationWorkerBundles {
         val byteLength: Long,
         val sha256: String,
         val text: String,
+        val tokenCount: Long,
     )
 
     private class Layer(
@@ -101,11 +119,48 @@ object R2DeclarationWorkerBundles {
         val files: List<LayerFile>,
     ) {
         val totalBytes: Long get() = files.sumOf(LayerFile::byteLength)
+        val totalTokens: Long get() = files.sumOf(LayerFile::tokenCount)
+    }
+
+    private class TokenLockEntry(
+        val sha256: String,
+        val tokenCount: Long,
+    )
+
+    /**
+     * The committed token lock: VFS path -> (SHA-256, token count), produced by
+     * [TOKEN_LOCK_TOOL] with the Worker's scanner configuration. Every layer file must have an
+     * entry with the same digest, and the lock must not keep entries for files that no longer
+     * exist, so a declaration or TypeScript upgrade without a re-sync fails here with a pointer.
+     */
+    private fun readTokenLock(lockFile: File, typescriptVersion: String): Map<String, TokenLockEntry> {
+        val lock = readJsonObject(lockFile.toPath().toAbsolutePath().normalize())
+        if (lock["schemaVersion"] != TOKEN_LOCK_SCHEMA_VERSION) {
+            fail("Declaration token lock schema must be $TOKEN_LOCK_SCHEMA_VERSION; regenerate with $TOKEN_LOCK_TOOL")
+        }
+        val scanner = lock.obj("scanner")
+        if (scanner.str("typescript") != typescriptVersion) {
+            fail("Declaration token lock was produced for TypeScript ${scanner.str("typescript")}, not $typescriptVersion; regenerate with $TOKEN_LOCK_TOOL")
+        }
+        if (scanner.str("scriptTarget") != "ES2018" || scanner.str("languageVariant") != "Standard" || scanner["skipTrivia"] != true) {
+            fail("Declaration token lock scanner configuration drifted from the Worker; regenerate with $TOKEN_LOCK_TOOL")
+        }
+        return lock.obj("files").entries.associate { (key, value) ->
+            val path = key as? String ?: fail("Declaration token lock has a non-string path")
+            val entry = value as? Map<*, *> ?: fail("Declaration token lock entry for $path is not an object")
+            val tokenCount = (entry["tokenCount"] as? Number)?.toLong()
+                ?: fail("Declaration token lock entry for $path has no integral tokenCount")
+            if (tokenCount < 0 || entry["tokenCount"] is Double || entry["tokenCount"] is Float) {
+                fail("Declaration token lock entry for $path must be a non-negative integer")
+            }
+            path to TokenLockEntry(entry.str("sha256"), tokenCount)
+        }
     }
 
     private fun reconstruct(
         declarationDistributionDirectory: File,
         typescriptDistributionDirectory: File,
+        tokenCountLockFile: File,
     ): Map<String, ByteArray> {
         val declarationRoot = declarationDistributionDirectory.toPath().toAbsolutePath().normalize()
         val typescriptRoot = typescriptDistributionDirectory.toPath().toAbsolutePath().normalize()
@@ -114,6 +169,11 @@ object R2DeclarationWorkerBundles {
         if (declarationManifest["schemaVersion"] != 2) {
             fail("Declaration distribution manifest schema must be 2")
         }
+        val tokenLock = readTokenLock(
+            tokenCountLockFile,
+            typescriptManifest.obj("package").str("version"),
+        )
+        val lockedPaths = HashSet<String>()
         val layers = declarationManifest.obj("layers")
         val profiles = declarationManifest.obj("profiles")
         val declarationFiles = declarationManifest.list("files").associate { entry ->
@@ -140,6 +200,8 @@ object R2DeclarationWorkerBundles {
                     vfsPath = "/declarations/" + file.str("path").removePrefix("lib/"),
                     expectedSize = (file["size"] as Number).toLong(),
                     expectedSha256 = file.str("sha256"),
+                    tokenLock = tokenLock,
+                    lockedPaths = lockedPaths,
                 )
             }
             .sortedBy(LayerFile::path)
@@ -170,6 +232,8 @@ object R2DeclarationWorkerBundles {
                     vfsPath = "/declarations/" + relativePath.removePrefix("layers/"),
                     expectedSize = (descriptor["size"] as Number).toLong(),
                     expectedSha256 = descriptor.str("sha256"),
+                    tokenLock = tokenLock,
+                    lockedPaths = lockedPaths,
                 )
             }.sortedBy(LayerFile::path)
             if (files.size != (layerManifest["fileCount"] as Number).toInt() ||
@@ -182,7 +246,12 @@ object R2DeclarationWorkerBundles {
 
         val bundles = linkedMapOf<String, ByteArray>()
         val manifestBundles = linkedMapOf<String, Map<String, Any?>>()
-        listOf(common, engineLayer(RHINO_LAYER), engineLayer(NODE_LAYER)).forEach { layer ->
+        val renderedLayers = listOf(common, engineLayer(RHINO_LAYER), engineLayer(NODE_LAYER))
+        val staleLockPaths = tokenLock.keys - lockedPaths
+        if (staleLockPaths.isNotEmpty()) {
+            fail("Declaration token lock keeps entries for files that no layer contains: ${staleLockPaths.sorted()}; regenerate with $TOKEN_LOCK_TOOL")
+        }
+        renderedLayers.forEach { layer ->
             val fileName = bundleFileNames.getValue(layer.layer)
             val bytes = renderBundle(layer).toByteArray(StandardCharsets.UTF_8)
             bundles[fileName] = bytes
@@ -194,6 +263,7 @@ object R2DeclarationWorkerBundles {
                 "sha256" to sha256Hex(bytes),
                 "size" to bytes.size,
                 "totalBytes" to layer.totalBytes,
+                "totalTokens" to layer.totalTokens,
             )
         }
         val manifest = linkedMapOf<String, Any?>(
@@ -210,8 +280,9 @@ object R2DeclarationWorkerBundles {
     private fun renderBundle(layer: Layer): String = buildString(layer.totalBytes.toInt() + 4096) {
         append("\"use strict\";\n")
         append("// Generated by org.autojs.build.R2DeclarationWorkerBundles from the verified\n")
-        append("// declaration distribution. The compiler Worker verifies every record digest\n")
-        append("// against the native declaration inventory before using it.\n")
+        append("// declaration distribution and the committed token lock. The native asset origin\n")
+        append("// verifies this file's bytes before serving it; the compiler Worker checks the\n")
+        append("// record shapes and proves the inventory fingerprint before using any record.\n")
         append("(() => {\n")
         append("    const registry = self.").append(GLOBAL_REGISTRY).append(" ??\n")
         append("        (self.").append(GLOBAL_REGISTRY).append(" = Object.create(null));\n")
@@ -224,6 +295,7 @@ object R2DeclarationWorkerBundles {
             append("                path: ").append(jsString(file.path)).append(",\n")
             append("                sha256: ").append(jsString(file.sha256)).append(",\n")
             append("                text: ").append(jsString(file.text)).append(",\n")
+            append("                tokenCount: ").append(file.tokenCount).append(",\n")
             append("            }),\n")
         }
         append("        ]),\n")
@@ -233,6 +305,7 @@ object R2DeclarationWorkerBundles {
         append(layer.profileFingerprint?.let(::jsString) ?: "null").append(",\n")
         append("        schemaVersion: ").append(SCHEMA_VERSION).append(",\n")
         append("        totalBytes: ").append(layer.totalBytes).append(",\n")
+        append("        totalTokens: ").append(layer.totalTokens).append(",\n")
         append("    });\n")
         append("})();\n")
     }
@@ -243,6 +316,8 @@ object R2DeclarationWorkerBundles {
         vfsPath: String,
         expectedSize: Long,
         expectedSha256: String,
+        tokenLock: Map<String, TokenLockEntry>,
+        lockedPaths: MutableSet<String>,
     ): LayerFile {
         val file = root.resolve(relativePath).normalize()
         if (!file.startsWith(root)) fail("Declaration file escapes its distribution: $relativePath")
@@ -262,7 +337,13 @@ object R2DeclarationWorkerBundles {
         } catch (e: java.nio.charset.CharacterCodingException) {
             fail("Declaration file is not strict UTF-8: $relativePath")
         }
-        return LayerFile(vfsPath, expectedSize, digest, text)
+        val locked = tokenLock[vfsPath]
+            ?: fail("Declaration token lock has no entry for $vfsPath; regenerate with $TOKEN_LOCK_TOOL")
+        if (locked.sha256 != digest) {
+            fail("Declaration token lock digest drifted for $vfsPath; regenerate with $TOKEN_LOCK_TOOL")
+        }
+        if (!lockedPaths.add(vfsPath)) fail("Declaration path appears in two layers: $vfsPath")
+        return LayerFile(vfsPath, expectedSize, digest, text, locked.tokenCount)
     }
 
     /** JSON-compatible string literal that is also safe as a JavaScript source literal. */
@@ -390,6 +471,10 @@ abstract class GenerateR2DeclarationWorkerBundles : DefaultTask() {
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val typescriptDistributionDirectory: DirectoryProperty
 
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val tokenCountLockFile: RegularFileProperty
+
     @get:OutputDirectory
     abstract val bundleDirectory: DirectoryProperty
 
@@ -403,6 +488,7 @@ abstract class GenerateR2DeclarationWorkerBundles : DefaultTask() {
         R2DeclarationWorkerBundles.generate(
             declarationDistributionDirectory = declarationDistributionDirectory.get().asFile,
             typescriptDistributionDirectory = typescriptDistributionDirectory.get().asFile,
+            tokenCountLockFile = tokenCountLockFile.get().asFile,
             outputDirectory = bundleDirectory.get().asFile,
         )
     }
@@ -420,6 +506,10 @@ abstract class VerifyR2DeclarationWorkerBundles : DefaultTask() {
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val typescriptDistributionDirectory: DirectoryProperty
 
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val tokenCountLockFile: RegularFileProperty
+
     @get:InputDirectory
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val bundleDirectory: DirectoryProperty
@@ -434,6 +524,7 @@ abstract class VerifyR2DeclarationWorkerBundles : DefaultTask() {
         R2DeclarationWorkerBundles.verify(
             declarationDistributionDirectory = declarationDistributionDirectory.get().asFile,
             typescriptDistributionDirectory = typescriptDistributionDirectory.get().asFile,
+            tokenCountLockFile = tokenCountLockFile.get().asFile,
             bundleDirectory = bundleDirectory.get().asFile,
         )
     }

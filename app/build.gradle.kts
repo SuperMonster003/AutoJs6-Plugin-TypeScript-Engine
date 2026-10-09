@@ -628,6 +628,11 @@ val verifyR2DeclarationDistribution =
         declarationReleaseVersion.set(pluginVersionName)
     }
 
+// Startup-latency L2-7: token count of every plugin-owned declaration record, produced by
+// tools/sync-declaration-token-counts.mjs with the Worker's scanner configuration and embedded
+// into the bundles so the Worker admits its preloaded layers without rescanning them.
+val r2DeclarationTokenCountLockFile =
+    rootProject.layout.projectDirectory.file("r2-declaration-token-counts.lock.json")
 val generateR2DeclarationWorkerBundles =
     tasks.register<GenerateR2DeclarationWorkerBundles>(
         "generateR2DeclarationWorkerBundles",
@@ -637,6 +642,7 @@ val generateR2DeclarationWorkerBundles =
             generateR2DeclarationDistribution.flatMap { it.distributionDirectory },
         )
         typescriptDistributionDirectory.set(generatedTypeScriptDistributionDirectory)
+        tokenCountLockFile.set(r2DeclarationTokenCountLockFile)
         bundleDirectory.set(generatedR2DeclarationWorkerBundleDirectory)
     }
 val verifyR2DeclarationWorkerBundles =
@@ -648,8 +654,39 @@ val verifyR2DeclarationWorkerBundles =
             generateR2DeclarationDistribution.flatMap { it.distributionDirectory },
         )
         typescriptDistributionDirectory.set(generatedTypeScriptDistributionDirectory)
+        tokenCountLockFile.set(r2DeclarationTokenCountLockFile)
         bundleDirectory.set(
             generateR2DeclarationWorkerBundles.flatMap { it.bundleDirectory },
+        )
+    }
+val verifyR2DeclarationTokenCounts =
+    tasks.register<Exec>("verifyR2DeclarationTokenCounts") {
+        group = "verification"
+        description =
+            "Recounts every plugin-owned declaration record with the Worker scanner " +
+                "configuration and compares the committed token lock."
+        dependsOn(generateTypeScriptDistribution, generateR2DeclarationDistribution)
+        val toolFile = rootProject.layout.projectDirectory.file(
+            "tools/sync-declaration-token-counts.mjs",
+        )
+        val workerFile = layout.projectDirectory.file(
+            "src/main/assets/typescript-compiler-r1/compiler-worker.js",
+        )
+        inputs.files(toolFile, workerFile, r2DeclarationTokenCountLockFile)
+        inputs.dir(generatedTypeScriptDistributionDirectory)
+        inputs.dir(generatedR2DeclarationDistributionDirectory)
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            toolFile.asFile.absolutePath,
+            "--typescript-dir",
+            generatedTypeScriptDistributionDirectory.get().asFile.absolutePath,
+            "--declarations-dir",
+            generatedR2DeclarationDistributionDirectory.get().asFile.absolutePath,
+            "--worker",
+            workerFile.asFile.absolutePath,
+            "--lock",
+            r2DeclarationTokenCountLockFile.asFile.absolutePath,
+            "--check",
         )
     }
 

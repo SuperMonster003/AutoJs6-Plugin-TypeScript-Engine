@@ -72,13 +72,9 @@ class R2CompilerBootTimelineTest {
             "loadedAtMs" to 330L,
             "completedAtMs" to null,
             "commonImportMs" to 90L,
-            "commonVerifyMs" to 200L,
-            "commonDigestMs" to 60L,
-            "commonTokenMs" to 130L,
+            "commonVerifyMs" to 20L,
             "rhinoImportMs" to 20L,
-            "rhinoVerifyMs" to 40L,
-            "rhinoDigestMs" to 12L,
-            "rhinoTokenMs" to 25L,
+            "rhinoVerifyMs" to 4L,
             "parsedFiles" to 31L,
             "parsedBytes" to 812_345L,
             "queuedFiles" to 52L,
@@ -90,9 +86,8 @@ class R2CompilerBootTimelineTest {
         assertEquals(
             "typescript-compiler-warmup schema=1 processUptimeMs=2100 workerReadyAtMs=1500 " +
                 "generation=1 state=parsing sinceReadyMs=540 startedAtMs=1 loadedAtMs=330 " +
-                "completedAtMs=na commonImportMs=90 commonVerifyMs=200 commonDigestMs=60 " +
-                "commonTokenMs=130 rhinoImportMs=20 rhinoVerifyMs=40 rhinoDigestMs=12 " +
-                "rhinoTokenMs=25 parsedFiles=31 parsedBytes=812345 queuedFiles=52 " +
+                "completedAtMs=na commonImportMs=90 commonVerifyMs=20 rhinoImportMs=20 " +
+                "rhinoVerifyMs=4 parsedFiles=31 parsedBytes=812345 queuedFiles=52 " +
                 "parseMs=180 steps=16 deferredSteps=0",
             timeline.warmUpLogLine(generation = 1, state = "parsing", fields = fields),
         )
@@ -102,9 +97,8 @@ class R2CompilerBootTimelineTest {
         assertEquals(
             "typescript-compiler-warmup schema=1 processUptimeMs=300 workerReadyAtMs=na " +
                 "generation=2 state=na sinceReadyMs=na startedAtMs=na loadedAtMs=na " +
-                "completedAtMs=na commonImportMs=na commonVerifyMs=na commonDigestMs=na " +
-                "commonTokenMs=na rhinoImportMs=na rhinoVerifyMs=na rhinoDigestMs=na " +
-                "rhinoTokenMs=na parsedFiles=na parsedBytes=na queuedFiles=na parseMs=na " +
+                "completedAtMs=na commonImportMs=na commonVerifyMs=na rhinoImportMs=na " +
+                "rhinoVerifyMs=na parsedFiles=na parsedBytes=na queuedFiles=na parseMs=na " +
                 "steps=na deferredSteps=na",
             line,
         )

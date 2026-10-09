@@ -439,12 +439,16 @@ const declarationLayerAuthority = Object.freeze({
     rhinoPathPrefix: "/declarations/rhino/",
 });
 
-// Startup-latency L2-1: the plugin-owned declaration layers are preloaded from same-origin
-// bundles instead of being framed through the WebMessagePort on every job. A bundle only
-// registers raw records; nothing enters a project VFS until every record's UTF-8 length and
-// SHA-256 have been recomputed here and the resulting inventory fingerprint equals the one the
-// native host admitted the request against. Requests that still frame their declarations keep
-// the historical path untouched.
+// Startup-latency L2-1 / L2-7: the plugin-owned declaration layers are preloaded from
+// same-origin bundles instead of being framed through the WebMessagePort on every job. The
+// native asset origin verifies each bundle's bytes against the build manifest, which is in turn
+// tied to the byte-verified declaration inventory, before the bundle can be imported here; a
+// bundle only registers raw records, and nothing enters a project VFS until the records' shapes,
+// digests, byte and token totals have been checked and the inventory fingerprint derived from
+// them equals the one the native host admitted the request against. Token counts come from the
+// build-time lock (tools/sync-declaration-token-counts.mjs, same scanner configuration as
+// countSourceTokens), so the Worker neither re-encodes, re-hashes nor rescans the layers.
+// Requests that still frame their declarations keep the historical path untouched.
 const declarationBundleAuthority = Object.freeze({
     engineLayers: Object.freeze(["rhino", "node"]),
     layerPathPrefixes: Object.freeze({
@@ -532,7 +536,7 @@ const reportDeclarationWarmUpForFirstProject = () => {
     };
     for (const layer of declarationWarmUpReportedLayers) {
         const bundle = warmUp.bundles.get(layer) ?? null;
-        for (const field of ["importMs", "verifyMs", "digestMs", "tokenMs"]) {
+        for (const field of ["importMs", "verifyMs"]) {
             message[`${layer}${field[0].toUpperCase()}${field.slice(1)}`] =
                 bundle === null ? -1 : bundle[field];
         }
@@ -558,7 +562,7 @@ const importDeclarationBundle = (layer) => {
     return isRecord(registry) ? registry[layer] : undefined;
 };
 
-const verifyDeclarationBundle = async (layer, registered, timing = null) => {
+const verifyDeclarationBundle = (layer, registered) => {
     const prefix = declarationBundleAuthority.layerPathPrefixes[layer];
     if (
         !isRecord(registered) ||
@@ -574,13 +578,15 @@ const verifyDeclarationBundle = async (layer, registered, timing = null) => {
         !Number.isSafeInteger(registered.fileCount) ||
         registered.files.length !== registered.fileCount ||
         registered.files.length < 1 ||
-        !Number.isSafeInteger(registered.totalBytes)
+        !Number.isSafeInteger(registered.totalBytes) ||
+        !Number.isSafeInteger(registered.totalTokens)
     ) {
         throw new Error(`Declaration bundle ${layer} is malformed.`);
     }
     const files = [];
     const seen = new Set();
     let totalBytes = 0;
+    let totalTokens = 0;
     for (const entry of registered.files) {
         if (
             !isRecord(entry) ||
@@ -593,40 +599,29 @@ const verifyDeclarationBundle = async (layer, registered, timing = null) => {
             typeof entry.sha256 !== "string" ||
             !sha256Pattern.test(entry.sha256) ||
             !Number.isSafeInteger(entry.byteLength) ||
+            entry.byteLength < 0 ||
+            !Number.isSafeInteger(entry.tokenCount) ||
+            entry.tokenCount < 0 ||
+            entry.tokenCount > maximumTokensPerFile ||
             seen.has(entry.path)
         ) {
             throw new Error(`Declaration bundle ${layer} record is malformed.`);
         }
-        const digestStartedAt = performance.now();
-        const bytes = new TextEncoder().encode(entry.text);
-        const digest = await bytesToSha256(bytes);
-        if (timing !== null) {
-            timing.digestMs += performance.now() - digestStartedAt;
-        }
-        if (bytes.byteLength !== entry.byteLength || digest !== entry.sha256) {
-            throw new Error(
-                `Declaration bundle ${layer} record does not match its digest.`,
-            );
-        }
-        const tokenStartedAt = performance.now();
-        const tokenCount = countSourceTokens(entry.text);
-        if (timing !== null) {
-            timing.tokenMs += performance.now() - tokenStartedAt;
-        }
         seen.add(entry.path);
         totalBytes += entry.byteLength;
+        totalTokens += entry.tokenCount;
         files.push(
             Object.freeze({
                 byteLength: entry.byteLength,
                 path: entry.path,
                 sha256: entry.sha256,
                 text: entry.text,
-                tokenCount,
+                tokenCount: entry.tokenCount,
             }),
         );
     }
-    if (totalBytes !== registered.totalBytes) {
-        throw new Error(`Declaration bundle ${layer} byte total is malformed.`);
+    if (totalBytes !== registered.totalBytes || totalTokens !== registered.totalTokens) {
+        throw new Error(`Declaration bundle ${layer} byte or token total is malformed.`);
     }
     return Object.freeze({
         files: Object.freeze(files),
@@ -657,16 +652,13 @@ const loadDeclarationLayer = (layer) => {
         if (registered === undefined) {
             return null;
         }
-        const timing = { digestMs: 0, tokenMs: 0 };
         const verifyStartedAt = performance.now();
-        const verified = await verifyDeclarationBundle(layer, registered, timing);
+        const verified = verifyDeclarationBundle(layer, registered);
         declarationWarmUp.bundles.set(
             layer,
             Object.freeze({
-                digestMs: roundMs(timing.digestMs),
                 fileCount: verified.files.length,
                 importMs: roundMs(importMs),
-                tokenMs: roundMs(timing.tokenMs),
                 totalBytes: verified.totalBytes,
                 verifyMs: roundMs(performance.now() - verifyStartedAt),
             }),

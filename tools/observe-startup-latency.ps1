@@ -317,8 +317,7 @@ function Get-ScenarioMedians {
             name = "warmup"
             keys = @(
                 "sinceReadyMs", "startedAtMs", "loadedAtMs", "completedAtMs",
-                "commonImportMs", "commonVerifyMs", "commonDigestMs", "commonTokenMs",
-                "rhinoImportMs", "rhinoVerifyMs", "rhinoDigestMs", "rhinoTokenMs",
+                "commonImportMs", "commonVerifyMs", "rhinoImportMs", "rhinoVerifyMs",
                 "parsedFiles", "parsedBytes", "queuedFiles", "parseMs", "steps", "deferredSteps"
             )
         }

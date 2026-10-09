@@ -45,21 +45,26 @@ object CompilerAssetOrigin {
                 contentSecurityPolicy = WORKER_CONTENT_SECURITY_POLICY,
             ),
             // Declaration preload bundles generated from the verified declaration distribution
-            // (startup-latency L2-1). The Worker re-verifies every record digest before use.
+            // (startup-latency L2-1). Each is served only after R2DeclarationWorkerBundleAuthority
+            // verified its packaged bytes against the manifest tied to the trusted declarations
+            // (L2-7); the Worker then checks record shapes and the inventory fingerprint.
             "declarations-common.js" to AssetSpec(
                 assetPath = "$DECLARATION_BUNDLE_ASSET_ROOT/declarations-common.js",
                 mimeType = JAVASCRIPT_MIME_TYPE,
                 contentSecurityPolicy = WORKER_CONTENT_SECURITY_POLICY,
+                verifiedDeclarationBundle = true,
             ),
             "declarations-rhino.js" to AssetSpec(
                 assetPath = "$DECLARATION_BUNDLE_ASSET_ROOT/declarations-rhino.js",
                 mimeType = JAVASCRIPT_MIME_TYPE,
                 contentSecurityPolicy = WORKER_CONTENT_SECURITY_POLICY,
+                verifiedDeclarationBundle = true,
             ),
             "declarations-node.js" to AssetSpec(
                 assetPath = "$DECLARATION_BUNDLE_ASSET_ROOT/declarations-node.js",
                 mimeType = JAVASCRIPT_MIME_TYPE,
                 contentSecurityPolicy = WORKER_CONTENT_SECURITY_POLICY,
+                verifiedDeclarationBundle = true,
             ),
         )
         return WebViewAssetLoader.Builder()
@@ -116,6 +121,7 @@ object CompilerAssetOrigin {
         val assetPath: String,
         val mimeType: String,
         val contentSecurityPolicy: String,
+        val verifiedDeclarationBundle: Boolean = false,
     )
 
     private class ExactAssetPathHandler(
@@ -123,10 +129,27 @@ object CompilerAssetOrigin {
         private val assets: Map<String, AssetSpec>,
     ) : WebViewAssetLoader.PathHandler {
 
+        private val applicationContext = context
         private val assetManager = context.assets
 
         override fun handle(path: String): WebResourceResponse {
             val asset = assets[path] ?: return forbiddenResponse()
+            if (asset.verifiedDeclarationBundle) {
+                // Fail closed: an unverifiable bundle is a 403, the Worker's importScripts
+                // throws, and the first project is refused on its inventory fingerprint.
+                val bytes = try {
+                    R2DeclarationWorkerBundleAuthority.openVerifiedBundle(applicationContext, path)
+                } catch (_: Throwable) {
+                    return forbiddenResponse()
+                }
+                return WebResourceResponse(
+                    asset.mimeType,
+                    StandardCharsets.UTF_8.name(),
+                    ByteArrayInputStream(bytes),
+                ).apply {
+                    responseHeaders = securityHeaders(asset.contentSecurityPolicy)
+                }
+            }
             val stream = try {
                 assetManager.open(asset.assetPath, AssetManager.ACCESS_STREAMING)
             } catch (_: IOException) {
@@ -161,7 +184,7 @@ object CompilerAssetOrigin {
             "script-src 'self'; " +
             "connect-src 'none'; " +
             "object-src 'none'"
-    private const val DECLARATION_BUNDLE_ASSET_ROOT = "r2-declaration-worker-bundles"
+    private const val DECLARATION_BUNDLE_ASSET_ROOT = R2DeclarationWorkerBundleAuthority.ASSET_ROOT
     private val ALLOWED_ENCODED_PATHS = setOf(
         "${ROOT_PATH}compiler-host.js",
         "${ROOT_PATH}compiler-worker.js",

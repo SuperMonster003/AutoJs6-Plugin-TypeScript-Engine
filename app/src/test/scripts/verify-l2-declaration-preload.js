@@ -276,6 +276,20 @@ const compileProject = async (
             rhino.files.length === bundleManifest.bundles.rhino.fileCount,
         "Worker did not verify the common and Rhino declaration bundles.",
     );
+    // L2-7: token counts come from the build-time lock and are admitted without rescanning.
+    const countSourceTokens = workerBinding("countSourceTokens");
+    for (const [layer, verified] of [["common", common], ["rhino", rhino]]) {
+        const total = verified.files.reduce((sum, file) => sum + file.tokenCount, 0);
+        assert(
+            total === bundleManifest.bundles[layer].totalTokens && total > 0,
+            `Bundle ${layer} token total drifted from its manifest.`,
+        );
+        const sample = verified.files[verified.files.length - 1];
+        assert(
+            sample.tokenCount === countSourceTokens(sample.text),
+            `Locked token count for ${sample.path} does not match the Worker scanner.`,
+        );
+    }
     assert(
         common.fingerprint === bundleManifest.bundles.common.layerFingerprint &&
             rhino.fingerprint === bundleManifest.bundles.rhino.layerFingerprint,
@@ -329,7 +343,8 @@ const compileProject = async (
             warmUpReports[0].queuedFiles === 0 &&
             warmUpReports[0].completedAtMs >= 0 &&
             warmUpReports[0].commonVerifyMs >= 0 &&
-            warmUpReports[0].rhinoTokenMs >= 0 &&
+            warmUpReports[0].rhinoVerifyMs >= 0 &&
+            warmUpReports[0].commonTokenMs === undefined &&
             Object.values(warmUpReports[0]).every(
                 (value) => typeof value === "string" || Number.isSafeInteger(value),
             ),

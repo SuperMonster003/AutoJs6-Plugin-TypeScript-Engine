@@ -139,6 +139,7 @@ gradle.projectsEvaluated {
                 ":app:verifyS10IssueTriage",
                 ":app:verifyStartupLatencyObservations",
                 ":app:verifyR2DeclarationWorkerBundles",
+                ":app:verifyR2DeclarationTokenCounts",
                 ":app:verifyL2DeclarationPreloadDesktop",
             ),
         )
