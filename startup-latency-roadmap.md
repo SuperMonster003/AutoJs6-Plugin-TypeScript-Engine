@@ -1,6 +1,7 @@
 # AutoJs6 TypeScript Engine - 执行前耗时压缩线路图
 
-> 状态: L0 与 L1 完成, L2 进行中 (L2-1 完成, L2-7 打点完成并已选定方案, 2026-10-09); L3-1 已随
+> 状态: L0 与 L1 完成, L2 进行中 (L2-1 完成; L2-7 方案 B 与 JSDoc 解析模式已落地, S1 5276 -> 4361 ms,
+> 未达该项验收线, 2026-10-09); L3-1 已随
 > L2-1 的真机验收提前完成 (宿主保活绑定修复), L3-4 核查完成但未达标. 创建于 2026-10-09, 基于插件 v0.6.8 (commit `27e6100`) 与
 > sibling `AutoJs6` 宿主 (commit `7953ab502b`) 的源码调研.
 >
@@ -151,7 +152,7 @@ L1-1 与 L2-1 的目标; S3 已经满足 300 ms 目标. 原始样本见
 | --- | --- | --- | --- | --- | --- |
 | L0 | 测量基线与归因 | 插件 + 宿主 | 三场景可复现数据, 决定 L1/L2 顺序 | 无 | 完成 (2026-10-09) |
 | L1 | 零内存代价的快速收益 | 插件 + 宿主 | 去掉重复加载, 串行等待, 竞态; 进度提示 | L0 | 完成 (2026-10-09) |
-| L2 | 冷路径结构压缩 | 插件 | 声明层不再经传输; typescript.js 解析耗时下降 | L0, L1-1 | 进行中: L2-1 完成, L2-7 打点完成并选定方案 (2026-10-09), L2-2 / L2-6 待做 |
+| L2 | 冷路径结构压缩 | 插件 | 声明层不再经传输; typescript.js 解析耗时下降 | L0, L1-1 | 进行中: L2-1 完成, L2-7 已落地但未达验收线 (2026-10-09), L2-2 / L2-6 待做 |
 | L3 | 热路径 (改动后重编) | 插件 + 宿主 | S2 达标 | L1, L2-1 | L3-1 完成, L3-4 核查完成 (2026-10-09); 其余未开始 |
 | L4 | 常驻策略 | 插件 + 宿主 | 以数据决定保活默认值 | L1, L2 | 未开始 |
 | L5 | 验收, 门禁与文档 | 插件 + 宿主 | 三设备前后对比, 回归门禁, 发布 | L1-L4 | 未开始 |
@@ -502,27 +503,61 @@ schema / caller 配额.
         预热在 `importScripts` 后立即开始解析. 配额语义与指纹算法不变. 预期 S1 parse 约从 1.6 s
         降到 0.8 s (约 1.0 s 窗口减去约 0.2 s 导入), 达不到 < 400 ms 的验收线; 剩余部分需要宿主
         侧提前预热 (L4-4) 或在等待 Worker 就绪期间并行做输入暂存 (L3-3) 才能继续压缩.
+      结果 (2026-10-09, Xiaomi API 35, 宿主 `97e4751951`):
+      - 方案 B (插件 `a9a85a4`, 记录 `20261009-l2-api35-23046rp50c-native-verify`):
+        `R2DeclarationWorkerBundleAuthority` 把 `bundles.json` 与已逐字节校验的可信声明层绑定,
+        `CompilerAssetOrigin` 只在 bundle 字节与清单 SHA-256 一致时提供 (否则 403, 首个项目在
+        清单指纹处 fail closed); token 计数锁在根目录 `r2-declaration-token-counts.lock.json`,
+        由 `tools/sync-declaration-token-counts.mjs` 以 Worker 同一扫描配置生成, 新门禁
+        `verifyR2DeclarationTokenCounts` 已进默认 `check`. 预热在 ready 后 260-274 ms 完成两层
+        装载 (common import 186-191 ms, 形状校验 3-11 ms), 首个项目到达时已解析 16-21 个文件;
+        S1 `compilerParseMs` 1631 -> 934, `userWaitMs` 5427 -> 4648.
+      - 追加: 预装声明按 tsc 的 JSDoc 模式解析 (插件 `b27ecb5`, 记录
+        `20261009-l2-api35-23046rp50c-jsdoc-mode`). TypeScript 5.3 起 tsc 以
+        `ParseForTypeErrors` 解析所有文件, 对 TS / d.ts 只解析带 `@see` / `@link` 的 JSDoc, 类型错误
+        与产物不变; 只用于插件自有的预装层, 用户源码与分帧声明保持完整解析. 桌面冷启动 84 文件
+        parse 约 166 -> 126 ms, 门禁新增 TS2550 / TS2322 诊断一致性用例. 设备上首个项目到达时
+        已解析 24 个文件 (720 KB); S1 `compilerParseMs` 934 -> 713, `userWaitMs` 4648 -> 4361.
+        同一测量中 `setParentNodes=false` 的 parse 更快但冷 semantic 更慢, 因为父指针改由 job 内的
+        binder 设置, 而 binder 在 job 内, 不能被预热摊销, 所以保持 `true`.
+      - 合计: 相对 L2-1 记录, S1 `compilerParseMs` 1611 -> 713 (-898 ms), `userWaitMs`
+        5276 -> 4361 (-915 ms); S2 960, S3 82 无退化. 两条验收线都未达到 (parse 713 >= 400,
+        userWait 降幅差约 85 ms), 本项保持未勾选.
+      - 新发现: 预热会推迟宿主的启动 prewarm. prewarm 就是一次 Worker probe 往返; "prewarm 完成
+        时刻减 Worker ready" 在 L1 约 280 ms, L2-1 约 470 ms, 方案 B 约 664 ms, 因为 bundle 的同步
+        `importScripts` 与 parse 时间片挡在 probe 前面. 但 Worker 从 ready 到首个项目一直满载,
+        先 probe 后预热只会把时间从 `bindPrewarmMs` 挪到 `compilerParseMs`, 总量不变; 只有减少
+        Worker 上的工作量才有收益.
+      - 剩余可选项 (未实施): (1) 把 common bundle 拆成 "默认 lib 链" 与 "其余标准库" 两部分, 后者
+        在 `getSourceFile` 首次需要时再 `importScripts`, 可省约 130 ms 的导入 (3.78 MB 中默认链约
+        0.7 MB); (2) 在预热中顺带 bind 声明 `SourceFile`, binder 在 `file.locals` 已存在时跳过, 但
+        bind 结果依赖编译选项, 需要先确认受控 tsconfig 允许的选项都不影响 d.ts 的 bind; (3) L2-2
+        压缩 `typescript.js` 的 794 ms, 它在 ready 之前独占 Worker, 是剩余最大的单项.
 
 ### L2 中期小结 (2026-10-09, Xiaomi 23046RP50C / API 35, release 宿主 + 插件)
 
-| 口径 (p50) | L1 (+ 宿主 L1-5) | L2-1, 宿主未修复 | L2-1 + 宿主 `97e4751951` | 目标 |
-| --- | ---: | ---: | ---: | ---: |
-| S1 `userWaitMs` | 7543 | 5170 | 5276 | 1500 |
-| S2 `userWaitMs` | 3555 | 4845 | 907 | 500 |
-| S3 `userWaitMs` | 106 | 78 | 108 | 300 (已达标) |
-| S1 `bindPrewarmMs` | 1664 | 1825 | 1829 | - |
-| S1 `compilerBeforeIngressMs` | 428 | 520 | 518 | - |
-| S1 `compilerIngressMs` | 2924 | 129 | 159 | - |
-| S1 `compilerParseMs` | 1431 | 1592 | 1611 | - |
-| S2 `bindPrewarmMs` | 63 | 1436 | 77 | - |
-| S2 `compilerIngressMs` | 2587 | 261 | 16 | - |
-| S2 `compilerParseMs` | 28 | 1599 | 23 | - |
+| 口径 (p50) | L1 (+ 宿主 L1-5) | L2-1, 宿主未修复 | L2-1 + 宿主 `97e4751951` | L2-7 (`b27ecb5`) | 目标 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| S1 `userWaitMs` | 7543 | 5170 | 5276 | 4361 | 1500 |
+| S2 `userWaitMs` | 3555 | 4845 | 907 | 960 | 500 |
+| S3 `userWaitMs` | 106 | 78 | 108 | 82 | 300 (已达标) |
+| S1 `bindPrewarmMs` | 1664 | 1825 | 1829 | 2044 | - |
+| S1 `compilerBeforeIngressMs` | 428 | 520 | 518 | 490 | - |
+| S1 `compilerIngressMs` | 2924 | 129 | 159 | 42 | - |
+| S1 `compilerParseMs` | 1431 | 1592 | 1611 | 713 | - |
+| S1 `compilerSemanticMs` | - | - | 780 | 810 | - |
+| S2 `bindPrewarmMs` | 63 | 1436 | 77 | 68 | - |
+| S2 `compilerIngressMs` | 2587 | 261 | 16 | 16 | - |
+| S2 `compilerParseMs` | 28 | 1599 | 23 | 24 | - |
 
 读法: L2-1 把两个场景的声明层传输都压到了两位数毫秒; S1 剩余 5.3 s 的构成变成
 专用绑定 + 等待 Worker 就绪 1.8 s (`importScripts` 760 ms, L2-2), 原生每 job 固定开销
 0.5 s (L3-3), 冷 Program 对声明层的 parse 1.6 s 与 semantic 0.8 s (L2-7). "宿主未修复" 一列
 是同一插件在修复前宿主上的真实表现: S2 退化到 4.8 s, 根因与修复见 L3-1. 记录
 `20261009-l2-api35-23046rp50c-preload-host-unfixed` 与 `20261009-l2-api35-23046rp50c-preload`.
+L2-7 一列 (记录 `20261009-l2-api35-23046rp50c-jsdoc-mode`) 之后 S1 4.4 s 的构成: 专用绑定 +
+等待 Worker 就绪 + 启动 probe 2.0 s (其中 `typescript.js` 约 0.8 s, L2-2), 原生每 job 固定开销
+0.5 s (L3-3), 声明层 parse 余量 0.7 s 与 semantic 0.8 s.
 
 ## 7. L3 热路径 (改动后重编)
 
@@ -661,6 +696,7 @@ schema / caller 配额.
 | 2026-10-09 | 宿主保活绑定存活判定 | 租约已释放即视为死亡, 再以 `pingBinder()` 校验; 保活时长不变, 仍由 L4 数据决定 |
 | 2026-10-09 | L2-1 预解析子项 | 真机未兑现 (parse 1431 -> 1611 ms), 转为 L2-7 单独立项, 先打点再二选一 |
 | 2026-10-09 | L2-7 方案 | 打点显示首个项目到达时 Worker 仍在校验 common bundle (约 1.0 s, 其中 token 计数约 0.5 s), 预热解析 0 文件; 选 (B) 原生侧校验 bundle 字节 + 构建期锁定 token 计数, 不改配额语义 |
+| 2026-10-09 | 预装声明的 JSDoc 解析 | 采用 tsc 默认的 `ParseForTypeErrors`, 只用于插件自有预装层; `setParentNodes` 保持 `true`; 诊断与产物一致性由桌面门禁保证 |
 | 待定 | L2-2 方案 A / B | L0-2 `bootstrapMs` 出来后决定 |
 | 待定 | L4-3 保活默认值 | L4-1 / L4-2 数据出来后决定 |
 | 待定 | L2-5 资产 noCompress | L0 数据与 APK 体积对比后决定 |
