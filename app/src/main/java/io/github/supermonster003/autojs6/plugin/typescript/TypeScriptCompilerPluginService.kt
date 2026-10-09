@@ -188,7 +188,7 @@ class TypeScriptCompilerPluginService : Service() {
             }
             if (
                 !BuildConfig.DEBUG &&
-                !R2CompilerProcessSupervisorClient.isReady()
+                !R2CompilerProcessSupervisorClient.awaitReady(SUPERVISOR_READY_WAIT_MILLIS)
             ) {
                 return compilerInfoWithLifecycleTelemetry().apply {
                     putString(
@@ -414,7 +414,9 @@ class TypeScriptCompilerPluginService : Service() {
                 if (r2Controls != null) {
                     if (
                         r2Controls.origin != R2CompilationControlOrigin.DEBUG_PROBE &&
-                        !R2CompilerProcessSupervisorClient.isReady()
+                        !R2CompilerProcessSupervisorClient.awaitReady(
+                            SUPERVISOR_READY_WAIT_MILLIS,
+                        )
                     ) {
                         return R2CompilationAdmissionDecision(
                             requestId = requireNotNull(envelope).requestId,
@@ -614,6 +616,7 @@ class TypeScriptCompilerPluginService : Service() {
             transportProbeCoordinator =
                 CompilationTransportProbeCoordinator(admissionArbiter)
         }
+        compilerHost.primeSessionForBoot()
         R2CompilerBootTelemetry.serviceCreateCompleted()
     }
 
@@ -768,6 +771,18 @@ class TypeScriptCompilerPluginService : Service() {
 
     private fun compilerInfoWithLifecycleTelemetry(): Bundle =
         TypeScriptPluginMetadata.compilerInfo(compilerHost.snapshot()).apply {
+            if (!containsKey(TypeScriptR2Contract.KEY_DECLARATION_PROFILE_FINGERPRINT)) {
+                // The host snapshot is filled by the boot preload; resolve through the shared
+                // declaration cache when a caller arrives before that thread finishes.
+                declarationProfileFingerprintOrNull(
+                    R2CompilationProfileRegistry.PROVISIONAL_RHINO.profile,
+                )?.let { fingerprint ->
+                    putString(
+                        TypeScriptR2Contract.KEY_DECLARATION_PROFILE_FINGERPRINT,
+                        fingerprint,
+                    )
+                }
+            }
             declarationProfileFingerprintOrNull(
                 R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2.profile,
             )?.let { fingerprint ->
@@ -1889,6 +1904,14 @@ class TypeScriptCompilerPluginService : Service() {
         const val TRANSACTION_CANCEL_COMPILATION = IBinder.FIRST_CALL_TRANSACTION + 5
         const val QUARANTINE_RELEASE_POLL_MILLIS = 25L
         const val SUPERVISOR_JOB_SCHEDULE_RETRY_MILLIS = 1_000L
+
+        /**
+         * Release builds wait this long for the supervisor registration before a prewarm or
+         * compilation is refused. Registration normally completes well inside the budget; the
+         * bound wait only closes the window between a fast service creation and the supervisor
+         * process handshake (startup-latency L1-4).
+         */
+        const val SUPERVISOR_READY_WAIT_MILLIS = 3_000L
     }
 }
 

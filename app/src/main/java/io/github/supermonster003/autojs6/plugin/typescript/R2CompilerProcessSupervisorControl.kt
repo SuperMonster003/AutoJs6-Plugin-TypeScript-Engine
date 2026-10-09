@@ -9,6 +9,7 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.Process
+import android.os.SystemClock
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.concurrent.atomic.AtomicBoolean
@@ -559,6 +560,34 @@ internal object R2CompilerProcessSupervisorClient {
             supervisorPid != null
     }
 
+    /**
+     * Waits up to [timeoutMillis] for [isReady]. Registration completion wakes waiters
+     * immediately; a dead registry or an unfinished handshake makes this return `false` at the
+     * deadline so callers keep their fail-closed behaviour.
+     */
+    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+    fun awaitReady(timeoutMillis: Long): Boolean {
+        val deadline = SystemClock.elapsedRealtime() + timeoutMillis.coerceAtLeast(0L)
+        synchronized(lock) {
+            while (!isReady()) {
+                val remaining = deadline - SystemClock.elapsedRealtime()
+                if (remaining <= 0L) return false
+                try {
+                    (lock as Object).wait(remaining)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    return false
+                }
+            }
+            return true
+        }
+    }
+
+    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+    private fun notifyReadinessWaitersLocked() {
+        (lock as Object).notifyAll()
+    }
+
     fun isAutomaticTerminationEnabled(): Boolean = synchronized(lock) {
         automaticTerminationEnabled
     }
@@ -1092,6 +1121,7 @@ internal object R2CompilerProcessSupervisorClient {
                                 supervisorIdentity = handshake.identity
                                 supervisorPid = handshake.pid
                                 pendingHandshake = null
+                                notifyReadinessWaitersLocked()
                                 true
                             }
                         }

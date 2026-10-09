@@ -97,16 +97,6 @@ class TypeScriptWebViewCompilerHost(
     }
     private val metadata
         get() = metadataResult.getOrNull()
-    private val declarationProfileFingerprintResult = runCatching {
-        val loadStartedAt = SystemClock.elapsedRealtime()
-        R2TrustedDeclarations.loadForProfile(
-            context,
-            R2CompilationProfileRegistry.PROVISIONAL_RHINO.profile,
-        ).profileFingerprint.also {
-            R2CompilerBootTelemetry.declarationLoaded(elapsedSince(loadStartedAt))
-        }
-    }
-
     @Volatile
     private var currentSnapshot = metadataResult.fold(
         onSuccess = { distribution ->
@@ -116,8 +106,9 @@ class TypeScriptWebViewCompilerHost(
                 compilerVersion = null,
                 distributionFingerprint = distribution.distributionFingerprint,
                 declarationsFingerprint = distribution.declarationsFingerprint,
-                declarationProfileFingerprint =
-                    declarationProfileFingerprintResult.getOrNull(),
+                // Filled in by the declaration preload thread; readers that need the value
+                // before then resolve it through the process-wide declaration cache.
+                declarationProfileFingerprint = null,
                 generatorFingerprint = distribution.generatorFingerprint,
                 lastError = null,
             )
@@ -205,7 +196,79 @@ class TypeScriptWebViewCompilerHost(
     private var lastProjectCompilationEvidenceSnapshotValue:
         R2ProjectCompilationEvidenceSnapshot? = null
 
+    init {
+        if (metadataResult.isSuccess) {
+            startDeclarationPreload()
+        }
+    }
+
     fun snapshot(): CompilerHostSnapshot = currentSnapshot
+
+    /**
+     * Loads and verifies both declaration profiles once per process on a background thread so
+     * the service main thread, the first `getCompilerInfo` and the first job all share that one
+     * pass (startup-latency L1-1/L1-2). Failures stay with the process-wide cache: the next
+     * reader retries and still fails closed for its own request.
+     */
+    private fun startDeclarationPreload() {
+        runCatching {
+            Thread(
+                {
+                    val loadStartedAt = SystemClock.elapsedRealtime()
+                    val rhinoFingerprint = runCatching {
+                        R2TrustedDeclarations.loadForProfile(
+                            context,
+                            R2CompilationProfileRegistry.PROVISIONAL_RHINO.profile,
+                        ).profileFingerprint
+                    }.getOrNull()
+                    R2CompilerBootTelemetry.declarationLoaded(elapsedSince(loadStartedAt))
+                    if (rhinoFingerprint != null) {
+                        mainHandler.post {
+                            if (!closed) {
+                                currentSnapshot = currentSnapshot.copy(
+                                    declarationProfileFingerprint = rhinoFingerprint,
+                                )
+                            }
+                        }
+                    }
+                    runCatching {
+                        R2TrustedDeclarations.loadForProfile(
+                            context,
+                            R2CompilationProfileRegistry.PROVISIONAL_NODE_NEXT_REVISION_2.profile,
+                        )
+                    }
+                },
+                "typescript-declaration-preload",
+            ).apply {
+                isDaemon = true
+                start()
+            }
+        }
+        // Without the preload thread every reader loads lazily through the same cache.
+    }
+
+    /**
+     * Creates the WebView session right after service creation instead of on the first probe,
+     * so WebView initialisation and the Worker's `importScripts("typescript.js")` overlap the
+     * host's discovery call, its archive preparation and the supervisor registration
+     * (startup-latency L1-3). Any failure leaves the lazy path untouched: the first probe still
+     * creates and reports its own session.
+     */
+    internal fun primeSessionForBoot() {
+        mainHandler.post {
+            val mayCreate = synchronized(stateLock) {
+                !closed && !fatalTeardownPending && !timeoutRecoveryPending
+            }
+            if (!mayCreate || webView != null) return@post
+            runCatching { createSessionOnMain() }.onFailure { _ ->
+                runCatching { destroySessionOnMain() }
+                currentSnapshot = currentSnapshot.copy(
+                    status = TypeScriptCompilerContract.STATUS_BOOTSTRAP,
+                    lastError = null,
+                )
+            }
+        }
+    }
 
     /** Drops every Worker-owned project cache at the next safe realm boundary. */
     internal fun discardResidentProjectSessionsForMemoryPressure() {

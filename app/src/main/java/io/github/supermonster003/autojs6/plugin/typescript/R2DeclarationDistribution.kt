@@ -22,6 +22,9 @@ internal object R2DeclarationDistributionLoader {
             common = common,
             compilerDistributionFingerprint = compilerIdentity.distributionFingerprint,
             standardLibrariesFingerprint = compilerIdentity.standardLibrariesFingerprint,
+            // Packaged bytes are hashed below and decoded strictly; the common set arrived from
+            // the equally verified standard-library loader, so no second encode-and-hash pass.
+            verifyTexts = false,
         )
     }
 
@@ -41,6 +44,7 @@ internal object R2DeclarationDistributionLoader {
             common = common,
             compilerDistributionFingerprint = compilerDistributionFingerprint,
             standardLibrariesFingerprint = common.fingerprint,
+            verifyTexts = true,
         )
     }
 
@@ -88,6 +92,7 @@ internal object R2DeclarationDistributionLoader {
         common: R2TrustedDeclarations,
         compilerDistributionFingerprint: String,
         standardLibrariesFingerprint: String,
+        verifyTexts: Boolean,
     ): R2TrustedDeclarations {
         require(common.profile == null && common.compilerRootNames.isEmpty()) {
             "The C8 common authority must be the standalone TypeScript standard-library set."
@@ -169,6 +174,7 @@ internal object R2DeclarationDistributionLoader {
             engineFiles = selectedFiles,
             engineEntryPoint = requireNotNull(selectedLayer.entryPoint),
             profileFingerprint = selectedProfile.fingerprint,
+            verifyTexts = verifyTexts,
         )
     }
 

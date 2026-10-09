@@ -64,15 +64,25 @@ internal class R2TrustedDeclarations private constructor(
 
     companion object {
 
+        /**
+         * @param verifyTexts re-encodes every text and compares it with the declared size and
+         * SHA-256. Loaders that just hashed the exact packaged bytes and decoded them with the
+         * strict UTF-8 decoder pass `false`; every other caller keeps the default.
+         */
         fun create(
             fingerprint: String,
             files: List<R2TrustedDeclarationFile>,
+            verifyTexts: Boolean = true,
         ): R2TrustedDeclarations {
             R2Digests.requireLowerSha256(fingerprint, "Declarations fingerprint")
             require(files.isNotEmpty()) {
                 "Trusted declarations inventory must not be empty."
             }
-            val copiedFiles = validateAndCopyLayerFiles(R2DeclarationLayer.COMMON, files)
+            val copiedFiles = validateAndCopyLayerFiles(
+                R2DeclarationLayer.COMMON,
+                files,
+                verifyTexts,
+            )
 
             val calculated = fingerprint(copiedFiles)
             require(R2Digests.equal(fingerprint, calculated)) {
@@ -98,6 +108,7 @@ internal class R2TrustedDeclarations private constructor(
             engineFiles: List<R2TrustedDeclarationFile>,
             engineEntryPoint: String,
             profileFingerprint: String,
+            verifyTexts: Boolean = true,
         ): R2TrustedDeclarations {
             R2Digests.requireLowerSha256(
                 commonFingerprint,
@@ -121,11 +132,16 @@ internal class R2TrustedDeclarations private constructor(
             val copiedCommon = validateAndCopyLayerFiles(
                 R2DeclarationLayer.COMMON,
                 commonFiles,
+                verifyTexts,
             )
             require(R2Digests.equal(commonFingerprint, fingerprint(copiedCommon))) {
                 "Common trusted declaration inventory does not match its fingerprint."
             }
-            val copiedEngine = validateAndCopyLayerFiles(profile.engineLayer, engineFiles)
+            val copiedEngine = validateAndCopyLayerFiles(
+                profile.engineLayer,
+                engineFiles,
+                verifyTexts,
+            )
             require(
                 R2Digests.equal(
                     engineFingerprint,
@@ -183,7 +199,33 @@ internal class R2TrustedDeclarations private constructor(
             )
         }
 
+        /**
+         * Process-wide memo of the verified TypeScript standard-library inventory.
+         *
+         * The inventory is immutable and derived only from signed APK assets, so one verified
+         * load serves the WebView host, the service capability bundle and every compilation job
+         * for the rest of the process (startup-latency L1-1). Failures are not cached.
+         */
+        private val standardLibrariesCache = R2ProcessLoadCache<Unit, R2TrustedDeclarations> {
+            loadTypeScriptStandardLibrariesUncached(requireNotNull(cacheContext))
+        }
+
+        private val profileCache = R2ProcessLoadCache<R2ProjectProfile, R2TrustedDeclarations> {
+            profile ->
+            loadForProfileUncached(requireNotNull(cacheContext), profile)
+        }
+
+        @Volatile
+        private var cacheContext: Context? = null
+
         fun loadTypeScriptStandardLibraries(context: Context): R2TrustedDeclarations {
+            cacheContext = context.applicationContext ?: context
+            return standardLibrariesCache.get(Unit)
+        }
+
+        private fun loadTypeScriptStandardLibrariesUncached(
+            context: Context,
+        ): R2TrustedDeclarations {
             val assetRoot = "typescript/${BuildConfig.TYPESCRIPT_VERSION}"
             val manifestBytes = context.assets.open("$assetRoot/distribution.json").use { input ->
                 readBounded(input, MAXIMUM_DISTRIBUTION_MANIFEST_BYTES)
@@ -244,11 +286,20 @@ internal class R2TrustedDeclarations private constructor(
                 "Compiler distribution declaration bytes do not match its component."
             }
 
-            val inventory = create(expectedFingerprint, files)
-            return inventory
+            // Every byte above was hashed against the distribution manifest and decoded with the
+            // strict UTF-8 decoder, so the inventory does not need a second encode-and-hash pass.
+            return create(expectedFingerprint, files, verifyTexts = false)
         }
 
         fun loadForProfile(
+            context: Context,
+            profile: R2ProjectProfile,
+        ): R2TrustedDeclarations {
+            cacheContext = context.applicationContext ?: context
+            return profileCache.get(profile)
+        }
+
+        private fun loadForProfileUncached(
             context: Context,
             profile: R2ProjectProfile,
         ): R2TrustedDeclarations = when (profile) {
@@ -351,6 +402,7 @@ internal class R2TrustedDeclarations private constructor(
         private fun validateAndCopyLayerFiles(
             layer: R2DeclarationLayer,
             files: List<R2TrustedDeclarationFile>,
+            verifyTexts: Boolean,
         ): ArrayList<R2TrustedDeclarationFile> {
             val archivePaths = HashMap<String, String>(files.size)
             val fingerprintPaths = HashMap<String, String>(files.size)
@@ -399,17 +451,22 @@ internal class R2TrustedDeclarations private constructor(
                     file.sha256,
                     "Trusted declaration SHA-256",
                 )
-                val declarationBytes =
-                    R2Utf8.encode(file.text, "Trusted declaration ${file.archivePath}")
-                try {
-                    require(declarationBytes.size.toLong() == file.size) {
-                        "Trusted declaration text size does not match: ${file.archivePath}."
+                if (verifyTexts) {
+                    val declarationBytes =
+                        R2Utf8.encode(file.text, "Trusted declaration ${file.archivePath}")
+                    try {
+                        require(declarationBytes.size.toLong() == file.size) {
+                            "Trusted declaration text size does not match: ${file.archivePath}."
+                        }
+                        require(
+                            R2Digests.equal(file.sha256, R2Digests.sha256(declarationBytes)),
+                        ) {
+                            "Trusted declaration text SHA-256 does not match: " +
+                                "${file.archivePath}."
+                        }
+                    } finally {
+                        declarationBytes.fill(0)
                     }
-                    require(R2Digests.equal(file.sha256, R2Digests.sha256(declarationBytes))) {
-                        "Trusted declaration text SHA-256 does not match: ${file.archivePath}."
-                    }
-                } finally {
-                    declarationBytes.fill(0)
                 }
 
                 val collisionKey = file.archivePath.asciiCaseFold()
