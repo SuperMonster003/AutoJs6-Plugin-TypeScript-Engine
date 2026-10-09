@@ -24,7 +24,8 @@
     "hostCompile": "typescript-compile-perf schema=3",
     "hostExecution": "typescript-execution-perf schema=1",
     "hostPrewarm": "typescript-prewarm schema=1",
-    "pluginBoot": "typescript-compiler-boot schema=1"
+    "pluginBoot": "typescript-compiler-boot schema=1",
+    "pluginWarmUp": "typescript-compiler-warmup schema=1"
   },
   "observations": [
     {

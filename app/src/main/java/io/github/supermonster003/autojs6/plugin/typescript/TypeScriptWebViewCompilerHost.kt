@@ -1834,6 +1834,8 @@ class TypeScriptWebViewCompilerHost(
         }
         when (message) {
             is CompilerHostMessage.Ready -> handleWorkerReadyOnMain(message)
+            is CompilerHostMessage.DeclarationWarmUp ->
+                R2CompilerBootTelemetry.declarationWarmUp(message)
             is CompilerHostMessage.ProbeResult -> handleProbeResultOnMain(message)
             is CompilerHostMessage.ProjectResult -> handleProjectResultOnMain(message)
             is CompilerHostMessage.ProjectInputAck ->

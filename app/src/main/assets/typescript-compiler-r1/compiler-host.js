@@ -221,6 +221,10 @@
                     }
                     publish(message, createdGeneration);
                     return;
+                case "declarationWarmUp":
+                    // Startup-latency L2-7 telemetry; native logs it and never acts on it.
+                    publish(message, createdGeneration);
+                    return;
                 case "probeResult":
                 case "probeError":
                     if (activeProject === null) {

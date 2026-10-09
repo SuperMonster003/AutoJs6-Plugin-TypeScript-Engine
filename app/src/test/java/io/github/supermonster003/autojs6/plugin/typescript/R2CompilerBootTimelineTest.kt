@@ -2,6 +2,7 @@ package io.github.supermonster003.autojs6.plugin.typescript
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -57,6 +58,56 @@ class R2CompilerBootTimelineTest {
             timeline.recordSupervisorReady(),
         )
         assertNull(timeline.recordSupervisorReady())
+    }
+
+    @Test
+    fun formatsWarmUpReportsAgainstTheProcessTimeline() {
+        var uptime = 1_500L
+        val timeline = R2CompilerBootTimeline { uptime }
+        assertNotNull(timeline.recordWorkerReady(bootstrapMs = 640L))
+        uptime = 2_100L
+        val fields = linkedMapOf<String, Long?>(
+            "sinceReadyMs" to 540L,
+            "startedAtMs" to 1L,
+            "loadedAtMs" to 330L,
+            "completedAtMs" to null,
+            "commonImportMs" to 90L,
+            "commonVerifyMs" to 200L,
+            "commonDigestMs" to 60L,
+            "commonTokenMs" to 130L,
+            "rhinoImportMs" to 20L,
+            "rhinoVerifyMs" to 40L,
+            "rhinoDigestMs" to 12L,
+            "rhinoTokenMs" to 25L,
+            "parsedFiles" to 31L,
+            "parsedBytes" to 812_345L,
+            "queuedFiles" to 52L,
+            "parseMs" to 180L,
+            "steps" to 16L,
+            "deferredSteps" to 0L,
+        )
+
+        assertEquals(
+            "typescript-compiler-warmup schema=1 processUptimeMs=2100 workerReadyAtMs=1500 " +
+                "generation=1 state=parsing sinceReadyMs=540 startedAtMs=1 loadedAtMs=330 " +
+                "completedAtMs=na commonImportMs=90 commonVerifyMs=200 commonDigestMs=60 " +
+                "commonTokenMs=130 rhinoImportMs=20 rhinoVerifyMs=40 rhinoDigestMs=12 " +
+                "rhinoTokenMs=25 parsedFiles=31 parsedBytes=812345 queuedFiles=52 " +
+                "parseMs=180 steps=16 deferredSteps=0",
+            timeline.warmUpLogLine(generation = 1, state = "parsing", fields = fields),
+        )
+        // Fields the Worker did not send are still printed, as `na`, before any Worker ready.
+        val early = R2CompilerBootTimeline { 300L }
+        val line = early.warmUpLogLine(generation = 2, state = "na", fields = emptyMap())
+        assertEquals(
+            "typescript-compiler-warmup schema=1 processUptimeMs=300 workerReadyAtMs=na " +
+                "generation=2 state=na sinceReadyMs=na startedAtMs=na loadedAtMs=na " +
+                "completedAtMs=na commonImportMs=na commonVerifyMs=na commonDigestMs=na " +
+                "commonTokenMs=na rhinoImportMs=na rhinoVerifyMs=na rhinoDigestMs=na " +
+                "rhinoTokenMs=na parsedFiles=na parsedBytes=na queuedFiles=na parseMs=na " +
+                "steps=na deferredSteps=na",
+            line,
+        )
     }
 
     @Test

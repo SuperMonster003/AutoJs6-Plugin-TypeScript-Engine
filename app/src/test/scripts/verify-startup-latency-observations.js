@@ -71,9 +71,18 @@ assertIncludes(
     'const val LOG_PREFIX = "typescript-compiler-boot"',
     "R2CompilerBootTelemetry",
 );
+const warmUpSchemaMatch = bootTelemetry.match(/const val WARM_UP_SCHEMA_REVISION = (\d+)/);
+assert(warmUpSchemaMatch, "R2CompilerBootTelemetry must declare WARM_UP_SCHEMA_REVISION.");
+const warmUpSchemaRevision = Number.parseInt(warmUpSchemaMatch[1], 10);
+assertIncludes(
+    bootTelemetry,
+    'const val WARM_UP_LOG_PREFIX = "typescript-compiler-warmup"',
+    "R2CompilerBootTelemetry",
+);
 for (const marker of [
     "const workerBootstrapStartedAt = performance.now();",
     "bootstrapMs: workerBootstrapMs,",
+    'kind: "declarationWarmUp",',
 ]) {
     assertIncludes(workerSource, marker, "Compiler Worker boot telemetry");
 }
@@ -85,6 +94,7 @@ for (const marker of [
     "typescript-compile-perf",
     "typescript-execution-perf",
     "typescript-compiler-boot",
+    "typescript-compiler-warmup",
     "typescript-prewarm",
     "org.autojs.autojs.external.open.RunIntentActivity",
     'const RUN_MARKER = "run-[0-9A-Za-z]+";',
@@ -164,8 +174,16 @@ for (const [targetKey, roadmapMarker] of [
     assertIncludes(roadmap, roadmapMarker, `Roadmap target ${targetKey}`);
 }
 assert(
-    exactKeys(observations.logSchemas, ["hostCompile", "hostExecution", "hostPrewarm", "pluginBoot"]) &&
+    exactKeys(observations.logSchemas, [
+        "hostCompile",
+        "hostExecution",
+        "hostPrewarm",
+        "pluginBoot",
+        "pluginWarmUp",
+    ]) &&
         observations.logSchemas.pluginBoot === `typescript-compiler-boot schema=${bootSchemaRevision}` &&
+        observations.logSchemas.pluginWarmUp ===
+            `typescript-compiler-warmup schema=${warmUpSchemaRevision}` &&
         /^typescript-compile-perf schema=\d+$/.test(observations.logSchemas.hostCompile) &&
         /^typescript-execution-perf schema=\d+$/.test(observations.logSchemas.hostExecution) &&
         /^typescript-prewarm schema=\d+$/.test(observations.logSchemas.hostPrewarm),
@@ -307,5 +325,5 @@ for (const observation of observations.observations) {
 
 process.stdout.write(
     `startup-latency observations verified: ${observations.observations.length} records, ` +
-        `boot schema ${bootSchemaRevision}, gate=none\n`,
+        `boot schema ${bootSchemaRevision}, warm-up schema ${warmUpSchemaRevision}, gate=none\n`,
 );

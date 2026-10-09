@@ -161,6 +161,9 @@ const compileProject = async (
         workerSpinPhase: "none",
     });
     expectAck(startResponses, requestId, sequence);
+    const extraMessages = startResponses.filter(
+        (message) => message.kind !== "projectInputAck",
+    );
     sequence += 1;
 
     const framed = files.filter((file) => frameDeclarations || !file.declaration);
@@ -230,7 +233,7 @@ const compileProject = async (
             failure && /Preloaded declaration layers do not match/.test(failure.message),
             `Tampered inventory was not refused: ${JSON.stringify(endResponses)}`,
         );
-        return { framedFileCount: framed.length, refused: true };
+        return { extraMessages, framedFileCount: framed.length, refused: true };
     }
     assert(!failure, `Worker rejected the project at input end: ${failure?.message}`);
     const start = endResponses.find(
@@ -261,7 +264,7 @@ const compileProject = async (
         !result.emitSkipped && result.diagnostics.length === 0,
         `Project did not compile cleanly: ${JSON.stringify(result.diagnostics)}`,
     );
-    return { framedFileCount: framed.length, result };
+    return { extraMessages, framedFileCount: framed.length, result };
 };
 
 (async () => {
@@ -280,10 +283,69 @@ const compileProject = async (
     );
     const declarationFiles = common.files.concat(rhino.files);
 
+    // Startup-latency L2-7: let the post-ready warm-up finish, then prove that the first
+    // preloaded Program reuses every warmed SourceFile instead of parsing the layers again.
+    const warmUp = workerBinding("declarationWarmUp");
+    const warmUpDeadline = Date.now() + 120_000;
+    while (warmUp.state !== "completed") {
+        assert(
+            warmUp.state !== "failed" && warmUp.state !== "unavailable",
+            `Worker warm-up ended in state ${warmUp.state}.`,
+        );
+        assert(Date.now() < warmUpDeadline, "Worker warm-up did not complete.");
+        await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert(
+        warmUp.parsedFiles > 0 &&
+            warmUp.queuedFiles === 0 &&
+            warmUp.steps > 0 &&
+            warmUp.bundles.has("common") &&
+            warmUp.bundles.has("rhino") &&
+            warmUp.bundles.get("common").fileCount === bundleManifest.bundles.common.fileCount,
+        `Worker warm-up telemetry drifted: ${JSON.stringify({ ...warmUp, bundles: [...warmUp.bundles] })}`,
+    );
+    const sharedDeclarationSourceFiles = workerBinding("sharedDeclarationSourceFiles");
+    const sharedDeclarationSourceFileKey = workerBinding("sharedDeclarationSourceFileKey");
+    const warmedSourceFiles = new Map(sharedDeclarationSourceFiles);
+    assert(
+        warmedSourceFiles.size === warmUp.parsedFiles &&
+            warmedSourceFiles.has(
+                sharedDeclarationSourceFileKey("/declarations/lib.es2018.d.ts", 5),
+            ),
+        "Worker warm-up did not populate the shared declaration SourceFile cache.",
+    );
+
     const preloaded = await compileProject("preload-1", declarationFiles, {
         frameDeclarations: false,
     });
     assert(preloaded.framedFileCount === 1, "Preloaded request framed more than the caller file.");
+    const warmUpReports = preloaded.extraMessages.filter(
+        (message) => message.kind === "declarationWarmUp",
+    );
+    assert(
+        warmUpReports.length === 1 &&
+            warmUpReports[0].state === "completed" &&
+            warmUpReports[0].parsedFiles === warmUp.parsedFiles &&
+            warmUpReports[0].queuedFiles === 0 &&
+            warmUpReports[0].completedAtMs >= 0 &&
+            warmUpReports[0].commonVerifyMs >= 0 &&
+            warmUpReports[0].rhinoTokenMs >= 0 &&
+            Object.values(warmUpReports[0]).every(
+                (value) => typeof value === "string" || Number.isSafeInteger(value),
+            ),
+        `First project did not report the warm-up once: ${JSON.stringify(warmUpReports)}`,
+    );
+    for (const [key, sourceFile] of warmedSourceFiles) {
+        assert(
+            sharedDeclarationSourceFiles.get(key) === sourceFile,
+            `First preloaded Program replaced the warmed SourceFile ${key.split("\u0000")[0]}.`,
+        );
+    }
+    assert(
+        sharedDeclarationSourceFiles.size === warmedSourceFiles.size,
+        "First preloaded Program parsed declarations the warm-up had already parsed: " +
+            `${sharedDeclarationSourceFiles.size - warmedSourceFiles.size} new shared entries.`,
+    );
     const mainOutput = preloaded.result.outputs.find((output) => output.path === "/outputs/main.js");
     assert(
         mainOutput && mainOutput.text.includes("device.sdkInt"),
@@ -325,6 +387,10 @@ const compileProject = async (
         normalize(second.result.outputs) === normalize(preloaded.result.outputs),
         "Second preloaded compilation diverged from the first.",
     );
+    assert(
+        !second.extraMessages.some((message) => message.kind === "declarationWarmUp"),
+        "Worker reported its warm-up more than once.",
+    );
     const shared = workerBinding("sharedDeclarationSourceFiles");
     assert(
         shared.size > 0,
@@ -339,7 +405,8 @@ const compileProject = async (
     process.stdout.write(
         "L2-1 declaration preload verified: " +
             `${declarationFiles.length} preloaded declarations, framed parity, ` +
-            `tamper refused, ${shared.size} shared SourceFiles\n`,
+            `tamper refused, ${shared.size} shared SourceFiles, ` +
+            `warm-up ${warmUp.parsedFiles} files reused by the first Program\n`,
     );
     process.exit(0);
 })().catch((error) => {

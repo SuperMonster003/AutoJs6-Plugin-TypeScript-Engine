@@ -26,9 +26,14 @@ WebMessagePort 送进 Worker: `compilerIngressMs` 冷 2.9 s, 热 2.6 s, 是执�
    固定为 `typescript.js` 加这三个文件.
 3. **Worker 预装与校验.** `loadDeclarationLayer(layer)` 以字面量 `importScripts` 装载 bundle,
    对每条记录重新编码 UTF-8, 比对字节数与 SHA-256, 统计 token 数, 结果按层缓存于 Worker 生命周期;
-   失败不缓存. Worker 在发布 `ready` 后用 `setTimeout` 分片预热: 装载 common + rhino 层, 并按
-   `lib.es2018.d.ts` 的 `/// <reference lib>` 链与 Rhino 层逐文件预创建 `SourceFile`
-   (`version = sha256`), 遇到活动 job 即让路.
+   失败不缓存. Worker 在发布 `ready` 后异步预热: 先装载 common + rhino 层, 再按
+   `lib.es2018.d.ts` 的 `/// <reference lib>` 链与 Rhino 层预创建 `SourceFile`
+   (`version = sha256`). L2-7 起每个预热步按 12 ms 时间片解析若干文件后 `setTimeout(0)` 让出
+   消息循环 (嵌套定时器被钳到 4 ms, 逐文件让出会把一半窗口花在等待上), 遇到活动 job 即以 50 ms
+   轮询让路; 先到的 job 复用已完成的部分, 其余自己解析. Worker 生命周期内首个 `projectInputStart`
+   以 `declarationWarmUp` 消息上报一次预热状态 (bundle 的 import / 校验 / 摘要 / token 计数耗时,
+   已解析文件数与字节数, 剩余队列, 首个项目相对 `ready` 的到达时刻), 原生侧仅记一行
+   `typescript-compiler-warmup schema=1`; 没有 bundle 的桌面 shim 不会产生该消息.
 4. **输入端合并.** `projectInputEnd` 时若 `state.files` 中没有任何 `/declarations/` 记录, Worker
    取 common 层加上第一个使合并清单指纹等于 start 帧 `declarationInventoryFingerprint` 的引擎层;
    同时校验文件数, 字节总数, 路径预算, 大小写折叠碰撞与 token 预算, 并把记录插入 `state.files`
@@ -36,9 +41,13 @@ WebMessagePort 送进 Worker: `compilerIngressMs` 冷 2.9 s, 热 2.6 s, 是执�
    (桌面 fixture, 旧回放) 走原路径不变.
 5. **共享声明 SourceFile.** `createProjectCompilerHost.getSourceFile` 对来自预装层 (路径 + 摘要
    命中 `preloadedDeclarationDigests`) 的 `/declarations/` 文件使用 Worker 级
-   `sharedDeclarationSourceFiles` (键: 路径 + languageVersion, 命中时校验 `version`), 冷 job 与
-   不同常驻会话之间复用同一解析结果; 由调用方分帧的声明仍只用 per-job cache, 保留原有
-   retained-heap 边界. Node revision 2 项目不参与共享.
+   `sharedDeclarationSourceFiles` (键: 路径 + 脚本目标 + implied module format, 命中时校验
+   `version`), 冷 job, 预热与不同常驻会话之间复用同一解析结果; 由调用方分帧的声明仍只用 per-job
+   cache, 保留原有 retained-heap 边界. Node revision 2 项目不参与共享. 键必须从
+   `getSourceFile` 收到的 `CreateSourceFileOptions` 对象里取字段: TypeScript 5+ 的 Program 传的是
+   选项对象而不是 `ScriptTarget` 数字, L2-1 首版把对象直接拼进模板串得到 `[object Object]`, 预热
+   用数字目标写入的条目因此永远不命中 (L2-7 修正, 桌面门禁现在断言首个 Program 不再重解析任何
+   预热文件).
 6. **原生分帧器.** `R2ProjectInputFramer` 新增 `declarationTransport` 参数:
    `FRAMED` (默认, 历史行为, in-memory 快照与全部既有 fixture 继续使用) 与 `PRELOADED`
    (协调器的生产路径). `PRELOADED` 下 start/end 帧的 `fileCount`, `totalBytes`,
@@ -88,7 +97,8 @@ Xiaomi 23046RP50C / API 35 / WebView 130, release 宿主 + 插件, 单文件 Rhi
 - 单文件请求只分帧 1 个 caller 文件 (5 个逻辑帧), 两个场景的声明层传输都降到两位数毫秒.
 - 预解析子项没有兑现: 首个 job 在 Worker ready 后很快到达, `setTimeout` 分片预热几乎没有
   窗口, S1 的冷 parse 反而略升; 后续作为线路图 L2-7 单独处理 (先打点 bundle 校验耗时与
-  预热进度, 再决定同步预解析或把校验挪到原生侧).
+  预热进度, 再决定同步预解析或把校验挪到原生侧). L2-7 的打点与复核发现真正原因是上文第 5 点
+  的共享键不匹配 (预热结果从未被 Program 命中), 窗口不足只是次要因素; 数据与结论见线路图 L2-7.
 - 首轮采集 (记录 `20261009-l2-api35-23046rp50c-preload-host-unfixed`, 宿主 `b4b4e36805`)
   中 S2 退化到 4.8 s. 排查确认插件的常驻判定正确 (新增 `typescript-compiler-trim`,
   `typescript-compiler-realm-teardown`, `typescript-compiler-service-destroy` 观测日志均未

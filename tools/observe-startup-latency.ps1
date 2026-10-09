@@ -37,7 +37,8 @@ The script never installs or uninstalls anything. It pushes tools/fixtures/start
 single-file.ts to the device, launches it through the host's exported RunIntentActivity, and
 reads the structured logcat lines emitted by the host (`typescript-compile-perf`,
 `typescript-execution-perf`, `typescript-prewarm`) and by the plugin
-(`typescript-compiler-boot`). Every sample keeps the raw key=value fields; medians are
+(`typescript-compiler-boot`, `typescript-compiler-warmup`). Every sample keeps the raw key=value
+fields; medians are
 computed per scenario over odd sample counts only. `gate=none`: nothing here fails on a
 slow number.
 
@@ -205,7 +206,7 @@ function Invoke-ScriptRun {
     while ($true) {
         $lines = @(
             & adb -s $Serial logcat -d -v threadtime -s "$logTag`:I" "*:S" 2>$null |
-                Where-Object { $_ -match "typescript-(compile-perf|execution-perf|prewarm|warm-binding|compiler-boot|compiler-trim|compiler-realm-teardown|compiler-service-destroy)" }
+                Where-Object { $_ -match "typescript-(compile-perf|execution-perf|prewarm|warm-binding|compiler-boot|compiler-warmup|compiler-trim|compiler-realm-teardown|compiler-service-destroy)" }
         )
         if (@($lines | Where-Object { $_ -match "typescript-execution-perf schema=" }).Count -ge 1) {
             break
@@ -231,6 +232,7 @@ function Invoke-ScriptRun {
     $boot = $lines | Where-Object { $_ -match "typescript-compiler-boot schema=\d+ processUptimeMs=" } |
         Select-Object -Last 1
     $prewarm = $lines | Where-Object { $_ -match "typescript-prewarm schema=" } | Select-Object -Last 1
+    $warmup = $lines | Where-Object { $_ -match "typescript-compiler-warmup schema=" } | Select-Object -Last 1
 
     $stopwatchMs = $null
     $stampDeadline = (Get-Date).AddSeconds(10)
@@ -271,6 +273,7 @@ function Invoke-ScriptRun {
         execution = if ($execution) { Parse-KeyValues $execution } else { $null }
         boot = if ($boot) { Parse-KeyValues $boot } else { $null }
         prewarm = if ($prewarm) { Parse-KeyValues $prewarm } else { $null }
+        warmup = if ($warmup) { Parse-KeyValues $warmup } else { $null }
         rawLines = @($lines)
     }
     return $sample
@@ -308,6 +311,15 @@ function Get-ScenarioMedians {
                 "serviceCreateStartMs", "serviceCreateMs", "declarationLoadMs",
                 "supervisorReadyAtMs", "webViewCreatedAtMs", "pageReadyAtMs", "workerReadyAtMs",
                 "workerBootstrapMs"
+            )
+        },
+        @{
+            name = "warmup"
+            keys = @(
+                "sinceReadyMs", "startedAtMs", "loadedAtMs", "completedAtMs",
+                "commonImportMs", "commonVerifyMs", "commonDigestMs", "commonTokenMs",
+                "rhinoImportMs", "rhinoVerifyMs", "rhinoDigestMs", "rhinoTokenMs",
+                "parsedFiles", "parsedBytes", "queuedFiles", "parseMs", "steps", "deferredSteps"
             )
         }
     )
@@ -403,7 +415,9 @@ foreach ($scenarioId in $scenarios) {
         $wait = if ($sample.execution) { $sample.execution["userWaitMs"] } else { "na" }
         $ingress = if ($sample.compile -and $sample.compile.Contains("compilerIngressMs")) { $sample.compile["compilerIngressMs"] } else { "na" }
         $stopwatch = if ($null -ne $sample.stopwatchMs) { $sample.stopwatchMs } else { "na" }
-        Write-Host "$scenarioId#$index userWaitMs=$wait stopwatchMs=$stopwatch compilerIngressMs=$ingress coldProcess=$($sample.coldCompilerProcess) trims=$($sample.trimEventCount) realmTeardowns=$($sample.realmTeardownCount) serviceDestroys=$($sample.serviceDestroyCount) warmBindingRetained=$($sample.warmBindingRetained)"
+        $parse = if ($sample.compile -and $sample.compile.Contains("compilerParseMs")) { $sample.compile["compilerParseMs"] } else { "na" }
+        $warm = if ($sample.warmup) { "$($sample.warmup["state"])/$($sample.warmup["parsedFiles"])files@$($sample.warmup["sinceReadyMs"])ms" } else { "na" }
+        Write-Host "$scenarioId#$index userWaitMs=$wait stopwatchMs=$stopwatch compilerIngressMs=$ingress compilerParseMs=$parse warmUp=$warm coldProcess=$($sample.coldCompilerProcess) trims=$($sample.trimEventCount) realmTeardowns=$($sample.realmTeardownCount) serviceDestroys=$($sample.serviceDestroyCount) warmBindingRetained=$($sample.warmBindingRetained)"
         Start-Sleep -Seconds 3
     }
     $report.scenarios[$scenarioId] = [ordered]@{

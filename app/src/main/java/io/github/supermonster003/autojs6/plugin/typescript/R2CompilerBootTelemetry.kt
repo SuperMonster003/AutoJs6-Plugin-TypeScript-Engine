@@ -35,9 +35,9 @@ internal data class R2CompilerBootSnapshot(
         append(" workerReadyAtMs=").append(workerReadyAtMs.asLogValue())
         append(" workerBootstrapMs=").append(workerBootstrapMs.asLogValue())
     }
-
-    private fun Long?.asLogValue(): String = this?.toString() ?: "na"
 }
+
+private fun Long?.asLogValue(): String = this?.toString() ?: "na"
 
 /**
  * Records the first occurrence of each compiler process boot milestone.
@@ -122,6 +122,28 @@ internal class R2CompilerBootTimeline(
 
     fun snapshot(): R2CompilerBootSnapshot = synchronized(lock) { snapshotLocked() }
 
+    /**
+     * Formats one Worker warm-up report against the process timeline. Every report is logged:
+     * the Worker sends at most one per lifetime, and a renderer recovery starts a new Worker.
+     */
+    fun warmUpLogLine(
+        generation: Int,
+        state: String,
+        fields: Map<String, Long?>,
+    ): String = synchronized(lock) {
+        buildString {
+            append(R2CompilerBootTelemetry.WARM_UP_LOG_PREFIX)
+            append(" schema=").append(R2CompilerBootTelemetry.WARM_UP_SCHEMA_REVISION)
+            append(" processUptimeMs=").append(now())
+            append(" workerReadyAtMs=").append(workerReadyAtMs.asLogValue())
+            append(" generation=").append(generation)
+            append(" state=").append(state)
+            for (field in CompilerHostProtocol.DECLARATION_WARM_UP_FIELDS) {
+                append(' ').append(field).append('=').append(fields[field].asLogValue())
+            }
+        }
+    }
+
     private fun snapshotLocked() = R2CompilerBootSnapshot(
         processUptimeMs = now(),
         serviceCreateStartedAtMs = serviceCreateStartedAtMs,
@@ -149,6 +171,8 @@ internal object R2CompilerBootTelemetry {
     const val LOG_TAG = "TypeScriptCompiler"
     const val LOG_PREFIX = "typescript-compiler-boot"
     const val SCHEMA_REVISION = 1
+    const val WARM_UP_LOG_PREFIX = "typescript-compiler-warmup"
+    const val WARM_UP_SCHEMA_REVISION = 1
 
     private val timeline = R2CompilerBootTimeline {
         SystemClock.elapsedRealtime() - Process.getStartElapsedRealtime()
@@ -172,6 +196,14 @@ internal object R2CompilerBootTelemetry {
 
     fun workerReady(bootstrapMs: Long?) = quietly {
         timeline.recordWorkerReady(bootstrapMs)?.let { line -> Log.i(LOG_TAG, line) }
+    }
+
+    /** Startup-latency L2-7: the Worker's warm-up stand at its first project, one line each. */
+    fun declarationWarmUp(message: CompilerHostMessage.DeclarationWarmUp) = quietly {
+        Log.i(
+            LOG_TAG,
+            timeline.warmUpLogLine(message.generation, message.state, message.fields),
+        )
     }
 
     private inline fun quietly(block: () -> Unit) {

@@ -17,11 +17,18 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 HISTORY = ROOT / "docs" / "maintenance" / "startup-latency-observations.json"
 IDENTITY_KEYS = {"coldCompilerProcess", "fixtureSha256"}
-GROUP_PREFIXES = {"execution": "", "compile": "compile", "boot": "boot", "prewarm": "prewarm"}
+GROUP_PREFIXES = {
+    "execution": "",
+    "compile": "compile",
+    "boot": "boot",
+    "prewarm": "prewarm",
+    "warmup": "warmup",
+}
 FORBIDDEN_KEY = re.compile(r"path|request|uri|sourcename|sourcetext|identity", re.IGNORECASE)
 SKIPPED_FIELDS = {
     "schema", "profile", "outcome", "error", "cache", "entry", "reason", "retained", "acquired",
     "projectSessionRevision", "event", "hostHeapStartKiB", "hostHeapEndKiB", "hostHeapDeltaKiB",
+    "state",
 }
 
 

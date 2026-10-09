@@ -462,10 +462,83 @@ const preloadedDeclarationLayers = new Map();
 // version-immutable declarations are eligible for the shared SourceFile cache below; framed
 // declarations supplied by a caller keep the per-job cache semantics and retained-memory bounds.
 const preloadedDeclarationDigests = new Map();
-// Parsed declaration SourceFiles shared across jobs and Programs of this Worker, keyed by path
-// and language version and validated against the record digest on every hit. Node revision 2
-// projects keep their own implied-format SourceFiles.
+// Parsed declaration SourceFiles shared across jobs and Programs of this Worker, keyed by path,
+// script target and implied module format, and validated against the record digest on every
+// hit. Node revision 2 projects keep their own implied-format SourceFiles.
 const sharedDeclarationSourceFiles = new Map();
+// A Program hands `getSourceFile` a CreateSourceFileOptions object, not a bare ScriptTarget;
+// keying on its script target and implied module format (instead of the object's string form)
+// is what lets a Program find the SourceFiles the warm-up below created with a bare target.
+const sharedDeclarationSourceFileKey = (fileName, languageVersionOrOptions) => {
+    const options =
+        typeof languageVersionOrOptions === "object" && languageVersionOrOptions !== null
+            ? languageVersionOrOptions
+            : { languageVersion: languageVersionOrOptions };
+    if (!Number.isSafeInteger(options.languageVersion)) {
+        return null;
+    }
+    const impliedNodeFormat = Number.isSafeInteger(options.impliedNodeFormat)
+        ? options.impliedNodeFormat
+        : "";
+    return `${fileName}\u0000${options.languageVersion}\u0000${impliedNodeFormat}`;
+};
+const roundMs = (value) => Math.max(0, Math.round(value));
+// Startup-latency L2-7 telemetry: where the Worker-side warm-up stands when the first project
+// of this Worker arrives. Durations and counts only. The first `projectInputStart` publishes
+// it once, and only when a warm-up actually started: desktop shims without bundles never see
+// the message.
+const declarationWarmUp = {
+    bundles: new Map(),
+    completedAtMs: null,
+    deferredSteps: 0,
+    firstProjectReported: false,
+    loadedAtMs: null,
+    parseMs: 0,
+    parsedBytes: 0,
+    parsedFiles: 0,
+    queuedFiles: 0,
+    readyAtMs: null,
+    startedAtMs: null,
+    state: "pending",
+    steps: 0,
+};
+const declarationWarmUpReportedLayers = Object.freeze(["common", "rhino"]);
+const reportDeclarationWarmUpForFirstProject = () => {
+    const warmUp = declarationWarmUp;
+    if (
+        warmUp.firstProjectReported ||
+        warmUp.readyAtMs === null ||
+        warmUp.state === "pending" ||
+        warmUp.state === "unavailable"
+    ) {
+        return;
+    }
+    warmUp.firstProjectReported = true;
+    const sinceReady = (value) =>
+        value === null ? -1 : roundMs(value - warmUp.readyAtMs);
+    const message = {
+        completedAtMs: sinceReady(warmUp.completedAtMs),
+        deferredSteps: warmUp.deferredSteps,
+        kind: "declarationWarmUp",
+        loadedAtMs: sinceReady(warmUp.loadedAtMs),
+        parseMs: roundMs(warmUp.parseMs),
+        parsedBytes: warmUp.parsedBytes,
+        parsedFiles: warmUp.parsedFiles,
+        queuedFiles: warmUp.queuedFiles,
+        sinceReadyMs: sinceReady(performance.now()),
+        startedAtMs: sinceReady(warmUp.startedAtMs),
+        state: warmUp.state,
+        steps: warmUp.steps,
+    };
+    for (const layer of declarationWarmUpReportedLayers) {
+        const bundle = warmUp.bundles.get(layer) ?? null;
+        for (const field of ["importMs", "verifyMs", "digestMs", "tokenMs"]) {
+            message[`${layer}${field[0].toUpperCase()}${field.slice(1)}`] =
+                bundle === null ? -1 : bundle[field];
+        }
+    }
+    self.postMessage(message);
+};
 
 const importDeclarationBundle = (layer) => {
     switch (layer) {
@@ -485,7 +558,7 @@ const importDeclarationBundle = (layer) => {
     return isRecord(registry) ? registry[layer] : undefined;
 };
 
-const verifyDeclarationBundle = async (layer, registered) => {
+const verifyDeclarationBundle = async (layer, registered, timing = null) => {
     const prefix = declarationBundleAuthority.layerPathPrefixes[layer];
     if (
         !isRecord(registered) ||
@@ -524,14 +597,21 @@ const verifyDeclarationBundle = async (layer, registered) => {
         ) {
             throw new Error(`Declaration bundle ${layer} record is malformed.`);
         }
+        const digestStartedAt = performance.now();
         const bytes = new TextEncoder().encode(entry.text);
-        if (
-            bytes.byteLength !== entry.byteLength ||
-            (await bytesToSha256(bytes)) !== entry.sha256
-        ) {
+        const digest = await bytesToSha256(bytes);
+        if (timing !== null) {
+            timing.digestMs += performance.now() - digestStartedAt;
+        }
+        if (bytes.byteLength !== entry.byteLength || digest !== entry.sha256) {
             throw new Error(
                 `Declaration bundle ${layer} record does not match its digest.`,
             );
+        }
+        const tokenStartedAt = performance.now();
+        const tokenCount = countSourceTokens(entry.text);
+        if (timing !== null) {
+            timing.tokenMs += performance.now() - tokenStartedAt;
         }
         seen.add(entry.path);
         totalBytes += entry.byteLength;
@@ -541,7 +621,7 @@ const verifyDeclarationBundle = async (layer, registered) => {
                 path: entry.path,
                 sha256: entry.sha256,
                 text: entry.text,
-                tokenCount: countSourceTokens(entry.text),
+                tokenCount,
             }),
         );
     }
@@ -566,16 +646,32 @@ const loadDeclarationLayer = (layer) => {
         return existing;
     }
     const loading = (async () => {
+        const importStartedAt = performance.now();
         let registered;
         try {
             registered = importDeclarationBundle(layer);
         } catch (_) {
             registered = undefined;
         }
+        const importMs = performance.now() - importStartedAt;
         if (registered === undefined) {
             return null;
         }
-        return verifyDeclarationBundle(layer, registered);
+        const timing = { digestMs: 0, tokenMs: 0 };
+        const verifyStartedAt = performance.now();
+        const verified = await verifyDeclarationBundle(layer, registered, timing);
+        declarationWarmUp.bundles.set(
+            layer,
+            Object.freeze({
+                digestMs: roundMs(timing.digestMs),
+                fileCount: verified.files.length,
+                importMs: roundMs(importMs),
+                tokenMs: roundMs(timing.tokenMs),
+                totalBytes: verified.totalBytes,
+                verifyMs: roundMs(performance.now() - verifyStartedAt),
+            }),
+        );
+        return verified;
     })();
     const guarded = loading.then(
         (verified) => {
@@ -5941,7 +6037,7 @@ const createProjectCompilerHost = (
             !isNodeRevisionTwoProject &&
             fileName.startsWith("/declarations/") &&
             preloadedDeclarationDigests.get(fileName) === record.sha256
-                ? `${fileName}\u0000${languageVersion}`
+                ? sharedDeclarationSourceFileKey(fileName, languageVersion)
                 : null;
         if (sharedDeclarationKey !== null) {
             const shared = sharedDeclarationSourceFiles.get(sharedDeclarationKey);
@@ -10013,6 +10109,7 @@ const acceptProjectInputStart = async (message, frameToken) => {
         workerSpinPhase: message.workerSpinPhase,
     };
     enterProjectExecutionPhase(framedInput, "ingress");
+    reportDeclarationWarmUpForFirstProject();
     acknowledgeProjectInput(message.requestId, message.sequence);
 };
 
@@ -11310,17 +11407,34 @@ self.postMessage({
     kind: "ready",
     tsVersion: ts.version,
 });
+declarationWarmUp.readyAtMs = performance.now();
 
-// Startup-latency L2-1: overlap the declaration bundle import and verification, and the parse of
-// the Rhino default-library chain plus the Rhino layer, with the host's own start-up work. Every
-// step yields to the message loop and defers while a project operation is active; a job that
-// arrives earlier simply parses whatever is still missing itself.
+// Startup-latency L2-1 / L2-7: overlap the declaration bundle import and verification, and the
+// parse of the Rhino default-library chain plus the Rhino layer, with the host's own start-up
+// work. Every step parses for a bounded slice of time, then yields to the message loop; it
+// defers while a project operation is active. A project that arrives earlier reuses whatever is
+// already parsed and parses the rest itself, and the first project reports where the warm-up
+// stood (see reportDeclarationWarmUpForFirstProject).
+const warmUpStepBudgetMs = 12;
 const warmUpRhinoDeclarations = async () => {
-    const common = await loadDeclarationLayer("common");
-    const rhino = await loadDeclarationLayer("rhino");
-    if (common === null || rhino === null) {
+    const warmUp = declarationWarmUp;
+    warmUp.state = "loading";
+    warmUp.startedAtMs = performance.now();
+    let common;
+    let rhino;
+    try {
+        common = await loadDeclarationLayer("common");
+        rhino = await loadDeclarationLayer("rhino");
+    } catch (_) {
+        warmUp.state = "failed";
         return;
     }
+    if (common === null || rhino === null) {
+        warmUp.state = "unavailable";
+        return;
+    }
+    warmUp.loadedAtMs = performance.now();
+    warmUp.state = "parsing";
     const byPath = new Map();
     for (const file of common.files) {
         byPath.set(file.path, file);
@@ -11340,33 +11454,53 @@ const warmUpRhinoDeclarations = async () => {
     for (const file of rhino.files) {
         enqueue(file.path);
     }
+    warmUp.queuedFiles = queue.length;
     const target = declarationBundleAuthority.warmUpScriptTarget;
-    const step = () => {
-        if (queue.length === 0) {
-            return;
-        }
-        if (projectOperationActive()) {
-            setTimeout(step, 50);
-            return;
-        }
-        const path = queue.shift();
-        const file = byPath.get(path);
-        const key = `${path}\u0000${target}`;
-        if (!sharedDeclarationSourceFiles.has(key)) {
-            const sourceFile = ts.createSourceFile(path, file.text, target, true);
-            sourceFile.version = file.sha256;
-            sharedDeclarationSourceFiles.set(key, sourceFile);
-            for (const reference of sourceFile.libReferenceDirectives ?? []) {
-                enqueue(`/declarations/lib.${reference.fileName}.d.ts`);
+    await new Promise((resolve) => {
+        const step = () => {
+            if (projectOperationActive()) {
+                warmUp.deferredSteps += 1;
+                setTimeout(step, 50);
+                return;
             }
-        }
+            warmUp.steps += 1;
+            const stepStartedAt = performance.now();
+            while (queue.length > 0) {
+                const path = queue.shift();
+                const file = byPath.get(path);
+                const key = sharedDeclarationSourceFileKey(path, target);
+                if (!sharedDeclarationSourceFiles.has(key)) {
+                    const parseStartedAt = performance.now();
+                    const sourceFile = ts.createSourceFile(path, file.text, target, true);
+                    sourceFile.version = file.sha256;
+                    sharedDeclarationSourceFiles.set(key, sourceFile);
+                    warmUp.parseMs += performance.now() - parseStartedAt;
+                    warmUp.parsedFiles += 1;
+                    warmUp.parsedBytes += file.byteLength;
+                    for (const reference of sourceFile.libReferenceDirectives ?? []) {
+                        enqueue(`/declarations/lib.${reference.fileName}.d.ts`);
+                    }
+                }
+                warmUp.queuedFiles = queue.length;
+                if (performance.now() - stepStartedAt >= warmUpStepBudgetMs) {
+                    break;
+                }
+            }
+            if (queue.length === 0) {
+                warmUp.completedAtMs = performance.now();
+                warmUp.state = "completed";
+                resolve();
+                return;
+            }
+            setTimeout(step, 0);
+        };
         setTimeout(step, 0);
-    };
-    setTimeout(step, 0);
+    });
 };
 
 setTimeout(() => {
     warmUpRhinoDeclarations().catch(() => {
         // The first project simply loads the layers itself and fails closed on its own terms.
+        declarationWarmUp.state = "failed";
     });
 }, 0);

@@ -81,9 +81,11 @@ internal object CompilerHostProtocol {
             "Legacy single-message project results are not supported."
         }
         val framedKind = kind in FRAMED_MESSAGE_KINDS
+        // Framed kinds and the warm-up report are read from the strict document only.
+        val strictKind = framedKind || kind == DECLARATION_WARM_UP_KIND
         val generation =
             strictControlMessage
-                .takeIf { framedKind }
+                .takeIf { strictKind }
                 ?.requirePositiveInt("generation")
                 ?: message.getInt("generation")
         check(generation > 0) {
@@ -91,7 +93,7 @@ internal object CompilerHostProtocol {
         }
         val pageHasTypeScript =
             strictControlMessage
-                .takeIf { framedKind }
+                .takeIf { strictKind }
                 ?.requireBoolean("pageHasTypeScript")
                 ?: message.getBoolean("pageHasTypeScript")
         check(!pageHasTypeScript) {
@@ -123,6 +125,10 @@ internal object CompilerHostProtocol {
                 compilerVersion = message.getString("tsVersion"),
                 // Boot telemetry only: an absent or malformed value never fails the message.
                 bootstrapMs = message.optLong("bootstrapMs", -1L).takeIf { it >= 0L },
+            )
+            DECLARATION_WARM_UP_KIND -> parseDeclarationWarmUp(
+                message = strictControlMessage,
+                generation = generation,
             )
             else -> error("Unsupported compiler host message kind: $kind")
         }
@@ -1749,6 +1755,30 @@ internal object CompilerHostProtocol {
         }
     }
 
+    /**
+     * Startup-latency L2-7 warm-up telemetry. An unknown state and absent or malformed values
+     * are logged as `na`; nothing in this report can fail the message or the session.
+     */
+    private fun parseDeclarationWarmUp(
+        message: Map<String, Any?>,
+        generation: Int,
+    ): CompilerHostMessage.DeclarationWarmUp {
+        val state = (message["state"] as? String)
+            ?.takeIf { state -> state in DECLARATION_WARM_UP_STATES }
+            ?: "na"
+        val fields = DECLARATION_WARM_UP_FIELDS.associateWith { field ->
+            (message[field] as? R2StrictJson.NumberToken)
+                ?.source
+                ?.takeIf(NON_NEGATIVE_INTEGER_PATTERN::matches)
+                ?.toLongOrNull()
+        }
+        return CompilerHostMessage.DeclarationWarmUp(
+            generation = generation,
+            state = state,
+            fields = fields,
+        )
+    }
+
     private fun Map<String, Any?>.requireProtocolInt(key: String): Int {
         val token = get(key) as? R2StrictJson.NumberToken
             ?: error("Compiler host frame field '$key' must be an integer.")
@@ -1798,6 +1828,40 @@ internal object CompilerHostProtocol {
         TypeScriptR2Contract.DIAGNOSTIC_CATEGORY_ERROR
     private val SHA256_PATTERN = Regex("[0-9a-f]{64}")
     private val NON_NEGATIVE_INTEGER_PATTERN = Regex("0|[1-9][0-9]*")
+    /**
+     * Startup-latency L2-7: fields of the Worker's `declarationWarmUp` report, in log order.
+     * Every value is a millisecond offset since Worker `ready`, a duration or a count.
+     */
+    internal val DECLARATION_WARM_UP_FIELDS: List<String> = listOf(
+        "sinceReadyMs",
+        "startedAtMs",
+        "loadedAtMs",
+        "completedAtMs",
+        "commonImportMs",
+        "commonVerifyMs",
+        "commonDigestMs",
+        "commonTokenMs",
+        "rhinoImportMs",
+        "rhinoVerifyMs",
+        "rhinoDigestMs",
+        "rhinoTokenMs",
+        "parsedFiles",
+        "parsedBytes",
+        "queuedFiles",
+        "parseMs",
+        "steps",
+        "deferredSteps",
+    )
+
+    internal const val DECLARATION_WARM_UP_KIND = "declarationWarmUp"
+
+    internal val DECLARATION_WARM_UP_STATES: Set<String> = setOf(
+        "loading",
+        "parsing",
+        "completed",
+        "failed",
+    )
+
     private val FRAMED_MESSAGE_KINDS = setOf(
         "projectConfigError",
         "projectError",
@@ -1820,6 +1884,16 @@ internal sealed interface CompilerHostMessage {
         val compilerVersion: String,
         /** Worker-measured `importScripts("typescript.js")` duration; telemetry only. */
         val bootstrapMs: Long? = null,
+    ) : CompilerHostMessage
+
+    /**
+     * Where the Worker's declaration warm-up stood when its first project arrived; telemetry
+     * only. [fields] follows [CompilerHostProtocol.DECLARATION_WARM_UP_FIELDS]; `null` is `na`.
+     */
+    data class DeclarationWarmUp(
+        override val generation: Int,
+        val state: String,
+        val fields: Map<String, Long?>,
     ) : CompilerHostMessage
 
     data class ProbeResult(

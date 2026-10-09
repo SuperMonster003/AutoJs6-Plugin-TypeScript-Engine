@@ -117,7 +117,10 @@ WebView 完整版本、fixture 和 build type 一致。明显回退应先保存 
 `typescript-execution-perf schema=1`, `typescript-prewarm schema=1`, 以及插件
 `typescript-compiler-boot schema=1` (进程级一次, 字段为自进程启动起的毫秒偏移: 服务
 onCreate, 声明层加载, 监督者注册, WebView 创建, 页面就绪, Worker 就绪与 Worker 内
-`importScripts("typescript.js")` 耗时). 同一次运行窗口内出现 boot 行即判定该次为冷进程.
+`importScripts("typescript.js")` 耗时), 以及 L2-7 起的 `typescript-compiler-warmup schema=1`
+(Worker 收到本生命周期首个项目时上报一次: 声明 bundle 的 import / 校验 / 摘要 / token 计数耗时,
+预热已解析的 SourceFile 数与字节数, 以及首个项目到达时预热所处的状态). 同一次运行窗口内出现
+boot 行即判定该次为冷进程.
 
 ```powershell
 .\tools\observe-startup-latency.ps1 `
