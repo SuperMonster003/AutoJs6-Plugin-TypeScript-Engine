@@ -984,6 +984,40 @@ val verifyS10ColdStart =
         )
     }
 
+val verifyStartupLatencyObservations =
+    tasks.register<Exec>("verifyStartupLatencyObservations") {
+        group = "verification"
+        description =
+            "Keeps the startup-latency roadmap fixture, observation script, plugin boot " +
+                "telemetry schema and recorded three-scenario device medians aligned."
+        val harnessFile = layout.projectDirectory.file(
+            "src/test/scripts/verify-startup-latency-observations.js",
+        )
+        val repositoryDirectory = rootProject.layout.projectDirectory
+        inputs.files(
+            harnessFile,
+            repositoryDirectory.file("startup-latency-roadmap.md"),
+            repositoryDirectory.file("docs/maintenance/COLD_START.md"),
+            repositoryDirectory.file("docs/maintenance/README.md"),
+            repositoryDirectory.file("docs/maintenance/RELEASE_CHECKLIST.md"),
+            repositoryDirectory.file("docs/maintenance/startup-latency-observations.json"),
+            repositoryDirectory.file("tools/observe-startup-latency.ps1"),
+            repositoryDirectory.file("tools/fixtures/startup-latency/single-file.ts"),
+            layout.projectDirectory.file(
+                "src/main/java/io/github/supermonster003/autojs6/plugin/typescript/" +
+                    "R2CompilerBootTelemetry.kt",
+            ),
+            layout.projectDirectory.file(
+                "src/main/assets/typescript-compiler-r1/compiler-worker.js",
+            ),
+        )
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            harnessFile.asFile.absolutePath,
+            repositoryDirectory.asFile.absolutePath,
+        )
+    }
+
 val verifyS10TypeScriptUpgrade =
     tasks.register<Exec>("verifyS10TypeScriptUpgrade") {
         group = "verification"

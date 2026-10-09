@@ -96,3 +96,40 @@ workload，并把 JSON 与原始输出写入 ignored `build/reports/cold-start/`
 release APK；因此只能用于专用验证设备。比较时必须保持 device label、Android API、
 WebView 完整版本、fixture 和 build type 一致。明显回退应先保存 raw report、重复复跑，
 再决定回退 total-frame 上限；不得删除四 payload/hard-envelope 防线来追求单次快样本。
+
+## 执行前耗时基线 (startup-latency, 2026-10-09 起)
+
+本页以上内容只覆盖插件内部 `compiler` / `ingress` 阶段. 用户真正感知的 "点运行到脚本开始
+执行" 还包含宿主发现, 归档准备, 专用绑定与 prewarm, 输出处理, 引擎创建, 以及 compiler
+进程自身的冷启动. 这些端到端数据按
+[startup-latency-roadmap.md](../../startup-latency-roadmap.md) 的三场景口径采集:
+
+- S1 全冷: compiler 进程不存在且脚本内容已改动 (持久缓存未命中);
+- S2 热路径: 进程存活且宿主绑定保留, 修改一行后 30 s 内再运行;
+- S3 缓存命中: 未修改, 立即重复运行.
+
+采集工具是 `tools/observe-startup-latency.ps1`, 它不安装或卸载任何 APK, 只推送
+`tools/fixtures/startup-latency/single-file.ts` 并通过宿主导出的 `RunIntentActivity` 运行,
+然后读取四条结构化 logcat 行: 宿主 `typescript-compile-perf schema=3`,
+`typescript-execution-perf schema=1`, `typescript-prewarm schema=1`, 以及插件
+`typescript-compiler-boot schema=1` (进程级一次, 字段为自进程启动起的毫秒偏移: 服务
+onCreate, 声明层加载, 监督者注册, WebView 创建, 页面就绪, Worker 就绪与 Worker 内
+`importScripts("typescript.js")` 耗时). 同一次运行窗口内出现 boot 行即判定该次为冷进程.
+
+```powershell
+.\tools\observe-startup-latency.ps1 `
+  -Serial 968e9f18 `
+  -DeviceLabel api35-23046rp50c `
+  -Runs 5
+```
+
+2026-10-09 的 L0 基线 (Xiaomi 23046RP50C / API 35 / WebView 130, release 宿主 6.8.0/5328 与
+插件 0.6.8/91, 单文件 Rhino fixture) `userWaitMs` p50: S1 9864 ms, S2 4348 ms, S3 137 ms;
+S1 中 discovery 1796, bind + prewarm 1490, compiler 6455 (beforeIngress 1148, ingress 2888,
+parse 1433, semantic 797, emit 114) ms. 这与本页上方 S10-1 的结论一致: 声明层传输仍是
+最大单项, 其后是 compiler 进程冷启动与每 job 的声明重载.
+
+原始报告写入 ignored `build/reports/startup-latency/`; 入库记录放在
+[startup-latency-observations.json](startup-latency-observations.json), 每条记录保留全部
+原始样本与中位数, 只追加不改写, 仍为 `gate=none`. 同设备中位数相对上一记录劣化 > 15%
+视为回归, 先保存原始报告复跑再决定, 不以放宽校验或传输防线换取数字.

@@ -1,6 +1,6 @@
 # AutoJs6 TypeScript Engine - 执行前耗时压缩线路图
 
-> 状态: L0 未开始. 创建于 2026-10-09, 基于插件 v0.6.8 (commit `27e6100`) 与
+> 状态: L0 完成 (2026-10-09), L1 进行中. 创建于 2026-10-09, 基于插件 v0.6.8 (commit `27e6100`) 与
 > sibling `AutoJs6` 宿主 (commit `7953ab502b`) 的源码调研.
 >
 > 问题: 插件安装后运行 `.ts` 脚本, 从点击运行到脚本开始执行有数秒可感知停顿.
@@ -127,9 +127,20 @@ L0 三场景基线 -> L1 快速收益 -> L2 冷路径结构压缩 -> L3 热路�
 | T3-2 (2026-08-28) 启动预热 / 预热后首次 bind+prewarm | API 35 Xiaomi | 1626 / 45 ms |
 | T3-3 (2026-08-28) 10 文件 core compiler cold -> warm | API 35 Xiaomi | 539 -> 156 ms |
 | S5-5 8 文件项目活动态 PSS compiler service / renderer | API 35 Xiaomi | 90,458 / 95,241 KiB |
+| **L0 基线 (2026-10-09, release 宿主 6.8.0/5328 + 插件 0.6.8/91)** S1 / S2 / S3 `userWaitMs` p50 | API 35 Xiaomi | **9864 / 4348 / 137 ms** |
+| L0 基线 S1 分解: discovery / bind+prewarm / beforeIngress / ingress / parse / semantic / emit | API 35 Xiaomi | 1796 / 1490 / 1148 / 2888 / 1433 / 797 / 114 ms |
+| L0 基线 S2 分解: discovery / bind+prewarm / beforeIngress / ingress / parse / semantic / emit | API 35 Xiaomi | 38 / 40 / 1075 / 2649 / 27 / 75 / 298 ms |
+| L0 基线 compiler 进程 boot (自进程启动偏移): onCreate 耗时 / 声明加载 / 监督者就绪 / WebView 创建 / 页面就绪 / Worker 就绪 / importScripts | API 35 Xiaomi | 900 / 890 / 943 / 1992 / 2226 / 3040 / 763 ms |
 
-读法: ingress 是 compiler 耗时的主体, 其次是 bind + prewarm; Program 本身不是
-瓶颈. 原始样本见 [cold-start-observations.json](docs/maintenance/cold-start-observations.json),
+读法: L0 基线把第 2.2 节的推断变成了同设备毫秒数. S1 的 9.9 s 由四块等量级开销
+叠起来: 发现 (含 compiler 进程 fork + onCreate 中 890 ms 的声明加载 + 首次 info 的
+Node profile 加载) 1.8 s, 专用绑定 + prewarm (WebView 创建到 Worker 就绪约 1.05 s, 其中
+`importScripts` 763 ms) 1.5 s, 每 job 原生侧声明重载与分帧准备 (`beforeIngress`) 1.1 s,
+声明层传输 (`ingress`) 2.9 s, 再加冷 Program 对声明层的 parse 1.4 s 与 semantic 0.8 s.
+S2 虽然进程与会话都热, 仍要付 `beforeIngress` 1.1 s 与 `ingress` 2.6 s, 这两项就是
+L1-1 与 L2-1 的目标; S3 已经满足 300 ms 目标. 原始样本见
+[startup-latency-observations.json](docs/maintenance/startup-latency-observations.json),
+历史样本见 [cold-start-observations.json](docs/maintenance/cold-start-observations.json),
 [memory-observations.json](docs/maintenance/memory-observations.json) 与
 [S 时代归档](docs/roadmap/ROADMAP_LEGACY_S_ERA.md).
 
@@ -137,8 +148,8 @@ L0 三场景基线 -> L1 快速收益 -> L2 冷路径结构压缩 -> L3 热路�
 
 | 阶段 | 主题 | 归属 | 预期收益 | 依赖 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| L0 | 测量基线与归因 | 插件 + 宿主 | 三场景可复现数据, 决定 L1/L2 顺序 | 无 | 未开始 |
-| L1 | 零内存代价的快速收益 | 插件 + 宿主 | 去掉重复加载, 串行等待, 竞态; 进度提示 | L0 | 未开始 |
+| L0 | 测量基线与归因 | 插件 + 宿主 | 三场景可复现数据, 决定 L1/L2 顺序 | 无 | 完成 (2026-10-09) |
+| L1 | 零内存代价的快速收益 | 插件 + 宿主 | 去掉重复加载, 串行等待, 竞态; 进度提示 | L0 | 进行中 |
 | L2 | 冷路径结构压缩 | 插件 | 声明层不再经传输; typescript.js 解析耗时下降 | L0, L1-1 | 未开始 |
 | L3 | 热路径 (改动后重编) | 插件 + 宿主 | S2 达标 | L1, L2-1 | 未开始 |
 | L4 | 常驻策略 | 插件 + 宿主 | 以数据决定保活默认值 | L1, L2 | 未开始 |
@@ -153,22 +164,31 @@ L1 首位; L2-1 依赖 L1-1 (进程级声明缓存是预装 bundle 的校验基�
 目标: 用当前版本在参考机上建立 S1/S2/S3 基线, 把第 2 节的归因从 "源码推断"
 变成 "同设备毫秒数", 并复核 release 竞态. 本阶段不改变任何行为.
 
-- [ ] **L0-1 (宿主) perf schema 3 打点扩展**: `TypeScriptCompilationPerformance`
-      增加 `discoveryMs` (selectOrThrow), `awaitPrewarmMs`, `cachePublishMs`,
-      `engineCreateMs` (Rhino 引擎创建含 Source Map 绑定), `userWaitMs`
-      (入口到引擎 ready), `coldProcess` (发现前 compiler 进程是否存在, 由
-      `getCompilerInfo` 附带的进程 uptime 或宿主 `pidof` 判定). 全部 additive,
-      旧字段与顺序不变, `schema=3`.
-      验收: `toLogLine` 单测覆盖新字段; cache hit 时 Binder/compiler 字段仍为
-      `na`; 日志不含源码, 路径, requestId.
-- [ ] **L0-2 (插件) 启动期打点**: service 输出一条
-      `typescript-compiler-boot schema=1` (tag `TypeScriptCompiler`): onCreate
-      总耗时, 声明加载耗时, 监督者注册就绪耗时, WebView 创建 -> page ready ->
-      worker ready 各段; Worker 的 `ready` 消息附带 `bootstrapMs`
-      (`importScripts` 前后 `performance.now` 差). DEBUG 与 release 都输出.
-      验收: 一次冷启动恰好一条; 字段非负; 不含敏感信息; 桌面 Worker 门禁
-      (`verify-r2-project-compiler.js`) 接受带 `bootstrapMs` 的 ready 消息.
-- [ ] **L0-3 三场景采集脚本**: 新增 `tools/observe-startup-latency.ps1`
+- [x] **L0-1 (宿主) perf schema 3 打点扩展**: `TypeScriptCompilationPerformance`
+      增加 `awaitPrewarmMs`, `discoveryMs` (selectOrThrow + 能力校验),
+      `cachePublishMs`; `prepareMs` 收窄为纯归档准备, `outputMs` 不再含写缓存;
+      `schema=3`, 其余字段与顺序不变. 引擎创建与入口等待由新增的
+      `typescript-execution-perf schema=1` 行承担 (`entry=thread|activity`,
+      `prepareMs`, `dispatchMs`, `engineCreateMs`, `userWaitMs`), 在
+      `RunnableScriptExecution` 与 `ScriptExecuteActivity` 的引擎创建后各打一条,
+      只对需要 TypeScript 准备的脚本输出. 冷进程判定不进宿主字段, 由采集脚本
+      按同一运行窗口内是否出现插件 boot 行推导.
+      结论 (2026-10-09): 宿主 `TypeScriptCompilationPerformanceTest` (4) 与
+      `TypeScriptExecutionPerformanceTest` (2) 通过; 日志不含源码, 路径,
+      requestId; cache hit 时 Binder/compiler 字段仍为 `na`.
+- [x] **L0-2 (插件) 启动期打点**: 新增 `R2CompilerBootTelemetry` /
+      `R2CompilerBootTimeline`, 在首个 Worker `ready` 时输出一条
+      `typescript-compiler-boot schema=1` (字段均为自进程启动的毫秒偏移:
+      `serviceCreateStartMs`, `serviceCreateMs`, `declarationLoadMs`,
+      `supervisorReadyAtMs`, `webViewCreatedAtMs`, `pageReadyAtMs`,
+      `workerReadyAtMs`, `workerBootstrapMs`); 监督者注册晚于该行时补一条
+      `event=supervisorReady`. Worker `ready` 消息附带 `bootstrapMs`
+      (`importScripts("typescript.js")` 前后 `performance.now` 差), 原生解析为可选
+      字段. 遥测入口全部 fail-soft, 不影响编译可用性. DEBUG 与 release 都输出.
+      结论 (2026-10-09): `R2CompilerBootTimelineTest` (3) 通过; 桌面 Worker 门禁
+      `verifyR2ProjectCompilerDesktop`, `verifyR2M2C8DeclarationProgramLayering`,
+      `verifyCompilerSmokeRhino`, `verifyT3ResidentSessions` 全绿.
+- [x] **L0-3 三场景采集脚本**: 新增 `tools/observe-startup-latency.ps1`
       (参数 `-Serial`, `-DeviceLabel`, `-Runs` 奇数, `-HostPackage` 默认
       `org.autojs.autojs6`, `-Scenario S1|S2|S3|all`). S1 前执行
       `adb shell am kill io.github.supermonster003.autojs6.plugin.typescript`
@@ -180,7 +200,12 @@ L1 首位; L2-1 依赖 L1-1 (进程级声明缓存是预装 bundle 的校验基�
       中位数表.
       验收: 在 Xiaomi API 35 上完成一轮 5 次 x 3 场景; 脚本幂等, 结束后恢复
       fixture 内容.
-- [ ] **L0-4 fixture 与记录文件**: fixture 放 `tools/fixtures/startup-latency/single-file.ts`
+      结论 (2026-10-09): `tools/observe-startup-latency.ps1` 落地, 另含秒表法
+      (设备时钟 `date +%s%3N` 与 fixture 首条语句写出的 `first-statement.txt` 之差,
+      L0-7) 与冷进程判定 (同窗口出现 boot 行). 模拟器 (旧宿主) 与 Xiaomi 各一轮通过;
+      旧宿主缺少 execution 行时降级为 compile 行并警告. 入库工具
+      `tools/record-startup-latency-observation.py` 只保留时长与指纹字段.
+- [x] **L0-4 fixture 与记录文件**: fixture 放 `tools/fixtures/startup-latency/single-file.ts`
       (单文件 `.ts` 约 60 行, 覆盖 `console`, `app`, `device`, `files` 等典型
       API 与一个类型注解, 首行打印 `Date.now()`); 记录文件
       `docs/maintenance/startup-latency-observations.json` (schemaVersion 1:
@@ -190,15 +215,42 @@ L1 首位; L2-1 依赖 L1-1 (进程级声明缓存是预装 bundle 的校验基�
       链接本文件.
       验收: Xiaomi API 35 + 至少一台对照设备的基线入库; 增加与 S10 同款的
       防漂移 verify (只校验 schema 与引用, 不设阈值).
-- [ ] **L0-5 归因表回填与排序确认**: 用 L0-4 数据把 2.1 表各步填上实际毫秒
+      结论 (2026-10-09): fixture 对 TypeScript 6.0.3 + Rhino 声明层零诊断; 记录
+      `20261009-l0-api35-23046rp50c` 入库 (release 宿主 2467c3eb03 / 插件 939ed73);
+      `verifyStartupLatencyObservations` 已加入默认 `check`. 对照设备 (Sony API 31,
+      AVD API 37) 的基线待宿主 schema 3 构建安装后补录, 见 L5-4.
+- [x] **L0-5 归因表回填与排序确认**: 用 L0-4 数据把 2.1 表各步填上实际毫秒
       (至少 C, D+E, H, I 的 ingress, J, K). 若数据与第 2.2 节排序不符, 调整
       L1/L2 条目顺序并在第 12 节记录理由.
-- [ ] **L0-6 release 竞态核查**: 用签名 release 构建做 20 次 S1, 统计
+      结论 (2026-10-09): 已回填到第 2.3 节 (S1: C 1796, H 1490, I-原生 1148,
+      I-ingress 2888, J 1433 + 797 + 114, K 12 + 17 + 46 ms). 排序结论与 2.2 节一致,
+      只有一处修正: 冷 Program 对声明层的 parse (1.4 s) 比预期大, 因此 L2-1 增加
+      Worker 启动期预解析声明 SourceFile 的子项 (与宿主并行), 见 L2-1.
+- [x] **L0-6 release 竞态核查**: 用签名 release 构建做 20 次 S1, 统计
       `Compiler process supervisor registration is not ready` 出现次数与首次
       运行失败次数.
       验收: 数字入库; 出现 > 0 即把 L1-4 提到 L1 首位.
-- [ ] **L0-7 秒表法交叉验证**: fixture 首行时间戳与宿主运行入口日志时间差,
+      结论 (2026-10-09): 20 次 release 全冷运行 (5 + 15, 记录
+      `20261009-l0-api35-23046rp50c` 与 `-s1x15`) 全部 `emitted`, 0 次 unavailable.
+      但 boot 行显示监督者注册在进程启动后约 949 ms 就绪, 而 onCreate 耗时 904 ms:
+      竞态只是被声明加载掩盖, 边际不足 50 ms. L1-1/L1-2 把 onCreate 压到几十毫秒后
+      必然暴露, 因此 L1-4 (有界等待) 与 L1-1/L1-2 同批落地, 不单独发布.
+- [x] **L0-7 秒表法交叉验证**: fixture 首行时间戳与宿主运行入口日志时间差,
       与 `userWaitMs` 偏差 < 10%; 超出则修正打点位置后重测.
+      结论 (2026-10-09): 口径改为设备时钟: 脚本在 `am start` 前读取 `date +%s%3N`,
+      fixture 首条语句把 `Date.now()` 写入脚本注入的绝对路径 `STAMP_PATH`.
+      3 次 S1 的 `stopwatchMs` / `userWaitMs` 为 9374/9048, 10239/9914, 10144/9809,
+      差值约 330 ms (3.3%-3.6%), 即 Activity 分发与脚本线程启动的固定开销, 打点位置
+      无需修正. 记录 `20261009-l0-api35-23046rp50c-stopwatch`.
+- [x] **L0 附带发现 (宿主, 不在本线路图范围)**: 首版 fixture 含 `class` 声明时,
+      编译与引擎创建都成功, 但 Rhino 在执行生成 JS 时抛出
+      `EvaluatorException: identifier is a reserved word: class`
+      (`single-file.ts.generated.js#19`). 宿主 `RhinoJavaScriptEngine.kt:303` 设置
+      `Context.VERSION_ES6`, 而 Rhino profile 以 ES2018 目标保留 `class` 关键字
+      (SYNTAX_FIXTURE_MATRIX 的 class fields 用例也依赖它). 这意味着含 class 的
+      TypeScript 在 Rhino 上无法运行, 需要在宿主/profile 侧单独分诊 (降级 class 到
+      ES5 函数, 或确认 Rhino 2.0 snapshot 的 class 支持开关). fixture 已改为闭包实现,
+      不影响耗时口径.
 
 ## 5. L1 零内存代价的快速收益
 
@@ -291,6 +343,10 @@ schema / caller 配额.
       - 不变: 公开 AIDL, input / output archive schema, caller 配额,
         source map, 诊断 schema; triple-slash `lib` reference 仍可选择任意
         标准库 (所有 lib 都在 Worker 可得, 比传输方案更完整).
+      - 预解析: Worker 装载声明 bundle 后, 在等待首个 `projectInputStart` 期间按
+        profile 默认 lib 链 (`lib.es2018.d.ts` 及其引用) 与引擎层入口预创建
+        `SourceFile` 并放入与常驻会话共用的 cache (版本 = 文件 SHA-256), 把 L0 基线
+        中 1.4 s 的冷 parse 挪到与宿主发现/归档并行的窗口; 未命中的 lib 仍按需解析.
       验收: 单文件脚本 ingress 逻辑帧从约 480 降到 < 12; Xiaomi S1 的
       `compilerIngressMs` p50 下降 >= 80%; `verify-r2-project-compiler.js`,
       declaration layering, Rhino / NodeNext smoke,

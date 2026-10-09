@@ -65,6 +65,24 @@
 APK；只能在专用验证设备上使用。S10-1 的四设备原始 A/B 已写入
 [cold-start-observations.json](cold-start-observations.json)，不应为补格式伪造数据。
 
+### 4b. 跑三场景执行前耗时观察
+
+端到端 (宿主 + 插件) 口径见 [startup-latency-roadmap.md](../../startup-latency-roadmap.md) 与
+[COLD_START.md](COLD_START.md) 的 "执行前耗时基线" 小节. 脚本不安装或卸载 APK, 需要设备上
+已安装待验收的宿主与插件:
+
+```powershell
+.\tools\observe-startup-latency.ps1 `
+  -Serial 968e9f18 `
+  -DeviceLabel api35-23046rp50c `
+  -Runs 5
+```
+
+- [ ] S1 样本全部 `coldCompilerProcess=true`, S2/S3 全部 `false`; 否则重跑该场景.
+- [ ] 与 [startup-latency-observations.json](startup-latency-observations.json) 中同 device
+  label 的上一记录比较 `execution.userWaitMs` 中位数, 不跨设备比较绝对值.
+- [ ] 新记录以追加方式入库并通过 `verifyStartupLatencyObservations`; 此项为 `gate=none`.
+
 ## 5. 跑固定内存观察
 
 固定观察复用

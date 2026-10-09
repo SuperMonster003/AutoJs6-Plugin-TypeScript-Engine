@@ -21,6 +21,9 @@
   决策、四设备 A/B 原始样本、被否决候选与无阈值复跑方式。
 - [冷启动观察历史](cold-start-observations.json)：固定 109-file Rhino 标准库
   workload 的 max4 基线与最终 6/4 候选机器记录。
+- [执行前耗时基线](startup-latency-observations.json)：startup-latency 线路图的
+  S1/S2/S3 三场景端到端记录 (宿主 + 插件 boot 行), 由
+  `tools/observe-startup-latency.ps1` 采集, 无阈值.
 - [内存观察历史](memory-observations.json)：固定 8 文件 Rhino workload 的结构化、
   无阈值历史数据。
 - [依赖巡检历史](dependency-inspections.json)：每次巡检所采用的仓库兼容矩阵快照、

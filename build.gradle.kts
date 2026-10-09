@@ -137,6 +137,7 @@ gradle.projectsEvaluated {
                 ":app:verifyS10ColdStart",
                 ":app:verifyS10TypeScriptUpgrade",
                 ":app:verifyS10IssueTriage",
+                ":app:verifyStartupLatencyObservations",
             ),
         )
     }
