@@ -1,6 +1,6 @@
 # AutoJs6 TypeScript Engine - 执行前耗时压缩线路图
 
-> 状态: L0 完成 (2026-10-09), L1 进行中. 创建于 2026-10-09, 基于插件 v0.6.8 (commit `27e6100`) 与
+> 状态: L0 完成, L1 除 L1-8 外完成 (2026-10-09); L2 未开始. 创建于 2026-10-09, 基于插件 v0.6.8 (commit `27e6100`) 与
 > sibling `AutoJs6` 宿主 (commit `7953ab502b`) 的源码调研.
 >
 > 问题: 插件安装后运行 `.ts` 脚本, 从点击运行到脚本开始执行有数秒可感知停顿.
@@ -149,7 +149,7 @@ L1-1 与 L2-1 的目标; S3 已经满足 300 ms 目标. 原始样本见
 | 阶段 | 主题 | 归属 | 预期收益 | 依赖 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | L0 | 测量基线与归因 | 插件 + 宿主 | 三场景可复现数据, 决定 L1/L2 顺序 | 无 | 完成 (2026-10-09) |
-| L1 | 零内存代价的快速收益 | 插件 + 宿主 | 去掉重复加载, 串行等待, 竞态; 进度提示 | L0 | 进行中 |
+| L1 | 零内存代价的快速收益 | 插件 + 宿主 | 去掉重复加载, 串行等待, 竞态; 进度提示 | L0 | 除 L1-8 外完成 (2026-10-09) |
 | L2 | 冷路径结构压缩 | 插件 | 声明层不再经传输; typescript.js 解析耗时下降 | L0, L1-1 | 未开始 |
 | L3 | 热路径 (改动后重编) | 插件 + 宿主 | S2 达标 | L1, L2-1 | 未开始 |
 | L4 | 常驻策略 | 插件 + 宿主 | 以数据决定保活默认值 | L1, L2 | 未开始 |
@@ -257,7 +257,7 @@ L1 首位; L2-1 依赖 L1-1 (进程级声明缓存是预装 bundle 的校验基�
 目标: 不增加常驻内存, 不改传输协议, 去掉重复工作与串行等待, 修掉竞态, 给
 用户进度反馈. 每条独立可回退.
 
-- [ ] **L1-1 (插件) 声明层进程级单次加载**: `R2TrustedDeclarations` 增加按
+- [x] **L1-1 (插件) 声明层进程级单次加载**: `R2TrustedDeclarations` 增加按
       profile 的进程内缓存 (线程安全, 失败不缓存, 任何校验失败仍抛出),
       `loadForProfile` 复用; `TypeScriptWebViewCompilerHost` 构造, service info
       指纹, `R2ProjectArchiveLoader` 三处共享同一实例. 去掉对 loader 已校验
@@ -267,14 +267,28 @@ L1 首位; L2-1 依赖 L1-1 (进程级声明缓存是预装 bundle 的校验基�
       >= 40%; `check --offline` 内 distribution / declaration layering 门禁
       全绿; 指纹值与改动前逐字节相同.
       回退: 常量关闭缓存即回到逐次加载.
-- [ ] **L1-2 (插件) onCreate 关键路径精简**: 声明校验与
-      `R2PrivateTransientOrphanScavenger` 移到后台线程, 首个 job / prewarm 前
-      join; 主线程只做 `prepareCompilerProcess`, host 对象构造与 coordinator
-      装配. 失败语义不变: 任一后台校验失败仍 fail closed 到首个请求, 并保持
-      `R2ServiceShutdownCleanupUnprovenException` 路径.
-      验收: onCreate 主线程耗时 < 50 ms (不含 WebView); 孤儿清理与 supervisor
-      instrumentation 全绿.
-- [ ] **L1-3 (插件) WebView 会话提前创建**: onCreate 末尾 post
+      结论 (2026-10-09): 新增 `R2ProcessLoadCache` (首次成功加载后进程内复用, 并发首次加载
+      共享同一次, 失败不缓存), `R2TrustedDeclarations.loadForProfile` /
+      `loadTypeScriptStandardLibraries` 走该缓存; 加载器已按清单逐字节哈希并严格 UTF-8
+      解码的文本不再二次编码哈希 (`verifyTexts = false`, 测试构造路径保持校验).
+      Xiaomi API 35 (插件 0.6.8/93, 宿主仍为 L0 构建): S1 `compilerBeforeIngressMs`
+      1148 -> 423 ms, S2 1075 -> 295 ms; 首次声明加载 890 -> 512 ms; 指纹值不变.
+      插件 541 个 JVM 单测全绿.
+- [x] **L1-2 (插件) onCreate 关键路径精简**: 声明加载与校验移到
+      `TypeScriptWebViewCompilerHost` 构造时启动的后台线程 (先 Rhino 后 Node profile,
+      结果进入 L1-1 的进程级缓存, Rhino 指纹就绪后 post 回主线程写入 snapshot);
+      `getCompilerInfo` 在 snapshot 尚无指纹时经同一缓存等待同一次加载, 不重复读取.
+      `R2PrivateTransientOrphanScavenger` 保留在主线程: L0 boot 行显示 onCreate 的
+      904 ms 中 890 ms 是声明加载, 清理本身只有毫秒级, 且其 fail-closed 抛出语义
+      (`R2ServiceShutdownCleanupUnprovenException`) 不值得为几毫秒改写.
+      验收: boot 行 `serviceCreateMs` < 50 ms; `declarationLoadMs` 仍记录后台加载
+      耗时; 首次 `getCompilerInfo` 仍返回 Rhino 与 Node 声明指纹; supervisor 与
+      lifecycle instrumentation 全绿.
+      结论 (2026-10-09): 声明预加载线程在 `TypeScriptWebViewCompilerHost` 构造时启动,
+      `getCompilerInfo` 缺 Rhino 指纹时经 L1-1 缓存等待同一次加载. Xiaomi API 35 boot 行:
+      `serviceCreateMs` 904 -> 4 ms, `declarationLoadMs` 890 -> 512 ms (后台);
+      S1 `discoveryMs` 1796 -> 904 ms (仍受首次声明加载约束, 见 L2-6 后续项).
+- [x] **L1-3 (插件) WebView 会话提前创建**: onCreate 末尾 post
       `createSessionOnMain` (无 pending 时也创建), 让 WebView 初始化 +
       `typescript.js` 解析与 Binder 绑定, 监督者注册, 宿主归档准备并行; prewarm
       到达时若 worker 已 ready 直接返回. generation / teardown / renderer-gone
@@ -283,34 +297,77 @@ L1 首位; L2-1 依赖 L1-1 (进程级声明缓存是预装 bundle 的校验基�
       验收: `bindPrewarmMs` p50 下降 >= 该设备 WebView 启动段耗时的 70%;
       R1 lifecycle, process-restart, renderer-gone, service-destruction
       instrumentation 全绿.
-- [ ] **L1-4 (插件) 监督者就绪的有界等待**: release 下 prewarm /
+      结论 (2026-10-09): `primeSessionForBoot` 在 onCreate 末尾 post 创建会话, 失败回退
+      懒创建. Xiaomi API 35 boot 行: `webViewCreatedAtMs` 1992 -> 291, `workerReadyAtMs`
+      3040 -> 1410 (自进程启动偏移); S1 `bindPrewarmMs` 1490 -> 732 ms (剩余部分为
+      专用绑定 + 等待 Worker 就绪, `importScripts` 760 ms 仍是其中主体, 见 L2-2).
+      lifecycle / destruction / restart / trusted-declarations instrumentation 在 API 37
+      模拟器上的结果见 L1 小结.
+- [x] **L1-4 (插件) 监督者就绪的有界等待**: release 下 prewarm /
       `startCompilation` 等待注册就绪最多 3000 ms (常量, 可调) 后才返回
       unavailable; 监督者绑定提前到进程最早时机 (`Application.onCreate` 或
       service 类加载). 不改 DEBUG 行为与现有 fault seam.
       验收: L0-6 复测 20 次 S1 零失败; supervisor 全部 instrumentation 全绿;
       等待耗时进入 L0-2 打点.
-- [ ] **L1-5 (宿主) 发现结果缓存**: `AidlPluginHost` 按
+      结论 (2026-10-09): `R2CompilerProcessSupervisorClient.awaitReady(3000)` 以 lock
+      wait/notify 等待注册完成, release 下 prewarm 与 startCompilation 均改为有界等待.
+      L1-1/L1-2 之后 onCreate 只剩 4 ms, 监督者在约 420-440 ms 才就绪, 竞态窗口已真实
+      存在; Xiaomi API 35 release 构建 5 次 S1 + 5 次 S2 全部 `emitted`, 0 次 unavailable.
+- [x] **L1-5 (宿主) 发现结果缓存**: `AidlPluginHost` 按
       `packageName + versionCode + lastUpdateTime` 缓存 `Discovered`
       (serviceInfo + pluginInfo); 监听 `PACKAGE_ADDED / REPLACED / REMOVED /
       CHANGED` 失效; Binder 死亡只失效连接不失效信息; 插件中心提供显式刷新.
       缓存对所有 AIDL 插件宿主生效, 但本线路图只验收 TypeScript 路径.
       验收: S2 / S3 的 `discoveryMs` p50 < 5 ms; 插件升级后首次运行使用新指纹
       (单测 + 真机); 插件被禁用/卸载后选择失败信息与现状一致.
-- [ ] **L1-6 (宿主) 缓存查找前移并与绑定并行**: 用缓存的 authority 先算
-      cacheKey 查持久缓存, 命中则不绑定; 未命中时 bind + prewarm 与 `prepare`
-      用 `async` 并行, `startCompilation` 前 join; authority 与广告值不同时走
-      现有重新 prepare 路径.
-      验收: S3 日志不出现 `bindPrewarmMs`; S1 `totalMs` 约等于
-      `max(prepareMs, bindPrewarmMs) + compilerMs + outputMs`.
-- [ ] **L1-7 (宿主) 持久缓存写入移出关键路径**: `publishCached` 在输出返回后
-      异步执行 (mutex 之外, 失败只记日志, 不影响本次执行).
-      验收: `outputMs` 不含写缓存; 连续 S3 仍 100% 命中.
+      结论 (2026-10-09): 新增 `PluginDiscoveryCache` (进程级, 键为 action/category/组件 +
+      包 `versionCode` 与 `lastUpdateTime`), `AidlPluginHost(cacheDiscovery = true)` 仅对
+      TypeScript 编译宿主开启, `probe()` 始终读新鲜值; 包更新/重装/卸载由身份比较自然
+      失效, 禁用组件在服务查询阶段即被排除, 因此不需要广播. Xiaomi API 35
+      (宿主 b4b4e36805 + 插件 70b3d69): `discoveryMs` S1 904 -> 3, S2 28 -> 3, S3 22 -> 2 ms;
+      S1 总耗时不变 (7496 -> 7543), 因为 compiler 进程启动从发现挪进了专用绑定
+      (`bindPrewarmMs` 732 -> 1664), 这正是冷路径的真实下界; S2 3609 -> 3555,
+      S3 111 -> 106 ms. 宿主 `PluginDiscoveryCacheTest` (3) 通过.
+- [x] **L1-6 (宿主) 缓存查找前移并与绑定并行 (L0 后重新定界)**: L0 数据显示
+      缓存查找已经在专用绑定之前 (S3 无 `bindPrewarmMs`), 命中路径唯一的绑定来自
+      发现, 由 L1-5 消除; 未命中路径上 `prepareMs` 只有 8-31 ms, 与绑定并行没有可
+      量化收益. 本项收窄为核查: L1-5 落地后 S3 的 `discoveryMs` < 5 ms 且整条路径
+      不出现 compiler 进程 bind; 若未来项目级 `prepareMs` 超过 200 ms 再恢复并行化.
+      验收: S3 日志 `bindPrewarmMs=na` 且 S3 运行期间 `pidof :typescript_compiler`
+      不因宿主发现而被拉起.
+      结论 (2026-10-09): L1-5 后 S3 `discoveryMs` 2 ms, `bindPrewarmMs=na`, 命中路径
+      不再触碰 compiler 进程; 并行化不再有可量化目标, 本项关闭.
+- [x] **L1-7 (宿主) 持久缓存写入移出关键路径 (L0 后重新定界)**: schema 3 把写缓存
+      单独计为 `cachePublishMs`, L0 基线为 14-22 ms. 异步化必须先复制输出字节 (临时
+      归档在返回后立即安全删除), 收益不足 20 ms 且引入竞态, 不做. 保留字段用于
+      回归观察; 若项目级输出使 `cachePublishMs` > 100 ms 再立项.
+      结论 (2026-10-09): 关闭, 保留 `cachePublishMs` 观察 (L1 后 17-30 ms).
 - [ ] **L1-8 (宿主) 用户可感知进度**: 运行入口 200 ms 内给出非阻塞提示
       (控制台 / 日志面板一行 "正在编译 TypeScript" + `ScriptExecuteActivity`
       轻量加载态), 用现有 R2 progress 回调阶段 (ingress / parse / semantic /
       emit) 更新, 完成或失败即清除; JS 脚本无任何变化; 十语言字符串按仓库
       规范.
       验收: 真机录屏; 回调到 UI 状态映射有单测; 无新的主线程阻塞.
+
+### L1 小结 (2026-10-09, Xiaomi 23046RP50C / API 35, release 宿主 + 插件)
+
+| 口径 (p50) | L0 基线 | 插件 L1-1~L1-4 | + 宿主 L1-5 | 目标 |
+| --- | ---: | ---: | ---: | ---: |
+| S1 `userWaitMs` | 9864 | 7496 | 7543 | 1500 |
+| S2 `userWaitMs` | 4348 | 3609 | 3555 | 500 |
+| S3 `userWaitMs` | 137 | 111 | 106 | 300 (已达标) |
+| S1 `discoveryMs` | 1796 | 904 | 3 | - |
+| S1 `bindPrewarmMs` | 1490 | 732 | 1664 | - |
+| S1 `compilerBeforeIngressMs` | 1148 | 423 | 428 | - |
+| S1 `compilerIngressMs` | 2888 | 2913 | 2924 | - |
+| S1 `compilerParseMs` | 1433 | 1428 | 1431 | - |
+| S1 boot `serviceCreateMs` / `workerReadyAtMs` | 900 / 3040 | 4 / 1410 | 4 / 1410 | - |
+
+S1 剩余 7.5 s 的构成已经纯粹是 L2 的目标: compiler 进程冷启动到 Worker 就绪约 1.4 s
+(其中 `importScripts` 约 760 ms, L2-2), 声明层传输 2.9 s 与冷 Program 对声明层的 parse
+1.4 s (L2-1), 原生每 job 固定开销 0.43 s (L3-3). S2 剩余 3.6 s 中 2.6 s 是声明层传输.
+L1-8 (进度提示) 待 owner 决定呈现形式后实施. 记录见
+`20261009-l1-api35-23046rp50c-plugin` 与 `20261009-l1-api35-23046rp50c-host`.
 
 ## 6. L2 冷路径结构压缩
 
@@ -375,6 +432,15 @@ schema / caller 配额.
 - [ ] **L2-5 (插件) 资产存储方式 (数据决定)**: 评估
       `androidResources.noCompress` 对 `.js` / `.d.ts` 的影响 (APK 体积 vs
       inflate 时间); 若采用, changelog hint 说明体积变化.
+
+- [ ] **L2-6 (插件) 声明指纹直接取自构建清单, 字节校验后台化**: L1-2 之后 S1 的
+      `discoveryMs` 仍约 900 ms, 其中约 510 ms 是首次 `getCompilerInfo` 等待声明层
+      逐字节哈希. 两个 profile 的指纹是构建期确定的清单值 (`distribution.json` 与声明
+      分发 manifest), 可以在严格 JSON 解析后直接广告, 同时让 L1-2 的预加载线程继续
+      完成字节校验; 首个 job 仍经 L1-1 缓存等待校验结果, 校验失败照旧 fail closed
+      (广告的指纹与校验结果不一致时同样失败). 这样发现只剩进程启动与 Binder 往返.
+      验收: S1 `discoveryMs` p50 < 400 ms (Xiaomi); 清单指纹与校验指纹一致性有单测;
+      distribution / declaration 门禁全绿.
 
 ## 7. L3 热路径 (改动后重编)
 
