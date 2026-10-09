@@ -169,11 +169,30 @@ assert(
     "Binder or host-I/O authority drifted.",
 );
 
+// The fixed compiler import stays the single `typescript.js` alias. The declaration preload
+// bundles (startup-latency L2-1) are the only other same-origin scripts the Worker may load; each
+// is a literal call so the allowlist is auditable from source.
+const trustedWorkerImportScripts = Object.freeze([
+    fixture.fixedWorkerImportScript,
+    "declarations-common.js",
+    "declarations-rhino.js",
+    "declarations-node.js",
+]);
 const importCalls = workerSource.match(/\bimportScripts\s*\([^)]*\)/g) || [];
+const workerImportLiterals = importCalls.map((call) => {
+    const literal = /^importScripts\(\s*"([^"]+)"\s*\)$/.exec(call);
+    assert(literal, `Worker importScripts call is not a string literal: ${call}`);
+    return literal[1];
+});
 assert(
-    importCalls.length === 1 &&
-        /^importScripts\(\s*["']typescript\.js["']\s*\)$/.test(importCalls[0]),
-    "Worker importScripts authority is not exactly one trusted typescript.js load.",
+    workerImportLiterals.length === trustedWorkerImportScripts.length &&
+        workerImportLiterals.slice().sort().join(",") ===
+            trustedWorkerImportScripts.slice().sort().join(","),
+    `Worker importScripts authority drifted: ${workerImportLiterals.join(",")}.`,
+);
+assert(
+    /^importScripts\(\s*["']typescript\.js["']\s*\)$/.test(importCalls[0]),
+    "Worker must load the trusted typescript.js alias first.",
 );
 assert(
     fixture.fixedWorkerImportScript === "typescript.js",
@@ -399,9 +418,13 @@ assert(
     "Worker emit helper can obtain transformer authority from caller-controlled state.",
 );
 assert(
-    /ts\.createIncrementalProgram\(\s*{\s*host,\s*options,\s*rootNames:/s.test(
+    /const incrementalConfiguration\s*=\s*{\s*host,\s*options,\s*rootNames:\s*vfs\.compilerRootNames,\s*}/s.test(
         compileProjectSource,
-    ),
+    ) &&
+        /ts\.createIncrementalProgram\(\s*incrementalConfiguration\s*\)/s.test(
+            compileProjectSource,
+        ) &&
+        (compileProjectSource.match(/ts\.createIncrementalProgram\s*\(/g) ?? []).length === 1,
     "Worker Program construction source shape drifted.",
 );
 

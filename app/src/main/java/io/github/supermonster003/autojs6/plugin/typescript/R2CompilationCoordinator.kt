@@ -740,6 +740,9 @@ internal class R2CompilationCoordinator(
                     projectExecutionObserver = { event ->
                         publishProgress(job, event)
                     },
+                    // Production jobs let the Worker materialise the plugin-owned declaration
+                    // layers from its verified bundles instead of framing them on every job.
+                    declarationTransport = R2DeclarationTransport.PRELOADED,
                 )
             } else {
                 compilerHost.compileProjectWithSynchronousWorkerSpinForTesting(

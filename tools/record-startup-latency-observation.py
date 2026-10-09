@@ -30,6 +30,12 @@ def flatten_sample(sample):
         "coldCompilerProcess": bool(sample["coldCompilerProcess"]),
         "fixtureSha256": sample["fixtureSha256"],
     }
+    for counter in ("trimEventCount", "realmTeardownCount", "serviceDestroyCount"):
+        value = sample.get(counter)
+        if isinstance(value, int) and not isinstance(value, bool):
+            record[counter] = max(0, value)
+    if isinstance(sample.get("warmBindingRetained"), bool):
+        record["warmBindingRetained"] = sample["warmBindingRetained"]
     stopwatch = sample.get("stopwatchMs")
     if isinstance(stopwatch, int) and not isinstance(stopwatch, bool):
         record["stopwatchMs"] = max(0, stopwatch)

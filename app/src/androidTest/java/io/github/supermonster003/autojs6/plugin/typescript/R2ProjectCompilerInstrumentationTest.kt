@@ -153,6 +153,73 @@ class R2ProjectCompilerInstrumentationTest {
     }
 
     @Test
+    fun preloadedDeclarationsSkipFramingAndMatchFramedOutput() {
+        val declarations = R2TrustedDeclarations.loadForProfile(
+            context,
+            R2CompilationProfileRegistry.PROVISIONAL_RHINO.profile,
+        )
+        val source = R2ProjectTextFile(
+            path = MAIN_SOURCE_PATH,
+            text =
+            "export const sdk: number = device.sdkInt;\n" +
+                "export const preloaded: Promise<number> = Promise.resolve(sdk);\n",
+        )
+        val snapshot = R2ProjectSnapshot.create(
+            files = declarations.files.map { declaration ->
+                R2ProjectTextFile(
+                    path = "/${declaration.archivePath}",
+                    text = declaration.text,
+                )
+            } + source,
+            rootNames = listOf(MAIN_SOURCE_PATH),
+            limits = R2ProjectSnapshotLimits.PROVISIONAL_WORKER,
+        )
+
+        withCompilerHost { host ->
+            fun compile(
+                transport: R2DeclarationTransport,
+            ): Pair<R2ProjectCompilation, R2ProjectInputTransportTelemetry> {
+                val outcome = host.compileProjectUntilElapsedRealtimeDeadline(
+                    handle = host.newProjectOperationHandle(),
+                    snapshot = snapshot,
+                    deadlineAtElapsedRealtimeNanos = Math.addExact(
+                        SystemClock.elapsedRealtimeNanos(),
+                        TimeUnit.MILLISECONDS.toNanos(
+                            TypeScriptCompilerContract.MAX_TIMEOUT_MS,
+                        ),
+                    ),
+                    declarationTransport = transport,
+                )
+                assertTrue(outcome.errorMessage.orEmpty(), outcome.succeeded)
+                return requireNotNull(outcome.compilation) to requireNotNull(
+                    host.lastProjectInputTransportTelemetryForTesting(),
+                )
+            }
+
+            val (framed, framedTelemetry) = compile(R2DeclarationTransport.FRAMED)
+            val (preloaded, preloadedTelemetry) = compile(R2DeclarationTransport.PRELOADED)
+            assertFalse(preloaded.emitSkipped)
+            assertTrue(preloaded.diagnostics.isEmpty())
+            assertEquals(
+                framed.outputs.map { output -> output.path to output.text },
+                preloaded.outputs.map { output -> output.path to output.text },
+            )
+            // Start, one caller file (start/chunk/end) and end: the declaration layer is no
+            // longer framed, while the framed transport still carries all 162 files.
+            assertEquals(5, preloadedTelemetry.sentFrameCount)
+            assertTrue(framedTelemetry.sentFrameCount > preloadedTelemetry.sentFrameCount * 50)
+            assertTrue(preloadedTelemetry.complete)
+            Log.i(
+                CAPACITY_LOG_TAG,
+                "typescript-declaration-preload schema=1 " +
+                    "framedFrames=${framedTelemetry.sentFrameCount} " +
+                    "preloadedFrames=${preloadedTelemetry.sentFrameCount} " +
+                    "declarationFiles=${declarations.files.size} gate=none",
+            )
+        }
+    }
+
+    @Test
     fun packagedStandardLibrariesCrossTheFormerSingleMessageLimit() {
         val declarations =
             R2TrustedDeclarations.loadTypeScriptStandardLibraries(context)

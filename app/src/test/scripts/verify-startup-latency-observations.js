@@ -256,11 +256,13 @@ for (const observation of observations.observations) {
                         ([key, value]) =>
                             key === "coldCompilerProcess" ||
                             key === "fixtureSha256" ||
+                            (key === "warmBindingRetained" && typeof value === "boolean") ||
                             isNonNegativeInteger(value) ||
                             value === null,
                     ),
                 `Scenario ${scenarioId} sample in ${observation.id} must contain only ` +
-                    "non-negative integer durations, coldCompilerProcess and fixtureSha256.",
+                    "non-negative integer durations or counters, coldCompilerProcess, " +
+                    "warmBindingRetained and fixtureSha256.",
             );
             assert(
                 !Object.keys(sample).some((key) => /path|request|uri|sourcename|sourcetext|identity/i.test(key)),

@@ -205,7 +205,7 @@ function Invoke-ScriptRun {
     while ($true) {
         $lines = @(
             & adb -s $Serial logcat -d -v threadtime -s "$logTag`:I" "*:S" 2>$null |
-                Where-Object { $_ -match "typescript-(compile-perf|execution-perf|prewarm|compiler-boot)" }
+                Where-Object { $_ -match "typescript-(compile-perf|execution-perf|prewarm|warm-binding|compiler-boot|compiler-trim|compiler-realm-teardown|compiler-service-destroy)" }
         )
         if (@($lines | Where-Object { $_ -match "typescript-execution-perf schema=" }).Count -ge 1) {
             break
@@ -247,6 +247,14 @@ function Invoke-ScriptRun {
         Start-Sleep -Milliseconds 200
     }
 
+    $trimEvents = @($lines | Where-Object { $_ -match "typescript-compiler-trim schema=" })
+    $realmTeardowns = @($lines | Where-Object { $_ -match "typescript-compiler-realm-teardown schema=" })
+    $serviceDestroys = @($lines | Where-Object { $_ -match "typescript-compiler-service-destroy schema=" })
+    $warmBindingRetained = $null
+    $warmBindingLine = @($lines | Where-Object { $_ -match "typescript-warm-binding schema=" }) | Select-Object -Last 1
+    if ($warmBindingLine -and $warmBindingLine -match "retained=(True|False|true|false)") {
+        $warmBindingRetained = [bool]::Parse($Matches[1])
+    }
     $sample = [ordered]@{
         index = $Index
         launchedAt = $launchedAt.ToUniversalTime().ToString("o")
@@ -255,6 +263,10 @@ function Invoke-ScriptRun {
         compilerProcessPidAfter = Get-CompilerProcessPid
         coldCompilerProcess = [bool]$boot
         stopwatchMs = $stopwatchMs
+        trimEventCount = $trimEvents.Count
+        realmTeardownCount = $realmTeardowns.Count
+        serviceDestroyCount = $serviceDestroys.Count
+        warmBindingRetained = $warmBindingRetained
         compile = if ($compile) { Parse-KeyValues $compile } else { $null }
         execution = if ($execution) { Parse-KeyValues $execution } else { $null }
         boot = if ($boot) { Parse-KeyValues $boot } else { $null }
@@ -391,7 +403,7 @@ foreach ($scenarioId in $scenarios) {
         $wait = if ($sample.execution) { $sample.execution["userWaitMs"] } else { "na" }
         $ingress = if ($sample.compile -and $sample.compile.Contains("compilerIngressMs")) { $sample.compile["compilerIngressMs"] } else { "na" }
         $stopwatch = if ($null -ne $sample.stopwatchMs) { $sample.stopwatchMs } else { "na" }
-        Write-Host "$scenarioId#$index userWaitMs=$wait stopwatchMs=$stopwatch compilerIngressMs=$ingress coldProcess=$($sample.coldCompilerProcess)"
+        Write-Host "$scenarioId#$index userWaitMs=$wait stopwatchMs=$stopwatch compilerIngressMs=$ingress coldProcess=$($sample.coldCompilerProcess) trims=$($sample.trimEventCount) realmTeardowns=$($sample.realmTeardownCount) serviceDestroys=$($sample.serviceDestroyCount) warmBindingRetained=$($sample.warmBindingRetained)"
         Start-Sleep -Seconds 3
     }
     $report.scenarios[$scenarioId] = [ordered]@{

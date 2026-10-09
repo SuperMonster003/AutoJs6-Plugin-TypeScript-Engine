@@ -138,6 +138,8 @@ gradle.projectsEvaluated {
                 ":app:verifyS10TypeScriptUpgrade",
                 ":app:verifyS10IssueTriage",
                 ":app:verifyStartupLatencyObservations",
+                ":app:verifyR2DeclarationWorkerBundles",
+                ":app:verifyL2DeclarationPreloadDesktop",
             ),
         )
     }

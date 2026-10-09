@@ -9,9 +9,11 @@ import javax.xml.parsers.DocumentBuilderFactory
 import org.autojs.build.DownloadR2DeclarationDistributionTarball
 import org.autojs.build.DownloadTypeScriptDistributionTarball
 import org.autojs.build.GenerateR2DeclarationDistribution
+import org.autojs.build.GenerateR2DeclarationWorkerBundles
 import org.autojs.build.GenerateTypeScriptDistribution
 import org.autojs.build.VerifyR1OptionalPluginMatrix
 import org.autojs.build.VerifyR2DeclarationDistribution
+import org.autojs.build.VerifyR2DeclarationWorkerBundles
 import org.autojs.build.VerifyTypeScriptDistribution
 import org.gradle.api.artifacts.FileCollectionDependency
 import org.gradle.api.provider.Property
@@ -44,6 +46,12 @@ val generatedR2DeclarationAssetsDirectory =
     layout.buildDirectory.dir("generated/r2DeclarationAssetsV2/assets")
 val generatedR2DeclarationDistributionDirectory =
     generatedR2DeclarationAssetsDirectory.map { it.dir("r2-declarations/v2") }
+// Startup-latency L2-1: same-origin bundles through which the Worker preloads the declaration
+// layers instead of receiving them as framed input on every job.
+val generatedR2DeclarationWorkerBundleAssetsDirectory =
+    layout.buildDirectory.dir("generated/r2DeclarationWorkerBundles/assets")
+val generatedR2DeclarationWorkerBundleDirectory =
+    generatedR2DeclarationWorkerBundleAssetsDirectory.map { it.dir("r2-declaration-worker-bundles") }
 val compilerHostSourceAssetDirectory =
     layout.projectDirectory.dir("src/main/assets/typescript-compiler-r1")
 val r1RhinoProbeLockFile =
@@ -304,6 +312,9 @@ android {
             assets.directories.add(generatedTypeScriptAssetsDirectory.get().asFile.absolutePath)
             assets.directories.add(
                 generatedR2DeclarationAssetsDirectory.get().asFile.absolutePath,
+            )
+            assets.directories.add(
+                generatedR2DeclarationWorkerBundleAssetsDirectory.get().asFile.absolutePath,
             )
         }
         getByName("androidTest") {
@@ -615,6 +626,69 @@ val verifyR2DeclarationDistribution =
             generateR2DeclarationDistribution.flatMap { it.distributionDirectory },
         )
         declarationReleaseVersion.set(pluginVersionName)
+    }
+
+val generateR2DeclarationWorkerBundles =
+    tasks.register<GenerateR2DeclarationWorkerBundles>(
+        "generateR2DeclarationWorkerBundles",
+    ) {
+        dependsOn(generateTypeScriptDistribution, generateR2DeclarationDistribution)
+        declarationDistributionDirectory.set(
+            generateR2DeclarationDistribution.flatMap { it.distributionDirectory },
+        )
+        typescriptDistributionDirectory.set(generatedTypeScriptDistributionDirectory)
+        bundleDirectory.set(generatedR2DeclarationWorkerBundleDirectory)
+    }
+val verifyR2DeclarationWorkerBundles =
+    tasks.register<VerifyR2DeclarationWorkerBundles>(
+        "verifyR2DeclarationWorkerBundles",
+    ) {
+        dependsOn(generateR2DeclarationWorkerBundles)
+        declarationDistributionDirectory.set(
+            generateR2DeclarationDistribution.flatMap { it.distributionDirectory },
+        )
+        typescriptDistributionDirectory.set(generatedTypeScriptDistributionDirectory)
+        bundleDirectory.set(
+            generateR2DeclarationWorkerBundles.flatMap { it.bundleDirectory },
+        )
+    }
+
+val verifyL2DeclarationPreloadDesktop =
+    tasks.register<Exec>("verifyL2DeclarationPreloadDesktop") {
+        group = "verification"
+        description =
+            "Runs the Worker declaration preload golden: bundle-backed declarations, framed " +
+                "transport parity and inventory tamper rejection."
+        dependsOn(generateTypeScriptDistribution, generateR2DeclarationWorkerBundles)
+        val harnessFile = layout.projectDirectory.file(
+            "src/test/scripts/verify-l2-declaration-preload.js",
+        )
+        val fixtureFile = layout.projectDirectory.file(
+            "src/test/resources/r2-project-compiler/provisional-rhino.json",
+        )
+        val workerFile = layout.projectDirectory.file(
+            "src/main/assets/typescript-compiler-r1/compiler-worker.js",
+        )
+        val compilerFile = generatedTypeScriptDistributionDirectory.map {
+            it.file("lib/typescript.js")
+        }
+        inputs.files(
+            harnessFile,
+            fixtureFile,
+            workerFile,
+            compilerFile,
+            layout.projectDirectory.file("src/test/scripts/r2-input-archive-authority.js"),
+        )
+        inputs.dir(generatedR2DeclarationWorkerBundleDirectory)
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            harnessFile.asFile.absolutePath,
+            workerFile.asFile.absolutePath,
+            compilerFile.get().asFile.absolutePath,
+            generatedR2DeclarationWorkerBundleDirectory.get().asFile.absolutePath,
+            fixtureFile.asFile.absolutePath,
+            typeScriptVersion,
+        )
     }
 
 val typeScriptUpgradeRehearsalDeclarationLockFile =
@@ -1540,8 +1614,16 @@ private val expectedCompilerHostAssetNames = setOf(
     "compiler-worker.js",
     "index.html",
 )
+// Same-origin scripts the Worker may load: the pinned compiler plus the generated declaration
+// preload bundles (startup-latency L2-1). Every name is served from a verified asset mapping.
+private val expectedCompilerWorkerImportScripts = linkedSetOf(
+    "typescript.js",
+    "declarations-common.js",
+    "declarations-rhino.js",
+    "declarations-node.js",
+)
 private val expectedCompilerHostOriginPaths = expectedCompilerHostAssetNames +
-    "typescript.js"
+    expectedCompilerWorkerImportScripts
 private val compilerHostOrigin = "https://appassets.androidplatform.net"
 private val compilerHostRootPath = "/typescript-compiler-r1/"
 
@@ -1694,13 +1776,21 @@ private fun verifyCompilerHostSourcePolicy(
     check(pageSource.contains("new Worker(\"compiler-worker.js\"")) {
         "Compiler host page must create only the allowlisted compiler-worker.js."
     }
+    val workerImportScripts = Regex("""\bimportScripts\s*\(\s*"([^"]*)"\s*\)""")
+        .findAll(workerSource)
+        .map { it.groupValues[1] }
+        .toList()
     check(
         workerSource.contains("""importScripts("typescript.js");""") &&
-            Regex("""\bimportScripts\b""").findAll(workerSource).count() == 1,
+            Regex("""\bimportScripts\b""").findAll(workerSource).count() ==
+            workerImportScripts.size &&
+            workerImportScripts.toSet() == expectedCompilerWorkerImportScripts &&
+            workerImportScripts.size == expectedCompilerWorkerImportScripts.size,
     ) {
-        "Compiler worker must load only the versioned compiler through the typescript.js alias."
+        "Compiler worker must load only the versioned compiler alias and the declaration " +
+            "preload bundles through literal importScripts calls: $workerImportScripts"
     }
-    check(workerSource.contains("ts.createIncrementalProgram({")) {
+    check(workerSource.contains("ts.createIncrementalProgram(")) {
         "R2 project compilation must use TypeScript createIncrementalProgram."
     }
     check(!workerSource.contains("ts.sys")) {
@@ -18215,6 +18305,7 @@ tasks {
     }.configureEach {
         dependsOn(generateTypeScriptDistribution)
         dependsOn(generateR2DeclarationDistribution)
+        dependsOn(generateR2DeclarationWorkerBundles)
     }
 }
 

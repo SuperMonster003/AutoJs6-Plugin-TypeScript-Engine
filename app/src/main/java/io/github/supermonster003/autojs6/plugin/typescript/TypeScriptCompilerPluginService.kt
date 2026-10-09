@@ -12,6 +12,7 @@ import android.os.Parcelable
 import android.os.Process
 import android.os.SystemClock
 import android.system.Os
+import android.util.Log
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import org.autojs.plugin.typescript.api.ITypeScriptCompilationCallback
@@ -637,6 +638,13 @@ class TypeScriptCompilerPluginService : Service() {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
+        // Observational only (startup-latency L4 input): which trim levels reach the compiler
+        // process and therefore discard its resident realm.
+        Log.i(
+            R2CompilerBootTelemetry.LOG_TAG,
+            "typescript-compiler-trim schema=1 level=$level " +
+                "hostInitialized=${::compilerHost.isInitialized}",
+        )
         if (::compilerHost.isInitialized) {
             compilerHost.discardResidentProjectSessionsForMemoryPressure()
         }
@@ -651,6 +659,12 @@ class TypeScriptCompilerPluginService : Service() {
         if (BuildConfig.DEBUG) {
             onDestroyEnteredForTesting = true
         }
+        // Observational only (startup-latency L2/L4 input): a destroyed service drops its realm.
+        Log.i(
+            R2CompilerBootTelemetry.LOG_TAG,
+            "typescript-compiler-service-destroy schema=1 " +
+                "processUptimeMs=${SystemClock.uptimeMillis() - Process.getStartUptimeMillis()}",
+        )
         val r2Coordinator = r2CompilationCoordinator
         val r1Coordinator = transportProbeCoordinator
 

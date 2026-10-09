@@ -68,6 +68,21 @@ internal interface R2ProjectInputTransport {
     fun telemetryForTesting(): R2ProjectInputTransportTelemetry
 }
 
+/**
+ * How the plugin-owned `/declarations/` inventory reaches the Worker.
+ *
+ * [FRAMED] streams every declaration file through the port exactly like caller files; it is the
+ * historical transport and stays the default for in-memory snapshots and fixtures. [PRELOADED]
+ * keeps the declarations in the retained inventory (counts, byte totals and fingerprints of the
+ * start frame are unchanged) but frames only caller files; the Worker materialises the layer from
+ * its verified same-origin bundles and fails closed when they do not match the advertised
+ * inventory (startup-latency L2-1).
+ */
+internal enum class R2DeclarationTransport {
+    FRAMED,
+    PRELOADED,
+}
+
 internal class R2ProjectInputFramer(
     val requestId: String,
     private val snapshot: R2ProjectInputSnapshot,
@@ -75,9 +90,23 @@ internal class R2ProjectInputFramer(
     private val workerSpinPhase: R2ProjectExecutionPhase? = null,
     private val workerInputQuotaAuthority: R2WorkerInputQuotaAuthority? = null,
     private val projectSessionAuthority: R2ProjectSessionAuthority? = null,
+    private val declarationTransport: R2DeclarationTransport = R2DeclarationTransport.FRAMED,
 ) : R2ProjectInputTransport {
 
     private val files = snapshot.fileInventory.toList()
+
+    /** Indices into [files] that are framed; preloaded declarations are counted but not sent. */
+    private val transportedProjectFileIndices: IntArray =
+        files.indices
+            .filterNot { index ->
+                declarationTransport == R2DeclarationTransport.PRELOADED &&
+                    files[index].path.startsWith(DECLARATION_VFS_PREFIX)
+            }
+            .toIntArray()
+    private val skippedDeclarationBytes: Long =
+        files.indices
+            .filterNot { index -> index in transportedProjectFileIndices }
+            .sumOf { index -> files[index].utf8Bytes }
     private val rootNames = snapshot.rootNames.toList()
     private val entryPath = snapshot.entryPath
     private val profileAuthority = snapshot.profileAuthority
@@ -175,11 +204,19 @@ internal class R2ProjectInputFramer(
             Math.addExact(packageMetadataFiles.size, packageTargetFiles.size),
             nodePackageTargetV2Files.size,
         ),
-        files.size,
+        transportedProjectFileIndices.size,
     )
     private val transportedFileCount = Math.addExact(
         transportedOrdinaryFileCount,
         dependencyLayerFiles.size,
+    )
+    /** Ordinary files of the retained inventory, including declarations that are not framed. */
+    private val retainedOrdinaryFileCount = Math.addExact(
+        Math.addExact(
+            Math.addExact(packageMetadataFiles.size, packageTargetFiles.size),
+            nodePackageTargetV2Files.size,
+        ),
+        files.size,
     )
     private val declaredFileBytes = Math.addExact(
         Math.addExact(
@@ -295,7 +332,7 @@ internal class R2ProjectInputFramer(
             maximumEncodedFrameBytes = maximumEncodedFrameBytes,
             maximumEncodedEnvelopeBytes = maximumEncodedFrameBytes,
             acceptedPayloadBytes = acceptedConfigBytes + completedFileBytes + fileOffset,
-            totalPayloadBytes = declaredTransportBytes,
+            totalPayloadBytes = declaredTransportBytes - skippedDeclarationBytes,
             fileIndex = fileIndex,
             fileOffset = fileOffset,
             stage = stage.name,
@@ -313,8 +350,9 @@ internal class R2ProjectInputFramer(
         }
         require(
             transportedOrdinaryFileCount > 0 &&
-                transportedOrdinaryFileCount <= MAXIMUM_PROJECT_FILES &&
-                transportedFileCount <= MAXIMUM_PROJECT_FILES_WITH_DEPENDENCIES,
+                retainedOrdinaryFileCount <= MAXIMUM_PROJECT_FILES &&
+                Math.addExact(retainedOrdinaryFileCount, dependencyLayerFiles.size) <=
+                MAXIMUM_PROJECT_FILES_WITH_DEPENDENCIES,
         ) {
             "Project transport file count is outside its ordinary/dependency Worker limits."
         }
@@ -323,7 +361,7 @@ internal class R2ProjectInputFramer(
         }
         require(
             acceptedInputAuthority.capacity.fileCount ==
-                transportedOrdinaryFileCount + (if (rawConfig == null) 0 else 1) &&
+                retainedOrdinaryFileCount + (if (rawConfig == null) 0 else 1) &&
                 acceptedInputAuthority.capacity.totalUtf8Bytes == declaredTotalBytes,
         ) {
             "Project transport does not match its accepted retained-input authority."
@@ -472,7 +510,7 @@ internal class R2ProjectInputFramer(
                         "entryPath" to entryPath,
                         "runtimeCapabilitiesFingerprint" to
                             profileAuthority.runtimeCapabilitiesFingerprint,
-                        "fileCount" to transportedOrdinaryFileCount,
+                        "fileCount" to retainedOrdinaryFileCount,
                         "totalBytes" to declaredTotalBytes,
                         "workerSpinMilliseconds" to workerSpinMilliseconds,
                         "workerSpinPhase" to
@@ -541,7 +579,7 @@ internal class R2ProjectInputFramer(
                             R2NodeModuleOutputPolicy.POLICY_REVISION,
                         "nodeModuleOutputPolicyFingerprint" to
                             R2NodeModuleOutputPolicy.fingerprint,
-                        "fileCount" to transportedOrdinaryFileCount,
+                        "fileCount" to retainedOrdinaryFileCount,
                         "totalBytes" to declaredTotalBytes,
                         "workerSpinMilliseconds" to workerSpinMilliseconds,
                         "workerSpinPhase" to
@@ -604,7 +642,7 @@ internal class R2ProjectInputFramer(
                     "packageTargetFingerprint" to targets.fingerprint,
                     "packageTargetFileCount" to packageTargetFiles.size,
                     "packageTargetByteLength" to declaredPackageTargetBytes,
-                    "fileCount" to transportedOrdinaryFileCount,
+                    "fileCount" to retainedOrdinaryFileCount,
                     "totalBytes" to declaredTotalBytes,
                     "workerSpinMilliseconds" to workerSpinMilliseconds,
                     "workerSpinPhase" to
@@ -638,7 +676,7 @@ internal class R2ProjectInputFramer(
                     "packageMetadataFingerprint" to metadata.fingerprint,
                     "packageMetadataFileCount" to packageMetadataFiles.size,
                     "packageMetadataByteLength" to declaredPackageMetadataBytes,
-                    "fileCount" to transportedOrdinaryFileCount,
+                    "fileCount" to retainedOrdinaryFileCount,
                     "totalBytes" to declaredTotalBytes,
                     "workerSpinMilliseconds" to workerSpinMilliseconds,
                     "workerSpinPhase" to
@@ -662,7 +700,7 @@ internal class R2ProjectInputFramer(
                     "configSha256" to config.sha256,
                     "configPolicyRevision" to config.policyRevision,
                     "configPolicyFingerprint" to config.policyFingerprint,
-                    "fileCount" to transportedOrdinaryFileCount,
+                    "fileCount" to retainedOrdinaryFileCount,
                     "totalBytes" to declaredTotalBytes,
                     "workerSpinMilliseconds" to workerSpinMilliseconds,
                     "workerSpinPhase" to
@@ -685,7 +723,7 @@ internal class R2ProjectInputFramer(
                     "entryPath" to entryPath,
                     "runtimeCapabilitiesFingerprint" to
                         authority.runtimeCapabilitiesFingerprint,
-                    "fileCount" to transportedOrdinaryFileCount,
+                    "fileCount" to retainedOrdinaryFileCount,
                     "totalBytes" to declaredTotalBytes,
                     "workerSpinMilliseconds" to workerSpinMilliseconds,
                     "workerSpinPhase" to
@@ -702,7 +740,7 @@ internal class R2ProjectInputFramer(
                 "profileRevision" to profileAuthority.profileRevision,
                 "configSchemaRevision" to profileAuthority.configSchemaRevision,
                 "configKind" to profileAuthority.configKind,
-                "fileCount" to transportedOrdinaryFileCount,
+                "fileCount" to retainedOrdinaryFileCount,
                 "totalBytes" to declaredTotalBytes,
                 "workerSpinMilliseconds" to workerSpinMilliseconds,
                 "workerSpinPhase" to
@@ -789,7 +827,7 @@ internal class R2ProjectInputFramer(
                 "kind" to "projectInputEnd",
                 "requestId" to requestId,
                 "sequence" to sequence,
-                "fileCount" to transportedOrdinaryFileCount,
+                "fileCount" to retainedOrdinaryFileCount,
                 "totalBytes" to declaredTotalBytes,
             )
             Stage.COMPLETE -> error("Project input transport is already complete.")
@@ -1045,7 +1083,8 @@ internal class R2ProjectInputFramer(
             )
         }
         val projectIndex = nodePackageTargetV2Index - nodePackageTargetV2Files.size
-        files.getOrNull(projectIndex)?.let { metadata ->
+        transportedProjectFileIndices.getOrNull(projectIndex)?.let { inventoryIndex ->
+            val metadata = files[inventoryIndex]
             return TransportedFile(
                 path = metadata.path,
                 byteLength = metadata.utf8Bytes,
@@ -1056,7 +1095,7 @@ internal class R2ProjectInputFramer(
                 dependencyLayerIndex = null,
             )
         }
-        val dependencyLayerIndex = projectIndex - files.size
+        val dependencyLayerIndex = projectIndex - transportedProjectFileIndices.size
         val dependency = dependencyLayerFiles.getOrNull(dependencyLayerIndex)
             ?: error("Project input transport has no current file.")
         return TransportedFile(
@@ -1085,8 +1124,10 @@ internal class R2ProjectInputFramer(
             file.dependencyLayerIndex != null ->
                 snapshot.openDependencyLayerFile(file.dependencyLayerIndex)
             else -> snapshot.openFile(
-                fileIndex - packageMetadataFiles.size - packageTargetFiles.size -
-                    nodePackageTargetV2Files.size,
+                transportedProjectFileIndices[
+                    fileIndex - packageMetadataFiles.size - packageTargetFiles.size -
+                        nodePackageTargetV2Files.size,
+                ],
             )
         }
         currentFileCursor = cursor
@@ -1221,6 +1262,7 @@ internal class R2ProjectInputFramer(
     }
 
     private companion object {
+        const val DECLARATION_VFS_PREFIX = "/declarations/"
         const val NODE_DECLARATION_ENTRY = "/declarations/node/index.d.ts"
         const val NODE_DECLARATION_PREFIX = "/declarations/node/"
         const val RHINO_DECLARATION_PREFIX = "/declarations/rhino/"

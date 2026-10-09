@@ -73,6 +73,9 @@ ingress 是主要冷路径。本轮 AndroidTest 在插件内记录
 
 - 声明按需注入暂不实施。受控 tsconfig 虽不开放 `lib`，源码仍可通过 triple-slash lib
   reference 选择标准库；在完整 Program 解析前推断“未引用声明”会改变正确性边界。
+  (2026-10-09 更新: startup-latency L2-1 改为把完整声明层以同源 bundle 预装进 Worker,
+  全部标准库仍在 Worker 可得, 不做按需裁剪, 因此该正确性边界不变; 变化的只是传输方式,
+  见 [DECLARATION_PRELOAD_L2_1.md](../architecture/DECLARATION_PRELOAD_L2_1.md).)
 - `SourceFile` 已在单次 job 内 lazy-create/cache。成功或失败后 exact WebView realm 必须
   退休，跨 job 复用 JavaScript `SourceFile` 会与现有隔离/清理契约冲突；除非先建立新的
   immutable compiler realm 设计，否则不以牺牲 teardown 证明换取冷启动数字。

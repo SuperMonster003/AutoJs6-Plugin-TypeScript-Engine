@@ -1418,6 +1418,101 @@ class R2ProjectFramedTransportTest {
     }
 
     @Test
+    fun preloadedDeclarationTransportKeepsInventoryAuthorityButFramesOnlyCallerFiles() {
+        val declarationText = buildString {
+            append("/// <reference no-default-lib=\"true\"/>\n")
+            while (length < 70 * 1024) {
+                append("interface PreloadedDeclaration { value: string; }\n")
+            }
+        }
+        val rhinoLayerText = "declare const preloadedRhinoLayer: number;\n"
+        val sourceText = "export const value = \"预装声明\";\n"
+        val snapshot = R2ProjectSnapshot.create(
+            files = listOf(
+                R2ProjectTextFile("/declarations/lib.d.ts", declarationText),
+                R2ProjectTextFile("/declarations/rhino/index.d.ts", rhinoLayerText),
+                R2ProjectTextFile("/sources/main.ts", sourceText),
+            ),
+            rootNames = listOf("/sources/main.ts"),
+            limits = R2ProjectSnapshotLimits.PROVISIONAL_WORKER,
+        )
+        val sourceBytes = sourceText.toByteArray(StandardCharsets.UTF_8).size.toLong()
+        val declarationBytes = snapshot.totalUtf8Bytes - sourceBytes
+
+        val framer = R2ProjectInputFramer(
+            requestId = "preloaded-input",
+            snapshot = snapshot,
+            declarationTransport = R2DeclarationTransport.PRELOADED,
+        )
+        val kinds = ArrayList<String>()
+        val framedPaths = ArrayList<String>()
+        var decodedChunkBytes = 0L
+        var sequence = 0
+        while (!framer.isComplete) {
+            val frame = framer.nextFrame()
+            val parsed = R2StrictJson.parseObject(frame.toByteArray(StandardCharsets.UTF_8))
+            kinds += parsed["kind"] as String
+            when (parsed["kind"]) {
+                "projectInputStart" -> {
+                    // The retained inventory still counts and fingerprints every declaration.
+                    assertEquals(3, parsed.intValue("fileCount"))
+                    assertEquals(snapshot.totalUtf8Bytes, parsed.longValue("totalBytes"))
+                    assertEquals(2, parsed.intValue("declarationFileCount"))
+                    assertEquals(declarationBytes, parsed.longValue("declarationByteLength"))
+                    assertEquals(3, parsed.intValue("retainedFileCount"))
+                }
+                "projectInputFileStart" -> {
+                    framedPaths += parsed["path"] as String
+                    assertEquals(0, parsed.intValue("fileIndex"))
+                }
+                "projectInputFileChunk" ->
+                    decodedChunkBytes += R2FramedBase64.decode(parsed["data"] as String).size
+                "projectInputEnd" -> {
+                    assertEquals(3, parsed.intValue("fileCount"))
+                    assertEquals(snapshot.totalUtf8Bytes, parsed.longValue("totalBytes"))
+                }
+            }
+            framer.acknowledge(sequence)
+            sequence++
+        }
+
+        assertEquals(
+            listOf(
+                "projectInputStart",
+                "projectInputFileStart",
+                "projectInputFileChunk",
+                "projectInputFileEnd",
+                "projectInputEnd",
+            ),
+            kinds,
+        )
+        assertEquals(listOf("/sources/main.ts"), framedPaths)
+        assertEquals(sourceBytes, decodedChunkBytes)
+        val telemetry = framer.telemetryForTesting()
+        assertEquals(5, telemetry.sentFrameCount)
+        assertEquals(sourceBytes, telemetry.totalPayloadBytes)
+        assertEquals(sourceBytes, telemetry.acceptedPayloadBytes)
+
+        // The historical transport is untouched when the caller keeps framing declarations.
+        val framedTransport = R2ProjectInputFramer(
+            requestId = "framed-input",
+            snapshot = snapshot,
+        )
+        var framedFileStarts = 0
+        var framedSequence = 0
+        while (!framedTransport.isComplete) {
+            val parsed = R2StrictJson.parseObject(
+                framedTransport.nextFrame().toByteArray(StandardCharsets.UTF_8),
+            )
+            if (parsed["kind"] == "projectInputFileStart") framedFileStarts++
+            framedTransport.acknowledge(framedSequence)
+            framedSequence++
+        }
+        assertEquals(3, framedFileStarts)
+        assertEquals(snapshot.totalUtf8Bytes, framedTransport.telemetryForTesting().totalPayloadBytes)
+    }
+
+    @Test
     fun inputFramesCrossTheOldSingleMessageBudgetWithOneOutstandingFrame() {
         val declarationText = buildString(700 * 1024) {
             append("/// <reference no-default-lib=\"true\"/>\n")

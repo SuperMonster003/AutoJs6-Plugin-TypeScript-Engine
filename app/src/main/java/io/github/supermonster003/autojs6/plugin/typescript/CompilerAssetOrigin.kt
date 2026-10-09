@@ -44,6 +44,23 @@ object CompilerAssetOrigin {
                 mimeType = JAVASCRIPT_MIME_TYPE,
                 contentSecurityPolicy = WORKER_CONTENT_SECURITY_POLICY,
             ),
+            // Declaration preload bundles generated from the verified declaration distribution
+            // (startup-latency L2-1). The Worker re-verifies every record digest before use.
+            "declarations-common.js" to AssetSpec(
+                assetPath = "$DECLARATION_BUNDLE_ASSET_ROOT/declarations-common.js",
+                mimeType = JAVASCRIPT_MIME_TYPE,
+                contentSecurityPolicy = WORKER_CONTENT_SECURITY_POLICY,
+            ),
+            "declarations-rhino.js" to AssetSpec(
+                assetPath = "$DECLARATION_BUNDLE_ASSET_ROOT/declarations-rhino.js",
+                mimeType = JAVASCRIPT_MIME_TYPE,
+                contentSecurityPolicy = WORKER_CONTENT_SECURITY_POLICY,
+            ),
+            "declarations-node.js" to AssetSpec(
+                assetPath = "$DECLARATION_BUNDLE_ASSET_ROOT/declarations-node.js",
+                mimeType = JAVASCRIPT_MIME_TYPE,
+                contentSecurityPolicy = WORKER_CONTENT_SECURITY_POLICY,
+            ),
         )
         return WebViewAssetLoader.Builder()
             .setHttpAllowed(false)
@@ -144,10 +161,14 @@ object CompilerAssetOrigin {
             "script-src 'self'; " +
             "connect-src 'none'; " +
             "object-src 'none'"
+    private const val DECLARATION_BUNDLE_ASSET_ROOT = "r2-declaration-worker-bundles"
     private val ALLOWED_ENCODED_PATHS = setOf(
         "${ROOT_PATH}compiler-host.js",
         "${ROOT_PATH}compiler-worker.js",
         "${ROOT_PATH}index.html",
         "${ROOT_PATH}typescript.js",
+        "${ROOT_PATH}declarations-common.js",
+        "${ROOT_PATH}declarations-rhino.js",
+        "${ROOT_PATH}declarations-node.js",
     )
 }

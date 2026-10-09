@@ -438,6 +438,256 @@ const declarationLayerAuthority = Object.freeze({
     rhinoEntryPath: "/declarations/rhino/index.d.ts",
     rhinoPathPrefix: "/declarations/rhino/",
 });
+
+// Startup-latency L2-1: the plugin-owned declaration layers are preloaded from same-origin
+// bundles instead of being framed through the WebMessagePort on every job. A bundle only
+// registers raw records; nothing enters a project VFS until every record's UTF-8 length and
+// SHA-256 have been recomputed here and the resulting inventory fingerprint equals the one the
+// native host admitted the request against. Requests that still frame their declarations keep
+// the historical path untouched.
+const declarationBundleAuthority = Object.freeze({
+    engineLayers: Object.freeze(["rhino", "node"]),
+    layerPathPrefixes: Object.freeze({
+        common: "/declarations/",
+        node: declarationLayerAuthority.nodePathPrefix,
+        rhino: declarationLayerAuthority.rhinoPathPrefix,
+    }),
+    registry: "__autojs6DeclarationLayers",
+    schemaVersion: 1,
+    warmUpDefaultLibrary: "/declarations/lib.es2018.d.ts",
+    warmUpScriptTarget: ts.ScriptTarget.ES2018,
+});
+const preloadedDeclarationLayers = new Map();
+// path -> sha256 of every record that passed bundle verification. Only these plugin-owned,
+// version-immutable declarations are eligible for the shared SourceFile cache below; framed
+// declarations supplied by a caller keep the per-job cache semantics and retained-memory bounds.
+const preloadedDeclarationDigests = new Map();
+// Parsed declaration SourceFiles shared across jobs and Programs of this Worker, keyed by path
+// and language version and validated against the record digest on every hit. Node revision 2
+// projects keep their own implied-format SourceFiles.
+const sharedDeclarationSourceFiles = new Map();
+
+const importDeclarationBundle = (layer) => {
+    switch (layer) {
+        case "common":
+            importScripts("declarations-common.js");
+            break;
+        case "rhino":
+            importScripts("declarations-rhino.js");
+            break;
+        case "node":
+            importScripts("declarations-node.js");
+            break;
+        default:
+            throw new Error("Unknown declaration layer.");
+    }
+    const registry = self[declarationBundleAuthority.registry];
+    return isRecord(registry) ? registry[layer] : undefined;
+};
+
+const verifyDeclarationBundle = async (layer, registered) => {
+    const prefix = declarationBundleAuthority.layerPathPrefixes[layer];
+    if (
+        !isRecord(registered) ||
+        registered.schemaVersion !== declarationBundleAuthority.schemaVersion ||
+        registered.layer !== layer ||
+        typeof registered.fingerprint !== "string" ||
+        !sha256Pattern.test(registered.fingerprint) ||
+        (registered.profileFingerprint !== null &&
+            (typeof registered.profileFingerprint !== "string" ||
+                !sha256Pattern.test(registered.profileFingerprint))) ||
+        (layer === "common") !== (registered.profileFingerprint === null) ||
+        !Array.isArray(registered.files) ||
+        !Number.isSafeInteger(registered.fileCount) ||
+        registered.files.length !== registered.fileCount ||
+        registered.files.length < 1 ||
+        !Number.isSafeInteger(registered.totalBytes)
+    ) {
+        throw new Error(`Declaration bundle ${layer} is malformed.`);
+    }
+    const files = [];
+    const seen = new Set();
+    let totalBytes = 0;
+    for (const entry of registered.files) {
+        if (
+            !isRecord(entry) ||
+            typeof entry.path !== "string" ||
+            !entry.path.startsWith(prefix) ||
+            !entry.path.endsWith(".d.ts") ||
+            (layer === "common" &&
+                entry.path.slice(prefix.length).includes("/")) ||
+            typeof entry.text !== "string" ||
+            typeof entry.sha256 !== "string" ||
+            !sha256Pattern.test(entry.sha256) ||
+            !Number.isSafeInteger(entry.byteLength) ||
+            seen.has(entry.path)
+        ) {
+            throw new Error(`Declaration bundle ${layer} record is malformed.`);
+        }
+        const bytes = new TextEncoder().encode(entry.text);
+        if (
+            bytes.byteLength !== entry.byteLength ||
+            (await bytesToSha256(bytes)) !== entry.sha256
+        ) {
+            throw new Error(
+                `Declaration bundle ${layer} record does not match its digest.`,
+            );
+        }
+        seen.add(entry.path);
+        totalBytes += entry.byteLength;
+        files.push(
+            Object.freeze({
+                byteLength: entry.byteLength,
+                path: entry.path,
+                sha256: entry.sha256,
+                text: entry.text,
+                tokenCount: countSourceTokens(entry.text),
+            }),
+        );
+    }
+    if (totalBytes !== registered.totalBytes) {
+        throw new Error(`Declaration bundle ${layer} byte total is malformed.`);
+    }
+    return Object.freeze({
+        files: Object.freeze(files),
+        fingerprint: registered.fingerprint,
+        layer,
+        profileFingerprint: registered.profileFingerprint,
+        totalBytes,
+    });
+};
+
+// Resolves to the verified layer, or null when the bundle is not packaged. A failed
+// verification is not cached: the next request imports and verifies again, and still fails
+// closed for itself.
+const loadDeclarationLayer = (layer) => {
+    const existing = preloadedDeclarationLayers.get(layer);
+    if (existing !== undefined) {
+        return existing;
+    }
+    const loading = (async () => {
+        let registered;
+        try {
+            registered = importDeclarationBundle(layer);
+        } catch (_) {
+            registered = undefined;
+        }
+        if (registered === undefined) {
+            return null;
+        }
+        return verifyDeclarationBundle(layer, registered);
+    })();
+    const guarded = loading.then(
+        (verified) => {
+            if (verified === null) {
+                preloadedDeclarationLayers.delete(layer);
+            } else {
+                for (const file of verified.files) {
+                    preloadedDeclarationDigests.set(file.path, file.sha256);
+                }
+            }
+            return verified;
+        },
+        (error) => {
+            preloadedDeclarationLayers.delete(layer);
+            throw error;
+        },
+    );
+    preloadedDeclarationLayers.set(layer, guarded);
+    return guarded;
+};
+
+// Called once at project-input end. A request that framed its declarations keeps them; a request
+// that framed only caller files receives the preloaded common layer plus the one engine layer
+// whose combined inventory fingerprint (path, UTF-8 length and SHA-256 of every file) equals the
+// fingerprint the start frame advertised. No candidate matching is a hard failure: the Worker
+// never substitutes a layer the native host did not admit.
+const mergePreloadedDeclarationLayers = async (state, frameToken) => {
+    if (state.files.some((file) => file.path.startsWith("/declarations/"))) {
+        return;
+    }
+    const common = await loadDeclarationLayer("common");
+    requireActiveProjectInputFrame(frameToken);
+    if (common === null) {
+        // No packaged bundle (desktop fixtures, or a broken package): leave the inventory as
+        // framed so the existing default-library and inventory checks fail closed on their own.
+        return;
+    }
+    let records = null;
+    let totalBytes = 0;
+    for (const layer of declarationBundleAuthority.engineLayers) {
+        const candidate = await loadDeclarationLayer(layer);
+        requireActiveProjectInputFrame(frameToken);
+        if (candidate === null) {
+            continue;
+        }
+        const candidateRecords = common.files.concat(candidate.files);
+        const inventoryFingerprint = await deriveInputInventoryFingerprint(
+            candidateRecords.map((file) => ({
+                byteLength: file.byteLength,
+                domain: "declaration",
+                path: file.path,
+                sha256: file.sha256,
+            })),
+        );
+        requireActiveProjectInputFrame(frameToken);
+        if (inventoryFingerprint === state.declarationInventoryFingerprint) {
+            records = candidateRecords;
+            totalBytes = common.totalBytes + candidate.totalBytes;
+            break;
+        }
+    }
+    if (
+        records === null ||
+        records.length !== state.declarationFileCount ||
+        totalBytes !== state.declarationByteLength ||
+        state.declaredBytes + totalBytes > state.totalBytes ||
+        state.files.length + records.length > maximumProjectFiles
+    ) {
+        throw new Error(
+            "Preloaded declaration layers do not match the admitted declaration inventory.",
+        );
+    }
+    const tokenCount = records.reduce(
+        (total, file) => total + file.tokenCount,
+        0,
+    );
+    if (
+        state.tokenCount + state.packageTargetTokenCount + tokenCount >
+            maximumProjectTokens
+    ) {
+        throw new Error("Project snapshot exceeds the token limit.");
+    }
+    // Replay the per-file accounting that framed declarations would have performed in their
+    // start frames: path budget, directory index, exact and case-folded path inventories.
+    for (const file of records) {
+        const foldedPath = asciiCaseFold(file.path);
+        if (
+            state.pathChars + file.path.length > maximumProjectPathChars ||
+            state.paths.has(file.path) ||
+            state.foldedPaths.has(foldedPath)
+        ) {
+            throw new Error(
+                "Preloaded declaration layers collide with the framed project inventory.",
+            );
+        }
+        state.directoryIndex.addFilePath(file.path);
+        state.pathChars += file.path.length;
+        state.paths.add(file.path);
+        state.foldedPaths.add(foldedPath);
+    }
+    state.files.unshift(
+        ...records.map((file) => ({
+            byteLength: file.byteLength,
+            path: file.path,
+            sha256: file.sha256,
+            text: file.text,
+            tokenCount: file.tokenCount,
+        })),
+    );
+    state.tokenCount += tokenCount;
+    state.declaredBytes += totalBytes;
+};
 const controlledTsConfigAuthority = Object.freeze({
     configKind: "tsconfig",
     configPath: "tsconfig.json",
@@ -5687,6 +5937,20 @@ const createProjectCompilerHost = (
                 return cached;
             }
         }
+        const sharedDeclarationKey =
+            !isNodeRevisionTwoProject &&
+            fileName.startsWith("/declarations/") &&
+            preloadedDeclarationDigests.get(fileName) === record.sha256
+                ? `${fileName}\u0000${languageVersion}`
+                : null;
+        if (sharedDeclarationKey !== null) {
+            const shared = sharedDeclarationSourceFiles.get(sharedDeclarationKey);
+            if (shared !== undefined && shared.version === record.sha256) {
+                sourceFileCache.set(fileName, shared);
+                changedSourceFilePaths.add(fileName);
+                return shared;
+            }
+        }
         const sourceFile = isNodeRevisionTwoProject
             ? createNodeRevisionTwoSourceFile(
                   fileName,
@@ -5705,6 +5969,9 @@ const createProjectCompilerHost = (
         // SourceFiles without mistaking a same-path edit for the previous version.
         sourceFile.version = record.sha256;
         sourceFileCache.set(fileName, sourceFile);
+        if (sharedDeclarationKey !== null) {
+            sharedDeclarationSourceFiles.set(sharedDeclarationKey, sourceFile);
+        }
         changedSourceFilePaths.add(fileName);
         if (
             isNodeRevisionTwoProject
@@ -10340,6 +10607,7 @@ const beginProjectResult = async (requestId, project, frameToken) => {
 
 const acceptProjectInputEnd = async (message, frameToken) => {
     const state = requireInputFrame(message, "projectInputEnd");
+    await mergePreloadedDeclarationLayers(state, frameToken);
     const activePackageTargets =
         state.nodePackageTargets ?? state.packageTargets;
     const expectsPackageMetadataCatalog =
@@ -11042,3 +11310,63 @@ self.postMessage({
     kind: "ready",
     tsVersion: ts.version,
 });
+
+// Startup-latency L2-1: overlap the declaration bundle import and verification, and the parse of
+// the Rhino default-library chain plus the Rhino layer, with the host's own start-up work. Every
+// step yields to the message loop and defers while a project operation is active; a job that
+// arrives earlier simply parses whatever is still missing itself.
+const warmUpRhinoDeclarations = async () => {
+    const common = await loadDeclarationLayer("common");
+    const rhino = await loadDeclarationLayer("rhino");
+    if (common === null || rhino === null) {
+        return;
+    }
+    const byPath = new Map();
+    for (const file of common.files) {
+        byPath.set(file.path, file);
+    }
+    for (const file of rhino.files) {
+        byPath.set(file.path, file);
+    }
+    const queue = [];
+    const queued = new Set();
+    const enqueue = (path) => {
+        if (byPath.has(path) && !queued.has(path)) {
+            queued.add(path);
+            queue.push(path);
+        }
+    };
+    enqueue(declarationBundleAuthority.warmUpDefaultLibrary);
+    for (const file of rhino.files) {
+        enqueue(file.path);
+    }
+    const target = declarationBundleAuthority.warmUpScriptTarget;
+    const step = () => {
+        if (queue.length === 0) {
+            return;
+        }
+        if (projectOperationActive()) {
+            setTimeout(step, 50);
+            return;
+        }
+        const path = queue.shift();
+        const file = byPath.get(path);
+        const key = `${path}\u0000${target}`;
+        if (!sharedDeclarationSourceFiles.has(key)) {
+            const sourceFile = ts.createSourceFile(path, file.text, target, true);
+            sourceFile.version = file.sha256;
+            sharedDeclarationSourceFiles.set(key, sourceFile);
+            for (const reference of sourceFile.libReferenceDirectives ?? []) {
+                enqueue(`/declarations/lib.${reference.fileName}.d.ts`);
+            }
+        }
+        setTimeout(step, 0);
+    };
+    setTimeout(step, 0);
+};
+
+setTimeout(() => {
+    warmUpRhinoDeclarations().catch(() => {
+        // The first project simply loads the layers itself and fails closed on its own terms.
+    });
+}, 0);

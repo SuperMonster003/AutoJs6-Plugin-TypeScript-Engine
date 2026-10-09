@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Message
 import android.os.SystemClock
+import android.util.Log
 import android.webkit.ClientCertRequest
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
@@ -608,6 +609,7 @@ class TypeScriptWebViewCompilerHost(
         projectSessionAuthority: R2ProjectSessionAuthority? = null,
         deadlineAtElapsedRealtimeNanos: Long,
         projectExecutionObserver: ((R2ProjectExecutionEvent) -> Unit)? = null,
+        declarationTransport: R2DeclarationTransport = R2DeclarationTransport.FRAMED,
     ): R2ProjectCompilationOutcome {
         val remainingNanos =
             deadlineAtElapsedRealtimeNanos -
@@ -632,6 +634,7 @@ class TypeScriptWebViewCompilerHost(
             absoluteDeadlineAtElapsedRealtimeNanos =
                 deadlineAtElapsedRealtimeNanos,
             projectExecutionObserver = projectExecutionObserver,
+            declarationTransport = declarationTransport,
         )
     }
 
@@ -861,6 +864,7 @@ class TypeScriptWebViewCompilerHost(
         projectSessionAuthority: R2ProjectSessionAuthority? = null,
         absoluteDeadlineAtElapsedRealtimeNanos: Long? = null,
         projectExecutionObserver: ((R2ProjectExecutionEvent) -> Unit)? = null,
+        declarationTransport: R2DeclarationTransport = R2DeclarationTransport.FRAMED,
     ): R2ProjectCompilationOutcome {
         val startedAtElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
         val startedAt =
@@ -935,6 +939,7 @@ class TypeScriptWebViewCompilerHost(
                     workerSpinPhase = workerSpinPhase,
                     workerInputQuotaAuthority = selectedWorkerInputQuotaAuthority,
                     projectSessionAuthority = projectSessionAuthority,
+                    declarationTransport = declarationTransport,
                 ),
             )
         }.getOrElse { error ->
@@ -2993,6 +2998,12 @@ class TypeScriptWebViewCompilerHost(
             )
             return
         }
+        // Observational only (startup-latency L4 input): why this realm is not kept alive.
+        Log.i(
+            R2CompilerBootTelemetry.LOG_TAG,
+            "typescript-compiler-realm-teardown schema=1 reason=" +
+                if (pending.projectSessionAuthority == null) "legacy-request" else "memory-pressure",
+        )
 
         val release = destroySessionOnMain()
         if (!release.cleanupProven) {
