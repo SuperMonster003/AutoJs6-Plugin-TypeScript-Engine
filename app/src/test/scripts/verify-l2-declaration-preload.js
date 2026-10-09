@@ -124,14 +124,29 @@ const sourceText =
     "export const sdk: number = device.sdkInt;\n" +
     "export const preloaded: Promise<number> = Promise.resolve(sdk);\n";
 
+// Startup-latency L2-7: lib-sensitive type errors (an ES2022 member under the ES2018 lib, a
+// non-boolean condition result) plus a call to a JSDoc-@deprecated lib function. Preloaded
+// declarations skip JSDoc (ParseForTypeErrors) while framed ones parse it fully; both must
+// report the same diagnostics and skip emit the same way.
+const diagnosticSourceText =
+    "export const sdk: number = device.sdkInt;\n" +
+    "export const first: string = \"abc\".at(0);\n" +
+    "export const included: string = [1, 2].includes(1);\n" +
+    "export const legacy: string = escape(\"x\");\n";
+
 const compileProject = async (
     requestId,
     declarationFiles,
-    { frameDeclarations, tamperInventory = false },
+    {
+        frameDeclarations,
+        tamperInventory = false,
+        source = sourceText,
+        expectDiagnostics = false,
+    },
 ) => {
     const files = declarationFiles
         .map((file) => ({ path: file.path, text: file.text, declaration: true }))
-        .concat([{ path: sourcePath, text: sourceText, declaration: false }]);
+        .concat([{ path: sourcePath, text: source, declaration: false }]);
     const records = files.map((file) =>
         inputArchiveRecord(
             file.declaration ? "declaration" : "source",
@@ -260,10 +275,17 @@ const compileProject = async (
     assert(sha256Hex(resultBytes) === start.sha256, "Result digest mismatch.");
     const result = JSON.parse(resultBytes.toString("utf8"));
     assert(result.tsVersion === expectedVersion, "Result TypeScript version mismatch.");
-    assert(
-        !result.emitSkipped && result.diagnostics.length === 0,
-        `Project did not compile cleanly: ${JSON.stringify(result.diagnostics)}`,
-    );
+    if (expectDiagnostics) {
+        assert(
+            result.emitSkipped && result.diagnostics.length > 0,
+            `Diagnostic project unexpectedly compiled: ${JSON.stringify(result.diagnostics)}`,
+        );
+    } else {
+        assert(
+            !result.emitSkipped && result.diagnostics.length === 0,
+            `Project did not compile cleanly: ${JSON.stringify(result.diagnostics)}`,
+        );
+    }
     return { extraMessages, framedFileCount: framed.length, result };
 };
 
@@ -395,6 +417,41 @@ const compileProject = async (
     });
     assert(tampered.refused, "Tampered declaration inventory was accepted.");
 
+    const preloadedErrors = await compileProject("preload-diagnostics", declarationFiles, {
+        frameDeclarations: false,
+        source: diagnosticSourceText,
+        expectDiagnostics: true,
+    });
+    const framedErrors = await compileProject("framed-diagnostics", declarationFiles, {
+        frameDeclarations: true,
+        source: diagnosticSourceText,
+        expectDiagnostics: true,
+    });
+    assert(
+        JSON.stringify(preloadedErrors.result.diagnostics) ===
+            JSON.stringify(framedErrors.result.diagnostics) &&
+            JSON.stringify(preloadedErrors.result.outputs) ===
+                JSON.stringify(framedErrors.result.outputs),
+        "Preloaded (JSDoc for type errors) and framed (full JSDoc) declarations reported " +
+            `different diagnostics: ${JSON.stringify(preloadedErrors.result.diagnostics)} vs ` +
+            `${JSON.stringify(framedErrors.result.diagnostics)}`,
+    );
+    const diagnosticCodes = preloadedErrors.result.diagnostics
+        .map((diagnostic) => diagnostic.code)
+        .sort((left, right) => left - right);
+    assert(
+        diagnosticCodes.length >= 2 && !diagnosticCodes.some((code) => code === 6385 || code === 6387),
+        `Diagnostic project drifted: ${JSON.stringify(preloadedErrors.result.diagnostics)}`,
+    );
+    const sharedSample = workerBinding("sharedDeclarationSourceFiles").get(
+        workerBinding("sharedDeclarationSourceFileKey")("/declarations/lib.es5.d.ts", 5),
+    );
+    assert(
+        sharedSample !== undefined &&
+            sharedSample.jsDocParsingMode === ts.JSDocParsingMode.ParseForTypeErrors,
+        "Shared preloaded declarations were not parsed with ParseForTypeErrors.",
+    );
+
     const second = await compileProject("preload-2", declarationFiles, {
         frameDeclarations: false,
     });
@@ -421,7 +478,8 @@ const compileProject = async (
         "L2-1 declaration preload verified: " +
             `${declarationFiles.length} preloaded declarations, framed parity, ` +
             `tamper refused, ${shared.size} shared SourceFiles, ` +
-            `warm-up ${warmUp.parsedFiles} files reused by the first Program\n`,
+            `warm-up ${warmUp.parsedFiles} files reused by the first Program, ` +
+            `diagnostic parity ${diagnosticCodes.join("/")} across JSDoc parsing modes\n`,
     );
     process.exit(0);
 })().catch((error) => {

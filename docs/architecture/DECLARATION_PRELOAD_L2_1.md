@@ -133,6 +133,15 @@ Worker ready 后约 1.0 s 到达, 而 common bundle 的 `importScripts` 约 155 
    路径预算, 大小写折叠与 token 预算. 由调用方分帧的声明不受影响, 仍逐文件重算摘要与 token.
 4. **遥测.** `declarationWarmUp` 报告保留每层的 `importMs` 与 `verifyMs`, 去掉已无意义的
    `digestMs` / `tokenMs`; `verifyMs` 现在只含形状校验.
+5. **预装声明按 tsc 的 JSDoc 模式解析.** TypeScript 5.3 起 tsc 自身以
+   `defaultJSDocParsingMode = ParseForTypeErrors` 解析所有文件: TS / d.ts 中只解析带 `@see` /
+   `@link` 的 JSDoc, 类型错误, 产物与 source map 不受影响. 预装层 (插件自有, 构建期锁定) 的共享
+   `SourceFile` 在预热与 job 内都以该模式创建 (`setParentNodes` 仍为 `true`, 让父指针在可预热
+   的 parse 阶段完成); 用户源码与调用方分帧的声明保持完整解析. Worker 不承载语言服务, 不读取
+   JSDoc 文本. 桌面冷启动 (每次全新 Node 进程) 下 Rhino 默认链 84 文件的 parse 由约 166 ms 降到
+   约 126 ms; `verifyL2DeclarationPreloadDesktop` 新增一个含 lib 相关类型错误 (TS2550, TS2322)
+   与 `@deprecated` lib 调用的项目, 断言预装 (ParseForTypeErrors) 与分帧 (ParseAll) 路径的诊断
+   与产物逐项一致, 并断言共享缓存中的声明确实以该模式解析.
 
 不变量: 配额修订, 指纹算法, 公开 AIDL 与归档 schema 不变; 校验链为 "声明分发逐字节校验 ->
 `bundles.json` 指纹绑定 -> bundle 整文件 SHA-256 -> Worker 清单指纹", 每一环都 fail closed.

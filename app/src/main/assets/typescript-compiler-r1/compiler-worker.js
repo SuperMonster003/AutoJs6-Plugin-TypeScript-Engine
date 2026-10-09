@@ -456,6 +456,12 @@ const declarationBundleAuthority = Object.freeze({
         node: declarationLayerAuthority.nodePathPrefix,
         rhino: declarationLayerAuthority.rhinoPathPrefix,
     }),
+    // Startup-latency L2-7: plugin-owned declarations are parsed the way tsc itself parses
+    // every file since TypeScript 5.3 (`defaultJSDocParsingMode`): JSDoc in TypeScript files is
+    // only parsed when it carries @see/@link. Type errors, emit and source maps are unaffected
+    // (verify-l2-declaration-preload.js compares diagnostics and outputs with the framed,
+    // fully parsed path); the Worker hosts no language service that would read JSDoc text.
+    declarationJSDocParsingMode: ts.JSDocParsingMode.ParseForTypeErrors,
     registry: "__autojs6DeclarationLayers",
     schemaVersion: 1,
     warmUpDefaultLibrary: "/declarations/lib.es2018.d.ts",
@@ -486,6 +492,12 @@ const sharedDeclarationSourceFileKey = (fileName, languageVersionOrOptions) => {
         : "";
     return `${fileName}\u0000${options.languageVersion}\u0000${impliedNodeFormat}`;
 };
+const withDeclarationJSDocParsingMode = (languageVersionOrOptions) => ({
+    ...(typeof languageVersionOrOptions === "object" && languageVersionOrOptions !== null
+        ? languageVersionOrOptions
+        : { languageVersion: languageVersionOrOptions }),
+    jsDocParsingMode: declarationBundleAuthority.declarationJSDocParsingMode,
+});
 const roundMs = (value) => Math.max(0, Math.round(value));
 // Startup-latency L2-7 telemetry: where the Worker-side warm-up stands when the first project
 // of this Worker arrives. Durations and counts only. The first `projectInputStart` publishes
@@ -6049,7 +6061,9 @@ const createProjectCompilerHost = (
             : ts.createSourceFile(
                   fileName,
                   record.text,
-                  languageVersion,
+                  sharedDeclarationKey === null
+                      ? languageVersion
+                      : withDeclarationJSDocParsingMode(languageVersion),
                   true,
               );
         // Builder programs use the accepted content digest as the exact change token. Legacy
@@ -11463,7 +11477,12 @@ const warmUpRhinoDeclarations = async () => {
                 const key = sharedDeclarationSourceFileKey(path, target);
                 if (!sharedDeclarationSourceFiles.has(key)) {
                     const parseStartedAt = performance.now();
-                    const sourceFile = ts.createSourceFile(path, file.text, target, true);
+                    const sourceFile = ts.createSourceFile(
+                        path,
+                        file.text,
+                        withDeclarationJSDocParsingMode(target),
+                        true,
+                    );
                     sourceFile.version = file.sha256;
                     sharedDeclarationSourceFiles.set(key, sourceFile);
                     warmUp.parseMs += performance.now() - parseStartedAt;
