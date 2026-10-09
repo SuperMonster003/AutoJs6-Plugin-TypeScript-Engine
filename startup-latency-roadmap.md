@@ -1,6 +1,7 @@
 # AutoJs6 TypeScript Engine - 执行前耗时压缩线路图
 
-> 状态: L0 完成, L1 除 L1-8 外完成 (2026-10-09); L2 未开始. 创建于 2026-10-09, 基于插件 v0.6.8 (commit `27e6100`) 与
+> 状态: L0 与 L1 完成, L2 进行中 (L2-1 完成, 2026-10-09); L3-1 已随 L2-1 的真机验收提前
+> 完成 (宿主保活绑定修复), L3-4 核查完成但未达标. 创建于 2026-10-09, 基于插件 v0.6.8 (commit `27e6100`) 与
 > sibling `AutoJs6` 宿主 (commit `7953ab502b`) 的源码调研.
 >
 > 问题: 插件安装后运行 `.ts` 脚本, 从点击运行到脚本开始执行有数秒可感知停顿.
@@ -149,9 +150,9 @@ L1-1 与 L2-1 的目标; S3 已经满足 300 ms 目标. 原始样本见
 | 阶段 | 主题 | 归属 | 预期收益 | 依赖 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | L0 | 测量基线与归因 | 插件 + 宿主 | 三场景可复现数据, 决定 L1/L2 顺序 | 无 | 完成 (2026-10-09) |
-| L1 | 零内存代价的快速收益 | 插件 + 宿主 | 去掉重复加载, 串行等待, 竞态; 进度提示 | L0 | 除 L1-8 外完成 (2026-10-09) |
-| L2 | 冷路径结构压缩 | 插件 | 声明层不再经传输; typescript.js 解析耗时下降 | L0, L1-1 | 未开始 |
-| L3 | 热路径 (改动后重编) | 插件 + 宿主 | S2 达标 | L1, L2-1 | 未开始 |
+| L1 | 零内存代价的快速收益 | 插件 + 宿主 | 去掉重复加载, 串行等待, 竞态; 进度提示 | L0 | 完成 (2026-10-09) |
+| L2 | 冷路径结构压缩 | 插件 | 声明层不再经传输; typescript.js 解析耗时下降 | L0, L1-1 | 进行中: L2-1 完成 (2026-10-09), L2-2 / L2-6 / L2-7 待做 |
+| L3 | 热路径 (改动后重编) | 插件 + 宿主 | S2 达标 | L1, L2-1 | L3-1 完成, L3-4 核查完成 (2026-10-09); 其余未开始 |
 | L4 | 常驻策略 | 插件 + 宿主 | 以数据决定保活默认值 | L1, L2 | 未开始 |
 | L5 | 验收, 门禁与文档 | 插件 + 宿主 | 三设备前后对比, 回归门禁, 发布 | L1-L4 | 未开始 |
 
@@ -342,12 +343,20 @@ L1 首位; L2-1 依赖 L1-1 (进程级声明缓存是预装 bundle 的校验基�
       归档在返回后立即安全删除), 收益不足 20 ms 且引入竞态, 不做. 保留字段用于
       回归观察; 若项目级输出使 `cachePublishMs` > 100 ms 再立项.
       结论 (2026-10-09): 关闭, 保留 `cachePublishMs` 观察 (L1 后 17-30 ms).
-- [ ] **L1-8 (宿主) 用户可感知进度**: 运行入口 200 ms 内给出非阻塞提示
+- [x] **L1-8 (宿主) 用户可感知进度**: 运行入口 200 ms 内给出非阻塞提示
       (控制台 / 日志面板一行 "正在编译 TypeScript" + `ScriptExecuteActivity`
       轻量加载态), 用现有 R2 progress 回调阶段 (ingress / parse / semantic /
       emit) 更新, 完成或失败即清除; JS 脚本无任何变化; 十语言字符串按仓库
       规范.
       验收: 真机录屏; 回调到 UI 状态映射有单测; 无新的主线程阻塞.
+      结论 (2026-10-09): owner 选择 "控制台 / 日志一行". 宿主
+      `TypeScriptCompilationProgressNotices` 在持久缓存未命中, 即将等待插件时向全局控制台
+      打印 "正在编译 TypeScript...", 输出返回后再打印 "TypeScript 编译完成, 用时 N ms";
+      缓存命中不打印; 提示 fail-soft, 不影响编译结果; 不加 `ScriptExecuteActivity` 加载态,
+      也不用阶段回调 (单文件各阶段都在百毫秒内, 多行提示只会制造噪音). 字符串按宿主
+      TypeScript 字串既有的语言集 (values / en / zh / zh-rHK / zh-rTW) 添加. Xiaomi API 35
+      真机: 开始行在专用绑定之前立刻出现, 完成行的用时与 `typescript-compile-perf` 的
+      `totalMs` 一致 (802 vs 821 ms). 宿主 commit `beee203f43`.
 
 ### L1 小结 (2026-10-09, Xiaomi 23046RP50C / API 35, release 宿主 + 插件)
 
@@ -366,7 +375,7 @@ L1 首位; L2-1 依赖 L1-1 (进程级声明缓存是预装 bundle 的校验基�
 S1 剩余 7.5 s 的构成已经纯粹是 L2 的目标: compiler 进程冷启动到 Worker 就绪约 1.4 s
 (其中 `importScripts` 约 760 ms, L2-2), 声明层传输 2.9 s 与冷 Program 对声明层的 parse
 1.4 s (L2-1), 原生每 job 固定开销 0.43 s (L3-3). S2 剩余 3.6 s 中 2.6 s 是声明层传输.
-L1-8 (进度提示) 待 owner 决定呈现形式后实施. 记录见
+L1-8 (进度提示) 已按 owner 选择的控制台一行实施 (见 L1-8 结论). 记录见
 `20261009-l1-api35-23046rp50c-plugin` 与 `20261009-l1-api35-23046rp50c-host`.
 
 ## 6. L2 冷路径结构压缩
@@ -375,7 +384,7 @@ L1-8 (进度提示) 待 owner 决定呈现形式后实施. 记录见
 `typescript.js` 解析耗时. 只改内部协议与构建产物, 不改公开 AIDL / archive
 schema / caller 配额.
 
-- [ ] **L2-1 (插件) 声明层预装入 Worker (主方案)**:
+- [x] **L2-1 (插件) 声明层预装入 Worker (主方案)**:
       - 构建期: 新任务 `GenerateR2DeclarationWorkerBundles` 从已校验的
         distribution / declaration 目录生成 `declarations-common.js`,
         `declarations-rhino.js`, `declarations-node.js`
@@ -411,6 +420,25 @@ schema / caller 配额.
       `/// <reference lib="dom" />` 的用例输出与改动前一致; legacy 全量传输
       路径保留一个 verify 用例.
       回退: 去掉 start 字段即回到全量传输.
+      结论 (2026-10-09): 已实现 (插件 `db3429c`), 细节与对上述方案的偏差见
+      [DECLARATION_PRELOAD_L2_1.md](docs/architecture/DECLARATION_PRELOAD_L2_1.md):
+      bundle 指纹放在独立的 `bundles.json` 而不是 distribution manifest; start 帧不加字段,
+      Worker 在 `projectInputEnd` 时按 "没有收到任何 `/declarations/` 帧" 判定预装路径,
+      原生侧由 `R2ProjectInputFramer(declarationTransport)` 决定是否分帧, FRAMED 保持默认;
+      APK 内 bundle 字节由 `VerifyR2DeclarationWorkerBundles` 重生成逐字节比对 (未增加 APK
+      解包校验); 回退改为协调器切回 FRAMED. Xiaomi API 35 (宿主 `97e4751951`, 记录
+      `20261009-l2-api35-23046rp50c-preload`): S1 `compilerIngressMs` 2924 -> 159 ms (-95%),
+      单文件逻辑帧约 480 -> 5; S1 `userWaitMs` 7543 -> 5276; S2 `compilerIngressMs`
+      2587 -> 16 ms, `userWaitMs` 3555 -> 907 (后者还需要 L3-1 的宿主修复, 见 L2 中期小结).
+      预解析子项没有兑现: S1 `compilerParseMs` 1431 -> 1611 ms, 因为 L1-5 之后宿主发现只剩
+      3 ms, 首个 job 在 Worker ready 后很快到达, `setTimeout` 分片预热几乎没有窗口, 还可能与
+      job 争用同一 Worker 线程; 冷 Program 对声明层的 parse 仍是 S1 最大单项, 转入 L2-7.
+      桌面门禁, 52 项 JVM 单测与 API 37 模拟器 instrumentation (4) 全部通过; 既有门禁中
+      `verifyS10ColdStart` / `verifyS10IssueTriage` (README 维护条目自 `0339421` 起缺失),
+      `verifyS10Maintenance` (依赖巡检记录仍为 platform-versions 1.7.0),
+      `verifyS10TypeScriptUpgrade` (审计指纹漂移), `verifyOptionalPluginIndependence`
+      (Manifest 中的 WAKE action) 与 `verifyR2M2C4CompilerEscapeClosure` (Debug Failure)
+      为本线路图之前已存在的失败, 本轮以 `-x` 排除, 未修复.
 - [ ] **L2-1b (插件, 仅当 L2-1 被否决时) Worker 级声明缓存**: 新增
       `projectInputDeclarationReference` 帧, Worker 持有上一 job 的声明层
       (按指纹) 时跳过传输; 首个冷 job 仍全量. 只改善热路径, 不满足 S1 目标.
@@ -441,16 +469,61 @@ schema / caller 配额.
       (广告的指纹与校验结果不一致时同样失败). 这样发现只剩进程启动与 Binder 往返.
       验收: S1 `discoveryMs` p50 < 400 ms (Xiaomi); 清单指纹与校验指纹一致性有单测;
       distribution / declaration 门禁全绿.
+- [ ] **L2-7 (插件) 冷 Program 的声明层 parse (L2-1 后重新定界)**: L2-1 后 S1 剩余 5.3 s
+      里 `compilerParseMs` 1.6 s 与 `compilerSemanticMs` 0.8 s 是最大的两项, 且 L2-1 的预热
+      子项没有兑现. 先打点: Worker 记录 bundle 校验耗时 (4.7 MB 的 UTF-8 重编码 + SHA-256),
+      预热实际完成的 `SourceFile` 数, 以及首个 job 到达时预热的进度; 再二选一: (A) 把默认
+      Rhino lib 链 (`lib.es2018.d.ts` 引用链 + Rhino 层, 约 60 文件) 的预解析改为在
+      `importScripts` 之后, `ready` 之前同步完成, 让 Worker ready 推后但 S1 的 parse 接近
+      S2 的 23 ms, 整体利用原生 `beforeIngress` (0.5 s) 与宿主归档的并行窗口; (B) 保持
+      异步, 首个 job 复用已完成的部分, 并把 bundle 校验挪到原生侧 (bundle 字节已由构建门禁
+      锁定, Worker 只比对清单指纹). 两案都不改公开契约.
+      验收: S1 `compilerParseMs` p50 < 400 ms 且 S1 `userWaitMs` 下降 >= 1 s; S2 不退化.
+
+### L2 中期小结 (2026-10-09, Xiaomi 23046RP50C / API 35, release 宿主 + 插件)
+
+| 口径 (p50) | L1 (+ 宿主 L1-5) | L2-1, 宿主未修复 | L2-1 + 宿主 `97e4751951` | 目标 |
+| --- | ---: | ---: | ---: | ---: |
+| S1 `userWaitMs` | 7543 | 5170 | 5276 | 1500 |
+| S2 `userWaitMs` | 3555 | 4845 | 907 | 500 |
+| S3 `userWaitMs` | 106 | 78 | 108 | 300 (已达标) |
+| S1 `bindPrewarmMs` | 1664 | 1825 | 1829 | - |
+| S1 `compilerBeforeIngressMs` | 428 | 520 | 518 | - |
+| S1 `compilerIngressMs` | 2924 | 129 | 159 | - |
+| S1 `compilerParseMs` | 1431 | 1592 | 1611 | - |
+| S2 `bindPrewarmMs` | 63 | 1436 | 77 | - |
+| S2 `compilerIngressMs` | 2587 | 261 | 16 | - |
+| S2 `compilerParseMs` | 28 | 1599 | 23 | - |
+
+读法: L2-1 把两个场景的声明层传输都压到了两位数毫秒; S1 剩余 5.3 s 的构成变成
+专用绑定 + 等待 Worker 就绪 1.8 s (`importScripts` 760 ms, L2-2), 原生每 job 固定开销
+0.5 s (L3-3), 冷 Program 对声明层的 parse 1.6 s 与 semantic 0.8 s (L2-7). "宿主未修复" 一列
+是同一插件在修复前宿主上的真实表现: S2 退化到 4.8 s, 根因与修复见 L3-1. 记录
+`20261009-l2-api35-23046rp50c-preload-host-unfixed` 与 `20261009-l2-api35-23046rp50c-preload`.
 
 ## 7. L3 热路径 (改动后重编)
 
 目标: S2 <= 500 ms. L1 / L2-1 落地后再测, 本阶段多为核查与小修.
 
-- [ ] **L3-1 (插件 + 宿主) 单文件常驻会话命中核查**: S2 场景确认 Worker
+- [x] **L3-1 (插件 + 宿主) 单文件常驻会话命中核查**: S2 场景确认 Worker
       resident session hit (telemetry / DEBUG 日志); miss 时沿
       `projectId -> compilerAuthority -> 宿主绑定保留` 链路定位并修复.
       验收: 10 次编辑 - 重跑 100% hit; `compilerParseMs + compilerSemanticMs`
       相对 S1 下降 >= 70% (与 T3-3 口径一致).
+      结论 (2026-10-09, 随 L2-1 的真机验收提前完成): L2-1 首轮采集中 S2 全部 miss. 插件侧
+      新增的观测日志 (`typescript-compiler-trim`, `typescript-compiler-realm-teardown`,
+      `typescript-compiler-service-destroy`) 与 `dumpsys activity services` 显示: 每次编译
+      结束后宿主没有保留任何绑定, 编译服务被销毁, realm 随之销毁 (渲染进程被 AM 以
+      "isolated not needed" 回收), 插件的常驻判定本身是正确的. 根因在宿主
+      `TypeScriptCompilerWarmBinding.isAlive` 只看 `IBinder.isBinderAlive`: 专用租约在
+      `onBindingDied` / `onServiceDisconnected` 时 unlink 死亡回调, 若该报告先于内核的死亡
+      通知到达 (插件重装时就会发生), 代理此后永远自称存活, 保留的旧绑定看起来 "live",
+      之后每次 `offer` 都关闭真正的新绑定. 该状态只在宿主进程内积累, 宿主进程重启即消失,
+      因此 L1 采集 (宿主刚重装) 没有暴露, 而同一天稍后 (插件重装数次之后) 必然出现. 修复
+      (宿主 `97e4751951`): 租约已释放即视为死亡, 再以 `pingBinder()` 校验;
+      `TypeScriptCompilerWarmBindingTest` 5 项. 修复后 Xiaomi S2 5 次全部命中:
+      `bindPrewarmMs` 44-93 ms, `compilerParseMs` 23 ms; `parse + semantic` 97 ms 相对 S1 的
+      2391 ms 下降 96%. 采集脚本新增 `warmBindingRetained` 与 `serviceDestroyCount` 字段.
 - [ ] **L3-2 (宿主) 输出读取与引擎创建**: `outputMs + engineCreateMs` 单文件
       p50 < 80 ms; 超出时优化输出 ZIP 读取 (STORED 直读) 与 Source Map 绑定解析.
 - [ ] **L3-3 (插件) 每 job 固定原生开销**: 输入暂存复制与两次 SHA-256
@@ -460,6 +533,11 @@ schema / caller 配额.
 - [ ] **L3-4 (宿主) 绑定复用核查**: L1-6 并行化后, 真实编译仍复用启动预热 /
       上次编译保留的 live binding, 不再建第二条 dedicated binding.
       验收: S2 日志 `bindPrewarmMs` <= 50 ms.
+      进展 (2026-10-09): 核查完成. 宿主每次编译仍先建一条专用绑定, 结束时若已有 live 保留
+      绑定则关闭新的一条 (`typescript-warm-binding schema=1 event=offer retained=false`), 这
+      是设计行为, L3-1 修复后不再导致服务销毁. 修复后 S2 `bindPrewarmMs` p50 77 ms, 未达
+      50 ms; 剩余部分是 bindService 往返加 prewarm Binder 调用, 要达标需直接复用保留绑定而
+      不新建专用绑定, 与 L4-3 的保活决策一起处理.
 
 ## 8. L4 常驻策略 (数据驱动)
 
@@ -556,6 +634,9 @@ schema / caller 配额.
 | 2026-10-09 | 改动范围 | 插件 + 宿主同步修改, 条目分别标注归属 |
 | 2026-10-09 | 常驻策略 | 由数据决定 (L4), 之前不延长保活 |
 | 2026-10-09 | 验收目标 | S1 <= 1.5 s, S2 <= 500 ms, S3 <= 300 ms (p50, Xiaomi API 35, 单文件 Rhino) |
+| 2026-10-09 | L1-8 呈现形式 | 控制台 / 日志一行 (开始与完成各一行), 不加 Activity 加载态, 不用阶段回调 |
+| 2026-10-09 | 宿主保活绑定存活判定 | 租约已释放即视为死亡, 再以 `pingBinder()` 校验; 保活时长不变, 仍由 L4 数据决定 |
+| 2026-10-09 | L2-1 预解析子项 | 真机未兑现 (parse 1431 -> 1611 ms), 转为 L2-7 单独立项, 先打点再二选一 |
 | 待定 | L2-2 方案 A / B | L0-2 `bootstrapMs` 出来后决定 |
 | 待定 | L4-3 保活默认值 | L4-1 / L4-2 数据出来后决定 |
 | 待定 | L2-5 资产 noCompress | L0 数据与 APK 体积对比后决定 |

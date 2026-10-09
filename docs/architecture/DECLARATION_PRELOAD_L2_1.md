@@ -71,6 +71,28 @@ WebMessagePort 送进 Worker: `compilerIngressMs` 冷 2.9 s, 热 2.6 s, 是执�
 
 ## 设备验收
 
-见 [startup-latency-roadmap.md](../../startup-latency-roadmap.md) L2-1 结论与
-[startup-latency-observations.json](../maintenance/startup-latency-observations.json) 中
-`20261009-l2-api35-23046rp50c-preload` 记录.
+Xiaomi 23046RP50C / API 35 / WebView 130, release 宿主 + 插件, 单文件 Rhino, 每场景 5 次 p50
+(记录 `20261009-l2-api35-23046rp50c-preload`, 插件 `db3429c`, 宿主 `97e4751951`; 全部字段见
+[startup-latency-observations.json](../maintenance/startup-latency-observations.json)):
+
+| 口径 | L1 之后 | L2-1 之后 |
+| --- | ---: | ---: |
+| S1 `compilerIngressMs` | 2924 | 159 |
+| S1 `compilerParseMs` | 1431 | 1611 |
+| S1 `userWaitMs` | 7543 | 5276 |
+| S2 `compilerIngressMs` | 2587 | 16 |
+| S2 `compilerParseMs` | 28 | 23 |
+| S2 `userWaitMs` | 3555 | 907 |
+| S3 `userWaitMs` | 106 | 108 |
+
+- 单文件请求只分帧 1 个 caller 文件 (5 个逻辑帧), 两个场景的声明层传输都降到两位数毫秒.
+- 预解析子项没有兑现: 首个 job 在 Worker ready 后很快到达, `setTimeout` 分片预热几乎没有
+  窗口, S1 的冷 parse 反而略升; 后续作为线路图 L2-7 单独处理 (先打点 bundle 校验耗时与
+  预热进度, 再决定同步预解析或把校验挪到原生侧).
+- 首轮采集 (记录 `20261009-l2-api35-23046rp50c-preload-host-unfixed`, 宿主 `b4b4e36805`)
+  中 S2 退化到 4.8 s. 排查确认插件的常驻判定正确 (新增 `typescript-compiler-trim`,
+  `typescript-compiler-realm-teardown`, `typescript-compiler-service-destroy` 观测日志均未
+  出现异常路径), 是宿主在每次编译后丢掉自己的专用绑定导致编译服务被销毁; 根因与修复见
+  [startup-latency-roadmap.md](../../startup-latency-roadmap.md) L3-1 (宿主
+  `TypeScriptCompilerWarmBinding.isAlive` 对已释放租约仍报告存活). 修复后 S2 5 次全部命中
+  常驻会话.
