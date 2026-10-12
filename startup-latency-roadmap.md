@@ -650,7 +650,7 @@ S1 目标的口径.
       纳入默认 `check` (只校验 schema 与引用, `gate=none`, 与 S10 一致).
 - [ ] **L5-2 文档更新**: COLD_START.md 增加 "L2 后的 ingress 组成" 并标注被
       取代的旧结论; RESIDENT_PROJECT_SESSIONS_T3.md 补 L4 决策;
-      README-DEVELOPMENT.md 已知边界 (声明层预装, 常驻策略); `docs/user/`
+      docs/DEVELOPMENT.md 已知边界 (声明层预装, 常驻策略); `docs/user/`
       补 "首次运行较慢" 的说明; ROADMAP.md 阶段总览追加一行指向本文件.
 - [ ] **L5-3 changelog**: 每个用户可见变化 (更快的首次运行, 进度提示, 内存
       策略, APK 体积变化) 进入 `.changelog` 十语言 JSON (`improvement` /

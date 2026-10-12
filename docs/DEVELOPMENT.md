@@ -1,6 +1,6 @@
 # AutoJs6 TypeScript Engine Plugin
 
-16 KB 页大小对齐与自动构建门禁见 [docs/16kb.md](docs/16kb.md).
+16 KB 页大小对齐与自动构建门禁见 [16kb.md](16kb.md).
 当前源码版本为 0.6.1, 下文已发布或冻结的历史收据保持其原始版本身份.
 
 AutoJs6 的完整 TypeScript 编译前端插件. 插件负责把 TypeScript 项目转换为
@@ -27,8 +27,8 @@ Rhino 或 Node.js 引擎执行.
 > 真机跑通，现仅剩 T6-4 随宿主发布节奏执行。
 > 宿主发布前不创建本项目 GitHub Release 或
 > 插件市场条目；这不阻塞仓库内后续 Roadmap 的继续部署。当前工作清单以
-> [ROADMAP.md](ROADMAP.md) (T 时代路线) 为准，S 时代逐项归档见
-> [docs/roadmap/ROADMAP_LEGACY_S_ERA.md](docs/roadmap/ROADMAP_LEGACY_S_ERA.md)。
+> [ROADMAP.md](../ROADMAP.md) (T 时代路线) 为准，S 时代逐项归档见
+> [docs/roadmap/ROADMAP_LEGACY_S_ERA.md](roadmap/ROADMAP_LEGACY_S_ERA.md)。
 
 ## 能做什么
 
@@ -66,24 +66,24 @@ Rhino 或 Node.js 引擎执行.
 
 ## 使用文档与模板
 
-- [快速上手](docs/user/QUICK_START.md)：安装要求、`hello.ts`、profile 路由、Node
+- [快速上手](user/QUICK_START.md)：安装要求、`hello.ts`、profile 路由、Node
   顶层 `await`、workspace 双子包、标准装饰器、字符串 XML UI 与原生 TSX。
-- [配置与配额参考](docs/user/CONFIGURATION.md)：受控 tsconfig revision 4 的 20 个
+- [配置与配额参考](user/CONFIGURATION.md)：受控 tsconfig revision 4 的 20 个
   布尔项、`target`/`lib`、`baseUrl`/`paths`、标准装饰器、Node 顶层 `await`、
   workspace package boundary、revision 2/3 兼容、module kind 与输入/输出额度。
-- [npm 真实包兼容矩阵](docs/user/REAL_PACKAGE_MATRIX.md)：dayjs、lodash、zod、uuid、
+- [npm 真实包兼容矩阵](user/REAL_PACKAGE_MATRIX.md)：dayjs、lodash、zod、uuid、
   nanoid 的固定版本、双 profile 结果、ESM-only 边界与 workaround。
-- [原生 npm 依赖](docs/user/NATIVE_DEPENDENCIES.md)：`.node`、node-gyp、安装 lifecycle 的
+- [原生 npm 依赖](user/NATIVE_DEPENDENCIES.md)：`.node`、node-gyp、安装 lifecycle 的
   两个稳定错误码，以及 pure JavaScript/WASM 替代方案。
-- [错误码目录](docs/user/ERRORS.md)：24 个宿主/插件终态错误、11 个配置 detail code、
+- [错误码目录](user/ERRORS.md)：24 个宿主/插件终态错误、11 个配置 detail code、
   18 对 Node resolver diagnostics 及用户侧解法。
-- [StackTrace 与 Source Map 契约](docs/user/SOURCE_MAPS.md)：Node/Rhino 映射精度、
+- [StackTrace 与 Source Map 契约](user/SOURCE_MAPS.md)：Node/Rhino 映射精度、
   发布 APK 与隐私边界。
-- [项目模板](templates/README.md)：Rhino 单文件 TSX、Rhino 多文件、Node ESM/CJS。
-- [维护与发布入口](docs/maintenance/README.md)：发布 checklist、
-  [冷启动与 ingress 观察](docs/maintenance/COLD_START.md)、固定 PSS 观察历史、
-  [TypeScript 6.x 升级手册](docs/maintenance/UPGRADE.md)、WebView 最低支持策略与
-  季度依赖巡检，以及[脱敏 issue 分诊闭环](docs/maintenance/ISSUE_TRIAGE.md)。
+- [项目模板](../templates/README.md)：Rhino 单文件 TSX、Rhino 多文件、Node ESM/CJS。
+- [维护与发布入口](maintenance/README.md)：发布 checklist、
+  [冷启动与 ingress 观察](maintenance/COLD_START.md)、固定 PSS 观察历史、
+  [TypeScript 6.x 升级手册](maintenance/UPGRADE.md)、WebView 最低支持策略与
+  季度依赖巡检，以及[脱敏 issue 分诊闭环](maintenance/ISSUE_TRIAGE.md)。
 
 ## 安装要求
 
@@ -93,7 +93,7 @@ Rhino 或 Node.js 引擎执行.
 - AutoJs6 `6.8.0 Alpha7` (build `5253`) 或更高兼容版本。
 - 待宿主先行发布且 Roadmap T6-4 上架后，从本项目 Releases 安装同一官方证书签名的
   `autojs6-plugin-typescript-engine-v0.6.0-universal.apk`。当前本地候选的校验和、
-  签名与设备矩阵见 [v0.6.0 发布说明](docs/releases/v0.6.0.md)；公开资产出现前，
+  签名与设备矩阵见 [v0.6.0 发布说明](releases/v0.6.0.md)；公开资产出现前，
   不应从非官方镜像获取同名 APK。
 - 在 AutoJs6 中创建并运行 `hello.ts` 即可使用 Rhino profile：
 
@@ -141,21 +141,21 @@ toast(message);
 > 下一活动项为 `R2-M3-S4` manifest identity/pairing freeze（M3 不存在 D4）。后续 critical path 为
 > M3 → M4 Final Release Hardening → M5 Public Promotion。
 > 四项 compiler capability 与 Node Runtime dependency 共五项 metadata 仍为 `false`，因此尚不可向 AutoJs6 host 宣称项目编译
-> 可用。活动清单见 [R2 Roadmap](docs/roadmap/R2.md)，重构前完整记录见
-> [R2 Legacy Evidence](docs/roadmap/R2_LEGACY_EVIDENCE.md)。受控配置策略见
-> [R2-M2-C1 Controlled tsconfig Policy](docs/architecture/CONTROLLED_TSCONFIG_R2_M2_C1.md)
-> 与 [R2-M2-C2 Raw tsconfig Identity/Parser](docs/architecture/CONTROLLED_TSCONFIG_R2_M2_C2.md)
-> 以及 [R2-M2-C3 Effective Options Authority](docs/architecture/CONTROLLED_TSCONFIG_R2_M2_C3.md)，
-> 再加上 [R2-M2-C4 Compiler Escape Closure](docs/architecture/COMPILER_ESCAPE_CLOSURE_R2_M2_C4.md)，
-> [R2-M2-C5 Controlled Package Metadata Transport](docs/architecture/CONTROLLED_PACKAGE_METADATA_R2_M2_C5.md)、
-> [R2-M2-C6-A Snapshot Resolver Kernel](docs/architecture/SNAPSHOT_NODE_RESOLUTION_KERNEL_R2_M2_C6A.md)、
-> [R2-M2-C6-B Package Target/Parity](docs/architecture/PACKAGE_TARGET_AND_NODE_RESOLUTION_PARITY_R2_M2_C6B.md)、
-> [R2-M2-C6-C Worker Resolver](docs/architecture/WORKER_SNAPSHOT_NODE_RESOLUTION_R2_M2_C6C.md)、
-> [R2-M2-C6-D Worker Target Transport](docs/architecture/WORKER_PACKAGE_TARGET_TRANSPORT_R2_M2_C6D.md)、
-> [R2-M2-C6 Controlled Node Resolution Program](docs/architecture/CONTROLLED_NODE_RESOLUTION_PROGRAM_R2_M2_C6.md)、
-> [R2-M2-C7 Controlled Root Selection](docs/architecture/CONTROLLED_ROOT_SELECTION_R2_M2_C7.md)、
-> [R2-M2-C8 Declaration Profile Layering](docs/architecture/DECLARATION_PROFILE_LAYERING_R2_M2_C8.md)
-> 与 [R2-M2-P1 Provisional NodeNext Profile](docs/architecture/PROVISIONAL_NODENEXT_PROFILE_R2_M2_P1.md)。
+> 可用。活动清单见 [R2 Roadmap](roadmap/R2.md)，重构前完整记录见
+> [R2 Legacy Evidence](roadmap/R2_LEGACY_EVIDENCE.md)。受控配置策略见
+> [R2-M2-C1 Controlled tsconfig Policy](architecture/CONTROLLED_TSCONFIG_R2_M2_C1.md)
+> 与 [R2-M2-C2 Raw tsconfig Identity/Parser](architecture/CONTROLLED_TSCONFIG_R2_M2_C2.md)
+> 以及 [R2-M2-C3 Effective Options Authority](architecture/CONTROLLED_TSCONFIG_R2_M2_C3.md)，
+> 再加上 [R2-M2-C4 Compiler Escape Closure](architecture/COMPILER_ESCAPE_CLOSURE_R2_M2_C4.md)，
+> [R2-M2-C5 Controlled Package Metadata Transport](architecture/CONTROLLED_PACKAGE_METADATA_R2_M2_C5.md)、
+> [R2-M2-C6-A Snapshot Resolver Kernel](architecture/SNAPSHOT_NODE_RESOLUTION_KERNEL_R2_M2_C6A.md)、
+> [R2-M2-C6-B Package Target/Parity](architecture/PACKAGE_TARGET_AND_NODE_RESOLUTION_PARITY_R2_M2_C6B.md)、
+> [R2-M2-C6-C Worker Resolver](architecture/WORKER_SNAPSHOT_NODE_RESOLUTION_R2_M2_C6C.md)、
+> [R2-M2-C6-D Worker Target Transport](architecture/WORKER_PACKAGE_TARGET_TRANSPORT_R2_M2_C6D.md)、
+> [R2-M2-C6 Controlled Node Resolution Program](architecture/CONTROLLED_NODE_RESOLUTION_PROGRAM_R2_M2_C6.md)、
+> [R2-M2-C7 Controlled Root Selection](architecture/CONTROLLED_ROOT_SELECTION_R2_M2_C7.md)、
+> [R2-M2-C8 Declaration Profile Layering](architecture/DECLARATION_PROFILE_LAYERING_R2_M2_C8.md)
+> 与 [R2-M2-P1 Provisional NodeNext Profile](architecture/PROVISIONAL_NODENEXT_PROFILE_R2_M2_P1.md)。
 > C1-C8、P1、P2、P3、P4、P5、X1、X2 与 X3 均已完成；C6-A-D 是不计入固定分母的前置证据，完整 C6 已完成受控
 > compiler-host/Program、typed resolution failure/result 与 clean-successor 闭环，M2 当前为
 > **18/18**。已关闭的 `R2-M2-P2` 在保留 P1 Node revision 1 与 C6 resolver v1 regression 的
@@ -175,15 +175,15 @@ toast(message);
 > 509 actionable tasks（112 executed、397 up-to-date），`BUILD SUCCESSFUL in 2m 20s`。P2-8
 > final aggregate 已在最终 Core 中通过：515 actionable tasks（101 executed、414 up-to-date），
 > `BUILD SUCCESSFUL in 2m 36s`；见
-> [P2 design draft](docs/architecture/NODE_MODULE_KIND_OUTPUT_POLICY_R2_M2_P2_DRAFT.md)，
-> [P2 authority foundation](docs/architecture/NODE_MODULE_OUTPUT_AUTHORITY_FOUNDATION_R2_M2_P2.md)、
-> [P2-3A package-format authority](docs/architecture/NODE_PACKAGE_FORMAT_AUTHORITY_R2_M2_P2_3A.md)、
-> [P2-3B package-format transport](docs/architecture/NODE_PACKAGE_FORMAT_TRANSPORT_R2_M2_P2_3B.md)、
-> [P2-4 source-kind admission](docs/architecture/NODE_SOURCE_KIND_ADMISSION_R2_M2_P2_4.md)、
-> [P2-5 package-target/resolution v2](docs/architecture/NODE_PACKAGE_TARGET_RESOLUTION_V2_R2_M2_P2_5.md)、
-> [P2-6 NodeNext Program integration](docs/architecture/NODE_NEXT_PROGRAM_INTEGRATION_R2_M2_P2_6.md)、
-> [P2-7 NodeNext result/private output](docs/architecture/NODE_NEXT_RESULT_PRIVATE_OUTPUT_R2_M2_P2_7.md)
-> 与 [P2-8 final aggregate](docs/architecture/NODE_MODULE_OUTPUT_FINAL_AGGREGATE_R2_M2_P2_8.md)。
+> [P2 design draft](architecture/NODE_MODULE_KIND_OUTPUT_POLICY_R2_M2_P2_DRAFT.md)，
+> [P2 authority foundation](architecture/NODE_MODULE_OUTPUT_AUTHORITY_FOUNDATION_R2_M2_P2.md)、
+> [P2-3A package-format authority](architecture/NODE_PACKAGE_FORMAT_AUTHORITY_R2_M2_P2_3A.md)、
+> [P2-3B package-format transport](architecture/NODE_PACKAGE_FORMAT_TRANSPORT_R2_M2_P2_3B.md)、
+> [P2-4 source-kind admission](architecture/NODE_SOURCE_KIND_ADMISSION_R2_M2_P2_4.md)、
+> [P2-5 package-target/resolution v2](architecture/NODE_PACKAGE_TARGET_RESOLUTION_V2_R2_M2_P2_5.md)、
+> [P2-6 NodeNext Program integration](architecture/NODE_NEXT_PROGRAM_INTEGRATION_R2_M2_P2_6.md)、
+> [P2-7 NodeNext result/private output](architecture/NODE_NEXT_RESULT_PRIVATE_OUTPUT_R2_M2_P2_7.md)
+> 与 [P2-8 final aggregate](architecture/NODE_MODULE_OUTPUT_FINAL_AGGREGATE_R2_M2_P2_8.md)。
 > `R2-M2-P3` 已完成独立 TypeScript 6.0.3 compiler-bundle oracle：Rhino/Node
 > 冻结 options 覆盖两文件 import 与 source circular import，mixed `.ts + .js + .json`
 > 仅使用 oracle-local `allowJs/resolveJsonModule`，不注册 profile、不进入 production
@@ -191,14 +191,14 @@ toast(message);
 > `ts.sys`、host filesystem、network 与 output execution 均为 0；最终 Core 为
 > 517 actionable tasks（100 executed、417 up-to-date），`BUILD SUCCESSFUL in 2m 37s`。
 > P3 本轮未运行 ADB、未使用设备，也未创建 runtime engine。证据见
-> [P3 Compiler Bundle Golden](docs/architecture/COMPILER_BUNDLE_GOLDEN_R2_M2_P3.md)。
+> [P3 Compiler Bundle Golden](architecture/COMPILER_BUNDLE_GOLDEN_R2_M2_P3.md)。
 > `R2-M2-P4` 随后已完成 TypeScript 6.0.3 syntax fixture matrix：enum、namespace、class fields、
 > generics、optional chaining、async 与 standard Stage-3 decorators 在 Rhino/Node 两个冻结
 > profile 下形成 14 cases / 56 compiles；每 case 为两个 executable `.ts` roots 与 4 个精确
 > outputs。P4 direct oracle、JVM contract、final aggregate 与最终 Core 均通过，Core 为
 > 519 actionable tasks（103 executed、416 up-to-date），`BUILD SUCCESSFUL in 3m 58s`；未运行
 > ADB、未使用设备，也未执行 emitted JavaScript 或创建 runtime engine。证据见
-> [P4 Syntax Fixture Matrix](docs/architecture/SYNTAX_FIXTURE_MATRIX_R2_M2_P4.md)。
+> [P4 Syntax Fixture Matrix](architecture/SYNTAX_FIXTURE_MATRIX_R2_M2_P4.md)。
 > `R2-M2-P5` 随后已完成 compiler-boundary fixture matrix：7 类 boundary × Rhino/Node 两个
 > 冻结 profile 共 14 rows，12 个 positive rows 通过 declared/reversed × 2 repetitions 的
 > 48 次 compiles；canonical collision 与 65,537-token `+1` 各完成 8 次 pre-Program rejection。
@@ -208,7 +208,7 @@ toast(message);
 > 均通过；Core 为 521 actionable tasks
 > （109 executed、412 up-to-date），`BUILD SUCCESSFUL in 4m 19s`。本阶段未运行 ADB、未使用
 > 设备、未执行 emitted JavaScript。证据见
-> [P5 Compiler Boundary Fixture Matrix](docs/architecture/COMPILER_BOUNDARY_FIXTURE_MATRIX_R2_M2_P5.md)。
+> [P5 Compiler Boundary Fixture Matrix](architecture/COMPILER_BOUNDARY_FIXTURE_MATRIX_R2_M2_P5.md)。
 > `R2-M2-X1` 现已在 private same-UID Debug admission over the public-shaped
 > Binder/PFD/ticket/ACK/callback surface 上关闭 Rhino revision 1 与 NodeNext revision 1
 > deterministic bundle。targeted gate PASS：325 actionable tasks（70 executed、255 up-to-date），
@@ -217,7 +217,7 @@ toast(message);
 > `INSTRUMENTATION_CODE: -1`；最终 Core PASS：522 actionable tasks（101 executed、421
 > up-to-date），`BUILD SUCCESSFUL in 5m 1s`。该证据不是 Public promotion；Node revision 2
 > 继续 Worker-result-only，external Public、runtime execution 与 Node Runtime dependency 仍关闭。见
-> [X1 Public-shaped Deterministic Bundle](docs/architecture/PUBLIC_SHAPED_DETERMINISTIC_BUNDLE_R2_M2_X1.md)。
+> [X1 Public-shaped Deterministic Bundle](architecture/PUBLIC_SHAPED_DETERMINISTIC_BUNDLE_R2_M2_X1.md)。
 > `R2-M2-X2` 随后已统一 options/syntactic/global/semantic blocking diagnostics 与
 > no-emit invariant。TypeScript 6.0.3 direct evidence 覆盖 4 个 Error phase、first-phase
 > precedence、Warning non-blocking 与 6 个 clean successors；targeted X2 gate 为 327 actionable
@@ -227,7 +227,7 @@ toast(message);
 > up-to-date），`BUILD SUCCESSFUL in 4m 41s`。options/global 仍只使用 desktop defensive seam；
 > Node revision 2 继续 Worker-result-only，external Public、runtime execution 与 capability
 > metadata 均未开启。见
-> [X2 Unified No-emit Diagnostics](docs/architecture/UNIFIED_NO_EMIT_DIAGNOSTICS_R2_M2_X2.md)。
+> [X2 Unified No-emit Diagnostics](architecture/UNIFIED_NO_EMIT_DIAGNOSTICS_R2_M2_X2.md)。
 > `R2-M2-X3` 随后精确关闭 accepted authority 后的 11 个 controlled-config policy codes 与
 > 18 组 resolver-decision string/numeric pairs。Direct oracle 为 config `11/11`、resolution
 > `18/18`、2 个 clean successors，failure Program、snapshot 外 positive reads、`ts.sys`/default
@@ -237,7 +237,7 @@ toast(message);
 > （113 executed、412 up-to-date），`BUILD SUCCESSFUL in 5m 8s`。本切片无需且未运行新增 ADB
 > evidence；Node revision 2 保持 Worker-result-only，Public/runtime 与五项 capability/dependency
 > metadata 继续关闭。见
-> [X3 Configuration and Resolution Failure Closure](docs/architecture/CONFIGURATION_RESOLUTION_FAILURE_CLOSURE_R2_M2_X3.md)。
+> [X3 Configuration and Resolution Failure Closure](architecture/CONFIGURATION_RESOLUTION_FAILURE_CLOSURE_R2_M2_X3.md)。
 > `R2-M3-D1` 随后已冻结首版 ordinary compilation input quota：完整 Worker-retained
 > input 共用 **512 files / 8 MiB per file / 8 MiB total**，并精确计入 caller sources、
 > trusted declarations、raw config、package metadata 与 package targets v1/v2。Targeted
@@ -249,7 +249,7 @@ toast(message);
 > TEST_ONLY capacity 不构成 Public ordinary capability；五项 capability/dependency metadata
 > 保持 `false`，Node revision 2 end-to-end admission 未改变。pre-C8 common-only workload 仅保留
 > 为历史证据，M4 仍须基于 frozen schema 与当前 profile declarations 重建 receipt。见
-> [D1 Ordinary Input Quota Decision](docs/architecture/ORDINARY_INPUT_QUOTA_DECISION_R2_M3_D1.md)。
+> [D1 Ordinary Input Quota Decision](architecture/ORDINARY_INPUT_QUOTA_DECISION_R2_M3_D1.md)。
 > `R2-M3-D2` 又冻结首版 ordinary emitted output quota：canonical `sourceMappingURL` rewrite
 > 后的 final packaged JS/map 合计最多 **512 artifacts / 1 MiB UTF-8 bytes**，单 JS 与单 Source
 > Map 各最多 **512 KiB**，所有边界 inclusive。Worker/native parser 以相同数值执行 raw emitted
@@ -272,7 +272,7 @@ toast(message);
 > capability/dependency metadata 保持 `false`，Node revision 2 end-to-end admission 未改变。
 > pre-C8 B2K 仅是 historical decision support，不能冒充 current-binary/frozen-schema Release
 > acceptance。见
-> [D2 Ordinary Output Quota Decision](docs/architecture/ORDINARY_OUTPUT_QUOTA_DECISION_R2_M3_D2.md)。
+> [D2 Ordinary Output Quota Decision](architecture/ORDINARY_OUTPUT_QUOTA_DECISION_R2_M3_D2.md)。
 > `R2-M3-D3` 随后冻结 capability promotion compatibility revision 1：四项 compiler
 > capability 按 `C → P → {D, M}` 依赖独立 promotion，16 个 mask 中仅
 > `0/1/3/7/11/15` 结构兼容；`typescriptNodeRuntimeRequired` 是独立维度且 revision 1 仅接受
@@ -289,7 +289,7 @@ toast(message);
 > consumer，不能宣称 host routing 已实现。两轮未运行 ADB、未使用设备；五项 metadata 仍为
 > `false`，Node revision 2 继续 Worker-result-only，Public/external/runtime 全部关闭；历史证据不因
 > 本项重新定级。见
-> [D3 Capability Promotion Compatibility Decision](docs/architecture/CAPABILITY_PROMOTION_COMPATIBILITY_R2_M3_D3.md)。
+> [D3 Capability Promotion Compatibility Decision](architecture/CAPABILITY_PROMOTION_COMPATIBILITY_R2_M3_D3.md)。
 > `R2-M3-S1` 现已冻结唯一 formal input archive
 > `autojs6.typescript.input-archive/revision=1`、八种 exact conditional shapes、caller/local
 > declaration/retained 三层 inventory fingerprint、D1 ordinary quota 与 Worker 独立复算；旧 input
@@ -309,7 +309,7 @@ toast(message);
 > 为 0。五项 capability/dependency metadata 仍为 `false`，Node revision 2 继续
 > Worker-result-only。focused 71-task classification 与此前 targeted/Core 只作为修复过程证据，
 > S1 主验收以上述两份 acceptance receipt 为准。见
-> [S1 Input Archive Schema v1](docs/architecture/INPUT_ARCHIVE_SCHEMA_V1_R2_M3_S1.md)。
+> [S1 Input Archive Schema v1](architecture/INPUT_ARCHIVE_SCHEMA_V1_R2_M3_S1.md)。
 > `R2-M3-S2` 已冻结唯一 formal output archive
 > `autojs6.typescript.output-archive/revision=1`，并把 emitted/diagnostics-only outcome、S1
 > accepted-input/compiler provenance、effective-options identity、JavaScript-only module inventory 与
@@ -323,7 +323,7 @@ toast(message);
 > executed、272 up-to-date），`BUILD SUCCESSFUL in 3m 19s`。两轮均未运行 ADB/connected tests、
 > 未执行 instrumentation、未使用设备；五项 capability/dependency metadata 继续为 `false`，Node
 > revision 2 仍为 Worker-result/private-output authority。见
-> [S2 Output Archive Schema v1](docs/architecture/OUTPUT_ARCHIVE_SCHEMA_V1_R2_M3_S2.md)。
+> [S2 Output Archive Schema v1](architecture/OUTPUT_ARCHIVE_SCHEMA_V1_R2_M3_S2.md)。
 > `R2-M3-S3` 已冻结唯一 formal diagnostics document
 > `autojs6.typescript.diagnostics/revision=1`：project-scoped `autojs://source/p-<sha256>/...` URI、
 > UTF-16 code-unit range、TypeScript category/code/message、related information 与 canonical ordering。
@@ -334,7 +334,7 @@ toast(message);
 > `BUILD SUCCESSFUL in 3m`；最终无排除 Core PASS：537 actionable tasks（159 executed、378
 > up-to-date），`BUILD SUCCESSFUL in 4m 39s`。全量 app/API JVM 分别为 477/26 tests、0 failures。
 > 两轮均未运行 ADB、connected tests 或 instrumentation；五项 capability/dependency metadata 继续为 `false`。见
-> [S3 Diagnostics JSON Schema v1](docs/architecture/DIAGNOSTICS_SCHEMA_V1_R2_M3_S3.md)。
+> [S3 Diagnostics JSON Schema v1](architecture/DIAGNOSTICS_SCHEMA_V1_R2_M3_S3.md)。
 > M2 保持 `18/18`；M3 当前为 `9/18`，下一活动项为 `R2-M3-S4`；不存在 `R2-M3-D4`。
 
 </details>
@@ -543,43 +543,43 @@ AutoJs6 host
   提交的有界 project VFS；它不访问宿主文件系统或网络，也不执行 emitted JavaScript。
 - public project path 在同一隔离 host 上接受 framed project VFS，四项 compiler
   capability 已按 S1-1 开启；宿主消费、Rhino/Node 执行和栈映射均已完成。完整边界见
-  [R2 Public-shaped Admission Preview](docs/architecture/PUBLIC_ADMISSION_R2_PREVIEW.md)
+  [R2 Public-shaped Admission Preview](architecture/PUBLIC_ADMISSION_R2_PREVIEW.md)
   与
-  [R2 Profile/Config Authority](docs/architecture/PROFILE_AUTHORITY_R2_PROVISIONAL.md)，
+  [R2 Profile/Config Authority](architecture/PROFILE_AUTHORITY_R2_PROVISIONAL.md)，
   native input 容量分层见
-  [R2-P3a File-backed Native Input](docs/architecture/FILE_BACKED_INPUT_R2_P3A.md)，
+  [R2-P3a File-backed Native Input](architecture/FILE_BACKED_INPUT_R2_P3A.md)，
   Worker 内部 capacity/lifetime 见
-  [R2-P3b-a Worker Input Capacity and Lifetime](docs/architecture/WORKER_INPUT_R2_P3B_A.md)，
+  [R2-P3b-a Worker Input Capacity and Lifetime](architecture/WORKER_INPUT_R2_P3B_A.md)，
   Android DEBUG capacity/realm-retirement 见
-  [R2-P3b-b1 Device Capacity and Exact Realm Retirement](docs/architecture/WORKER_INPUT_R2_P3B_B1.md)，
+  [R2-P3b-b1 Device Capacity and Exact Realm Retirement](architecture/WORKER_INPUT_R2_P3B_B1.md)，
   DEBUG phase-entry/renderer-loss fault 边界见
-  [R2-P3b-b2a Phase-entry Hard-stop and Active Renderer-loss](docs/architecture/WORKER_FAULT_R2_P3B_B2A.md)，
+  [R2-P3b-b2a Phase-entry Hard-stop and Active Renderer-loss](architecture/WORKER_FAULT_R2_P3B_B2A.md)，
   repeated resource/startup orphan-cleanup 边界见
-  [R2-P3b-b2b Repeated Resource and Startup Orphan Cleanup](docs/architecture/WORKER_RESOURCE_R2_P3B_B2B.md)，
+  [R2-P3b-b2b Repeated Resource and Startup Orphan Cleanup](architecture/WORKER_RESOURCE_R2_P3B_B2B.md)，
   external production-fence pipeline 见
-  [R2-P3b-b2c External Production-fence Pipeline](docs/architecture/EXTERNAL_FENCE_PIPELINE_R2_P3B_B2C.md)，
+  [R2-P3b-b2c External Production-fence Pipeline](architecture/EXTERNAL_FENCE_PIPELINE_R2_P3B_B2C.md)，
   non-shipping external exact-64 capacity pipeline 见
-  [R2-P3b-b2d External Exact-64-MiB Capacity Evidence Pipeline](docs/architecture/EXTERNAL_EXACT64_PIPELINE_R2_P3B_B2D.md)，
+  [R2-P3b-b2d External Exact-64-MiB Capacity Evidence Pipeline](architecture/EXTERNAL_EXACT64_PIPELINE_R2_P3B_B2D.md)，
   natural ingress timeout/final cleanup 见
-  [R2-P3b-b2e Natural Ingress Timeout and Cleanup](docs/architecture/WORKER_NATURAL_INGRESS_TIMEOUT_R2_P3B_B2E.md)，
+  [R2-P3b-b2e Natural Ingress Timeout and Cleanup](architecture/WORKER_NATURAL_INGRESS_TIMEOUT_R2_P3B_B2E.md)，
   external plus-one cleanup receipt 见
-  [R2-P3b-b2f External Plus-one Cleanup Receipt Evidence](docs/architecture/EXTERNAL_PLUS_ONE_CLEANUP_R2_P3B_B2F.md)，
+  [R2-P3b-b2f External Plus-one Cleanup Receipt Evidence](architecture/EXTERNAL_PLUS_ONE_CLEANUP_R2_P3B_B2F.md)，
   ordinary natural parse/semantic/emit cancellation 见
-  [R2-P3b-b2g Natural Parse/Semantic/Emit Cancellation](docs/architecture/WORKER_NATURAL_PHASE_CANCELLATION_R2_P3B_B2G.md)，
+  [R2-P3b-b2g Natural Parse/Semantic/Emit Cancellation](architecture/WORKER_NATURAL_PHASE_CANCELLATION_R2_P3B_B2G.md)，
   ordinary natural semantic request-start timeout 见
-  [R2-P3b-b2h Natural Semantic Request-start Absolute-deadline Timeout](docs/architecture/WORKER_NATURAL_SEMANTIC_TIMEOUT_R2_P3B_B2H.md)，
+  [R2-P3b-b2h Natural Semantic Request-start Absolute-deadline Timeout](architecture/WORKER_NATURAL_SEMANTIC_TIMEOUT_R2_P3B_B2H.md)，
   ordinary natural parse request-start timeout 见
-  [R2-P3b-b2i Natural Parse Request-start Absolute-deadline Timeout](docs/architecture/WORKER_NATURAL_PARSE_TIMEOUT_R2_P3B_B2I.md)，
+  [R2-P3b-b2i Natural Parse Request-start Absolute-deadline Timeout](architecture/WORKER_NATURAL_PARSE_TIMEOUT_R2_P3B_B2I.md)，
   ordinary natural emit request-start timeout 见
-  [R2-P3b-b2j Natural Emit Request-start Absolute-deadline Timeout](docs/architecture/WORKER_NATURAL_EMIT_TIMEOUT_R2_P3B_B2J.md)，
+  [R2-P3b-b2j Natural Emit Request-start Absolute-deadline Timeout](architecture/WORKER_NATURAL_EMIT_TIMEOUT_R2_P3B_B2J.md)，
   external-UID Binder natural emit timeout 见
-  [R2-P3b-b2k External-UID Binder Natural Emit Timeout](docs/architecture/EXTERNAL_NATURAL_EMIT_TIMEOUT_R2_P3B_B2K.md)，
+  [R2-P3b-b2k External-UID Binder Natural Emit Timeout](architecture/EXTERNAL_NATURAL_EMIT_TIMEOUT_R2_P3B_B2K.md)，
   无编号 external-UID Binder natural semantic timeout follow-up 见
-  [R2 External-UID Binder Natural Semantic Timeout](docs/architecture/EXTERNAL_NATURAL_SEMANTIC_TIMEOUT_R2.md)，
+  [R2 External-UID Binder Natural Semantic Timeout](architecture/EXTERNAL_NATURAL_SEMANTIC_TIMEOUT_R2.md)，
   无编号 external-UID Binder natural parse timeout follow-up 见
-  [R2 External-UID Binder Natural Parse Timeout](docs/architecture/EXTERNAL_NATURAL_PARSE_TIMEOUT_R2.md)，
+  [R2 External-UID Binder Natural Parse Timeout](architecture/EXTERNAL_NATURAL_PARSE_TIMEOUT_R2.md)，
   无编号 normal/shipping Release natural parse timeout follow-up 见
-  [R2 Normal/Shipping Release Natural Parse Timeout](docs/architecture/SHIPPING_RELEASE_NATURAL_PARSE_TIMEOUT_R2.md).
+  [R2 Normal/Shipping Release Natural Parse Timeout](architecture/SHIPPING_RELEASE_NATURAL_PARSE_TIMEOUT_R2.md).
 - 首个 GA 的 Rhino profile 支持 `.ts/.tsx`, Node profile 支持项目范围内的
   `.ts` 以及 `.mts/.cts`.
 - compiler-backed Node 项目除了执行前 snapshot, 也支持项目运行中创建的
@@ -589,14 +589,14 @@ AutoJs6 host
 
 ## Roadmap
 
-最终集成计划和逐项状态见 [ROADMAP.md](ROADMAP.md).
+最终集成计划和逐项状态见 [ROADMAP.md](../ROADMAP.md).
 
 R1 发行物和受限宿主设计见
-[Compiler Distribution v1](docs/architecture/COMPILER_DISTRIBUTION_V1.md) 与
-[Restricted Compiler Host R1](docs/architecture/COMPILER_HOST_R1.md).
+[Compiler Distribution v1](architecture/COMPILER_DISTRIBUTION_V1.md) 与
+[Restricted Compiler Host R1](architecture/COMPILER_HOST_R1.md).
 
 多语言发行记录见
-[CHANGELOG-zh-Hans.md](.changelog/CHANGELOG-zh-Hans.md). 修改
+[CHANGELOG-zh-Hans.md](../app/src/main/assets/doc/CHANGELOG-zh-Hans.md). 修改
 `.changelog/lang_*.json` 后运行:
 
 ```powershell
@@ -614,7 +614,7 @@ py .python/generate_changelog.py --check
 
 日常 `check` 包含应用/API 单元测试、供应链锁、AIDL/API v1 freeze、Rhino 和
 NodeNext 各一次真实 Worker 编译 smoke，以及 S7 文档/模板与 S10 冷启动/维护记录的防漂移
-门禁。完整发版步骤见[发布前检查清单](docs/maintenance/RELEASE_CHECKLIST.md)。
+门禁。完整发版步骤见[发布前检查清单](maintenance/RELEASE_CHECKLIST.md)。
 `assembleRelease` 只有在
 `sign.properties` 指向有效官方 keystore 时才生成可发布签名包；产物位于
 `app/build/outputs/apk/release/`。
@@ -768,5 +768,5 @@ Debug/release APK 分别输出到 `app/build/outputs/apk/debug/` 与
 
 ## License
 
-项目使用 [MPL-2.0](LICENSE). TypeScript 发行物使用其上游许可证; R1 开始
+项目使用 [MPL-2.0](../LICENSE). TypeScript 发行物使用其上游许可证; R1 开始
 打包发行物时必须同时包含 `LICENSE.txt` 和 `ThirdPartyNoticeText.txt`.

@@ -23,4 +23,4 @@ console.log(message);
 
 {{ compatibility }}
 
-[CHANGELOG]({{ repo_url }}/blob/master/app/src/main/assets/doc/CHANGELOG-{{ code }}.md) | [Development]({{ repo_url }}/blob/master/README-DEVELOPMENT.md) | [LICENSE]({{ repo_url }}/blob/master/LICENSE) | [Third-party notices]({{ repo_url }}/blob/master/THIRD_PARTY_NOTICES.md)
+[CHANGELOG]({{ repo_url }}/blob/master/app/src/main/assets/doc/CHANGELOG-{{ code }}.md) | [Development]({{ repo_url }}/blob/master/docs/DEVELOPMENT.md) | [LICENSE]({{ repo_url }}/blob/master/LICENSE) | [Third-party notices]({{ repo_url }}/blob/master/THIRD_PARTY_NOTICES.md)

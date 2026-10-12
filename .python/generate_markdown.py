@@ -48,10 +48,24 @@ def finish_outputs(artifacts, check):
     return 0
 
 
+def validate_root_documents(root):
+    extras = sorted(
+        path.name for path in root.iterdir()
+        if path.is_file() and path.name != "README.md"
+        and re.fullmatch(r"(?:README|CHANGELOG)(?:[._-].*)?", path.name, re.IGNORECASE)
+    )
+    if extras:
+        raise SystemExit(
+            "Unexpected root documentation: " + ", ".join(extras)
+            + ". Keep only README.md at the root; use .readme/, app/src/main/assets/doc/, or docs/."
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
+    validate_root_documents(ROOT)
     artifacts = build_artifacts(ROOT)
     result = finish_outputs(artifacts, args.check)
     print(f"MARKDOWN_{'FAIL' if result else 'OK'} artifacts={len(artifacts)}")
