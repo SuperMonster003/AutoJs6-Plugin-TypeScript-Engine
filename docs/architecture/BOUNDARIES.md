@@ -34,6 +34,9 @@ R2 生产项目编译与 T3 可选常驻 realm 的当前边界见
 [T3 常驻项目会话](RESIDENT_PROJECT_SESSIONS_T3.md)。常驻状态不跨 compiler 进程、
 不持久化、不暴露 AST/Program，并在失败、内存压力或进程重启时全冷回退。
 
+[解析服务 V1](PARSER_SERVICE_V1.md) 按请求无状态地解析单个源文件, 返回序列化的语法树;
+它不接触常驻会话, 也不暴露任何活体 AST 或 Program 对象, 与上述边界不冲突。
+
 ### Rhino adapter
 
 - 消费 Rhino profile 的 CommonJS 产物.

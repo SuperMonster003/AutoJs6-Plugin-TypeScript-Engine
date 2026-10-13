@@ -4,6 +4,13 @@
 
 ******
 
+# v0.7.0
+
+###### 2026/10/13
+
+* `Aviso` El servicio de análisis carga su propia copia de TypeScript en el primer uso (alrededor de 1 segundo) y la libera tras alrededor de 1 minuto sin uso o cuando el sistema se queda sin memoria; los proyectos TSX de 3-Block Compose 1.4.0 requieren TypeScript Engine 0.7.0
+* `Función` Servicio de análisis de árbol sintáctico de TypeScript (org.autojs.plugin.typescript.PARSER) para que complementos como el diseñador de 3-Block Compose analicen un único archivo .ts / .tsx / .js: solo análisis sintáctico, devuelve el árbol sintáctico con posiciones en el código fuente y los errores de sintaxis, sin comprobación de tipos ni compilación, y sin hacer esperar al servicio de compilación ni esperar por él
+
 # v0.6.8
 
 ###### 2026/10/08

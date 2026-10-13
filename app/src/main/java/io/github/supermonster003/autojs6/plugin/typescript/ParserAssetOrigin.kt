@@ -1,0 +1,129 @@
+package io.github.supermonster003.autojs6.plugin.typescript
+
+import android.content.Context
+import android.content.res.AssetManager
+import android.net.Uri
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import androidx.webkit.WebViewAssetLoader
+import java.io.ByteArrayInputStream
+import java.io.IOException
+import java.nio.charset.StandardCharsets
+
+/**
+ * The parser page's asset origin (TypeScript parser contract v1), built like [CompilerAssetOrigin]:
+ * HTTPS on the WebView asset domain, an exact path allowlist, no network, and the same content security
+ * policies. It serves only the parser page, its relay script, its Worker and the locked TypeScript
+ * distribution; none of the compiler's assets.
+ */
+object ParserAssetOrigin {
+
+    const val ORIGIN = "https://appassets.androidplatform.net"
+    const val PORT_MESSAGE = "__autojs_typescript_parser_port_v1__"
+    const val ROOT_PATH = "/typescript-parser-r1/"
+    const val ENTRY_URL = "${ORIGIN}${ROOT_PATH}index.html"
+
+    private val entryUri = Uri.parse(ENTRY_URL)
+
+    fun createAssetLoader(context: Context, compilerVersion: String): WebViewAssetLoader {
+        val assets = mapOf(
+            "index.html" to AssetSpec("typescript-parser-r1/index.html", "text/html", PAGE_CONTENT_SECURITY_POLICY),
+            "parser-host.js" to AssetSpec("typescript-parser-r1/parser-host.js", JAVASCRIPT_MIME_TYPE, PAGE_CONTENT_SECURITY_POLICY),
+            "parser-worker.js" to AssetSpec("typescript-parser-r1/parser-worker.js", JAVASCRIPT_MIME_TYPE, WORKER_CONTENT_SECURITY_POLICY),
+            "typescript.js" to AssetSpec("typescript/$compilerVersion/lib/typescript.js", JAVASCRIPT_MIME_TYPE, WORKER_CONTENT_SECURITY_POLICY),
+        )
+        return WebViewAssetLoader.Builder()
+            .setHttpAllowed(false)
+            .addPathHandler(ROOT_PATH, ExactAssetPathHandler(context.applicationContext, assets))
+            .build()
+    }
+
+    fun intercept(assetLoader: WebViewAssetLoader, request: WebResourceRequest): WebResourceResponse {
+        if (request.method != "GET" || !isAllowedUri(request.url)) {
+            return forbiddenResponse()
+        }
+        return assetLoader.shouldInterceptRequest(request.url) ?: forbiddenResponse()
+    }
+
+    fun isEntryUri(uri: Uri): Boolean = uri == entryUri
+
+    private fun isAllowedUri(uri: Uri): Boolean =
+        uri.scheme == "https" &&
+            uri.encodedAuthority == WebViewAssetLoader.DEFAULT_DOMAIN &&
+            uri.encodedQuery == null &&
+            uri.encodedFragment == null &&
+            uri.encodedPath in ALLOWED_ENCODED_PATHS
+
+    fun forbiddenResponse(): WebResourceResponse {
+        val body = "Forbidden".toByteArray(StandardCharsets.UTF_8)
+        return WebResourceResponse(
+            "text/plain",
+            StandardCharsets.UTF_8.name(),
+            403,
+            "Forbidden",
+            securityHeaders(PAGE_CONTENT_SECURITY_POLICY),
+            ByteArrayInputStream(body),
+        )
+    }
+
+    private fun securityHeaders(contentSecurityPolicy: String) = mapOf(
+        "Cache-Control" to "no-store",
+        "Content-Security-Policy" to contentSecurityPolicy,
+        "Cross-Origin-Resource-Policy" to "same-origin",
+        "Permissions-Policy" to "camera=(), geolocation=(), microphone=(), payment=()",
+        "Referrer-Policy" to "no-referrer",
+        "X-Content-Type-Options" to "nosniff",
+    )
+
+    private data class AssetSpec(
+        val assetPath: String,
+        val mimeType: String,
+        val contentSecurityPolicy: String,
+    )
+
+    private class ExactAssetPathHandler(
+        context: Context,
+        private val assets: Map<String, AssetSpec>,
+    ) : WebViewAssetLoader.PathHandler {
+
+        private val assetManager = context.assets
+
+        override fun handle(path: String): WebResourceResponse {
+            val asset = assets[path] ?: return forbiddenResponse()
+            val stream = try {
+                assetManager.open(asset.assetPath, AssetManager.ACCESS_STREAMING)
+            } catch (_: IOException) {
+                return forbiddenResponse()
+            } catch (_: SecurityException) {
+                return forbiddenResponse()
+            }
+            return WebResourceResponse(asset.mimeType, StandardCharsets.UTF_8.name(), stream).apply {
+                responseHeaders = securityHeaders(asset.contentSecurityPolicy)
+            }
+        }
+    }
+
+    private const val JAVASCRIPT_MIME_TYPE = "application/javascript"
+    private const val PAGE_CONTENT_SECURITY_POLICY =
+        "default-src 'none'; " +
+            "script-src 'self'; " +
+            "worker-src 'self'; " +
+            "child-src 'self'; " +
+            "connect-src 'none'; " +
+            "frame-src 'none'; " +
+            "object-src 'none'; " +
+            "base-uri 'none'; " +
+            "form-action 'none'; " +
+            "frame-ancestors 'none'"
+    private const val WORKER_CONTENT_SECURITY_POLICY =
+        "default-src 'none'; " +
+            "script-src 'self'; " +
+            "connect-src 'none'; " +
+            "object-src 'none'"
+    private val ALLOWED_ENCODED_PATHS = setOf(
+        "${ROOT_PATH}index.html",
+        "${ROOT_PATH}parser-host.js",
+        "${ROOT_PATH}parser-worker.js",
+        "${ROOT_PATH}typescript.js",
+    )
+}

@@ -6,6 +6,15 @@
   "changelog_label_improvement": "Amélioration",
   "changelog_label_dependency": "Dépendance",
   "$data": {
+    "v0.7.0": {
+      "released_date": "2026/10/13",
+      "hint": [
+        "Le service d'analyse charge sa propre copie de TypeScript à la première utilisation (environ 1 seconde) et la libère après environ 1 minute d'inactivité ou quand le système manque de mémoire; les projets TSX de 3-Block Compose 1.4.0 nécessitent TypeScript Engine 0.7.0"
+      ],
+      "feature": [
+        "Service d'analyse en arbre syntaxique TypeScript (org.autojs.plugin.typescript.PARSER) permettant à des plugins comme le concepteur de 3-Block Compose d'analyser un seul fichier .ts / .tsx / .js: analyse syntaxique uniquement, renvoyant l'arbre syntaxique avec les positions dans la source et les erreurs de syntaxe, sans vérification de types ni compilation, et sans jamais attendre le service de compilation ni le faire attendre"
+      ]
+    },
     "v0.6.8": {
       "released_date": "2026/10/08",
       "improvement": [

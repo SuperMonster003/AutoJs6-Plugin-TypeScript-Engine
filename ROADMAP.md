@@ -649,7 +649,9 @@ install/lifecycle script (本来也不存在执行路径)。原 S9 的"可否决
   (UPGRADE.md); typescript-go 若采纳, 以同等强度的供应链锁定接入。
 - 插件是编译前端: 不执行用户 JS、不发现/依赖 Node Runtime 插件、不读
   宿主任意路径、Worker 无网络。
-- AIDL v1 transaction prefix 冻结, 新能力一律走 additive Bundle key。
+- AIDL v1 transaction prefix 冻结, 编译新能力一律走 additive Bundle key。独立的语法树解析契约
+  (0.7.0, 3-Block Compose D42) 是唯一的例外: 它是另一个 AIDL 与 action, 不改动编译 AIDL 及其
+  freeze 校验, 见 [解析服务 V1](docs/architecture/PARSER_SERVICE_V1.md)。
 - Source Map 强制产出, 不用生成 JS 冒充 TS 坐标, 不虚构列号。
 - 源码快照一致性与输出完整性校验保持 fail closed (这是正确性, 不是
   保守性)。

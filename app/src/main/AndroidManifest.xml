@@ -67,6 +67,19 @@
             </intent-filter>
         </service>
 
+        <!-- TypeScript parser contract v1: a separate Binder surface in the compiler process. -->
+        <service
+            android:name=".TypeScriptParserPluginService"
+            android:exported="true"
+            android:permission="org.autojs.permission.PLUGIN"
+            android:process=":typescript_compiler">
+
+            <intent-filter>
+                <action android:name="org.autojs.plugin.typescript.PARSER" />
+                <category android:name="typescript" />
+            </intent-filter>
+        </service>
+
         <service
             android:name=".R2CompilerProcessSupervisorJobService"
             android:directBootAware="false"

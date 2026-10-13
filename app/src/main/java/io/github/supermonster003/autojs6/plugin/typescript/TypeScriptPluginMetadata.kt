@@ -10,6 +10,7 @@ import org.autojs.plugin.typescript.api.TypeScriptPluginActions
 import org.autojs.plugin.typescript.api.TypeScriptPluginCapabilityKeys
 import org.autojs.plugin.typescript.api.TypeScriptPluginIds
 import org.autojs.plugin.typescript.api.TypeScriptR2Contract
+import org.autojs.plugin.typescript.parser.TypeScriptParserContract
 
 object TypeScriptPluginMetadata {
 
@@ -164,6 +165,10 @@ object TypeScriptPluginMetadata {
             TypeScriptPluginCapabilityKeys.COMPILER_SERVICE_ACTION,
             TypeScriptPluginActions.COMPILER,
         )
+        // TypeScript parser contract v1: a separate service, advertised next to the compiler.
+        putInt(TypeScriptParserContract.CAPABILITY_CONTRACT_VERSION, TypeScriptParserContract.VERSION)
+        putString(TypeScriptParserContract.CAPABILITY_SERVICE_ACTION, TypeScriptParserContract.ACTION)
+        putInt(TypeScriptParserContract.CAPABILITY_TREE_SCHEMA_REVISION, TypeScriptParserContract.TREE_SCHEMA_REVISION)
         putString(
             TypeScriptPluginCapabilityKeys.COMPILER_VERSION,
             BuildConfig.TYPESCRIPT_VERSION,

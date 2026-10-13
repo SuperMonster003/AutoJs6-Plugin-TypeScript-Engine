@@ -6,6 +6,15 @@
   "changelog_label_improvement": "改善",
   "changelog_label_dependency": "依存関係",
   "$data": {
+    "v0.7.0": {
+      "released_date": "2026/10/13",
+      "hint": [
+        "解析サービスは初回利用時に TypeScript を読み込み (約 1 秒), 約 1 分間使われないかシステムのメモリが不足すると解放します. 3-Block Compose 1.4.0 の TSX プロジェクトには TypeScript Engine 0.7.0 が必要です"
+      ],
+      "feature": [
+        "TypeScript 構文木解析サービス (org.autojs.plugin.typescript.PARSER) を追加しました. 3-Block Compose のデザイナーなどのプラグインが単一の .ts / .tsx / .js ファイルを解析するためのもので, 構文解析のみを行い, ソース位置付きの構文木と構文エラーを返します. 型チェックやコンパイルは行わず, コンパイルサービスとは互いに待たされません"
+      ]
+    },
     "v0.6.8": {
       "released_date": "2026/10/08",
       "improvement": [

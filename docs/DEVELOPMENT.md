@@ -615,6 +615,15 @@ py .python/generate_changelog.py --check
 日常 `check` 包含应用/API 单元测试、供应链锁、AIDL/API v1 freeze、Rhino 和
 NodeNext 各一次真实 Worker 编译 smoke，以及 S7 文档/模板与 S10 冷启动/维护记录的防漂移
 门禁。完整发版步骤见[发布前检查清单](maintenance/RELEASE_CHECKLIST.md)。
+
+0.7.0 起 `check` 也运行解析服务的桌面门禁 `:app:verifyParserWorkerDesktop` (锁定的 TypeScript 运行
+`parser-worker.js` 与页面分帧). 解析服务的设备测试需安装当前 debug 与 androidTest APK 后运行:
+
+```powershell
+adb -s <serial> shell am instrument -w -r -e class io.github.supermonster003.autojs6.plugin.typescript.ParserServiceInstrumentedTest io.github.supermonster003.autojs6.plugin.typescript.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+范围与限额见 [解析服务 V1](architecture/PARSER_SERVICE_V1.md)。
 `assembleRelease` 只有在
 `sign.properties` 指向有效官方 keystore 时才生成可发布签名包；产物位于
 `app/build/outputs/apk/release/`。

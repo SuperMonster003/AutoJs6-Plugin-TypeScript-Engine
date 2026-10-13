@@ -6,6 +6,15 @@
   "changelog_label_improvement": "تحسين",
   "changelog_label_dependency": "تبعية",
   "$data": {
+    "v0.7.0": {
+      "released_date": "2026/10/13",
+      "hint": [
+        "تحمل خدمة التحليل نسختها الخاصة من TypeScript عند أول استخدام (نحو ثانية واحدة) وتحررها بعد نحو دقيقة من الخمول أو عند انخفاض ذاكرة النظام; تتطلب مشاريع TSX في 3-Block Compose 1.4.0 الإصدار TypeScript Engine 0.7.0"
+      ],
+      "feature": [
+        "خدمة تحليل TypeScript إلى شجرة بنية نحوية (org.autojs.plugin.typescript.PARSER) لتتمكن مكونات إضافية مثل مصمم 3-Block Compose من تحليل ملف .ts / .tsx / .js واحد: تحليل نحوي فقط يعيد شجرة البنية مع مواضع المصدر والأخطاء النحوية, دون فحص الأنواع أو الترجمة, ودون أن تنتظر خدمة الترجمة أو تؤخرها"
+      ]
+    },
     "v0.6.8": {
       "released_date": "2026/10/08",
       "improvement": [

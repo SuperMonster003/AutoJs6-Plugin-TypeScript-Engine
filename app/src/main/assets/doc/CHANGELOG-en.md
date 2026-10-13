@@ -4,6 +4,13 @@
 
 ******
 
+# v0.7.0
+
+###### 2026/10/13
+
+* `Hint` The parsing service loads its own copy of TypeScript on first use (about 1 second) and releases it after about 1 minute idle or when the system is low on memory; 3-Block Compose 1.4.0 TSX projects require TypeScript Engine 0.7.0
+* `Feature` TypeScript syntax tree parsing service (org.autojs.plugin.typescript.PARSER) for plugins such as the 3-Block Compose designer to parse a single .ts / .tsx / .js file: syntax analysis only, returning the syntax tree with source positions and the syntax errors, without type checking or compilation, and never queuing behind or ahead of the compiler service
+
 # v0.6.8
 
 ###### 2026/10/08

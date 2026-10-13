@@ -369,6 +369,7 @@ androidComponents {
 dependencies {
     implementation(project(":plugin-api:common-plugin-api"))
     implementation(project(":plugin-api:typescript-api"))
+    implementation(project(":plugin-api:typescript-parser-api"))
     implementation(libs.webkit)
     r1RhinoProbeJarFile?.let { probeJar ->
         add("debugImplementation", files(probeJar))
@@ -689,6 +690,32 @@ val verifyR2DeclarationTokenCounts =
             "--check",
         )
     }
+
+val verifyParserWorkerDesktop =
+    tasks.register<Exec>("verifyParserWorkerDesktop") {
+        group = "verification"
+        description =
+            "Runs the TypeScript parser contract v1 Worker against the locked TypeScript " +
+                "distribution (tree shape, positions, limits) and the parser page relay framing."
+        dependsOn(generateTypeScriptDistribution)
+        val harnessFile = layout.projectDirectory.file("src/test/scripts/verify-parser-worker.js")
+        val workerFile = layout.projectDirectory.file("src/main/assets/typescript-parser-r1/parser-worker.js")
+        val pageFile = layout.projectDirectory.file("src/main/assets/typescript-parser-r1/parser-host.js")
+        val compilerFile = generatedTypeScriptDistributionDirectory.map { it.file("lib/typescript.js") }
+        inputs.files(harnessFile, workerFile, pageFile, compilerFile)
+        commandLine(
+            providers.environmentVariable("NODE_BINARY").getOrElse("node"),
+            harnessFile.asFile.absolutePath,
+            workerFile.asFile.absolutePath,
+            pageFile.asFile.absolutePath,
+            compilerFile.get().asFile.absolutePath,
+            typeScriptVersion,
+        )
+    }
+
+tasks.named("check") {
+    dependsOn(verifyParserWorkerDesktop)
+}
 
 val verifyL2DeclarationPreloadDesktop =
     tasks.register<Exec>("verifyL2DeclarationPreloadDesktop") {

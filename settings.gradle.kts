@@ -35,6 +35,7 @@ private val libs = emptyList<String>()
 private val pluginApi = listOf(
     "common-plugin-api",
     "typescript-api",
+    "typescript-parser-api",
 )
 
 include(

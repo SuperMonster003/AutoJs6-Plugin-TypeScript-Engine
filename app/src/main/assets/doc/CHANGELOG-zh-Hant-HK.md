@@ -4,6 +4,13 @@
 
 ******
 
+# v0.7.0
+
+###### 2026/10/13
+
+* `提示` 解析服務首次使用時載入一份 TypeScript (約 1 秒), 閒置約 1 分鐘或系統記憶體不足時釋放; 3-Block Compose 1.4.0 的 TSX 工程需要 TypeScript Engine 0.7.0
+* `新增` TypeScript 語法樹解析服務 (org.autojs.plugin.typescript.PARSER), 供 3-Block Compose 設計器等插件解析單個 .ts / .tsx / .js 檔案: 只做語法分析, 傳回帶源碼位置的語法樹與語法錯誤, 不做類型檢查與編譯, 與編譯服務互不排隊
+
 # v0.6.8
 
 ###### 2026/10/08
