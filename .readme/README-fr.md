@@ -21,6 +21,6 @@ const message: string = 'Hello, TypeScript';
 console.log(message);
 ```
 
-Nécessite Android 7 (API 24) et Chrome/WebView 119 ou versions ultérieures. Le compilateur inclus est TypeScript 6.0.3. Les addons npm natifs, scripts de cycle d’installation et emitDecoratorMetadata ne sont pas pris en charge. La diffusion publique suit celle de l’hôte compatible; les essais historiques ne valident pas chaque APK ultérieur.
+Nécessite Android 7 (API 24) et Chrome/WebView 119 ou versions ultérieures. Le compilateur inclus est TypeScript 6.0.3. Les addons npm natifs, scripts de cycle d’installation et emitDecoratorMetadata ne sont pas pris en charge. La diffusion publique suit celle de l’hôte compatible; les essais historiques ne valident pas chaque APK ultérieur. Les projets Rhino sont compilés vers ES2018 et conservent la syntaxe `class` telle quelle: leur exécution nécessite AutoJs6 6.8.0 ou ultérieur.
 
 [CHANGELOG](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/app/src/main/assets/doc/CHANGELOG-fr.md) | [Development](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/docs/DEVELOPMENT.md) | [LICENSE](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/LICENSE) | [Third-party notices](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/THIRD_PARTY_NOTICES.md)

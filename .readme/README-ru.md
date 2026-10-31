@@ -21,6 +21,6 @@ const message: string = 'Hello, TypeScript';
 console.log(message);
 ```
 
-Нужны Android 7 (API 24) и Chrome/WebView 119 или новее. Включен TypeScript 6.0.3. Не поддерживаются нативные npm-модули, сценарии установки пакетов и emitDecoratorMetadata. Публичная публикация следует за совместимым хостом; исторические проверки не подтверждают каждый последующий APK.
+Нужны Android 7 (API 24) и Chrome/WebView 119 или новее. Включен TypeScript 6.0.3. Не поддерживаются нативные npm-модули, сценарии установки пакетов и emitDecoratorMetadata. Публичная публикация следует за совместимым хостом; исторические проверки не подтверждают каждый последующий APK. Проекты Rhino компилируются в ES2018 с сохранением синтаксиса `class`, поэтому для запуска нужен AutoJs6 6.8.0 или новее.
 
 [CHANGELOG](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/app/src/main/assets/doc/CHANGELOG-ru.md) | [Development](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/docs/DEVELOPMENT.md) | [LICENSE](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/LICENSE) | [Third-party notices](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/THIRD_PARTY_NOTICES.md)
