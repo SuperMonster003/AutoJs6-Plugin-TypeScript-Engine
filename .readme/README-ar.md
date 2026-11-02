@@ -21,6 +21,6 @@ const message: string = 'Hello, TypeScript';
 console.log(message);
 ```
 
-يتطلب Android 7 (API 24) أو أحدث و Chrome/WebView 119 أو أحدث. المترجم المضمن TypeScript 6.0.3. لا يدعم إضافات npm الأصلية أو سكربتات تثبيت الحزم أو emitDecoratorMetadata. يتبع النشر العام إصدار المضيف المتوافق; لا تعتمد السجلات التاريخية كل APK لاحق. تُترجم مشاريع Rhino إلى ES2018 مع الإبقاء على صيغة `class` كما هي, لذا يلزم AutoJs6 6.8.0 أو أحدث لتشغيلها.
+يتطلب Android 7 (API 24) أو أحدث و Chrome/WebView 119 أو أحدث. المترجم المضمن TypeScript 6.0.3. لا يدعم إضافات npm الأصلية أو سكربتات تثبيت الحزم أو emitDecoratorMetadata. يتبع النشر العام إصدار المضيف المتوافق; لا تعتمد السجلات التاريخية كل APK لاحق. تُترجم مشاريع Rhino إلى ES2018 مع الإبقاء على صيغة `class` كما هي, لذا يلزم AutoJs6 6.8.0 أو أحدث لتشغيلها. تبقى دوال async ومولدات async كما هي أيضا, ويسري عليها متطلب الإصدار نفسه.
 
 [CHANGELOG](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/app/src/main/assets/doc/CHANGELOG-ar.md) | [Development](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/docs/DEVELOPMENT.md) | [LICENSE](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/LICENSE) | [Third-party notices](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/THIRD_PARTY_NOTICES.md)

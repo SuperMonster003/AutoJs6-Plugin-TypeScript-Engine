@@ -21,6 +21,6 @@ const message: string = 'Hello, TypeScript';
 console.log(message);
 ```
 
-需要 Android 7 (API 24) 及以上, 同時需要 Chrome/WebView 119 及以上. 內建 TypeScript 6.0.3. 不支援 native npm addon, 套件安裝生命週期指令碼和 emitDecoratorMetadata. 公開分發隨相容宿主的發佈安排; 歷史驗收記錄不代表後續每個 APK 已通過驗收. Rhino 專案以 ES2018 為編譯目標, `class` 語法原樣輸出, 需要 AutoJs6 6.8.0 及以上版本執行.
+需要 Android 7 (API 24) 及以上, 同時需要 Chrome/WebView 119 及以上. 內建 TypeScript 6.0.3. 不支援 native npm addon, 套件安裝生命週期指令碼和 emitDecoratorMetadata. 公開分發隨相容宿主的發佈安排; 歷史驗收記錄不代表後續每個 APK 已通過驗收. Rhino 專案以 ES2018 為編譯目標, `class` 語法原樣輸出, 需要 AutoJs6 6.8.0 及以上版本執行. async 函式與 async 產生器同樣原樣輸出, 執行時的版本要求相同.
 
 [CHANGELOG](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/app/src/main/assets/doc/CHANGELOG-zh-Hant-TW.md) | [Development](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/docs/DEVELOPMENT.md) | [LICENSE](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/LICENSE) | [Third-party notices](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/THIRD_PARTY_NOTICES.md)
