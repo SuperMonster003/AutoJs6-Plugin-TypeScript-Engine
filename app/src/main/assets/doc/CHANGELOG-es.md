@@ -4,6 +4,12 @@
 
 ******
 
+# v0.7.1
+
+###### 2026/11/17
+
+* `Mejora` Declaraciones TypeScript del módulo debugging, que permiten a los scripts TypeScript llamar a debugging.waitForAttach y otros métodos para esperar a un depurador (requiere AutoJs6 6.8.1 o posterior, no aplica a scripts Node.js)
+
 # v0.7.0
 
 ###### 2026/10/13

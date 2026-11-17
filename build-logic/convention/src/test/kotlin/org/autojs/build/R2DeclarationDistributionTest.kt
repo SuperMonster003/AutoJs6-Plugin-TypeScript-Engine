@@ -83,7 +83,7 @@ class R2DeclarationDistributionTest {
         @Suppress("UNCHECKED_CAST")
         val layers = manifest["layers"] as Map<String, Map<String, Any?>>
         assertEquals(108, (layers.getValue("common").getValue("fileCount") as Number).toInt())
-        assertEquals(53, (layers.getValue("rhino").getValue("fileCount") as Number).toInt())
+        assertEquals(54, (layers.getValue("rhino").getValue("fileCount") as Number).toInt())
         assertEquals(59, (layers.getValue("node").getValue("fileCount") as Number).toInt())
         @Suppress("UNCHECKED_CAST")
         val nodeFiles = layers.getValue("node").getValue("files") as List<String>
@@ -91,7 +91,7 @@ class R2DeclarationDistributionTest {
         val rhinoFiles = firstSnapshot.filterKeys { path ->
             path.startsWith("layers/rhino/") && path.endsWith(".d.ts")
         }
-        assertEquals(53, rhinoFiles.size)
+        assertEquals(54, rhinoFiles.size)
         listOf(
             "layers/rhino/app.d.ts",
             "layers/rhino/console.d.ts",
@@ -102,6 +102,7 @@ class R2DeclarationDistributionTest {
             "layers/rhino/ui.d.ts",
             "layers/rhino/compose.d.ts",
             "layers/rhino/compose-jsx.d.ts",
+            "layers/rhino/debugging.d.ts",
         ).forEach { path -> assertTrue("projection must contain $path", path in rhinoFiles) }
         val index = rhinoFiles.getValue("layers/rhino/index.d.ts")
             .toString(StandardCharsets.UTF_8)

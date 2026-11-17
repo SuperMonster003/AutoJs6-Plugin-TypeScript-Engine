@@ -4,6 +4,12 @@
 
 ******
 
+# v0.7.1
+
+###### 2026/11/17
+
+* `優化` debugging 模塊的 TypeScript 聲明, TypeScript 腳本可調用 debugging.waitForAttach 等方法等待調試器 (需要 AutoJs6 6.8.1 或更高版本, Node.js 腳本不適用)
+
 # v0.7.0
 
 ###### 2026/10/13

@@ -6,6 +6,12 @@
   "changelog_label_improvement": "改善",
   "changelog_label_dependency": "依存関係",
   "$data": {
+    "v0.7.1": {
+      "released_date": "2026/11/17",
+      "improvement": [
+        "debugging モジュールの TypeScript 宣言, TypeScript スクリプトから debugging.waitForAttach などのメソッドでデバッガーを待機可能 (AutoJs6 6.8.1 以降が必要, Node.js スクリプトは対象外)"
+      ]
+    },
     "v0.7.0": {
       "released_date": "2026/10/13",
       "hint": [

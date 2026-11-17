@@ -1,5 +1,24 @@
 # R2-M2-C8 Declaration Profile Layering
 
+> **Debugging module (2026-11-17, 0.7.1).** AutoJs6 6.8.1 adds the global
+> `debugging` / `$debugging` module for Rhino scripts (3-Probe Debugger). No npm release
+> of `@sm003/autojs6-dts` declares it (the latest npm release is 4.87.0), so a second
+> plugin-bundled supplement joins the Compose one: declarations 4.88.0 commit
+> `b02bf4dc24ef208b83a01a6390db9354d2925a63`, `aj6-int-debugging.d.ts` kept verbatim plus
+> the two globals of the same commit's `aj6-int-init.d.ts`, vendored by
+> `tools/sync-debugging-declarations.py` into `r2-debugging/`. The generator now builds
+> both supplements from one list (revision 8, because the projection gains a source);
+> the public 2.1.3 lock, transforms, compiler options and the Node profile are unchanged.
+> Node.js scripts get no `debugging` declaration because the host does not give them the
+> module (they use `inspector`). The current Rhino layer is 54 files / 998061 bytes;
+> common + Rhino is 162 files / 4782819 bytes, and the manifest owns 119 files. The real
+> Worker regression compiles a plain `.ts` entry that calls every member, executes the
+> emitted calls against a stub and rejects six invalid uses (an unknown event, a member
+> the attach or pause payload does not have, a string timeout, a wrong result type and a
+> non-function listener). When the npm lock moves to a release that declares
+> `debugging`, the supplement is removed. Dated identities and counts below remain
+> historical.
+>
 > **Compose memo fragments (2026-10-08, 0.6.8).** The local 4.36.0 supplement adds
 > `compose.memo(build, deps, options?)` and `ComposeMemoOptions` for the AutoJs6
 > 6.8.0 / 5323 render fragment cache. The generated transform and runtime identity

@@ -1973,6 +1973,87 @@ const session = compose.mount(() => {
     }
 };
 
+// 0.7.1 (3-Probe Debugger Q149): the plugin-bundled debugging supplement declares the AutoJs6
+// 6.8.1 `debugging` / `$debugging` globals for Rhino scripts. A plain .ts entry must compile
+// under noEmitOnError and keep every call; wrong events, listeners and arguments must not emit.
+const verifyDebuggingDeclarationContract = async () => {
+    const withSource = (source) => {
+        const project = composeTsxSnapshot();
+        const main = project.files.find((file) => file.path === "/sources/main.tsx");
+        main.path = "/sources/main.ts";
+        main.text = source;
+        project.entryPath = "/sources/main.ts";
+        project.rootNames = ["/sources/main.ts"];
+        return project;
+    };
+    assert(withSource("").files.some((file) => file.path === "/declarations/rhino/debugging.d.ts"),
+        "The real generated Rhino layer lacks the debugging declarations.");
+    const source = `
+const probeAttached: boolean = debugging.waitForAttach(1);
+const probeUnbounded: boolean = $debugging.waitForAttach(null) || debugging.waitForAttach();
+const probeLog: string[] = [];
+const probeSubscription: Internal.Debugging.Subscription = debugging.on('pause', (event) => {
+    probeLog.push(event.threadName + ':' + event.reason);
+});
+debugging.once('attach', (info) => { probeLog.push(info.frontend); });
+debugging.on('detach', () => { probeLog.push('detach'); });
+if (probeAttached && $debugging.isAttached()) debugging.breakpoint();
+probeSubscription.off();
+debugging.off('pause');
+debugging.off(() => {});
+debugging.off('resume', () => {});
+debugging.off();
+const probeSummary = [probeAttached, probeUnbounded, probeSubscription.event, probeLog.length].join(',');
+`;
+    const {result} = await compile("desktop-debugging-declarations", withSource(source));
+    assert(!result.emitSkipped && result.diagnostics.length === 0,
+        `Real debugging declarations failed: ${JSON.stringify(result.diagnostics)}`);
+    const output = result.outputs.find(file => file.path.endsWith("/main.js"))?.text;
+    assert(typeof output === "string" && output.includes("debugging.waitForAttach(1)"),
+        "debugging calls did not survive real compilation.");
+    const calls = [];
+    const listeners = {};
+    const debuggingModule = {
+        waitForAttach: (timeout) => { calls.push(`wait:${timeout}`); return true; },
+        isAttached: () => { calls.push("isAttached"); return true; },
+        breakpoint: () => { calls.push("breakpoint"); },
+        on: (event, listener) => {
+            calls.push(`on:${event}`);
+            listeners[event] = listener;
+            return {event, off: () => calls.push(`sub-off:${event}`)};
+        },
+        once: (event, listener) => {
+            calls.push(`once:${event}`);
+            listeners[event] = listener;
+            return {event, off: () => {}};
+        },
+        off: (...args) => { calls.push(`off:${args.length}`); },
+    };
+    const sandbox = {debugging: debuggingModule, $debugging: debuggingModule};
+    vm.createContext(sandbox);
+    vm.runInContext(output, sandbox, {filename: "debugging-output.js"});
+    listeners.pause({reason: "breakpoint", threadName: "main"});
+    listeners.attach({frontend: "remote"});
+    const summary = vm.runInContext("probeSummary", sandbox);
+    assert(calls.join(" ") === "wait:1 wait:null on:pause once:attach on:detach isAttached breakpoint " +
+        "sub-off:pause off:1 off:1 off:2 off:0" && summary === "true,true,pause,0",
+        `debugging calls changed during emission: ${calls.join(" ")} / ${summary}`);
+    const invalidSources = [
+        "debugging.on('unknown', () => {});",
+        "debugging.once('attach', (info) => info.reason);",
+        "debugging.on('pause', (event) => event.frontend);",
+        "debugging.waitForAttach('1000');",
+        "const attached: string = debugging.isAttached();",
+        "debugging.off('pause', 'listener');",
+    ];
+    for (const [index, invalid] of invalidSources.entries()) {
+        const checked = await compile(`desktop-debugging-invalid-${index}`, withSource(invalid));
+        assert(checked.result.emitSkipped && checked.result.outputs.length === 0 &&
+            checked.result.diagnostics.some(item => item.category === ts.DiagnosticCategory.Error),
+            `debugging invalid source ${index} emitted: ${JSON.stringify(checked.result.diagnostics)}`);
+    }
+};
+
 const countSourceTokens = (text) => {
     const scanner = global.ts.createScanner(
         global.ts.ScriptTarget.ES2018,
@@ -6352,6 +6433,11 @@ const verifyCompilerPageStateMachine = () => {
     await runGolden(
         "Compose classic TSX factory identity, namespace, slots, fragments and legacy XML",
         verifyComposeTsxCompilerContract,
+        failures,
+    );
+    await runGolden(
+        "AutoJs6 6.8.1 debugging module declarations in a Rhino .ts script",
+        verifyDebuggingDeclarationContract,
         failures,
     );
     await runGolden(

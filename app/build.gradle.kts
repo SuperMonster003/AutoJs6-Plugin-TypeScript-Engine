@@ -2404,8 +2404,8 @@ private fun verifyR2DeclarationDistributionInApk(
     check(expectedFiles.size == manifestFiles.size) {
         "R2 declaration manifest contains duplicate paths."
     }
-    check(expectedFiles.size == 118) {
-        "Expected 118 R2 declaration distribution files, found ${expectedFiles.size}."
+    check(expectedFiles.size == 119) {
+        "Expected 119 R2 declaration distribution files, found ${expectedFiles.size}."
     }
     listOf(
         "layers/common/binding.json",
@@ -10886,7 +10886,7 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
             val profileOccupancy = fixture["profileDeclarationOccupancy"] as
                 List<Map<String, Any?>>
             val expectedProfileOccupancy = linkedMapOf(
-                "rhino" to listOf(53L, 992_257L, 161L, 4_777_015L),
+                "rhino" to listOf(54L, 998_061L, 162L, 4_782_819L),
                 "node" to listOf(59L, 246_572L, 167L, 4_031_330L),
             )
             check(
@@ -11342,7 +11342,7 @@ val verifyR2M3D1OrdinaryInputQuotaFixture =
             logger.lifecycle(
                 "T1-1 ordinary input quota verified: revision 3 caller=4096 files, " +
                     "8 MiB single, 64 MiB total; revision 2 remains compatible; " +
-                    "Rhino declarations=161/4777015 and Node declarations=167/4031330 " +
+                    "Rhino declarations=162/4782819 and Node declarations=167/4031330 " +
                     "remain outside caller accounting; the ordinary no-dependency envelope " +
                     "retains one metadata entry, 512 KiB expanded, and 1 MiB container overhead; " +
                     "combined dependency transport=12289 files, 132 MiB expanded, " +

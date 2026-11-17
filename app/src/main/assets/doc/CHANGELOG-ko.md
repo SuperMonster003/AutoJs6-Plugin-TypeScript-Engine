@@ -4,6 +4,12 @@
 
 ******
 
+# v0.7.1
+
+###### 2026/11/17
+
+* `개선` debugging 모듈의 TypeScript 선언, TypeScript 스크립트에서 debugging.waitForAttach 등의 메서드로 디버거를 기다릴 수 있음 (AutoJs6 6.8.1 이상 필요, Node.js 스크립트는 해당 없음)
+
 # v0.7.0
 
 ###### 2026/10/13

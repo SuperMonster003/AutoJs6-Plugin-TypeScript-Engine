@@ -66,7 +66,7 @@ object R2DeclarationDistribution {
 
     const val MANIFEST_FILE_NAME = "distribution.json"
     const val GENERATOR_ID = "autojs6-plugin-typescript-engine"
-    const val GENERATOR_VERSION = 7
+    const val GENERATOR_VERSION = 8
     const val MANIFEST_SCHEMA_VERSION = 2
 
     private val STABLE_TYPESCRIPT_6_VERSION = Regex("6\\.\\d+\\.\\d+")
@@ -569,18 +569,21 @@ object R2DeclarationDistribution {
                 fail("Projected Rhino declaration path is duplicated: $targetName")
             }
         }
-        val supplement = composeSupplement()
-        listOf("aj6-int-compose.d.ts", "compose-jsx.d.ts").forEach { name ->
-            val source = supplement.getValue(name).decodeUtf8("Compose declaration supplement $name")
-            val transformed = source.lineSequence()
-                .filterNot { it.trimStart().startsWith("/// <reference") }
-                .joinToString("\n").trimEnd() + "\n"
-            // Match the bounded Rhino profile's native-type policy while preserving
-            // checking in user sources, including Compose props and callback types.
-            val bytes = ("// @ts-nocheck\n" + transformed).toByteArray(StandardCharsets.UTF_8)
-            val target = name.removePrefix("aj6-int-")
-            if (projected.put(target, bytes) != null) {
-                fail("Compose supplement collides with a Rhino declaration: $target")
+        LOCAL_SUPPLEMENTS.forEach { spec ->
+            val supplement = localSupplement(spec)
+            spec.files.forEach { name ->
+                val source = supplement.getValue(name)
+                    .decodeUtf8("${spec.label} declaration supplement $name")
+                val transformed = source.lineSequence()
+                    .filterNot { it.trimStart().startsWith("/// <reference") }
+                    .joinToString("\n").trimEnd() + "\n"
+                // Match the bounded Rhino profile's native-type policy while preserving
+                // checking in user sources, including Compose props and callback types.
+                val bytes = ("// @ts-nocheck\n" + transformed).toByteArray(StandardCharsets.UTF_8)
+                val target = name.removePrefix("aj6-int-")
+                if (projected.put(target, bytes) != null) {
+                    fail("${spec.label} supplement collides with a Rhino declaration: $target")
+                }
             }
         }
         val index = createRhinoProjectionIndex(projected.keys)
@@ -662,7 +665,7 @@ object R2DeclarationDistribution {
     private fun createRhinoProjectionIndex(moduleNames: Collection<String>): String = buildString {
         append("/**\n")
         append(" * AutoJs6 Rhino declaration profile.\n")
-        append(" * Public @sm003/autojs6-dts@2.1.3 projection with a bundled Compose supplement.\n")
+        append(" * Public @sm003/autojs6-dts@2.1.3 projection with bundled Compose and debugging supplements.\n")
         append(" * See notices/rhino-source.txt for the separate source identities.\n")
         append(" */\n")
         moduleNames.sorted().forEach { name ->
@@ -900,30 +903,53 @@ object R2DeclarationDistribution {
             "Integrity: ${lock.digests.integrity}\n" +
             "Conversion: ${lock.conversion}\n" +
             "License: ${lock.license}\n" +
-            "\nPlugin-bundled Compose declaration supplement:\n" +
-            composeSupplement().getValue("source.json").decodeUtf8("Compose source notice")
+            LOCAL_SUPPLEMENTS.joinToString(separator = "") { spec ->
+                "\nPlugin-bundled ${spec.label} declaration supplement:\n" +
+                    localSupplement(spec).getValue("source.json")
+                        .decodeUtf8("${spec.label} source notice")
+            }
         ).toByteArray(StandardCharsets.UTF_8)
 
-    private fun composeSupplement(): Map<String, ByteArray> {
+    /**
+     * Rhino declarations that the pinned 2.1.3 npm projection cannot provide, vendored from an
+     * explicit declarations checkout by `tools/sync-*-declarations.py` ("local integration
+     * snapshot, not an npm release"). A supplement is removed when the npm lock moves to a
+     * release that declares the same module; its globals would otherwise be declared twice.
+     */
+    private class LocalSupplement(
+        val label: String,
+        val resourceDirectory: String,
+        val files: List<String>,
+    )
+
+    private val LOCAL_SUPPLEMENTS = listOf(
+        LocalSupplement("Compose", "r2-compose", listOf("aj6-int-compose.d.ts", "compose-jsx.d.ts")),
+        // AutoJs6 6.8.1 debugging / $debugging (3-Probe Debugger); Rhino scripts only, Node.js
+        // scripts use the inspector module instead.
+        LocalSupplement("debugging", "r2-debugging", listOf("aj6-int-debugging.d.ts")),
+    )
+
+    private fun localSupplement(spec: LocalSupplement): Map<String, ByteArray> {
+        val label = spec.label
         fun resource(name: String): ByteArray = R2DeclarationDistribution::class.java
-            .getResourceAsStream("/r2-compose/$name")?.use { it.readBytes() }
-            ?: fail("Missing bundled Compose declaration resource: $name")
+            .getResourceAsStream("/${spec.resourceDirectory}/$name")?.use { it.readBytes() }
+            ?: fail("Missing bundled $label declaration resource: $name")
         val source = resource("source.json")
         val metadata = JsonSlurper().parse(source) as? Map<*, *>
-            ?: fail("Invalid Compose supplement source metadata")
+            ?: fail("Invalid $label supplement source metadata")
         if (metadata["license"] != LICENSE ||
             metadata["distribution"] != "local integration snapshot, not an npm release") {
-            fail("Invalid Compose supplement provenance")
+            fail("Invalid $label supplement provenance")
         }
         val hashes = metadata["files"] as? Map<*, *>
-            ?: fail("Compose supplement hashes are missing")
-        val names = setOf("aj6-int-compose.d.ts", "compose-jsx.d.ts")
-        if (hashes.keys != names) fail("Unexpected Compose supplement source inventory")
+            ?: fail("$label supplement hashes are missing")
+        val names = spec.files.toSet()
+        if (hashes.keys != names) fail("Unexpected $label supplement source inventory")
         return names.associateWith { name ->
             val bytes = resource(name)
             val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
                 .joinToString("") { "%02x".format(it.toInt() and 0xff) }
-            if (hashes[name] != digest) fail("Compose supplement digest mismatch: $name")
+            if (hashes[name] != digest) fail("$label supplement digest mismatch: $name")
             bytes
         } + ("source.json" to source)
     }

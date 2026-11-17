@@ -720,6 +720,10 @@
       "sha256": "b8ffe828e8fd3224ac79a4977297ded8b137c7c5e59f10829ba40dc52a9f4805",
       "tokenCount": 699
     },
+    "/declarations/rhino/debugging.d.ts": {
+      "sha256": "708e9b652c1096a33b07f1d70a1f36a908673f80be1dc71f5b17e020925e1e71",
+      "tokenCount": 264
+    },
     "/declarations/rhino/device.d.ts": {
       "sha256": "2eeee661046d7d2e871e7c0671b52a854be4bbac247a57fe76795c4179006b4f",
       "tokenCount": 478
@@ -761,7 +765,7 @@
       "tokenCount": 2126
     },
     "/declarations/rhino/index.d.ts": {
-      "sha256": "57836ded626c0bb2d6f530624b3a9374052cd2770f119a50eb47c03b030aaaf1",
+      "sha256": "68f14d87048f1d2c06b05cb248f264f31d0d3cc022d18f3f6f55b6b48227da1f",
       "tokenCount": 928
     },
     "/declarations/rhino/init.d.ts": {

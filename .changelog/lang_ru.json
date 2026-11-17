@@ -6,6 +6,12 @@
   "changelog_label_improvement": "Улучшение",
   "changelog_label_dependency": "Зависимость",
   "$data": {
+    "v0.7.1": {
+      "released_date": "2026/11/17",
+      "improvement": [
+        "Объявления TypeScript для модуля debugging, позволяющие скриптам TypeScript вызывать debugging.waitForAttach и другие методы для ожидания отладчика (требуется AutoJs6 6.8.1 или новее, не для скриптов Node.js)"
+      ]
+    },
     "v0.7.0": {
       "released_date": "2026/10/13",
       "hint": [

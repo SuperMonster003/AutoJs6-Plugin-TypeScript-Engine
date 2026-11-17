@@ -4,6 +4,12 @@
 
 ******
 
+# v0.7.1
+
+###### 2026/11/17
+
+* `改善` debugging モジュールの TypeScript 宣言, TypeScript スクリプトから debugging.waitForAttach などのメソッドでデバッガーを待機可能 (AutoJs6 6.8.1 以降が必要, Node.js スクリプトは対象外)
+
 # v0.7.0
 
 ###### 2026/10/13

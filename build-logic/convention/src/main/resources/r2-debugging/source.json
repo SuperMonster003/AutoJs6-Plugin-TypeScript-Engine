@@ -1,0 +1,10 @@
+{
+  "sourceRepository": "https://github.com/SuperMonster003/AutoJs6-TypeScript-Declarations",
+  "sourceVersion": "4.88.0",
+  "sourceCommit": "b02bf4dc24ef208b83a01a6390db9354d2925a63",
+  "distribution": "local integration snapshot, not an npm release",
+  "license": "MPL-2.0",
+  "files": {
+    "aj6-int-debugging.d.ts": "22c83bffb90ef2a9fcc966137b6cc29ae86d99649e9aa8eaa256c21ef510cc9a"
+  }
+}

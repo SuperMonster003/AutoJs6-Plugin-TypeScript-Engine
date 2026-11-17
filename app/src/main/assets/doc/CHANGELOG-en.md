@@ -4,6 +4,12 @@
 
 ******
 
+# v0.7.1
+
+###### 2026/11/17
+
+* `Improvement` TypeScript declarations for the debugging module, letting TypeScript scripts call debugging.waitForAttach and other methods to wait for a debugger (requires AutoJs6 6.8.1 or later, not for Node.js scripts)
+
 # v0.7.0
 
 ###### 2026/10/13

@@ -64,8 +64,8 @@ class R2GeneratedDeclarationDistributionTest {
         assertProfile(
             declarations = rhino,
             expectedProfile = R2DeclarationProfile.RHINO,
-            expectedFileCount = 161,
-            expectedEngineFileCount = 53,
+            expectedFileCount = 162,
+            expectedEngineFileCount = 54,
             expectedProfileFingerprint = profiles.requireObject("rhino")
                 .requireString("fingerprint"),
             expectedEngineFingerprint = layers.requireObject("rhino")

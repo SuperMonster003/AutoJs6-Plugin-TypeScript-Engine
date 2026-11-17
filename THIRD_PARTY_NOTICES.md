@@ -17,6 +17,14 @@ Rhino 声明仍投影公开的 `@sm003/autojs6-dts@2.1.3` (MPL-2.0), tarball 来
 来源与两个规范化文件的 SHA-256 记录在
 `build-logic/convention/src/main/resources/r2-compose/source.json`.
 
+`debugging` 补充声明 (0.7.1 起, AutoJs6 6.8.1 的 `debugging` / `$debugging`, 只用于 Rhino)
+来自同一仓库本地 4.88.0 源码提交 `b02bf4dc24ef208b83a01a6390db9354d2925a63` (MPL-2.0),
+同样不表示该版本已发布到 npm: `aj6-int-debugging.d.ts` 原样保留, 末尾附上同一提交
+`aj6-int-init.d.ts` 中这两个全局变量的声明. 来源与文件的 SHA-256 记录在
+`build-logic/convention/src/main/resources/r2-debugging/source.json`, 由
+`tools/sync-debugging-declarations.py --declarations <checkout> [--check]` 同步. Rhino 声明
+锁升级到已声明 `debugging` 的 npm 版本时, 移除这份补充 (否则同名全局变量会重复声明).
+
 APK 的 `assets/r2-declarations/v2/licenses/rhino/MPL-2.0.txt` 提供许可证正文,
 `assets/r2-declarations/v2/notices/rhino-source.txt` 分别列明公开 tarball 与本地补充
 内容的来源. 所有实际声明及说明文件都由 distribution manifest 的完整清单和摘要校验.

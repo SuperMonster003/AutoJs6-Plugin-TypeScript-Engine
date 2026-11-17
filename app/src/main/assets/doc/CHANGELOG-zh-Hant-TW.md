@@ -4,6 +4,12 @@
 
 ******
 
+# v0.7.1
+
+###### 2026/11/17
+
+* `改善` debugging 模組的 TypeScript 宣告, TypeScript 指令碼可呼叫 debugging.waitForAttach 等方法等待除錯器 (需要 AutoJs6 6.8.1 或更高版本, Node.js 指令碼不適用)
+
 # v0.7.0
 
 ###### 2026/10/13
