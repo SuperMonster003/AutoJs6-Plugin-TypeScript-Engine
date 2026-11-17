@@ -9,6 +9,7 @@
 ###### 2026/11/17
 
 * `Improvement` TypeScript declarations for the debugging module, letting TypeScript scripts call debugging.waitForAttach and other methods to wait for a debugger (requires AutoJs6 6.8.1 or later, not for Node.js scripts)
+* `Improvement` Clear error when Chrome/WebView is below 119: TypeScript scripts fail at once, naming the required and the current WebView version (before, they failed only after a timeout, without the cause)
 
 # v0.7.0
 

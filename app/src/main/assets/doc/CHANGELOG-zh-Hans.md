@@ -9,6 +9,7 @@
 ###### 2026/11/17
 
 * `优化` debugging 模块的 TypeScript 声明, TypeScript 脚本可调用 debugging.waitForAttach 等方法等待调试器 (需要 AutoJs6 6.8.1 或更高版本, Node.js 脚本不适用)
+* `优化` Chrome/WebView 低于 119 时 TypeScript 脚本立即失败并给出明确错误, 写明所需与当前的 WebView 版本 (此前要等到超时, 且错误不指明原因)
 
 # v0.7.0
 

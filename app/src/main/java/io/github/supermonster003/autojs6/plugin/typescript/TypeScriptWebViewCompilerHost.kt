@@ -261,6 +261,8 @@ class TypeScriptWebViewCompilerHost(
                 !closed && !fatalTeardownPending && !timeoutRecoveryPending
             }
             if (!mayCreate || webView != null) return@post
+            // An engine too old for the compiler page would only fail to parse it (Q150).
+            if (CompilerWebViewRequirement.current(context)?.isTooOld == true) return@post
             runCatching { createSessionOnMain() }.onFailure { _ ->
                 runCatching { destroySessionOnMain() }
                 currentSnapshot = currentSnapshot.copy(

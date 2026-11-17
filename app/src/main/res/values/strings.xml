@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="error_webview_too_old">TypeScript compilation needs Android System WebView %1$d or later; the current one is %2$s. Update Android System WebView or Chrome, then try again.</string>
     <string name="plugin_description">Full TypeScript project compiler frontend for AutoJs6</string>
     <string name="plugin_instruction">Provides execution-time TypeScript compilation, diagnostics, and Source Maps for Rhino and Node.js projects. Rhino does not require Node.js Runtime; Node profiles require that plugin.</string>
 </resources>

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="error_webview_too_old">Для компиляции TypeScript нужен Android System WebView %1$d или новее; текущая версия: %2$s. Обновите Android System WebView или Chrome и повторите попытку.</string>
     <string name="plugin_description">Полный frontend компилятора проектов TypeScript для AutoJs6</string>
     <string name="plugin_instruction">Предоставляет компиляцию TypeScript перед выполнением, diagnostics и Source Maps для проектов Rhino и Node.js. Rhino не требует Node.js Runtime; профили Node требуют этот плагин.</string>
 </resources>

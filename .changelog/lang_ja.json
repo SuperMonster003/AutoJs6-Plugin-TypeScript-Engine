@@ -9,7 +9,8 @@
     "v0.7.1": {
       "released_date": "2026/11/17",
       "improvement": [
-        "debugging モジュールの TypeScript 宣言, TypeScript スクリプトから debugging.waitForAttach などのメソッドでデバッガーを待機可能 (AutoJs6 6.8.1 以降が必要, Node.js スクリプトは対象外)"
+        "debugging モジュールの TypeScript 宣言, TypeScript スクリプトから debugging.waitForAttach などのメソッドでデバッガーを待機可能 (AutoJs6 6.8.1 以降が必要, Node.js スクリプトは対象外)",
+        "Chrome/WebView が 119 未満の場合, TypeScript スクリプトは必要なバージョンと現在の WebView バージョンを示す明確なエラーですぐに失敗します (以前はタイムアウトまで待ち, 原因も示されませんでした)"
       ]
     },
     "v0.7.0": {

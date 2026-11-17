@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="error_webview_too_old">TypeScript 編譯需要 Android System WebView %1$d 或更高版本, 當前為 %2$s. 請更新 Android System WebView 或 Chrome 後重試</string>
     <string name="plugin_description">AutoJs6 完整 TypeScript 項目編譯前端</string>
     <string name="plugin_instruction">為 Rhino 和 Node.js 項目提供執行前 TypeScript 編譯, 診斷和 Source Map. Rhino 無需 Node.js Runtime; Node 配置需要對應插件.</string>
 </resources>

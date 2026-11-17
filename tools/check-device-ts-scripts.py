@@ -112,10 +112,12 @@ def main() -> int:
 
     adb(serial, "shell", f"rm -rf {DIRECTORY}", check=False)
     adb(serial, "shell", f"mkdir -p {DIRECTORY}")
+    # A fresh comment per run defeats the host's compilation cache, so every case reaches the plugin.
+    nonce = f"// run {time.time_ns()}"
     for name, lines in SCRIPTS.items():
         adb(serial, "shell", f"rm -f {DIRECTORY}/{name}", check=False)
         local = subprocess.run(["adb", "-s", serial, "shell", f"cat > {DIRECTORY}/{name}"],
-                               input=("\n".join(lines) + "\n").encode("utf-8"), capture_output=True, timeout=60)
+                               input=("\n".join([nonce, *lines]) + "\n").encode("utf-8"), capture_output=True, timeout=60)
         if local.returncode != 0:
             raise RuntimeError(f"push {name} failed")
     # AutoJs6 in the foreground first: some systems freeze or rate limit background starts.

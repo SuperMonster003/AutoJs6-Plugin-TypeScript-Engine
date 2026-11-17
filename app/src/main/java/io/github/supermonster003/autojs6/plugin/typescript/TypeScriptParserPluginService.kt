@@ -57,7 +57,14 @@ class TypeScriptParserPluginService : Service() {
             putInt(Contract.KEY_CONTRACT_VERSION, Contract.VERSION)
             putString(Contract.KEY_CONTRACT_HASH, Contract.HASH)
             putInt(Contract.KEY_TREE_SCHEMA_REVISION, Contract.TREE_SCHEMA_REVISION)
-            putString(Contract.KEY_STATUS, Contract.STATUS_READY)
+            putString(
+                Contract.KEY_STATUS,
+                if (CompilerWebViewRequirement.current(this@TypeScriptParserPluginService)?.isTooOld == true) {
+                    Contract.STATUS_UNAVAILABLE
+                } else {
+                    Contract.STATUS_READY
+                },
+            )
             putString(Contract.KEY_COMPILER_VERSION, BuildConfig.TYPESCRIPT_VERSION)
             putStringArray(Contract.KEY_SUPPORTED_EXTENSIONS, Contract.SUPPORTED_EXTENSIONS)
             putInt(Contract.KEY_MAX_SOURCE_CHARS, Contract.MAX_SOURCE_CHARS)
@@ -73,6 +80,10 @@ class TypeScriptParserPluginService : Service() {
                 val valid = when (checked) {
                     is ParserRequestCheck.Rejected -> return failure(checked.code, checked.message)
                     is ParserRequestCheck.Valid -> checked.request
+                }
+                // The parser page needs the same engine as the compiler page (Q150).
+                CompilerWebViewRequirement.rejectionMessage(this@TypeScriptParserPluginService)?.let { message ->
+                    return failure(Contract.ERROR_UNAVAILABLE, message)
                 }
                 if (!slots.tryAcquire()) {
                     return failure(Contract.ERROR_BUSY, "${Contract.MAX_CONCURRENT_PARSES} parses are already running.")

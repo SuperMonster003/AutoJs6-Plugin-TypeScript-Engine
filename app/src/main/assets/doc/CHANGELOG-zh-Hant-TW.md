@@ -9,6 +9,7 @@
 ###### 2026/11/17
 
 * `改善` debugging 模組的 TypeScript 宣告, TypeScript 指令碼可呼叫 debugging.waitForAttach 等方法等待除錯器 (需要 AutoJs6 6.8.1 或更高版本, Node.js 指令碼不適用)
+* `改善` Chrome/WebView 低於 119 時 TypeScript 指令碼立即失敗並給出明確錯誤, 寫明所需與目前的 WebView 版本 (此前要等到逾時, 且錯誤不指明原因)
 
 # v0.7.0
 

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="error_webview_too_old">يتطلب تجميع TypeScript الإصدار %1$d أو أحدث من Android System WebView; الإصدار الحالي %2$s. حدّث Android System WebView أو Chrome ثم أعد المحاولة.</string>
     <string name="plugin_description">واجهة تجميع مشاريع TypeScript كاملة ل AutoJs6</string>
     <string name="plugin_instruction">توفر تجميع TypeScript قبل التنفيذ والتشخيصات و Source Maps لمشاريع Rhino و Node.js. لا يحتاج Rhino الى Node.js Runtime; وتتطلب ملفات Node ذلك المكون.</string>
 </resources>

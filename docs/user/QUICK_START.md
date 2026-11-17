@@ -11,7 +11,12 @@ JavaScript 仍由 AutoJs6 的 Rhino 或 Node.js 引擎执行。
 
 - Android 7.0 / API 24 或更高版本。
 - Chrome/WebView `119` 或更高版本。API 24/25 自带的旧 WebView 不能解析当前
-  compiler host，必须先更新 provider。
+  compiler host，必须先更新 provider。0.7.1 起, WebView 低于 119 时 TypeScript
+  脚本立即以 `ERR_AUTOJS6_TYPESCRIPT_COMPILER_UNAVAILABLE` 失败, 控制台的 `Caused by`
+  行与日志写明所需与当前的版本 (例如
+  `TypeScript compilation needs Android System WebView 119 or later; the current one is 69.0.3497.100 (com.android.chrome)`).
+- `debugging` 模块 (AutoJs6 6.8.1 起, 只用于 Rhino 脚本) 的声明随 0.7.1 提供;
+  旧宿主上声明仍在, 但运行时没有该模块.
 - AutoJs6 `6.8.0 Alpha7`（build `5253`）或更高兼容版本。
 - 与宿主匹配、使用官方证书签名的 TypeScript Engine Plugin。
 - 仅在运行 Node 项目时需要 Node.js Runtime 插件；Rhino 项目不需要它。TypeScript

@@ -21,6 +21,6 @@ const message: string = 'Hello, TypeScript';
 console.log(message);
 ```
 
-Android 7 (API 24) 이상과 Chrome/WebView 119 이상이 필요합니다. TypeScript 6.0.3이 포함됩니다. 네이티브 npm 애드온, 패키지 설치 스크립트 및 emitDecoratorMetadata는 지원하지 않습니다. 공개 배포는 호환 호스트 출시를 따르며 과거 검증이 이후 모든 APK를 인증하지는 않습니다. Rhino 프로젝트는 ES2018로 컴파일되고 `class` 구문을 그대로 출력하므로 실행하려면 AutoJs6 6.8.0 이상이 필요합니다. async 함수와 async 제너레이터도 그대로 출력되며 필요한 버전도 같습니다.
+Android 7 (API 24) 이상과 Chrome/WebView 119 이상이 필요합니다. TypeScript 6.0.3이 포함됩니다. 네이티브 npm 애드온, 패키지 설치 스크립트 및 emitDecoratorMetadata는 지원하지 않습니다. 공개 배포는 호환 호스트 출시를 따르며 과거 검증이 이후 모든 APK를 인증하지는 않습니다. Rhino 프로젝트는 ES2018로 컴파일되고 `class` 구문을 그대로 출력하므로 실행하려면 AutoJs6 6.8.0 이상이 필요합니다. async 함수와 async 제너레이터도 그대로 출력되며 필요한 버전도 같습니다. Chrome/WebView가 119 미만이면 TypeScript 스크립트는 필요한 버전과 현재 WebView 버전을 알려 주는 오류로 즉시 실패합니다 (0.7.1부터). Rhino 스크립트는 debugging 모듈을 사용할 수 있으며 (0.7.1부터 선언), 실행하려면 AutoJs6 6.8.1 이상이 필요합니다. Node.js 스크립트에는 이 모듈이 없습니다.
 
 [CHANGELOG](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/app/src/main/assets/doc/CHANGELOG-ko.md) | [Development](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/docs/DEVELOPMENT.md) | [LICENSE](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/LICENSE) | [Third-party notices](https://github.com/SuperMonster003/AutoJs6-Plugin-TypeScript-Engine/blob/master/THIRD_PARTY_NOTICES.md)

@@ -9,6 +9,7 @@
 ###### 2026/11/17
 
 * `Mejora` Declaraciones TypeScript del módulo debugging, que permiten a los scripts TypeScript llamar a debugging.waitForAttach y otros métodos para esperar a un depurador (requiere AutoJs6 6.8.1 o posterior, no aplica a scripts Node.js)
+* `Mejora` Con Chrome/WebView anterior a 119, los scripts TypeScript fallan de inmediato con un error claro que indica la versión de WebView requerida y la actual (antes fallaban solo tras un tiempo de espera, sin indicar la causa)
 
 # v0.7.0
 

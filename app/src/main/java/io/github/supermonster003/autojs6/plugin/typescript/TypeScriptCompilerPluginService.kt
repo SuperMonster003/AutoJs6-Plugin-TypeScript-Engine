@@ -141,6 +141,17 @@ class TypeScriptCompilerPluginService : Service() {
                 }
             }
 
+            CompilerWebViewRequirement.rejectionMessage(
+                this@TypeScriptCompilerPluginService,
+            )?.let { message ->
+                return compilerInfoWithLifecycleTelemetry().apply {
+                    putString(
+                        TypeScriptCompilerContract.KEY_ERROR_CODE,
+                        TypeScriptCompilerContract.ERROR_COMPILER_UNAVAILABLE,
+                    )
+                    putString(TypeScriptCompilerContract.KEY_ERROR_MESSAGE, message)
+                }
+            }
             val callingUid = Binder.getCallingUid()
             if (
                 options.requestsProductionSupervisorOwnerForTesting(
@@ -413,6 +424,19 @@ class TypeScriptCompilerPluginService : Service() {
                     return rejection.toBundle()
                 }
                 if (r2Controls != null) {
+                    // An engine older than the compiler page needs fails here, at once and by
+                    // name, instead of after the Worker timeout (Q150, WEBVIEW_SUPPORT.md).
+                    CompilerWebViewRequirement.rejectionMessage(
+                        this@TypeScriptCompilerPluginService,
+                    )?.let { message ->
+                        return R2CompilationAdmissionDecision(
+                            requestId = requireNotNull(envelope).requestId,
+                            accepted = false,
+                            jobToken = null,
+                            errorCode = TypeScriptCompilerContract.ERROR_COMPILER_UNAVAILABLE,
+                            errorMessage = message,
+                        ).toBundle()
+                    }
                     if (
                         r2Controls.origin != R2CompilationControlOrigin.DEBUG_PROBE &&
                         !R2CompilerProcessSupervisorClient.awaitReady(

@@ -38,7 +38,7 @@ TypeScript 数字码、`NODE_RESOLUTION_*` 对应的数字码，或 `CONFIG_*` �
 | `ERR_AUTOJS6_TYPESCRIPT_COMPILATION_CANCELLED` | 用户、宿主生命周期或显式 cancel 终止任务 | 若是主动取消无需处理；否则检查后台任务/Activity 是否提前销毁并重试 |
 | `ERR_AUTOJS6_TYPESCRIPT_COMPILATION_DIAGNOSTICS` | TypeScript、受控配置或 Node 解析产生 error，`noEmitOnError` 阻止输出 | 打开 `diagnostics.json` 或宿主诊断面板，优先修复带文件位置和下文 detail code 的记录 |
 | `ERR_AUTOJS6_TYPESCRIPT_COMPILATION_TIMEOUT` | 任务超过请求 deadline（默认 30 秒，公开最大 120 秒） | 修复无限/异常复杂类型，缩小项目 snapshot；合理提高宿主项目 timeout，但不要超过 120 秒 |
-| `ERR_AUTOJS6_TYPESCRIPT_COMPILER_UNAVAILABLE` | compiler backend 未就绪、WebView/Worker 启动失败、编译进程死亡或健康检查失败 | 确认 Android API 24+、Chrome/WebView 119+ 和插件版本；重试一次，仍失败则收集 WebView 版本及 compiler 日志 |
+| `ERR_AUTOJS6_TYPESCRIPT_COMPILER_UNAVAILABLE` | compiler backend 未就绪、WebView/Worker 启动失败、编译进程死亡或健康检查失败; 0.7.1 起 Chromium 引擎低于 119 时在加载编译页之前立即返回, 消息写明所需与当前的 WebView 版本 (宿主控制台的 `Caused by` 行与日志可见) | 确认 Android API 24+、Chrome/WebView 119+ 和插件版本；重试一次，仍失败则收集 WebView 版本及 compiler 日志 |
 | `ERR_AUTOJS6_TYPESCRIPT_OUTPUT_TRANSPORT` | 编译结果无法写入/读取输出 FD，或 formal output transport 在提交阶段损坏 | 检查存储/进程异常和可用空间，重试；持续复现时连同 request ID、输出阶段日志提交问题 |
 | `ERR_AUTOJS6_TYPESCRIPT_ARCHIVE_FORMAT` | 输入/输出不是受支持的 ZIP transport，条目方法、容器结构或 schema 文件不符合格式 | 不要手工拼接中间 ZIP；升级宿主/插件；API 调用方按 archive schema v1 重新生成 |
 | `ERR_AUTOJS6_TYPESCRIPT_ARCHIVE_INTEGRITY` | 声明的长度/SHA-256 与实际 archive、manifest 或 entry 不一致，或内容在传输中被截断 | 重新生成并完整写入 FD；不要复用已关闭/已移动游标的 descriptor |

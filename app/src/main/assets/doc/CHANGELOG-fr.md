@@ -9,6 +9,7 @@
 ###### 2026/11/17
 
 * `Amélioration` Déclarations TypeScript du module debugging, permettant aux scripts TypeScript d'appeler debugging.waitForAttach et d'autres méthodes pour attendre un débogueur (nécessite AutoJs6 6.8.1 ou version ultérieure, hors scripts Node.js)
+* `Amélioration` Avec Chrome/WebView antérieur à 119, les scripts TypeScript échouent immédiatement avec une erreur claire indiquant la version de WebView requise et la version actuelle (auparavant, ils échouaient seulement après un délai, sans en donner la cause)
 
 # v0.7.0
 
